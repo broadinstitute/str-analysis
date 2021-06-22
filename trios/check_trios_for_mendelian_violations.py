@@ -1,9 +1,7 @@
 import argparse
 import collections
 from intervaltree import Interval
-import json
 import logging
-import os
 import pandas as pd
 import pathlib
 import re
@@ -168,7 +166,7 @@ def compute_mendelian_violations(trios):
                 compute_min_distance_mendelian_ci(proband_CIs[1], father_CIs) + compute_min_distance_mendelian_ci(proband_CIs[0], mother_CIs),
                 )
         else:
-            raise Exception()
+            raise ValueError(f"Unexpected proband_alleles value: {proband_alleles}")
 
         if ok_mendelian:
             assert distance_mendelian == 0, f"{locus_id}  d:{distance_mendelian}  ({father_row.Genotype} + {mother_row.Genotype} => {proband_row.Genotype})"
