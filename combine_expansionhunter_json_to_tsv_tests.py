@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from combine_expansionhunter_json_results_to_tsv import parse_read_count_tuples, convert_expansionhunter_json_to_tsv_columns
+from combine_expansionhunter_json_to_tsv import parse_read_count_tuples, convert_expansionhunter_json_to_tsv_columns
 
 
 VARIANT_CATALOG_CONTENTS = json.loads("""[{
