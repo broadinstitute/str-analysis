@@ -18,8 +18,10 @@ def parse_args(args_list=None):
     p.add_argument(
         "-c",
         "--variant-catalog",
-        help="path of json variant catalog file",
-        type=pathlib.Path,
+        help="path of json variant catalog file. If specified, annotations for each locus in this variant catalog will "
+             "be added to the output table as additional columns. This option can be specified more than once to "
+             "use multiple variant catalogs as an annotation source.",
+        action="append",
     )
     p.add_argument(
         "-o",
@@ -34,8 +36,9 @@ def parse_args(args_list=None):
     )
     args = p.parse_args(args=args_list)
 
-    if args.variant_catalog and not args.variant_catalog.is_file():
-        p.error(f"{args.variant_catalog} not found")
+    for variant_catalog in args.variant_catalog:
+        if not os.path.isfile(variant_catalog):
+            p.error(f"{variant_catalog} not found")
 
     if not args.json_paths:
         args.json_paths = [p for p in pathlib.Path(".").glob("**/*.json")]
@@ -48,10 +51,14 @@ def main():
     args = parse_args()
 
     output_prefix = args.output_prefix or f"combined.{len(args.json_paths)}_json_files"
-    variant_catalog_contents = None
+    combined_variant_catalog_contents = []
     if args.variant_catalog:
-        variant_catalog_contents = parse_json_file(args.variant_catalog)
-        logging.info(f"Parsed {len(variant_catalog_contents)} records from {args.variant_catalog}")
+        for variant_catalog in args.variant_catalog:
+            variant_catalog_contents = parse_json_file(variant_catalog)
+            logging.info(f"Parsed {len(variant_catalog_contents)} records from {variant_catalog}")
+            combined_variant_catalog_contents.extend(variant_catalog_contents)
+        #for d in variant_catalog_contents:
+        #    logging.info("    " + d["LocusId"])
 
     variant_records = []
     allele_records = []
@@ -61,14 +68,14 @@ def main():
         except Exception as e:
             logging.info(f"Skipping {json_path}... Unable to parse json: {e}")
 
-        if not isinstance(json_contents, dict) or not "SampleParameters" in json_contents:
+        if not isinstance(json_contents, dict) or "SampleParameters" not in json_contents:
             logging.info(f"Skipping {json_path}... Expected key 'SampleParameters' not found.")
             continue
 
         variant_records.extend(
             convert_expansionhunter_json_to_tsv_columns(
                 json_contents,
-                variant_catalog_contents=variant_catalog_contents,
+                variant_catalog_contents=combined_variant_catalog_contents,
                 json_file_path=json_path,
                 return_allele_records=False,
             )
@@ -76,7 +83,7 @@ def main():
         allele_records.extend(
             convert_expansionhunter_json_to_tsv_columns(
                 json_contents,
-                variant_catalog_contents=variant_catalog_contents,
+                variant_catalog_contents=combined_variant_catalog_contents,
                 json_file_path=json_path,
                 return_allele_records=True,
             )
@@ -181,7 +188,7 @@ def convert_expansionhunter_json_to_tsv_columns(
             else:
                 if locus_id not in ALREADY_WARNED_ABOUT:
                     ALREADY_WARNED_ABOUT.add(locus_id)
-                    logging.warning(f"WARN: locus id {locus_id} not found in variant catalog.")
+                    logging.warning(f"{json_file_path} locus id {locus_id} not found in variant catalog.")
 
         for variant_json in locus_json.get("Variants", {}).values():
             if "Genotype" not in variant_json:
