@@ -143,7 +143,10 @@ def compute_mendelian_violations(trios):
         mother_CIs = [Interval(*[int(i) for i in ci.split("-")]) for ci in mother_row.GenotypeConfidenceInterval.split("/")]
 
         if len(proband_alleles) == 1:
-            ok_mendelian = proband_alleles[0] in father_alleles and proband_alleles[0] in mother_alleles
+            # AFAIK ExpansionHunter only outputs len(proband_alleles) == 1 if the proband is male, and the locus is on the X chromosome. 
+            # Strictly speaking, this means the X-chrom allele should always be inheritted from the mother. However, since there might be more complicated
+            # scenarios (such as in the PAR region), call it ok (not a mendelian violation) even if it matches the father's allele
+            ok_mendelian = proband_alleles[0] in father_alleles or proband_alleles[0] in mother_alleles
             distance_mendelian = compute_min_distance_mendelian(proband_alleles[0], father_alleles) + compute_min_distance_mendelian(proband_alleles[0], mother_alleles)
 
             ok_mendelian_ci = any([intervals_overlap(proband_CIs[0], i) for i in father_CIs]) or any([intervals_overlap(proband_CIs[0], i) for i in mother_CIs])
