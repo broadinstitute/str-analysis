@@ -60,39 +60,61 @@ def main():
         #for d in variant_catalog_contents:
         #    logging.info("    " + d["LocusId"])
 
-    variant_records = []
-    allele_records = []
-    for json_path in args.json_paths:
-        try:
-            json_contents = parse_json_file(json_path)
-        except Exception as e:
-            logging.info(f"Skipping {json_path}... Unable to parse json: {e}")
+    variant_table_columns = []
+    allele_table_columns = []
+    wrote_variant_table_header = wrote_allele_table_header = False
+    variant_records_counter = allele_records_counter = 0
+    variant_output_file = open(f"{output_prefix}.variants.tsv", "wt")
+    allele_output_file = open(f"{output_prefix}.alleles.tsv", "wt")
+    for just_get_header in True, False:
+        if just_get_header:
+            json_paths = args.json_paths[:20]
+        else:
+            json_paths = args.json_paths
 
-        if not isinstance(json_contents, dict) or "SampleParameters" not in json_contents:
-            logging.info(f"Skipping {json_path}... Expected key 'SampleParameters' not found.")
-            continue
+        for json_path in json_paths:
+            try:
+                json_contents = parse_json_file(json_path)
+            except Exception as e:
+                logging.info(f"Skipping {json_path}... Unable to parse json: {e}")
 
-        variant_records.extend(
-            convert_expansionhunter_json_to_tsv_columns(
-                json_contents,
-                variant_catalog_contents=combined_variant_catalog_contents,
-                json_file_path=json_path,
-                return_allele_records=False,
-            )
-        )
-        allele_records.extend(
-            convert_expansionhunter_json_to_tsv_columns(
-                json_contents,
-                variant_catalog_contents=combined_variant_catalog_contents,
-                json_file_path=json_path,
-                return_allele_records=True,
-            )
-        )
+            if not isinstance(json_contents, dict) or "SampleParameters" not in json_contents:
+                logging.info(f"Skipping {json_path}... Expected key 'SampleParameters' not found.")
+                continue
 
-    pd.DataFrame(variant_records).to_csv(f"{output_prefix}.variants.tsv", sep="\t", index=False, header=True)
-    logging.info(f"Wrote {len(variant_records)} records to {output_prefix}.variants.tsv")
-    pd.DataFrame(allele_records).to_csv(f"{output_prefix}.alleles.tsv", sep="\t", index=False, header=True)
-    logging.info(f"Wrote {len(allele_records)} records to {output_prefix}.alleles.tsv")
+            for record in convert_expansionhunter_json_to_tsv_columns(
+                    json_contents,
+                    variant_catalog_contents=combined_variant_catalog_contents,
+                    json_file_path=json_path,
+                    return_allele_records=False,
+                ):
+                if just_get_header:
+                    variant_table_columns.extend([k for k in record.keys() if k not in variant_table_columns])
+                else:
+                    if not wrote_variant_table_header:
+                        variant_output_file.write("\t".join(variant_table_columns) + "\n")
+                        wrote_variant_table_header = True
+                    variant_records_counter += 1
+                    variant_output_file.write("\t".join([str(record.get(c) or "") for c in variant_table_columns]) + "\n")
+
+            for record in convert_expansionhunter_json_to_tsv_columns(
+                    json_contents,
+                    variant_catalog_contents=combined_variant_catalog_contents,
+                    json_file_path=json_path,
+                    return_allele_records=True,
+                ):
+                if just_get_header:
+                    allele_table_columns.extend([k for k in record.keys() if k not in allele_table_columns])
+                else:
+                    if not wrote_allele_table_header:
+                        allele_output_file.write("\t".join(allele_table_columns) + "\n")
+                        wrote_allele_table_header = True
+                    allele_records_counter += 1
+                    allele_output_file.write("\t".join([str(record.get(c) or "") for c in allele_table_columns]) + "\n")
+
+
+    logging.info(f"Wrote {variant_records_counter} records to {output_prefix}.variants.tsv")
+    logging.info(f"Wrote {allele_records_counter} records to {output_prefix}.alleles.tsv")
 
 
 class ParseError(Exception):
