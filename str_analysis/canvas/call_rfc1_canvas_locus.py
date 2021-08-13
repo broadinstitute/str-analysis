@@ -2,8 +2,6 @@
 This script takes a WGS bam or cram file and outputs a .json file with info related to the RFC1/CANVAS STR locus,
 including the following fields:
 
-"rfc1_locus_n_well_aligned_reads": the number of reads with well-aligned (non-soft-clipped) bases within the RFC1 locus,
-    implying read support for the presence of the benign reference allele
 "call": this has a format analogous to a VCF genotype, and can be:
     "PATHOGENIC MOTIF / PATHOGENIC MOTIF"
     "BENIGN MOTIF / BENIGN MOTIF"
@@ -37,7 +35,7 @@ CANVAS_REPEAT_UNIT_SIZE = 5
 
 RFC1_LOCUS_COORDS_0BASED = {
     "37": ("4", 39350044, 39350099),
-    "38": ("chr4", 39348427, 39348475),   # chr4:39,348,427-39,348,475
+    "38": ("chr4", 39348424, 39348479),   # chr4:39348424-39348479
 }
 
 RFC1_LOCUS_KNOWN_ALLELES_BY_CATEGORY = {
@@ -83,7 +81,7 @@ def main():
     bam_cram_prefix = re.sub(".bam$|.cram$", "", os.path.basename(args.reads))
     args.output_prefix = args.output_prefix or bam_cram_prefix
 
-    chrom, start, end = RFC1_LOCUS_COORDS_0BASED[args.genome_version]
+    chrom, locus_start_0based, locus_end = RFC1_LOCUS_COORDS_0BASED[args.genome_version]
 
     result = {}
 
@@ -113,40 +111,45 @@ def main():
 
         # count reads in the left & right flanks to estimate read depth
         # NOTE: f.fetch retrieves all reads that *overlap* the given interval
-        left_flank_n_well_aligned_bases = sum(
-            (r.query_alignment_end - r.query_alignment_start
-             for r in f.fetch(chrom, start - MARGIN - FLANK_SIZE, start - MARGIN) if r.mapq >= MIN_MAPQ))
-        right_flank_n_well_aligned_bases = sum(
-            (r.query_alignment_end - r.query_alignment_start
-             for r in f.fetch(chrom, end + MARGIN, end + MARGIN + FLANK_SIZE) if r.mapq >= MIN_MAPQ))
+        left_flank_n_well_aligned_bases = sum((r.query_alignment_length for r in f.fetch(
+                chrom,
+                locus_start_0based - MARGIN - FLANK_SIZE,
+                locus_start_0based - MARGIN,
+            ) if r.mapq >= MIN_MAPQ))
+        right_flank_n_well_aligned_bases = sum((r.query_alignment_length for r in f.fetch(
+                chrom,
+                locus_end + MARGIN,
+                locus_end + MARGIN + FLANK_SIZE,
+            ) if r.mapq >= MIN_MAPQ))
 
-        # count the number of reads that have MAPQ above the threshold, and have non-soft-clipped bases aligning
-        # within the RFC1 AAAAG repeat in the reference genome. Add MARGIN to avoid counting reads where a few
-        # bases match AAAAG by chance.
-        rfc1_locus_n_well_aligned_reads = sum(
-            (1 for r in f.fetch(chrom, start + MARGIN, end - MARGIN) if r.mapq >= MIN_MAPQ
-             and (r.query_alignment_start < end - MARGIN or r.query_alignment_end > start + MARGIN))
-        )
-
-        # get soft-clipped sequences
-        soft_clipped_sequences = []
-        for r in f.fetch(chrom, start - MARGIN, end + MARGIN):
+        # get all sequences that overlap the RFC1 locus (regardless of whether they're soft-clipped)
+        overlapping_sequences = []
+        for r in f.fetch(chrom, locus_start_0based - MARGIN, locus_end + MARGIN):
             # see https://pysam.readthedocs.io/en/latest/api.html#pysam.AlignedSegment.query_alignment_sequence
             if r.mapq < MIN_MAPQ:
                 continue
+
             read_sequence = r.seq
-            left_softclipped_bases = read_sequence[:r.query_alignment_start]
-            if len(left_softclipped_bases) >= CANVAS_REPEAT_UNIT_SIZE:
-                soft_clipped_sequences.append(left_softclipped_bases)
-            right_softclipped_bases = read_sequence[r.query_alignment_end:]
-            if len(right_softclipped_bases) >= CANVAS_REPEAT_UNIT_SIZE:
-                soft_clipped_sequences.append(right_softclipped_bases)
+            #has_soft_clipped_bases_on_left = r.query_alignment_start > 0
+            #has_soft_clipped_bases_on_right = r.query_alignment_end < len(read_sequence)
+            read_start_pos_including_soft_clips = r.reference_start - r.query_alignment_start
+            read_end_pos_including_soft_clips = read_start_pos_including_soft_clips + len(read_sequence)
+            start_offset = 0
+            if read_start_pos_including_soft_clips < locus_start_0based:
+                start_offset = locus_start_0based - read_start_pos_including_soft_clips
+
+            end_offset = len(read_sequence)
+            if read_end_pos_including_soft_clips > locus_end:
+                end_offset = locus_end - read_end_pos_including_soft_clips
+
+            relevant_bases = read_sequence[start_offset:end_offset]
+            if len(relevant_bases) >= CANVAS_REPEAT_UNIT_SIZE:
+                overlapping_sequences.append(relevant_bases)
 
     left_flank_coverage = left_flank_n_well_aligned_bases / FLANK_SIZE
     right_flank_coverage = right_flank_n_well_aligned_bases / FLANK_SIZE
     result.update({
         "sample_id": args.sample_id,
-        "rfc1_locus_n_well_aligned_reads": rfc1_locus_n_well_aligned_reads,
         "left_flank_coverage": left_flank_coverage,
         "right_flank_coverage": right_flank_coverage,
     })
@@ -154,20 +157,20 @@ def main():
     # compute the repeat unit(s) found in the soft-clipped reads, and how many times each one occurs
     repeat_unit_to_n_occurrences = collections.defaultdict(int)
     repeat_unit_to_read_count = collections.defaultdict(int)
-    for soft_clipped_sequence in soft_clipped_sequences:
+    for overlapping_sequence in overlapping_sequences:
         # in gnomAD, EHdn sometimes finds 6bp repeat units (eg. AAAGGG), so check for those as well
         for repeat_unit_size in (CANVAS_REPEAT_UNIT_SIZE, CANVAS_REPEAT_UNIT_SIZE + 1):
-            if len(soft_clipped_sequence) < repeat_unit_size:
+            if len(overlapping_sequence) < repeat_unit_size:
                 continue
             repeat_unit, count = compute_most_frequent_repeat_unit(
-                soft_clipped_sequence, repeat_unit_size=repeat_unit_size)
+                overlapping_sequence, repeat_unit_size=repeat_unit_size, min_fraction_bases_covered=0.7)
             if args.verbose:
                 if repeat_unit:
-                    print(f"Found {compute_canonical_repeat_unit(repeat_unit)} occurs {count}x in these "
-                          f"soft-clipped bases within the RFC1 locus: {soft_clipped_sequence}")
+                    print(f"Found {compute_canonical_repeat_unit(repeat_unit)} occurs {count}x in read bases that "
+                          f"overlap the RFC1 locus: {overlapping_sequence}")
                 else:
-                    print(f"Didn't find a consistent {repeat_unit_size}bp repeat unit in these softed-clipped bases "
-                          f"within the RFC1 locus: {soft_clipped_sequence}")
+                    print(f"Didn't find a consistent {repeat_unit_size}bp repeat unit in read bases "
+                          f"that overlap the RFC1 locus: {overlapping_sequence}")
 
             if repeat_unit is not None:
                 canonical_repeat_unit = compute_canonical_repeat_unit(repeat_unit)
@@ -214,13 +217,7 @@ def main():
         })
 
     # decide which combination of alleles is supported by the data
-    # absence of reads without soft-clips at the RFC1 locus suggests absence of the benign reference allele (AAAAG)
-    if rfc1_locus_n_well_aligned_reads >= 5:
-        # well-aligned reads within the RFC1 locus imply presence of the benign reference allele (AAAAG)
-        n_benign_alleles += 1
-        n_total_well_supported_alleles += 1
-
-    # NOTE: we don't try to determine the size of the expansion and whether it's in the pathogenic range
+    # NOTE: there's no attempt to determine the size of the expansion and whether it's in the pathogenic range
     final_call = None
     if n_total_well_supported_alleles > 0 and left_flank_coverage >= 5 and right_flank_coverage >= 5:
         if n_pathogenic_alleles == n_total_well_supported_alleles:
@@ -258,7 +255,7 @@ def main():
         with open(args.ehdn_profile, "rt") as f:
             data = json.load(f)
 
-        records, sample_read_depth, _ = parse_ehdn_info_for_locus(data, chrom, start, end, motifs_of_interest=None)
+        records, sample_read_depth, _ = parse_ehdn_info_for_locus(data, chrom, locus_start_0based, locus_end)
         result["ehdn_sample_read_depth"] = sample_read_depth
 
         # get the 2 alleles with the most read support

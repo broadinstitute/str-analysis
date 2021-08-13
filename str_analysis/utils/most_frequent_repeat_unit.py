@@ -1,12 +1,12 @@
 
 
-def compute_most_frequent_repeat_unit(sequence, repeat_unit_size=5, min_occurences=3, min_fraction_bases_covered=0.8):
+def compute_most_frequent_repeat_unit(sequence, repeat_unit_size=5, min_occurrences=3, min_fraction_bases_covered=0.8):
     """Returns the most frequent repeat unit of the given size within the given sequence.
 
     Args:
         sequence (str): a sequence of dna bases
         repeat_unit_size (int): exact repeat unit size in bases
-        min_occurences (int): repeat_units that occur fewer than this many times will be ignored
+        min_occurrences (int): repeat_units that occur fewer than this many times will be ignored
         min_fraction_bases_covered (float): repeat units that cover less than this fraction the sequence will be ignored
 
     Returns:
@@ -27,7 +27,7 @@ def compute_most_frequent_repeat_unit(sequence, repeat_unit_size=5, min_occurenc
     for repeat_unit, count in repeat_units.items():
         if (
                 count > most_frequent_repeat_unit_occurrences and
-                count >= min_occurences and
+                count >= min_occurrences and
                 float(count * repeat_unit_size)/len(sequence) >= min_fraction_bases_covered
 
         ):
