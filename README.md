@@ -9,7 +9,7 @@ This package contains scripts and utilities related to analyzing short tandem re
 This script takes a WGS bam or cram file and outputs a .json file containing details about alleles it 
 detected at the RFC1/CANVAS STR locus. The main fields in the output dictionary are:
 
-**sample_id**: *If this value is not specified as a command line arg, it is parsed from the input bam/cram file header.*    
+**sample_id**: *If this value is not specified as a command line arg, it is parsed from the input bam/cram file header or filename prefix.*    
 **call**: *describes the alleles detected at the RFC1/CANVAS locus. Its format is analogous to a VCF genotype. Possible values are:*
 * "PATHOGENIC MOTIF / PATHOGENIC MOTIF": *only pathogenic allele(s) detected*
 * "BENIGN MOTIF / BENIGN MOTIF": *only benign allele(s) detected*
