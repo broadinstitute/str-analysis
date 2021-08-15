@@ -1,5 +1,5 @@
 import unittest
-from most_frequent_repeat_unit import compute_most_frequent_repeat_unit
+from str_analysis.utils.most_frequent_repeat_unit import compute_most_frequent_repeat_unit
 
 
 class Test(unittest.TestCase):

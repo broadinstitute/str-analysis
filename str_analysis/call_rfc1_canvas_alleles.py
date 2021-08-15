@@ -1,19 +1,7 @@
+#!/usr/bin/env python3
+
 """
-This script takes a WGS bam or cram file and outputs a .json file with info related to the RFC1/CANVAS STR locus,
-including the following fields:
-
-"call": this has a format analogous to a VCF genotype, and can be:
-    "PATHOGENIC MOTIF / PATHOGENIC MOTIF"
-    "BENIGN MOTIF / BENIGN MOTIF"
-    "MOTIF OF UNCERTAIN SIGNIFICANCE / MOTIF OF UNCERTAIN SIGNIFICANCE"
-    "BENIGN MOTIF / PATHOGENIC MOTIF"
-    "PATHOGENIC MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE"
-    "BENIGN MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE"
-    or it will be None if there's not enough evidence in the read data to support any of the above options.
-
-Also, this script optionally takes the ExpansionHunterDenovo profile for this sample and adds fields to the
-output json based on values in the ExpansionHunterDenovo profile. The ExpansionHunterDenovo profile is optional -
-the values are simply transfered to the output file, and aren't used for any calculations.
+This script takes a bam/cram file and outputs a .json file with informatino
 """
 
 import argparse
@@ -56,18 +44,19 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("-g", "--genome-version", choices=GENOME_VERSION_ALIASES.keys(), required=True)
     p.add_argument("-R", "--reference", help="Reference fasta path. The reference fasta is sometimes necessary for decoding cram files.")
-    p.add_argument("-e", "--ehdn-profile", help="If specified, the relevant information about repeat motifs and read counts at the RFC1 locus "
-                                                "will be retrieved from this ExpansionHunterDenovo profile and added to the output")
-    p.add_argument("-s", "--sample-id", help="The sample id to put in the output json file. If not specified, it will be retrieved from the bam/cram file.")
+    p.add_argument("-e", "--ehdn-profile", help="If specified, information relevant to the RFC1 locus will be "
+                                                "transferred from this ExpansionHunterDenovo profile to the output")
+    p.add_argument("-s", "--sample-id", help="The sample id to put in the output json file. If not specified, it "
+                                             "will be retrieved from the bam/cram header or filename prefix.")
     p.add_argument("-o", "--output-prefix", help="Output filename prefix")
     p.add_argument("-v", "--verbose", action="store_true", help="Print detailed log messages")
-    p.add_argument("reads", help="bam or cram path")
+    p.add_argument("bam_or_cram_path", help="bam or cram path")
 
     args = p.parse_args()
     args.genome_version = GENOME_VERSION_ALIASES[args.genome_version]
 
-    if not os.path.isfile(args.reads):
-        p.error(f"{args.reads} not found")
+    if not os.path.isfile(args.bam_or_cram_path):
+        p.error(f"{args.bam_or_cram_path} not found")
 
     if args.reference and not os.path.isfile(args.reference):
         p.error(f"{args.reference} not found")
@@ -78,7 +67,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    bam_cram_prefix = re.sub(".bam$|.cram$", "", os.path.basename(args.reads))
+    bam_cram_prefix = re.sub(".bam$|.cram$", "", os.path.basename(args.bam_or_cram_path))
     args.output_prefix = args.output_prefix or bam_cram_prefix
 
     chrom, locus_start_0based, locus_end = RFC1_LOCUS_COORDS_0BASED[args.genome_version]
@@ -86,8 +75,8 @@ def main():
     result = {}
 
     # process bam/cram
-    print(f"Processing {args.reads}")
-    with pysam.Samfile(args.reads, reference_filename=args.reference) as f:
+    print(f"Processing {args.bam_or_cram_path}")
+    with pysam.Samfile(args.bam_or_cram_path, reference_filename=args.reference) as f:
 
         # try to get sample id from bam/cram header
         if not args.sample_id:
@@ -107,7 +96,7 @@ def main():
                 r = next(f)
                 read_length = r.infer_read_length()
             except StopIteration:
-                raise ValueError(f"{args.reads} contains too few reads")
+                raise ValueError(f"{args.bam_or_cram_path} contains too few reads")
 
         # count reads in the left & right flanks to estimate read depth
         # NOTE: f.fetch retrieves all reads that *overlap* the given interval
@@ -277,9 +266,9 @@ def main():
             })
 
     # generate output
-    output_filename = f"{args.output_prefix}.rfc1_canvas_locus.json"
+    output_filename = f"{args.output_prefix}.rfc1_canvas_alleles.json"
     with open(output_filename, "wt") as f:
-        json.dump(result, f)
+        json.dump(result, f, indent=2)
     print(f"Wrote results to {output_filename}")
     if args.verbose:
         pprint(result)

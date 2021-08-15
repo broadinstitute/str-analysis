@@ -1,6 +1,7 @@
 import unittest
 
-from canonical_repeat_unit import reverse_complement, compute_canonical_repeat_unit, _minimal_unit_under_shift
+from str_analysis.utils.canonical_repeat_unit import reverse_complement, compute_canonical_repeat_unit, \
+    _minimal_unit_under_shift
 
 
 class Tests(unittest.TestCase):

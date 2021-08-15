@@ -35,8 +35,7 @@ RUN wget https://github.com/samtools/htslib/releases/download/${SAMTOOLS_VERSION
 	&& make install \
 	&& make clean
 
-# install samtools  --  install in downstream images with:
-#     COPY --from=weisburd/base-bam-tools:latest /usr/local/bin/samtools /usr/local/bin/samtools
+# install samtools
 RUN wget https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VERSION}/samtools-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& tar xjf samtools-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& rm samtools-${SAMTOOLS_VERSION}.tar.bz2 \
@@ -67,10 +66,6 @@ RUN wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VER
 	&& make install \
 	&& make clean
 
-# python3 packages
-RUN python3 -m pip install --upgrade pip \
-	&& python3 -m pip install --upgrade pysam
-
 # install gcloud
 ENV GCLOUD_SDK_VERISON="352.0.0"
 RUN wget https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
@@ -80,14 +75,16 @@ RUN wget https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud
 
 ENV PATH=/google-cloud-sdk/bin:$PATH
 
-RUN mkdir -p /scripts/str_analysis
 
-WORKDIR /scripts
+# python3 packages
+RUN python3 -m pip install --upgrade pip
+RUN python3 -m pip install --upgrade "intervaltree>=3.1.0" "numpy>=1.20.3" "pandas>=1.1.4" "pysam>=0.16.0.1"
+RUN python3 -m pip install --upgrade str_analysis==0.2
 
-RUN mkdir str_analysis/utils
-RUN mkdir str_analysis/canvas
-
-COPY *.py str_analysis/
-COPY canvas/*.py str_analysis/canvas/
-COPY utils/*.py str_analysis/utils/
-
+#COPY requirements.txt .
+#python3 -m pip install --upgrade -r requirements.txt
+#RUN mkdir -p /str_analysis/utils
+#WORKDIR /str_analysis
+#COPY str_analysis/*.py .
+#COPY str_analysis/utils/*.py utils/
+#ENV PYTHONPATH=/

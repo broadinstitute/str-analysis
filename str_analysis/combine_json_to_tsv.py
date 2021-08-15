@@ -4,12 +4,12 @@
 
 
 import argparse
-import collections
 import json
 import logging
 import os
 import pandas as pd
 import pathlib
+import sys
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
@@ -38,7 +38,9 @@ def parse_args(args_list=None):
 
     if not args.json_paths:
         args.json_paths = [p for p in pathlib.Path(".").glob("**/*.json")]
-        print(f"Found {len(args.json_paths)} json files in .")
+        print(f"Found {len(args.json_paths)} .json files under {os.getcwd()}")
+        if len(args.json_paths) == 0:
+            sys.exit(0)
 
     return args
 

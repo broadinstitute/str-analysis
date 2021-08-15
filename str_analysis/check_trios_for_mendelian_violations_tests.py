@@ -1,5 +1,4 @@
 from intervaltree import Interval
-import json
 import unittest
 
 from check_trios_for_mendelian_violations import compute_mendelian_violations, \
