@@ -33,7 +33,7 @@ detected at the RFC1/CANVAS STR locus. The main fields in the output dictionary 
 **found_n_reads_overlap_rfc1_locus**: *number of reads that overlap the AAAAG repeat in the reference genome 
 at the RFC1 locus and have a MAPQ > 2*    
 **found_repeats_in_n_reads**: *number of those reads that have a 5bp or 6bp repeat unit that covers > 70% of the overlapping read sequence*    
-**found_repeats_in_fraction_of_reads**: `found_repeats_in_n_reads` / `found_n_reads_overlap_rfc1_locus  
+**found_repeats_in_fraction_of_reads**: `found_repeats_in_n_reads` / `found_n_reads_overlap_rfc1_locus`  
 
 Also, this script optionally takes an ExpansionHunterDenovo profile for this sample and copies relevant fields to the
 output. The ExpansionHunterDenovo profile isn't used in calculations. 
