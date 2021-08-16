@@ -31,7 +31,7 @@ RFC1_LOCUS_COORDS_0BASED = {
 RFC1_LOCUS_KNOWN_ALLELES_BY_CATEGORY = {
     "BENIGN": {"AAAAG", "AAAGG"},
     "PATHOGENIC": {"AAGGG", "ACAGG"}, # ACAGG is from "A Māori specific RFC1 pathogenic repeat..." [Beecroft 2021]
-    #"UNCERTAIN": {"AAGAG", "AGAGG",}, # from [Akcimen 2019)]
+    #"UNCERTAIN": {"AAGAG", "AGAGG",}, # from [Akcimen 2019]
 }
 
 ALL_RFC1_LOCUS_KNOWN_ALLELES = {a for allele_set in RFC1_LOCUS_KNOWN_ALLELES_BY_CATEGORY.values() for a in allele_set}
