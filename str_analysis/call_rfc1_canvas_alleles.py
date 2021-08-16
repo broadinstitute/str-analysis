@@ -16,10 +16,12 @@ from str_analysis.utils.canonical_repeat_unit import compute_canonical_repeat_un
 from str_analysis.utils.ehdn_info_for_locus import parse_ehdn_info_for_locus
 from str_analysis.utils.most_frequent_repeat_unit import compute_most_frequent_repeat_unit
 
+CANVAS_REPEAT_UNIT_SIZE = 5
 MARGIN = 7   # base pairs
 FLANK_SIZE = 2000   # base pairs
 MIN_MAPQ = 3
-CANVAS_REPEAT_UNIT_SIZE = 5
+MIN_FRACTION_OF_BASES_COVERED = 0.7
+
 
 RFC1_LOCUS_COORDS_0BASED = {
     "37": ("4", 39350044, 39350099),
@@ -151,8 +153,13 @@ def main():
         for repeat_unit_size in (CANVAS_REPEAT_UNIT_SIZE, CANVAS_REPEAT_UNIT_SIZE + 1):
             if len(overlapping_sequence) < repeat_unit_size:
                 continue
+
             repeat_unit, count = compute_most_frequent_repeat_unit(
-                overlapping_sequence, repeat_unit_size=repeat_unit_size, min_fraction_bases_covered=0.7)
+                overlapping_sequence,
+                repeat_unit_size=repeat_unit_size,
+                min_occurrences=3,
+                min_fraction_bases_covered=MIN_FRACTION_OF_BASES_COVERED)
+
             if args.verbose:
                 if repeat_unit:
                     print(f"Found {compute_canonical_repeat_unit(repeat_unit)} occurs {count}x in read bases that "
@@ -165,6 +172,12 @@ def main():
                 canonical_repeat_unit = compute_canonical_repeat_unit(repeat_unit)
                 repeat_unit_to_read_count[canonical_repeat_unit] += 1
                 repeat_unit_to_n_occurrences[canonical_repeat_unit] += count
+
+    result.update({
+        "found_n_reads_overlap_rfc1_locus": len(overlapping_sequences),
+        "found_repeats_in_n_reads": sum(repeat_unit_to_read_count.values()),
+        "found_repeats_in_fraction_of_reads": sum(repeat_unit_to_read_count.values())/len(overlapping_sequences),
+    })
 
     # evaluate the repeat units
     well_supported_repeat_units = []
