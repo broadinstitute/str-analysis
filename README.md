@@ -23,7 +23,7 @@ AAGGG allele, but would fail to detect the benign allele unless it is also highl
 This script addresses some of the above limitations. It takes a whole genome (WGS) bam or cram file and 
 outputs a .json file with information about the repeat motifs it detects at the RFC1/CANVAS STR locus. 
 The script doesn't attempt to estimate the repeat size, but simply outputs a **call** field that indicates 
-the type of repeat motif(s) it detected at the locus (detailed description below). 
+the type of repeat motif(s) it detected at the locus (more details below). 
 
 
 In initial tests, we found this approach is sufficient to distinguish affected from unaffected individuals. 
