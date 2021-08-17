@@ -60,7 +60,7 @@ Description of all fields in the output `*.rfc1_canvas_alleles.json`:
   
 **found_n_reads_overlap_rfc1_locus**: *number of reads that overlap the AAAAG repeat in the reference genome 
 at the RFC1 locus and have a MAPQ > 2*    
-**found_repeats_in_n_reads**: *number of those reads that have a 5bp or 6bp repeat unit that covers > 70% of the overlapping read sequence*    
+**found_repeats_in_n_reads**: *number of reads that overlap the AAAAG repeat in the reference genome at the RFC1 locus, and have both MAPQ > 2 as well as some 5bp or 6bp repeat motif that covers > 70% of the overlapping read sequence (including any soft-clipped bases)*    
 **found_repeats_in_fraction_of_reads**: `found_repeats_in_n_reads` / `found_n_reads_overlap_rfc1_locus`  
 
 This script optionally takes an ExpansionHunterDenovo profile and copies relevant info to the output
