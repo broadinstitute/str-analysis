@@ -29,8 +29,7 @@ the type of repeat motif(s) it detected at the locus (detailed description below
 In initial tests, we found this approach is sufficient to distinguish affected from unaffected individuals. 
 In a cohort of 4447 samples from individuals with different rare disease phenotypes as well as their unaffected
 family members, this script identified 9 individuals as `call = PATHOGENIC MOTIF / PATHOGENIC MOTIF`
-meaning that their read data supports only the pathogenic motifs, and no other motifs (ie. benign motifs, or 
-motifs of uncertain significance). Of these 9 individuals, 2 are positive controls with previously-validated RFC1/CANVAS
+meaning that their read data supports only the pathogenic motifs. Of these 9 individuals, 2 are positive controls with previously-validated RFC1/CANVAS
 pathogenic expansions, and 1 is an affected individual with a phenotype that is highly consistent with CANVAS (now 
 proceeding to clinical validation). The other 6 cases are likely false-positives (or secondary findings).
 In the future, as we continue to test the script on additional positive controls as well as simulated data, we may 
