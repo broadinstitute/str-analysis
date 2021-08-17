@@ -15,7 +15,7 @@ Due to this multi-allelic nature, current STR genotyping tools like [ExpansionHu
 genotype RFC1.  
 
 A more recent tool, [ExpansionHunter Denovo](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02017-z), 
-is better at detecting RFC1 motif(s), but has low sensitivity, and is unable to distinguish unaffected carriers  
+is better at detecting RFC1 motif(s), but is unable to distinguish unaffected carriers  
 (such as those that have one benign AAAAG reference allele, and one pathogenic AAGGG allele) from 
 affected individuals (homozygous for the AAGGG allele). In both cases, ExpansionHunter Denovo might detect the 
 AAGGG allele, but would fail to detect the benign allele unless it is also highly expanded. 
