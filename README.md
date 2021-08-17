@@ -9,24 +9,22 @@ This package contains scripts and utilities related to analyzing short tandem re
 RFC1 STR expansions have recently been linked to [CANVAS](https://www.omim.org/entry/614575) [ [Cortese 2019](https://pubmed.ncbi.nlm.nih.gov/30926972/) ].
 This STR locus is unique in that it's both autosomal recessive and has a pathogenic repeat motif (AAGGG) 
 that differs from the motif in the reference genome (AAAAG). Several other benign and pathogenic motifs have also been reported, such as  
-AAAGG and ACAGG, as well as motifs of uncertain significance such as AAGAG and AGAGG [ [Akcimen 2019](https://pubmed.ncbi.nlm.nih.gov/31824583/) ]. 
+AAAGG and ACAGG, as well as motifs of uncertain significance such as AAGAG and AGAGG [ [Akcimen 2019](https://pubmed.ncbi.nlm.nih.gov/31824583/) ].
 It's not unusual for individuals to have one motif on one chromosome, and another motif on the other chromosome. 
 Due to this multi-allelic nature, current STR genotyping tools like [ExpansionHunter](https://github.com/Illumina/ExpansionHunter) struggle to accurately 
 genotype RFC1.  
 
 A more recent tool, [ExpansionHunter Denovo](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02017-z), 
-is better at detecting RFC1 motif(s), but is unable to distinguish unaffected carriers  
+is better at detecting multi-allelic expanded RFC1 motif(s), but is unable to distinguish unaffected carriers  
 (such as those that have one benign AAAAG reference allele, and one pathogenic AAGGG allele) from 
 affected individuals (homozygous for the AAGGG allele). In both cases, ExpansionHunter Denovo might detect the 
 AAGGG allele, but would fail to detect the benign allele unless it is also highly expanded. 
 
 This script addresses some of the above limitations. It takes a whole genome (WGS) bam or cram file and 
 outputs a .json file with information about the repeat motifs it detects at the RFC1/CANVAS STR locus. 
-Currently, the AAAAG and AAAGG repeat motifs are known to be benign even when expanded [ [Cortese 2019](https://pubmed.ncbi.nlm.nih.gov/30926972/) ], 
-while AAGGG and ACAGG motifs are pathogenic when expanded beyond ~400 repeats 
-[ [Cortese 2019](https://pubmed.ncbi.nlm.nih.gov/30926972/) ], [ [Scriba 2020](https://pubmed.ncbi.nlm.nih.gov/33103729/) ]. 
-This script doesn't attempt to estimate the repeat size, but simply outputs a **call** field that indicates 
-the type of repeat motif(s) it detected at the locus (see detailed description below). 
+The script doesn't attempt to estimate the repeat size, but simply outputs a **call** field that indicates 
+the type of repeat motif(s) it detected at the locus (detailed description below). 
+
 
 In initial tests, we found this approach is sufficient to distinguish affected from unaffected individuals. 
 In a cohort of 4447 samples from individuals with different rare disease phenotypes as well as their unaffected
