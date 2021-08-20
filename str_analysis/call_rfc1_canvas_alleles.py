@@ -6,8 +6,10 @@ This script takes a bam/cram file and outputs a .json file with informatino
 
 import argparse
 import collections
+import gzip
 import json
 import os
+import pkgutil
 import pysam
 from pprint import pprint
 import re
@@ -15,12 +17,16 @@ import re
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_repeat_unit
 from str_analysis.utils.ehdn_info_for_locus import parse_ehdn_info_for_locus
 from str_analysis.utils.most_frequent_repeat_unit import compute_most_frequent_repeat_unit
+from str_analysis.utils.parse_interval import parse_interval
+
 
 CANVAS_REPEAT_UNIT_SIZE = 5
 MARGIN = 7   # base pairs
 FLANK_SIZE = 2000   # base pairs
 MIN_MAPQ = 3
 MIN_FRACTION_OF_BASES_COVERED = 0.7
+
+NORMALIZE_TO_COVERAGE = 40
 
 RFC1_LOCUS_COORDS_0BASED = {
     "37": ("4", 39350044, 39350099),
@@ -41,46 +47,8 @@ GENOME_VERSION_ALIASES = {
 }
 
 
-OFFTARGET_REGIONS = {
-    "38": {
-        "AAAAG": [
-            "chr1:157959795-157960160",
-            "chr10:38112579-38112976",
-            "chr11:114394023-114394461",
-            "chr12:125823177-125823548",
-            "chr18:6909097-6909460",
-            "chr18:46255244-46255614",
-            "chr2:162752749-162753183",
-            "chr4:104453000-104453524",
-            "chr5:70672067-70672497",
-            "chr5:84539198-84539654",
-            "chr6:51553892-51554235",
-            "chr8:69433867-69434260",
-            "chr9:19473778-19474188",
-            "chr9:99458785-99459128",
-            "chrUn_JTFH01001554v1_decoy:488-852",
-        ],
-        "AAGGG":  [
-            "chr10:25874193-25874766",
-            "chr21:39583664-39584274",
-            "chr4:43136889-43137319",
-        ],
-        "ACAGG":  [
-            "chr12:12047082-12047450",
-            "chr12:15936726-15937132",
-            "chr16:81823861-81824253",
-            "chr17:73224663-73225192",
-            "chr2:109248715-109249087",
-            "chr7:18430857-18431231",
-            "chr7:137196425-137196784",
-            "chr7:149793911-149794272",
-            "chr8:105878913-105879266",
-            "chr9:136061962-136062334",
-            "chrX:68262640-68263034",
-        ],
+OFFTARGET_REGIONS = json.loads(gzip.decompress(pkgutil.get_data(__name__, "data/offtarget_regions.json.gz")))
 
-    }
-}
 
 def parse_args():
     p = argparse.ArgumentParser()
@@ -92,6 +60,9 @@ def parse_args():
         "will be retrieved from the bam/cram header or filename prefix.")
     p.add_argument("-e", "--ehdn-profile", help="If specified, information relevant to the RFC1 locus will be "
         "transferred from this ExpansionHunterDenovo profile to the output json")
+    p.add_argument("--ignore-offtarget-regions", action="store_true",
+                   help="Don't compute read support in off-target regions. "
+                        "The output will be the same, except that it won't contain *_read_count_with_offtargets fields")
     p.add_argument("-v", "--verbose", action="store_true", help="Print detailed log messages")
     p.add_argument("bam_or_cram_path", help="bam or cram path")
 
@@ -230,23 +201,27 @@ def main():
             continue
         well_supported_repeat_units.append(repeat_unit)
 
+    # select the repeat unit(s) with the most read support
     well_supported_repeat_units.sort(key=lambda repeat_unit: repeat_unit_to_n_occurrences[repeat_unit], reverse=True)
+    selected_repeat_units = well_supported_repeat_units[:2]
 
+    # sort then into BENIGN .. PATHOGENIC .. UNCERTAIN SIGNIFICANCE to match the order in the "call" output field
+    selected_repeat_units = sorted(selected_repeat_units, key=lambda repeat_unit:
+        1 if repeat_unit in RFC1_LOCUS_KNOWN_ALLELES_BY_CATEGORY["BENIGN"] else
+        2 if repeat_unit in RFC1_LOCUS_KNOWN_ALLELES_BY_CATEGORY["PATHOGENIC"] else
+        3)
+
+    flank_coverage_mean = (left_flank_coverage + right_flank_coverage) / 2.0
     n_pathogenic_alleles = 0
     n_benign_alleles = 0
     n_total_well_supported_alleles = 0
     for i in 0, 1:
         allele_number = i + 1
-        result.update({
-            f"allele{allele_number}_repeat_unit": None,
-            f"allele{allele_number}_read_count": None,
-            f"allele{allele_number}_n_occurrences": None,
-        })
-
-        if len(well_supported_repeat_units) <= i:
+        if len(selected_repeat_units) <= i:
             continue
+
         n_total_well_supported_alleles += 1
-        repeat_unit = well_supported_repeat_units[i]
+        repeat_unit = selected_repeat_units[i]
         read_count = repeat_unit_to_read_count.get(repeat_unit)
         n_occurrences = repeat_unit_to_n_occurrences.get(repeat_unit)
         if repeat_unit in RFC1_LOCUS_KNOWN_ALLELES_BY_CATEGORY["PATHOGENIC"]:
@@ -257,8 +232,30 @@ def main():
         result.update({
             f"allele{allele_number}_repeat_unit": repeat_unit,
             f"allele{allele_number}_read_count": read_count,
+            f"allele{allele_number}_normalized_read_count": read_count * NORMALIZE_TO_COVERAGE / flank_coverage_mean,
             f"allele{allele_number}_n_occurrences": n_occurrences,
         })
+
+        if not args.ignore_offtarget_regions:
+            read_count_with_offtargets = read_count
+            with pysam.Samfile(args.bam_or_cram_path, reference_filename=args.reference) as f:
+                for offtarget_region in OFFTARGET_REGIONS[args.genome_version][repeat_unit]:
+                    offtarget_chrom, offtarget_start, offtarget_end = parse_interval(offtarget_region)
+                    sequences = (r.seq for r in f.fetch(offtarget_chrom, offtarget_start, offtarget_end) if r.mapq >= MIN_MAPQ)
+                    c, t = count_repeat_in_sequences(
+                        sequences,
+                        repeat_unit,
+                        min_occurrences=3,
+                        min_fraction_bases_covered=MIN_FRACTION_OF_BASES_COVERED)
+
+                    read_count_with_offtargets += c
+                    if args.verbose:
+                        print(f"{c} out of {t} reads contained {repeat_unit} in off-target region {offtarget_region}")
+
+            result.update({
+                f"allele{allele_number}_read_count_with_offtargets": read_count_with_offtargets,
+                f"allele{allele_number}_normalized_read_count_with_offtargets": read_count_with_offtargets * NORMALIZE_TO_COVERAGE / flank_coverage_mean,
+            })
 
     # decide which combination of alleles is supported by the data
     # NOTE: there's no attempt to determine the size of the expansion and whether it's in the pathogenic range
@@ -325,8 +322,30 @@ def main():
     with open(output_filename, "wt") as f:
         json.dump(result, f, indent=2)
     print(f"Wrote results to {output_filename}")
-    if args.verbose:
-        pprint(result)
+    pprint(result)
+
+
+def count_repeat_in_sequences(sequences, repeat_unit, min_occurrences=3, min_fraction_bases_covered=0.8):
+    """Count how many of the given sequences support a specific repeat unit.
+
+    Args:
+        sequences (str): iterator over read sequences
+        repeat_unit (str): the repeat unit to search for within the sequences
+        min_occurrences (int): the repeat unit must occur in the sequence at least this many times for the sequence to be counted
+        min_fraction_bases_covered (float): the repeat unit must cover this fraction of the sequence for the sequence to be counted
+
+    Returns:
+        2-tuple: (the number of sequences that contain the repeat unit, the total number of sequences in the input iterator)
+    """
+    read_count = 0
+    total = 0
+    for sequence in sequences:
+        total += 1
+        count = sequence.count(repeat_unit)
+        if count >= min_occurrences and count * len(repeat_unit)/len(sequence) >= min_fraction_bases_covered:
+            read_count += 1
+
+    return read_count, total
 
 
 if __name__ == "__main__":

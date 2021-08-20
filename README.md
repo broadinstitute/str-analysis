@@ -47,13 +47,22 @@ Description of all fields in the output `*.rfc1_canvas_alleles.json`:
 * `BENIGN MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE`: *heterozygous for a benign allele and a non-canonical allele(s) detected with unknown pathogenicity*
 * `null`: *not enough evidence in the read data to support any of the above options*
 
-**allele1_repeat_unit**: *the repeat unit that is supported by the most reads.*  
-**allele1_read_count**: *the number of reads supporting allele1.*  
-**allele1_n_occurrences**: *the total number of times allele1 occurs in the reads at the RFC1 locus.*  
+**allele1_repeat_unit**: *the repeat unit that is supported by the most reads.*     
+**allele1_read_count**: *the number of reads supporting allele1.*   
+**allele1_normalized_read_count**: *same as allele1_read_count, but normalized by depth
+of coverage in the flanking regions of the RFC1 locus*   
+**allele1_n_occurrences**: *the total number of times allele1 occurs in the reads at the RFC1 locus.*     
+**allele1_read_count_with_offtargets**: *the number of reads supporting allele1 within off-target regions 
+    for this repeat unit. These are ~1kb regions where fully-repetitive (aka. IRR) reads may mismap to based on 
+    experiments with simulated data.*   
+**allele1_normalized_read_count_with_offtargets**: *same as allele1_read_count_with_offtargets, but normalized by depth 
+    of coverage in the flanking regions of the RFC1 locus*
 
-**allele2_repeat_unit**: *the repeat unit that is supported by the next most reads, or null if all reads support allele1.*  
+**allele2_repeat_unit**: *the repeat unit that is supported by the next most reads, or null if all reads support allele1.*    
 **allele2_read_count**: *see "allele1_read_count" description.*  
 **allele2_n_occurrences**: *see "allele1_n_occurrences" description.*  
+...    
+*NOTE:* allele2_* fields will only be generated if there is read support for more than 1 allele.    
 
 **left_flank_coverage**: *average read depth within a 2kb window immediately to the left of the RFC1 locus*  
 **right_flank_coverage**: *average read depth within a 2kb window immediately to the right of the RFC1 locus*  

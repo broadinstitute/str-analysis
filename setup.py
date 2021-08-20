@@ -35,7 +35,7 @@ def test_suite():
 
 setup(
     name='str_analysis',
-    version="0.2.1",
+    version="0.2.2",
     description="Utilities  short tandem repeats (STRs)",
     install_requires=requirements,
     cmdclass={
@@ -50,8 +50,10 @@ setup(
     },
     long_description_content_type="text/markdown",
     long_description=long_description,
-    py_modules=['str_analysis'],
-    packages=find_packages(where="."),
+    packages=["str_analysis", "str_analysis.utils"],
+    data_files=[
+        ('data', ['str_analysis/data/offtarget_regions.json.gz']),
+    ],
     include_package_data=True,
     python_requires=">=3.7",
     license="MIT",
