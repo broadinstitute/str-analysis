@@ -8,11 +8,9 @@ import argparse
 import collections
 import json
 import os
-import peewee as pw
 import pysam
 from pprint import pprint
 import re
-import subprocess
 
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_repeat_unit
 from str_analysis.utils.ehdn_info_for_locus import parse_ehdn_info_for_locus
@@ -94,17 +92,6 @@ def parse_args():
         "will be retrieved from the bam/cram header or filename prefix.")
     p.add_argument("-e", "--ehdn-profile", help="If specified, information relevant to the RFC1 locus will be "
         "transferred from this ExpansionHunterDenovo profile to the output json")
-    p.add_argument("-r", "--run-expansion-hunter", action="store_true", help="If this option is specified, this "
-         "script will run ExpansionHunter once for each of the motif(s) it detects at the RFC1 locus. "
-         "ExpansionHunter doesn't currently support genotyping multiallelic repeats such as RFC1 where "
-         "an individual may have 2 alleles with motifs that differ from eachother (and from the reference motif). "
-         "Running ExpansionHunter separately for each motif provides a work-around.")
-    p.add_argument("--expansion-hunter-path", help="The path of the ExpansionHunter executable to use if -r is "
-        "specified. This must be ExpansionHunter v3 or v4.", default="ExpansionHunter")
-    p.add_argument("--reference-fasta-path", help="The path of the reference genome fasta to use if -r is "
-        "specified")
-    p.add_argument("-t", "--temp-dir", help="Directory for intermediate files such as those generated when "
-                                            "running ExpansionHunter", default=".")
     p.add_argument("-v", "--verbose", action="store_true", help="Print detailed log messages")
     p.add_argument("bam_or_cram_path", help="bam or cram path")
 
@@ -117,148 +104,7 @@ def parse_args():
     if args.reference and not os.path.isfile(args.reference):
         p.error(f"{args.reference} not found")
 
-    if args.run_expansion_hunter and not args.reference_fasta_path:
-        p.error("--reference-fasta-path is required when --run-expansion-hunter is used")
-
     return args
-
-
-def generate_variant_catalog(locus_id, repeat_unit, chrom, start_1based, end_1based, offtarget_regions=None):
-    return {
-        "LocusId": locus_id,
-        "LocusStructure": f"({repeat_unit})*",
-        "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
-        "VariantType": "RareRepeat",
-        "OfftargetRegions": [] if not offtarget_regions else offtarget_regions,
-    }
-
-
-def generate_ehv2_repeat_spec(locus_id, repeat_unit, chrom, start_1based, end_1based, offtarget_regions=None):
-    return {
-        "RepeatId": locus_id,
-        "RepeatUnit": repeat_unit,
-        "TargetRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
-        "CommonUnit": "false",
-        "OffTargetRegions": [] if not offtarget_regions else offtarget_regions,
-    }
-
-
-def run_expansion_hunter(
-        sample_id,
-        expansion_hunter_path,
-        genome_version,
-        reference_fasta_path,
-        bam_or_cram_path,
-        well_supported_repeat_units,
-        result,
-        directory=".",
-        verbose=False,
-):
-    """
-    :param well_supported_repeat_units:
-    :param expansion_hunter_path:
-    :param result:
-    :param verbose:
-    :return:
-    """
-
-    if genome_version not in ("37", "38"):
-        raise ValueError(f"Unexpected genome version: {genome_version}. Must be '37' or '38'")
-
-    chrom, start_1based, end_1based = RFC1_LOCUS_COORDS_0BASED[genome_version]
-
-    for repeat_unit in well_supported_repeat_units:
-        # get off-target regions
-        """
-        db = pw.SqliteDatabase(f"../data/{genome_version}")
-        cursor = exons_db.execute_sql(
-            f"SELECT annotation_source, gene_id, transcript_id, gene_name, gene_type, transcript_type FROM exons "
-            f"WHERE chrom='{repeat.chrom}' AND start_1based <= {repeat.end_1based} AND end_1based >= {repeat.start_1based}")
-        #  f"AND transcript_type NOT IN ('transcribed_unprocessed_pseudogene', 'unprocessed_pseudogene', 'processed_pseudogene', 'lncRNA')"
-
-        result = cursor.fetchone()
-        cursor.close()
-    
-        if result:
-            repeat.is_exonic = True
-            repeat.gene_annotation_source = result[0]
-            repeat.gene_id = result[1]
-            repeat.transcript_id = result[2]
-            repeat.gene_name = result[3]
-            repeat.gene_type = result[4]
-            repeat.transcript_type = result[5]
-    
-            yield repeat
-    
-        """
-
-        if False:
-            # generate variant catalog
-            variant_catalog = generate_variant_catalog(f"RFC1_{repeat_unit}",
-                repeat_unit, chrom, start_1based, end_1based, offtarget_regions=OFFTARGET_REGIONS[genome_version][repeat_unit])
-
-            variant_catalog_path = os.path.join(directory, f"{repeat_unit}.variant_catalog.json")
-            with open(variant_catalog_path, "wt") as f:
-                json.dump([variant_catalog], f)
-
-            # run expansion hunter
-            print("--"*10)
-            print(f"Running ExpansionHunter on {sample_id} for repeat unit {repeat_unit}")
-            if verbose:
-                print("Using variant catalog: ")
-                pprint(variant_catalog)
-
-            filename_prefix = f"{sample_id}.{repeat_unit}"
-            output_prefix = f"{os.path.join(directory, filename_prefix)}.expansion_hunter4"
-            subprocess.check_call(f"""{expansion_hunter_path} \
-                --sex male \
-                --aligner path-aligner \
-                --reference {reference_fasta_path} \
-                --reads {bam_or_cram_path} \
-                --variant-catalog {variant_catalog_path} \
-                --output-prefix {output_prefix}
-            """, shell=True)
-
-            # parse result
-            with open(f"{output_prefix}.json", "rt") as f:
-                expansion_hunter_output_json = json.load(f)
-
-            if verbose:
-                pprint(expansion_hunter_output_json)
-
-        # run EHv2
-        if True:
-            os.system(f"mkdir -p repeat_spec_{repeat_unit}")
-            repeat_spec = generate_ehv2_repeat_spec(f"RFC1_{repeat_unit}",
-                repeat_unit, chrom, start_1based, end_1based, offtarget_regions=OFFTARGET_REGIONS[genome_version][repeat_unit])
-            with open(os.path.join(directory, f"repeat_spec_{repeat_unit}/{repeat_unit}.json"), "wt") as f:
-                json.dump(repeat_spec, f)
-
-            #bam_dir = os.path.abspath(os.path.dirname(bam_or_cram_path))
-            #reference_fasta_dir = os.path.abspath(os.path.dirname(reference_fasta_path))
-            #current_dir = os.path.abspath(os.getcwd())
-            output_prefix = f"{sample_id}.{repeat_unit}.expansion_hunter2"
-            subprocess.check_call(f"""
-                /Users/weisburd/p1/bin/ExpansionHunter \
-                    --ref-fasta {reference_fasta_path} \
-                    --bam {bam_or_cram_path} \
-                    --repeat-specs repeat_spec_{repeat_unit} \
-                    --read-depth {result['left_flank_coverage']} \
-                    --sex male \
-                    --vcf {output_prefix}.vcf \
-                    --json {output_prefix}.json \
-                    --log {output_prefix}.log
-            """, shell=True)
-            # parse result
-            with open(f"{output_prefix}.json", "rt") as f:
-                expansion_hunter_output_json = json.load(f)
-
-            if verbose:
-                pprint(expansion_hunter_output_json)
-
-
-    # reorder well_supported_repeat_units based on EH results
-    return well_supported_repeat_units
 
 
 def main():
@@ -385,18 +231,6 @@ def main():
         well_supported_repeat_units.append(repeat_unit)
 
     well_supported_repeat_units.sort(key=lambda repeat_unit: repeat_unit_to_n_occurrences[repeat_unit], reverse=True)
-
-    if args.run_expansion_hunter:
-        well_supported_repeat_units = run_expansion_hunter(
-            args.sample_id,
-            args.expansion_hunter_path,
-            args.genome_version,
-            args.reference_fasta_path,
-            args.bam_or_cram_path,
-            well_supported_repeat_units,
-            result,
-            directory=args.temp_dir,
-            verbose=args.verbose)
 
     n_pathogenic_alleles = 0
     n_benign_alleles = 0
