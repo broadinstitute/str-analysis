@@ -79,7 +79,11 @@ ENV PATH=/google-cloud-sdk/bin:$PATH
 # python3 packages
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install --upgrade "intervaltree>=3.1.0" "numpy>=1.20.3" "pandas>=1.1.4" "pysam>=0.16.0.1"
-RUN python3 -m pip install --upgrade str_analysis==0.2
+
+ARG CACHEBUST=1
+
+RUN python3 -m pip install --upgrade str-analysis
+
 
 #COPY requirements.txt .
 #python3 -m pip install --upgrade -r requirements.txt
