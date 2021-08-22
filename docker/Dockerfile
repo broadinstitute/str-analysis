@@ -80,15 +80,10 @@ ENV PATH=/google-cloud-sdk/bin:$PATH
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install --upgrade "intervaltree>=3.1.0" "numpy>=1.20.3" "pandas>=1.1.4" "pysam>=0.16.0.1"
 
-ARG CACHEBUST=1
 
-RUN python3 -m pip install --upgrade str-analysis
+ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
+RUN python3 -m pip install --upgrade str-analysis \
+    && python3 -m pip freeze \
+    && sleep 2
 
-#COPY requirements.txt .
-#python3 -m pip install --upgrade -r requirements.txt
-#RUN mkdir -p /str_analysis/utils
-#WORKDIR /str_analysis
-#COPY str_analysis/*.py .
-#COPY str_analysis/utils/*.py utils/
-#ENV PYTHONPATH=/
