@@ -45,7 +45,7 @@ Description of all fields in the output `*.rfc1_canvas_alleles.json`:
 * `BENIGN MOTIF / PATHOGENIC MOTIF`: *heterozygous for a benign allele and a pathogenic allele, implying carrier status*
 * `PATHOGENIC MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE`: *heterozygous for a pathogenic allele and a non-canonical allele(s) detected with unknown pathogenicity*
 * `BENIGN MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE`: *heterozygous for a benign allele and a non-canonical allele(s) detected with unknown pathogenicity*
-* `null`: *not enough evidence in the read data to support any of the above options*
+* `NO CALL`: *not enough evidence in the read data to support any of the above options*
 
 **allele1_repeat_unit**: *the repeat unit that is supported by the most reads.*     
 **allele1_read_count**: *the number of reads supporting allele1.*   

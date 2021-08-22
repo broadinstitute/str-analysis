@@ -27,19 +27,20 @@ MIN_MAPQ = 3
 MIN_FRACTION_OF_BASES_COVERED = 0.7
 
 NORMALIZE_TO_COVERAGE = 40
+INSUFFICIENT_COVERAGE_THRESHOLD = 5
 
 RFC1_LOCUS_COORDS_0BASED = {
     "37": ("4", 39350044, 39350099),
     "38": ("chr4", 39348424, 39348479),   # chr4:39348425-39348479
 }
 
-RFC1_LOCUS_KNOWN_ALLELES_BY_CATEGORY = {
+RFC1_LOCUS_KNOWN_REPEAT_UNITS_BY_CATEGORY = {
         "BENIGN": {"AAAAG", "AAAGG"},
     "PATHOGENIC": {"AAGGG", "ACAGG"}, # ACAGG is from "A Māori specific RFC1 pathogenic repeat..." [Beecroft 2021]
     #"UNCERTAIN": {"AAGAG", "AGAGG",}, # from [Akcimen 2019]
 }
 
-ALL_RFC1_LOCUS_KNOWN_ALLELES = {a for allele_set in RFC1_LOCUS_KNOWN_ALLELES_BY_CATEGORY.values() for a in allele_set}
+ALL_RFC1_LOCUS_KNOWN_REPEAT_UNITS = {a for repeat_unit_set in RFC1_LOCUS_KNOWN_REPEAT_UNITS_BY_CATEGORY.values() for a in repeat_unit_set}
 
 GENOME_VERSION_ALIASES = {
     "GRCh37": "37", "hg19": "37", "hg37": "37", "37": "37",
@@ -207,33 +208,33 @@ def main():
 
     # sort then into BENIGN .. PATHOGENIC .. UNCERTAIN SIGNIFICANCE to match the order in the "call" output field
     selected_repeat_units = sorted(selected_repeat_units, key=lambda repeat_unit:
-        1 if repeat_unit in RFC1_LOCUS_KNOWN_ALLELES_BY_CATEGORY["BENIGN"] else
-        2 if repeat_unit in RFC1_LOCUS_KNOWN_ALLELES_BY_CATEGORY["PATHOGENIC"] else
+        1 if repeat_unit in RFC1_LOCUS_KNOWN_REPEAT_UNITS_BY_CATEGORY["BENIGN"] else
+        2 if repeat_unit in RFC1_LOCUS_KNOWN_REPEAT_UNITS_BY_CATEGORY["PATHOGENIC"] else
         3)
 
     flank_coverage_mean = (left_flank_coverage + right_flank_coverage) / 2.0
-    n_pathogenic_alleles = 0
-    n_benign_alleles = 0
-    n_total_well_supported_alleles = 0
+    n_pathogenic_repeat_units = 0
+    n_benign_repeat_units = 0
+    n_total_well_supported_repeat_units = 0
     for i in 0, 1:
-        allele_number = i + 1
+        repeat_unit_number = i + 1
         if len(selected_repeat_units) <= i:
             continue
 
-        n_total_well_supported_alleles += 1
+        n_total_well_supported_repeat_units += 1
         repeat_unit = selected_repeat_units[i]
         read_count = repeat_unit_to_read_count.get(repeat_unit)
         n_occurrences = repeat_unit_to_n_occurrences.get(repeat_unit)
-        if repeat_unit in RFC1_LOCUS_KNOWN_ALLELES_BY_CATEGORY["PATHOGENIC"]:
-            n_pathogenic_alleles += 1
-        elif repeat_unit in RFC1_LOCUS_KNOWN_ALLELES_BY_CATEGORY["BENIGN"]:
-            n_benign_alleles += 1
+        if repeat_unit in RFC1_LOCUS_KNOWN_REPEAT_UNITS_BY_CATEGORY["PATHOGENIC"]:
+            n_pathogenic_repeat_units += 1
+        elif repeat_unit in RFC1_LOCUS_KNOWN_REPEAT_UNITS_BY_CATEGORY["BENIGN"]:
+            n_benign_repeat_units += 1
 
         result.update({
-            f"allele{allele_number}_repeat_unit": repeat_unit,
-            f"allele{allele_number}_read_count": read_count,
-            f"allele{allele_number}_normalized_read_count": read_count * NORMALIZE_TO_COVERAGE / flank_coverage_mean,
-            f"allele{allele_number}_n_occurrences": n_occurrences,
+            f"allele{repeat_unit_number}_repeat_unit": repeat_unit,
+            f"allele{repeat_unit_number}_read_count": read_count,
+            f"allele{repeat_unit_number}_normalized_read_count": read_count * NORMALIZE_TO_COVERAGE / flank_coverage_mean,
+            f"allele{repeat_unit_number}_n_occurrences": n_occurrences,
         })
 
         if not args.ignore_offtarget_regions:
@@ -253,37 +254,39 @@ def main():
                         print(f"{c} out of {t} reads contained {repeat_unit} in off-target region {offtarget_region}")
 
             result.update({
-                f"allele{allele_number}_read_count_with_offtargets": read_count_with_offtargets,
-                f"allele{allele_number}_normalized_read_count_with_offtargets": read_count_with_offtargets * NORMALIZE_TO_COVERAGE / flank_coverage_mean,
+                f"allele{repeat_unit_number}_read_count_with_offtargets": read_count_with_offtargets,
+                f"allele{repeat_unit_number}_normalized_read_count_with_offtargets": read_count_with_offtargets * NORMALIZE_TO_COVERAGE / flank_coverage_mean,
             })
 
-    # decide which combination of alleles is supported by the data
+    # decide which combination of motifs is supported by the data
     # NOTE: there's no attempt to determine the size of the expansion and whether it's in the pathogenic range
-    final_call = None
-    if n_total_well_supported_alleles > 0 and left_flank_coverage >= 5 and right_flank_coverage >= 5:
-        if n_pathogenic_alleles == n_total_well_supported_alleles:
-            # reads support only known pathogenic allele(s)
-            final_call = "PATHOGENIC MOTIF / PATHOGENIC MOTIF"
-        elif n_benign_alleles == n_total_well_supported_alleles:
-            # reads support only known benign allele(s)
-            final_call = "BENIGN MOTIF / BENIGN MOTIF"
-        elif n_benign_alleles == 0 and n_pathogenic_alleles == 0:
-            # reads support one or more non-reference alleles of unknown significance
-            final_call = "MOTIF OF UNCERTAIN SIGNIFICANCE / MOTIF OF UNCERTAIN SIGNIFICANCE"
-        elif n_benign_alleles > 0 and n_pathogenic_alleles > 0:
-            # reads support one known benign allele and one pathogenic allele
-            final_call = "BENIGN MOTIF / PATHOGENIC MOTIF"
-        elif n_pathogenic_alleles > 0:
-            # reads support one pathogenic allele and at least one other allele of unknown significance
-            final_call = "PATHOGENIC MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE"
-        elif n_benign_alleles > 0:
-            # reads support one known benign allele and at least one other allele of unknown significance
-            final_call = "BENIGN MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE"
+    if left_flank_coverage < INSUFFICIENT_COVERAGE_THRESHOLD or right_flank_coverage < INSUFFICIENT_COVERAGE_THRESHOLD:
+        final_call = f"NO CALL (insufficient coverage (< {INSUFFICIENT_COVERAGE_THRESHOLD}x) near RFC1 locus)"
+    elif n_total_well_supported_repeat_units == 0:
+        final_call = f"NO CALL (no motif has sufficient read support)"
+    elif n_pathogenic_repeat_units == n_total_well_supported_repeat_units:
+        # reads support only known pathogenic motif(s)
+        final_call = "PATHOGENIC MOTIF / PATHOGENIC MOTIF"
+    elif n_benign_repeat_units == n_total_well_supported_repeat_units:
+        # reads support only known benign repeat_unit(s)
+        final_call = "BENIGN MOTIF / BENIGN MOTIF"
+    elif n_benign_repeat_units == 0 and n_pathogenic_repeat_units == 0:
+        # reads support one or more non-reference motifs of unknown significance
+        final_call = "MOTIF OF UNCERTAIN SIGNIFICANCE / MOTIF OF UNCERTAIN SIGNIFICANCE"
+    elif n_benign_repeat_units > 0 and n_pathogenic_repeat_units > 0:
+        # reads support one known benign motif and one pathogenic motif
+        final_call = "BENIGN MOTIF / PATHOGENIC MOTIF"
+    elif n_pathogenic_repeat_units > 0:
+        # reads support one pathogenic motif and at least one other motif of unknown significance
+        final_call = "PATHOGENIC MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE"
+    elif n_benign_repeat_units > 0:
+        # reads support one known benign motif and at least one other motif of unknown significance
+        final_call = "BENIGN MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE"
 
     result.update({
-        "n_total_well_supported_alleles": n_total_well_supported_alleles,
-        "n_benign_alleles": n_benign_alleles,
-        "n_pathogenic_alleles": n_pathogenic_alleles,
+        "n_total_well_supported_alleles": n_total_well_supported_repeat_units,
+        "n_benign_alleles": n_benign_repeat_units,
+        "n_pathogenic_alleles": n_pathogenic_repeat_units,
     })
 
     result["call"] = final_call
@@ -299,7 +302,7 @@ def main():
         records, sample_read_depth, _ = parse_ehdn_info_for_locus(data, chrom, locus_start_0based, locus_end)
         result["ehdn_sample_read_depth"] = sample_read_depth
 
-        # get the 2 alleles with the most read support
+        # get the 2 repeat_units with the most read support
         records.sort(key=lambda r: (
             -r["anchored_irr_count_for_this_repeat_unit_and_region"],
             -r["total_irr_count_for_this_repeat_unit_and_region"],
@@ -308,13 +311,13 @@ def main():
 
         for i in 0, 1:
             record = records[i] if len(records) > i else {}
-            allele_number = i + 1
+            repeat_unit_number = i + 1
             result.update({
-                f"ehdn_allele{allele_number}_repeat_unit": record.get("repeat_unit"),
-                f"ehdn_allele{allele_number}_anchored_irr_count": record.get("anchored_irr_count_for_this_repeat_unit_and_region"),
-                f"ehdn_allele{allele_number}_n_anchored_regions": record.get("n_anchored_regions_for_this_repeat_unit"),
-                f"ehdn_allele{allele_number}_paired_irr_count": record.get("paired_irr_count_for_this_repeat_unit"),
-                f"ehdn_allele{allele_number}_total_irr_count": record.get("total_irr_count_for_this_repeat_unit_and_region"),
+                f"ehdn_allele{repeat_unit_number}_repeat_unit": record.get("repeat_unit"),
+                f"ehdn_allele{repeat_unit_number}_anchored_irr_count": record.get("anchored_irr_count_for_this_repeat_unit_and_region"),
+                f"ehdn_allele{repeat_unit_number}_n_anchored_regions": record.get("n_anchored_regions_for_this_repeat_unit"),
+                f"ehdn_allele{repeat_unit_number}_paired_irr_count": record.get("paired_irr_count_for_this_repeat_unit"),
+                f"ehdn_allele{repeat_unit_number}_total_irr_count": record.get("total_irr_count_for_this_repeat_unit_and_region"),
             })
 
     # generate output
