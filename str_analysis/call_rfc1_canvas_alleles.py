@@ -27,10 +27,9 @@ MIN_MAPQ = 3
 MIN_FRACTION_OF_BASES_COVERED = 0.7
 
 NORMALIZE_TO_COVERAGE = 40
-INSUFFICIENT_COVERAGE_THRESHOLD = 5
 
 RFC1_LOCUS_COORDS_0BASED = {
-    "37": ("4", 39350044, 39350099),
+    "37": ("4", 39350044, 39350099),      # chr4:39350044-39350099
     "38": ("chr4", 39348424, 39348479),   # chr4:39348425-39348479
 }
 
@@ -85,7 +84,7 @@ def main():
     bam_cram_prefix = re.sub(".bam$|.cram$", "", os.path.basename(args.bam_or_cram_path))
     args.output_prefix = args.output_prefix or bam_cram_prefix
 
-    chrom, locus_start_0based, locus_end = RFC1_LOCUS_COORDS_0BASED[args.genome_version]
+    locus_chrom, locus_start_0based, locus_end = RFC1_LOCUS_COORDS_0BASED[args.genome_version]
 
     result = {}
 
@@ -116,19 +115,19 @@ def main():
         # count reads in the left & right flanks to estimate read depth
         # NOTE: f.fetch retrieves all reads that *overlap* the given interval
         left_flank_n_well_aligned_bases = sum((r.query_alignment_length for r in f.fetch(
-                chrom,
+                locus_chrom,
                 locus_start_0based - MARGIN - FLANK_SIZE,
                 locus_start_0based - MARGIN,
             ) if r.mapq >= MIN_MAPQ))
         right_flank_n_well_aligned_bases = sum((r.query_alignment_length for r in f.fetch(
-                chrom,
+                locus_chrom,
                 locus_end + MARGIN,
                 locus_end + MARGIN + FLANK_SIZE,
             ) if r.mapq >= MIN_MAPQ))
 
         # get all sequences that overlap the RFC1 locus (regardless of whether they're soft-clipped)
         overlapping_sequences = []
-        for r in f.fetch(chrom, locus_start_0based - MARGIN, locus_end + MARGIN):
+        for r in f.fetch(locus_chrom, locus_start_0based - MARGIN, locus_end + MARGIN):
             # see https://pysam.readthedocs.io/en/latest/api.html#pysam.AlignedSegment.query_alignment_sequence
             if r.mapq < MIN_MAPQ:
                 continue
@@ -154,6 +153,8 @@ def main():
     right_flank_coverage = right_flank_n_well_aligned_bases / FLANK_SIZE
     result.update({
         "sample_id": args.sample_id,
+        "locus": f"{locus_chrom}:{locus_start_0based}-{locus_end}",
+        "genome_version": args.genome_version,
         "left_flank_coverage": left_flank_coverage,
         "right_flank_coverage": right_flank_coverage,
     })
@@ -233,7 +234,8 @@ def main():
         result.update({
             f"allele{repeat_unit_number}_repeat_unit": repeat_unit,
             f"allele{repeat_unit_number}_read_count": read_count,
-            f"allele{repeat_unit_number}_normalized_read_count": read_count * NORMALIZE_TO_COVERAGE / flank_coverage_mean,
+            f"allele{repeat_unit_number}_normalized_read_count":
+                read_count * NORMALIZE_TO_COVERAGE / flank_coverage_mean if flank_coverage_mean > 0 else 0,
             f"allele{repeat_unit_number}_n_occurrences": n_occurrences,
         })
 
@@ -255,14 +257,13 @@ def main():
 
             result.update({
                 f"allele{repeat_unit_number}_read_count_with_offtargets": read_count_with_offtargets,
-                f"allele{repeat_unit_number}_normalized_read_count_with_offtargets": read_count_with_offtargets * NORMALIZE_TO_COVERAGE / flank_coverage_mean,
+                f"allele{repeat_unit_number}_normalized_read_count_with_offtargets":
+                    read_count_with_offtargets * NORMALIZE_TO_COVERAGE / flank_coverage_mean if flank_coverage_mean > 0 else 0,
             })
 
     # decide which combination of motifs is supported by the data
     # NOTE: there's no attempt to determine the size of the expansion and whether it's in the pathogenic range
-    if left_flank_coverage < INSUFFICIENT_COVERAGE_THRESHOLD or right_flank_coverage < INSUFFICIENT_COVERAGE_THRESHOLD:
-        final_call = f"NO CALL (insufficient coverage (< {INSUFFICIENT_COVERAGE_THRESHOLD}x) near RFC1 locus)"
-    elif n_total_well_supported_repeat_units == 0:
+    if n_total_well_supported_repeat_units == 0:
         final_call = f"NO CALL (no motif has sufficient read support)"
     elif n_pathogenic_repeat_units == n_total_well_supported_repeat_units:
         # reads support only known pathogenic motif(s)
@@ -299,7 +300,7 @@ def main():
         with open(args.ehdn_profile, "rt") as f:
             data = json.load(f)
 
-        records, sample_read_depth, _ = parse_ehdn_info_for_locus(data, chrom, locus_start_0based, locus_end)
+        records, sample_read_depth, _ = parse_ehdn_info_for_locus(data, locus_chrom, locus_start_0based, locus_end)
         result["ehdn_sample_read_depth"] = sample_read_depth
 
         # get the 2 repeat_units with the most read support
