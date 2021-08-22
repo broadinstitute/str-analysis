@@ -191,7 +191,7 @@ def main():
     result.update({
         "found_n_reads_overlap_rfc1_locus": len(overlapping_sequences),
         "found_repeats_in_n_reads": sum(repeat_unit_to_read_count.values()),
-        "found_repeats_in_fraction_of_reads": sum(repeat_unit_to_read_count.values())/len(overlapping_sequences),
+        "found_repeats_in_fraction_of_reads": sum(repeat_unit_to_read_count.values())/len(overlapping_sequences) if overlapping_sequences else 0,
     })
 
     # evaluate the repeat units
