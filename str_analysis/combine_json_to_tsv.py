@@ -17,6 +17,18 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 def parse_args(args_list=None):
     p = argparse.ArgumentParser()
     p.add_argument(
+        "-d",
+        "--add-dirname-column",
+        action="store_true",
+        help="Add Dirname column containing the relative path of directory containing the json file."
+    )
+    p.add_argument(
+        "-f",
+        "--add-filename-column",
+        action="store_true",
+        help="Add Filename column containing the json filename."
+    )
+    p.add_argument(
         "-m",
         "--sample-metadata",
         help="Table of sample annotations. If specified, all columns from this table will be added to the output table."
@@ -64,7 +76,7 @@ class ParseError(Exception):
     pass
 
 
-def parse_json_files(json_paths):
+def parse_json_files(json_paths, add_dirname_column=False, add_filename_column=False):
     """Takes json file paths and yields the contents of each one as a dictionary or list"""
     for json_path in json_paths:
         if not os.path.isfile(json_path):
@@ -72,9 +84,17 @@ def parse_json_files(json_paths):
 
         with open(json_path, "rt", encoding="UTF-8") as f:
             try:
-                yield json.load(f)
+                json_contents = json.load(f)
             except Exception as e:
                 raise ParseError(f"Unable to parse {json_path}: {e}")
+
+            if isinstance(json_contents, dict):
+                if add_dirname_column:
+                    json_contents["Dirname"] = os.path.dirname(json_path)
+                if add_filename_column:
+                    json_contents["Filename"] = os.path.basename(json_path)
+
+            yield json_contents
 
 
 def main():
@@ -82,7 +102,10 @@ def main():
 
     output_prefix = args.output_prefix or f"combined.{len(args.json_paths)}_json_files"
 
-    df = pd.DataFrame(parse_json_files(args.json_paths))
+    df = pd.DataFrame(parse_json_files(
+        args.json_paths,
+        add_dirname_column=args.add_dirname_column,
+        add_filename_column=args.add_filename_column))
 
     if args.sample_metadata:
         sample_id_column_idx1 = get_sample_id_column_index(df)
