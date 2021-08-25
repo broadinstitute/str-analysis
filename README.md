@@ -25,44 +25,43 @@ outputs a .json file with information about the repeat motifs it detects at the 
 The script doesn't attempt to estimate the repeat size, but simply outputs a **call** field that describes 
 the type of repeat motif(s) it detected (more details below). 
 
-
 In initial tests, we found this approach is sufficient to distinguish affected from unaffected individuals. 
 In a cohort of 4447 samples from individuals with different rare disease phenotypes as well as their unaffected
 family members, this script identified 9 individuals as `call = PATHOGENIC MOTIF / PATHOGENIC MOTIF`
-meaning that their read data supports only the pathogenic motifs. Of these 9 individuals, 2 are positive controls with previously-validated RFC1/CANVAS
-pathogenic expansions, and 1 is an affected individual with a phenotype that is highly consistent with CANVAS (now 
-proceeding to clinical validation). The other 6 cases are likely false-positives (or secondary findings).
-In the future, as we continue to test the script on additional positive controls as well as simulated data, we may 
-adjust thresholds to optimize sensitivity/specificity.
+meaning that their read data supports only the pathogenic motifs. Of these 9 individuals, 2 are positive controls 
+with previously-validated RFC1/CANVAS pathogenic expansions, and 1 is an affected individual with a phenotype that 
+is highly consistent with CANVAS (now proceeding to clinical validation). The other 6 cases are likely false-positives 
+(or secondary findings). In the future, as we continue to test the script on additional positive controls as well 
+as simulated data, we may adjust thresholds to optimize sensitivity/specificity.
 
 Description of all fields in the output `*.rfc1_canvas_alleles.json`:
 
 **sample_id**: *If this value is not specified as a command line arg, it is parsed from the input bam/cram file header or filename prefix.*    
-**call**: *describes the alleles detected at the RFC1/CANVAS locus. Its format is analogous to a VCF genotype. Possible values are:*
-* `PATHOGENIC MOTIF / PATHOGENIC MOTIF`: *only pathogenic allele(s) detected*
-* `BENIGN MOTIF / BENIGN MOTIF`: *only benign allele(s) detected*
-* `MOTIF OF UNCERTAIN SIGNIFICANCE / MOTIF OF UNCERTAIN SIGNIFICANCE`: *non-canonical allele(s) detected with unknown pathogenicity*
-* `BENIGN MOTIF / PATHOGENIC MOTIF`: *heterozygous for a benign allele and a pathogenic allele, implying carrier status*
-* `PATHOGENIC MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE`: *heterozygous for a pathogenic allele and a non-canonical allele(s) detected with unknown pathogenicity*
-* `BENIGN MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE`: *heterozygous for a benign allele and a non-canonical allele(s) detected with unknown pathogenicity*
+**call**: *describes the motifs detected at the RFC1/CANVAS locus. Its format is analogous to a VCF genotype. Possible values are:*
+* `PATHOGENIC MOTIF / PATHOGENIC MOTIF`: *only pathogenic motif(s) detected*
+* `BENIGN MOTIF / BENIGN MOTIF`: *only benign motif(s) detected*
+* `MOTIF OF UNCERTAIN SIGNIFICANCE / MOTIF OF UNCERTAIN SIGNIFICANCE`: *non-canonical motif(s) detected with unknown pathogenicity*
+* `BENIGN MOTIF / PATHOGENIC MOTIF`: *heterozygous for a benign motif and a pathogenic motif, implying carrier status*
+* `PATHOGENIC MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE`: *heterozygous for a pathogenic motif and a non-canonical motif(s) detected with unknown pathogenicity*
+* `BENIGN MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE`: *heterozygous for a benign motif and a non-canonical motif(s) detected with unknown pathogenicity*
 * `NO CALL`: *not enough evidence in the read data to support any of the above options*
 
-**allele1_repeat_unit**: *the repeat unit that is supported by the most reads.*     
-**allele1_read_count**: *the number of reads supporting allele1.*   
-**allele1_normalized_read_count**: *same as allele1_read_count, but normalized by depth
+**motif1_repeat_unit**: *the repeat unit that is supported by the most reads.*     
+**motif1_read_count**: *the number of reads supporting motif1.*   
+**motif1_normalized_read_count**: *same as motif1_read_count, but normalized by depth
 of coverage in the flanking regions of the RFC1 locus*   
-**allele1_n_occurrences**: *the total number of times allele1 occurs in the reads at the RFC1 locus.*     
-**allele1_read_count_with_offtargets**: *the number of reads supporting allele1 within off-target regions 
+**motif1_n_occurrences**: *the total number of times motif1 occurs in the reads at the RFC1 locus.*     
+**motif1_read_count_with_offtargets**: *the number of reads supporting motif1 within off-target regions 
     for this repeat unit. These are ~1kb regions where fully-repetitive (aka. IRR) reads may mismap to based on 
     experiments with simulated data.*   
-**allele1_normalized_read_count_with_offtargets**: *same as allele1_read_count_with_offtargets, but normalized by depth 
+**motif1_normalized_read_count_with_offtargets**: *same as motif1_read_count_with_offtargets, but normalized by depth 
     of coverage in the flanking regions of the RFC1 locus*
 
-**allele2_repeat_unit**: *the repeat unit that is supported by the next most reads, or null if all reads support allele1.*    
-**allele2_read_count**: *see "allele1_read_count" description.*  
-**allele2_n_occurrences**: *see "allele1_n_occurrences" description.*  
+**motif2_repeat_unit**: *the repeat unit that is supported by the next most reads, or null if all reads support motif1.*    
+**motif2_read_count**: *see "motif1_read_count" description.*  
+**motif2_n_occurrences**: *see "motif1_n_occurrences" description.*  
 ...    
-*NOTE:* allele2_* fields will only be generated if there is read support for more than 1 allele.    
+*NOTE:* motif2_* fields will only be generated if there is read support for more than 1 motif.    
 
 **left_flank_coverage**: *average read depth within a 2kb window immediately to the left of the RFC1 locus*  
 **right_flank_coverage**: *average read depth within a 2kb window immediately to the right of the RFC1 locus*  
@@ -73,13 +72,21 @@ at the RFC1 locus and have a MAPQ > 2*
 **found_repeats_in_fraction_of_reads**: `found_repeats_in_n_reads` / `found_n_reads_overlap_rfc1_locus`  
 
 This script optionally takes an ExpansionHunterDenovo profile and copies relevant info to the output
-`*.rfc1_canvas_alleles.json` file, adding more fields. 
-The ExpansionHunterDenovo profile isn't used in calculating the fields listed above.  
+`*.rfc1_canvas_alleles.json` file, adding more fields. The ExpansionHunterDenovo profile isn't used in calculating the 
+fields listed above.  
 
-Example command line:
+Similarly, the script can optionally run ExpansionHunter v4 on the RFC1 locus in which case it will generate a variant 
+catalog for the repeat motif(s) it detects and then include ExpansionHunter results in the output.  
+
+Example command lines:
 
 ```
-call_rfc1_canvas_alleles -e sample1.str_profile.json -g 38 sample1.cram
+# basic command 
+call_rfc1_canvas_alleles -R hg38.fasta -g 38 sample1.cram
+
+
+# add information from ExpansionHunterDenovo and ExpansionHunter to the output
+call_rfc1_canvas_alleles -R hg38.fasta --run-expansion-hunter --ehdn-profile sample1.str_profile.json -g 38 sample1.cram
 ```
 
 ### combine_json_to_tsv

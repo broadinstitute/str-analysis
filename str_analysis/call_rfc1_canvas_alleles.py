@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
 """
-This script takes a bam/cram file and outputs a .json file with informatino
+This script takes a bam/cram file and outputs a .json file with information about repeat motifs it detects at the
+RFC1/CANVAS locus.
 """
 
 import argparse
+import ast
 import collections
 import gzip
 import json
@@ -13,6 +15,7 @@ import pkgutil
 import pysam
 from pprint import pprint
 import re
+import subprocess
 
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_repeat_unit
 from str_analysis.utils.ehdn_info_for_locus import parse_ehdn_info_for_locus
@@ -20,7 +23,7 @@ from str_analysis.utils.most_frequent_repeat_unit import compute_most_frequent_r
 from str_analysis.utils.parse_interval import parse_interval
 
 
-CANVAS_REPEAT_UNIT_SIZE = 5
+CANVAS_MOTIF_SIZE = 5
 MARGIN = 7   # base pairs
 FLANK_SIZE = 2000   # base pairs
 MIN_MAPQ = 3
@@ -33,13 +36,13 @@ RFC1_LOCUS_COORDS_0BASED = {
     "38": ("chr4", 39348424, 39348479),   # chr4:39348425-39348479
 }
 
-RFC1_LOCUS_KNOWN_REPEAT_UNITS_BY_CATEGORY = {
+RFC1_LOCUS_KNOWN_MOTIFS_BY_CATEGORY = {
         "BENIGN": {"AAAAG", "AAAGG"},
     "PATHOGENIC": {"AAGGG", "ACAGG"}, # ACAGG is from "A Māori specific RFC1 pathogenic repeat..." [Beecroft 2021]
     #"UNCERTAIN": {"AAGAG", "AGAGG",}, # from [Akcimen 2019]
 }
 
-ALL_RFC1_LOCUS_KNOWN_REPEAT_UNITS = {a for repeat_unit_set in RFC1_LOCUS_KNOWN_REPEAT_UNITS_BY_CATEGORY.values() for a in repeat_unit_set}
+ALL_RFC1_LOCUS_KNOWN_MOTIFS = {a for repeat_unit_set in RFC1_LOCUS_KNOWN_MOTIFS_BY_CATEGORY.values() for a in repeat_unit_set}
 
 GENOME_VERSION_ALIASES = {
     "GRCh37": "37", "hg19": "37", "hg37": "37", "37": "37",
@@ -53,16 +56,29 @@ OFFTARGET_REGIONS = json.loads(gzip.decompress(pkgutil.get_data(__name__, "data/
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("-g", "--genome-version", choices=GENOME_VERSION_ALIASES.keys(), required=True)
-    p.add_argument("-R", "--reference", help="Reference fasta path. The reference fasta is sometimes necessary for "
-                                             "decoding cram files.")
+    p.add_argument("-R", "--reference-fasta", help="Reference fasta path. The reference fasta is sometimes necessary "
+                                                   "for decoding cram files.")
     p.add_argument("-o", "--output-prefix", help="Output filename prefix")
     p.add_argument("-s", "--sample-id", help="The sample id to put in the output json file. If not specified, it "
         "will be retrieved from the bam/cram header or filename prefix.")
+
     p.add_argument("-e", "--ehdn-profile", help="If specified, information relevant to the RFC1 locus will be "
         "transferred from this ExpansionHunterDenovo profile to the output json")
-    p.add_argument("--ignore-offtarget-regions", action="store_true",
-                   help="Don't compute read support in off-target regions. "
-                        "The output will be the same, except that it won't contain *_read_count_with_offtargets fields")
+
+    p.add_argument("-r", "--run-expansion-hunter", action="store_true", help="If this option is specified, this "
+         "script will run ExpansionHunter once for each of the motif(s) it detects at the RFC1 locus. "
+         "ExpansionHunter doesn't currently support genotyping multiallelic repeats such as RFC1 where "
+         "an individual may have 2 alleles with motifs that differ from eachother (and from the reference motif). "
+         "Running ExpansionHunter separately for each motif provides a work-around.")
+    p.add_argument("--expansion-hunter-path", help="The path of the ExpansionHunter executable to use if -r is "
+        "specified. This must be ExpansionHunter v3 or v4.", default="ExpansionHunter")
+    p.add_argument("-t", "--temp-dir", help="Directory for intermediate files such as those generated when "
+                                            "running ExpansionHunter", default=".")
+
+    p.add_argument("--ignore-offtarget-regions", action="store_true", help="Don't compute read support in off-target "
+        "regions. The output will be the same, except that it won't contain *_read_count_with_offtargets fields. "
+        "Also, if --run-expansion-hunter is used, ExpansionHunter will be run without off-target regions.")
+
     p.add_argument("-v", "--verbose", action="store_true", help="Print detailed log messages")
     p.add_argument("bam_or_cram_path", help="bam or cram path")
 
@@ -72,10 +88,134 @@ def parse_args():
     if not os.path.isfile(args.bam_or_cram_path):
         p.error(f"{args.bam_or_cram_path} not found")
 
-    if args.reference and not os.path.isfile(args.reference):
-        p.error(f"{args.reference} not found")
+    if args.reference_fasta and not os.path.isfile(args.reference_fasta):
+        p.error(f"{args.reference_fasta} not found")
+
+    if args.run_expansion_hunter and not args.reference_fasta:
+        p.error("--reference-fasta is required when --run-expansion-hunter is used")
 
     return args
+
+
+def generate_variant_catalog(locus_id, repeat_unit, chrom, start_1based, end_1based, offtarget_regions=None):
+    return {
+        "LocusId": locus_id,
+        "LocusStructure": f"({repeat_unit})*",
+        "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
+        "VariantType": "RareRepeat",
+        "OfftargetRegions": [] if not offtarget_regions else offtarget_regions,
+    }
+
+
+def run_expansion_hunter(
+        sample_id,
+        expansion_hunter_path,
+        genome_version,
+        reference_fasta_path,
+        bam_or_cram_path,
+        repeat_units,
+        result,
+        output_dir=".",
+        use_offtarget_regions=True,
+        verbose=False,
+):
+    """
+    :param well_supported_repeat_units:
+    :param expansion_hunter_path:
+    :param result:
+    :param verbose:
+    :return:
+    """
+
+    if genome_version not in ("37", "38"):
+        raise ValueError(f"Unexpected genome version: {genome_version}. Must be '37' or '38'")
+
+    chrom, start_1based, end_1based = RFC1_LOCUS_COORDS_0BASED[genome_version]
+
+    for repeat_unit_number, repeat_unit in enumerate(repeat_units):
+        # generate variant catalog
+        variant_catalog_locus_label = f"RFC1_{repeat_unit}"
+        variant_catalog = generate_variant_catalog(
+            variant_catalog_locus_label,
+            repeat_unit, chrom, start_1based, end_1based,
+            offtarget_regions=OFFTARGET_REGIONS[genome_version][repeat_unit] if use_offtarget_regions else [])
+
+        variant_catalog_path = os.path.join(output_dir, f"{repeat_unit}.variant_catalog.json")
+        with open(variant_catalog_path, "wt") as f:
+            json.dump([variant_catalog], f)
+
+        # run expansion hunter
+        print("--"*10)
+        print(f"Running ExpansionHunter on {sample_id} for repeat unit {repeat_unit}")
+        if verbose:
+            print("Using variant catalog: ")
+            pprint(variant_catalog)
+
+        filename_prefix = f"{sample_id}.{repeat_unit}"
+        output_prefix = f"{os.path.join(output_dir, filename_prefix)}.expansion_hunter4"
+        subprocess.check_call(f"""{expansion_hunter_path} \
+            --sex male \
+            --aligner path-aligner \
+            --reference {reference_fasta_path} \
+            --reads {bam_or_cram_path} \
+            --variant-catalog {variant_catalog_path} \
+            --output-prefix {output_prefix}
+        """, shell=True)
+
+        # parse result
+        with open(f"{output_prefix}.json", "rt") as f:
+            expansion_hunter_output_json = json.load(f)
+
+        if verbose:
+            print("ExpansionHunter output:")
+            pprint(expansion_hunter_output_json)
+
+
+        eh_result = expansion_hunter_output_json.get("LocusResults", {}).get(variant_catalog_locus_label, {}).get(
+            "Variants", {}).get(variant_catalog_locus_label, {})
+
+        if not eh_result:
+            (result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_genotype"],
+             result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_genotype"]) = None, None
+            continue
+
+        (
+            result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_genotype"],
+            result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_genotype"]
+        ) = [
+            int(g) for g in eh_result["Genotype"].split("/")]
+
+        (
+            result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_start"],
+            result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_end"],
+            result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_start"],
+            result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_end"],
+        ) = [
+            int(b) for ci in eh_result["GenotypeConfidenceInterval"].split("/") for b in ci.split("-")
+        ]
+
+        result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_size"] = (
+                result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_end"] -
+                result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_start"]
+        )
+
+        result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_size"] = (
+                result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_end"] -
+                result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_start"]
+        )
+
+        for output_label in "spanning_reads", "flanking_reads", "inrepeat_reads":
+            read_count_label = "CountsOf" + "".join(word.title() for word in output_label.split('_'))
+
+            if eh_result[read_count_label] == "()":
+                # eg. 'CountsOfSpanningReads': '()'
+                total = 0
+            else:
+                # eg .'CountsOfInrepeatReads': '(30, 4), (31, 6)',
+                read_count_tuples = ast.literal_eval(eh_result[read_count_label])
+                total = sum(t[1] for t in read_count_tuples)
+
+            result[f"motif{repeat_unit_number}_expansion_hunter_total_{output_label}"] = total
 
 
 def main():
@@ -90,7 +230,7 @@ def main():
 
     # process bam/cram
     print(f"Processing {args.bam_or_cram_path}")
-    with pysam.Samfile(args.bam_or_cram_path, reference_filename=args.reference) as f:
+    with pysam.Samfile(args.bam_or_cram_path, reference_filename=args.reference_fasta) as f:
 
         # try to get sample id from bam/cram header
         if not args.sample_id:
@@ -146,7 +286,7 @@ def main():
                 end_offset = locus_end - read_end_pos_including_soft_clips
 
             relevant_bases = read_sequence[start_offset:end_offset]
-            if len(relevant_bases) >= CANVAS_REPEAT_UNIT_SIZE:
+            if len(relevant_bases) >= CANVAS_MOTIF_SIZE:
                 overlapping_sequences.append(relevant_bases)
 
     left_flank_coverage = left_flank_n_well_aligned_bases / FLANK_SIZE
@@ -159,135 +299,148 @@ def main():
         "right_flank_coverage": right_flank_coverage,
     })
 
-    # compute the repeat unit(s) found in the soft-clipped reads, and how many times each one occurs
-    repeat_unit_to_n_occurrences = collections.defaultdict(int)
-    repeat_unit_to_read_count = collections.defaultdict(int)
+    # compute the motif(s) found in the soft-clipped reads, and how many times each one occurs
+    motif_to_n_occurrences = collections.defaultdict(int)
+    motif_to_read_count = collections.defaultdict(int)
     for overlapping_sequence in overlapping_sequences:
         # in gnomAD, EHdn sometimes finds 6bp repeat units (eg. AAAGGG), so check for those as well
-        for repeat_unit_size in (CANVAS_REPEAT_UNIT_SIZE, CANVAS_REPEAT_UNIT_SIZE + 1):
-            if len(overlapping_sequence) < repeat_unit_size:
+        for motif_size in (CANVAS_MOTIF_SIZE, CANVAS_MOTIF_SIZE + 1):
+            if len(overlapping_sequence) < motif_size:
                 continue
 
-            repeat_unit, count = compute_most_frequent_repeat_unit(
+            motif, count = compute_most_frequent_repeat_unit(
                 overlapping_sequence,
-                repeat_unit_size=repeat_unit_size,
+                repeat_unit_size=motif_size,
                 min_occurrences=3,
                 min_fraction_bases_covered=MIN_FRACTION_OF_BASES_COVERED)
 
             if args.verbose:
-                if repeat_unit:
-                    print(f"Found {compute_canonical_repeat_unit(repeat_unit)} occurs {count}x in read bases that "
+                if motif:
+                    print(f"Found {compute_canonical_repeat_unit(motif)} occurs {count}x in read bases that "
                           f"overlap the RFC1 locus: {overlapping_sequence}")
                 else:
-                    if repeat_unit_size == CANVAS_REPEAT_UNIT_SIZE:
-                        print(f"Didn't find a consistent {repeat_unit_size}bp repeat unit in read bases "
+                    if motif_size == CANVAS_MOTIF_SIZE:
+                        print(f"Didn't find a consistent {motif_size}bp repeat unit in read bases "
                             f"that overlap the RFC1 locus: {overlapping_sequence}")
 
-            if repeat_unit is not None:
-                canonical_repeat_unit = compute_canonical_repeat_unit(repeat_unit)
-                repeat_unit_to_read_count[canonical_repeat_unit] += 1
-                repeat_unit_to_n_occurrences[canonical_repeat_unit] += count
+            if motif is not None:
+                canonical_motif = compute_canonical_repeat_unit(motif)
+                motif_to_read_count[canonical_motif] += 1
+                motif_to_n_occurrences[canonical_motif] += count
 
     result.update({
         "found_n_reads_overlap_rfc1_locus": len(overlapping_sequences),
-        "found_repeats_in_n_reads": sum(repeat_unit_to_read_count.values()),
-        "found_repeats_in_fraction_of_reads": sum(repeat_unit_to_read_count.values())/len(overlapping_sequences) if overlapping_sequences else 0,
+        "found_repeats_in_n_reads": sum(motif_to_read_count.values()),
+        "found_repeats_in_fraction_of_reads": sum(motif_to_read_count.values())/len(overlapping_sequences) if overlapping_sequences else 0,
     })
 
     # evaluate the repeat units
-    well_supported_repeat_units = []
-    for repeat_unit, read_count in repeat_unit_to_read_count.items():
-        if "N" in repeat_unit:
+    well_supported_motifs = []
+    for motif, read_count in motif_to_read_count.items():
+        if "N" in motif:
             continue
         if read_count < 3:
             continue
-        well_supported_repeat_units.append(repeat_unit)
+        well_supported_motifs.append(motif)
 
     # select the repeat unit(s) with the most read support
-    well_supported_repeat_units.sort(key=lambda repeat_unit: repeat_unit_to_n_occurrences[repeat_unit], reverse=True)
-    selected_repeat_units = well_supported_repeat_units[:2]
+    well_supported_motifs.sort(key=lambda motif: motif_to_n_occurrences[motif], reverse=True)
+    selected_motifs = well_supported_motifs[:2]
 
     # sort then into BENIGN .. PATHOGENIC .. UNCERTAIN SIGNIFICANCE to match the order in the "call" output field
-    selected_repeat_units = sorted(selected_repeat_units, key=lambda repeat_unit:
-        1 if repeat_unit in RFC1_LOCUS_KNOWN_REPEAT_UNITS_BY_CATEGORY["BENIGN"] else
-        2 if repeat_unit in RFC1_LOCUS_KNOWN_REPEAT_UNITS_BY_CATEGORY["PATHOGENIC"] else
+    selected_motifs = sorted(selected_motifs, key=lambda motif:
+        1 if motif in RFC1_LOCUS_KNOWN_MOTIFS_BY_CATEGORY["BENIGN"] else
+        2 if motif in RFC1_LOCUS_KNOWN_MOTIFS_BY_CATEGORY["PATHOGENIC"] else
         3)
 
+    if args.run_expansion_hunter:
+        run_expansion_hunter(
+            args.sample_id,
+            args.expansion_hunter_path,
+            args.genome_version,
+            args.reference_fasta,
+            args.bam_or_cram_path,
+            selected_motifs,
+            result,
+            output_dir=args.temp_dir,
+            use_offtarget_regions=not args.ignore_offtarget_regions,
+            verbose=args.verbose)
+
     flank_coverage_mean = (left_flank_coverage + right_flank_coverage) / 2.0
-    n_pathogenic_repeat_units = 0
-    n_benign_repeat_units = 0
-    n_total_well_supported_repeat_units = 0
+    n_pathogenic_motifs = 0
+    n_benign_motifs = 0
+    n_total_well_supported_motifs = 0
     for i in 0, 1:
-        repeat_unit_number = i + 1
-        if len(selected_repeat_units) <= i:
+        motif_number = i + 1
+        if len(selected_motifs) <= i:
             continue
 
-        n_total_well_supported_repeat_units += 1
-        repeat_unit = selected_repeat_units[i]
-        read_count = repeat_unit_to_read_count.get(repeat_unit)
-        n_occurrences = repeat_unit_to_n_occurrences.get(repeat_unit)
-        if repeat_unit in RFC1_LOCUS_KNOWN_REPEAT_UNITS_BY_CATEGORY["PATHOGENIC"]:
-            n_pathogenic_repeat_units += 1
-        elif repeat_unit in RFC1_LOCUS_KNOWN_REPEAT_UNITS_BY_CATEGORY["BENIGN"]:
-            n_benign_repeat_units += 1
+        n_total_well_supported_motifs += 1
+        motif = selected_motifs[i]
+        read_count = motif_to_read_count.get(motif)
+        n_occurrences = motif_to_n_occurrences.get(motif)
+        if motif in RFC1_LOCUS_KNOWN_MOTIFS_BY_CATEGORY["PATHOGENIC"]:
+            n_pathogenic_motifs += 1
+        elif motif in RFC1_LOCUS_KNOWN_MOTIFS_BY_CATEGORY["BENIGN"]:
+            n_benign_motifs += 1
 
         result.update({
-            f"allele{repeat_unit_number}_repeat_unit": repeat_unit,
-            f"allele{repeat_unit_number}_read_count": read_count,
-            f"allele{repeat_unit_number}_normalized_read_count":
+            f"motif{motif_number}_repeat_unit": motif,
+            f"motif{motif_number}_read_count": read_count,
+            f"motif{motif_number}_normalized_read_count":
                 read_count * NORMALIZE_TO_COVERAGE / flank_coverage_mean if flank_coverage_mean > 0 else 0,
-            f"allele{repeat_unit_number}_n_occurrences": n_occurrences,
+            f"motif{motif_number}_n_occurrences": n_occurrences,
         })
 
         if not args.ignore_offtarget_regions:
             read_count_with_offtargets = read_count
-            with pysam.Samfile(args.bam_or_cram_path, reference_filename=args.reference) as f:
-                for offtarget_region in OFFTARGET_REGIONS[args.genome_version][repeat_unit]:
+            with pysam.Samfile(args.bam_or_cram_path, reference_filename=args.reference_fasta) as f:
+                for offtarget_region in OFFTARGET_REGIONS[args.genome_version][motif]:
                     offtarget_chrom, offtarget_start, offtarget_end = parse_interval(offtarget_region)
                     sequences = (r.seq for r in f.fetch(offtarget_chrom, offtarget_start, offtarget_end) if r.mapq >= MIN_MAPQ)
                     c, t = count_repeat_in_sequences(
                         sequences,
-                        repeat_unit,
+                        motif,
                         min_occurrences=3,
                         min_fraction_bases_covered=MIN_FRACTION_OF_BASES_COVERED)
 
                     read_count_with_offtargets += c
                     if args.verbose:
-                        print(f"{c} out of {t} reads contained {repeat_unit} in off-target region {offtarget_region}")
+                        print(f"{c} out of {t} reads contained {motif} in off-target region {offtarget_region}")
 
             result.update({
-                f"allele{repeat_unit_number}_read_count_with_offtargets": read_count_with_offtargets,
-                f"allele{repeat_unit_number}_normalized_read_count_with_offtargets":
+                f"motif{motif_number}_read_count_with_offtargets": read_count_with_offtargets,
+                f"motif{motif_number}_normalized_read_count_with_offtargets":
                     read_count_with_offtargets * NORMALIZE_TO_COVERAGE / flank_coverage_mean if flank_coverage_mean > 0 else 0,
             })
 
     # decide which combination of motifs is supported by the data
     # NOTE: there's no attempt to determine the size of the expansion and whether it's in the pathogenic range
-    if n_total_well_supported_repeat_units == 0:
+    if n_total_well_supported_motifs == 0:
         final_call = f"NO CALL (no motif has sufficient read support)"
-    elif n_pathogenic_repeat_units == n_total_well_supported_repeat_units:
+    elif n_pathogenic_motifs == n_total_well_supported_motifs:
         # reads support only known pathogenic motif(s)
         final_call = "PATHOGENIC MOTIF / PATHOGENIC MOTIF"
-    elif n_benign_repeat_units == n_total_well_supported_repeat_units:
-        # reads support only known benign repeat_unit(s)
+    elif n_benign_motifs == n_total_well_supported_motifs:
+        # reads support only known benign motif(s)
         final_call = "BENIGN MOTIF / BENIGN MOTIF"
-    elif n_benign_repeat_units == 0 and n_pathogenic_repeat_units == 0:
+    elif n_benign_motifs == 0 and n_pathogenic_motifs == 0:
         # reads support one or more non-reference motifs of unknown significance
         final_call = "MOTIF OF UNCERTAIN SIGNIFICANCE / MOTIF OF UNCERTAIN SIGNIFICANCE"
-    elif n_benign_repeat_units > 0 and n_pathogenic_repeat_units > 0:
+    elif n_benign_motifs > 0 and n_pathogenic_motifs > 0:
         # reads support one known benign motif and one pathogenic motif
         final_call = "BENIGN MOTIF / PATHOGENIC MOTIF"
-    elif n_pathogenic_repeat_units > 0:
+    elif n_pathogenic_motifs > 0:
         # reads support one pathogenic motif and at least one other motif of unknown significance
         final_call = "PATHOGENIC MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE"
-    elif n_benign_repeat_units > 0:
+    elif n_benign_motifs > 0:
         # reads support one known benign motif and at least one other motif of unknown significance
         final_call = "BENIGN MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE"
 
     result.update({
-        "n_total_well_supported_alleles": n_total_well_supported_repeat_units,
-        "n_benign_alleles": n_benign_repeat_units,
-        "n_pathogenic_alleles": n_pathogenic_repeat_units,
+        "n_total_well_supported_motifs": n_total_well_supported_motifs,
+        "n_benign_motifs": n_benign_motifs,
+        "n_pathogenic_motifs": n_pathogenic_motifs,
     })
 
     result["call"] = final_call
@@ -303,7 +456,7 @@ def main():
         records, sample_read_depth, _ = parse_ehdn_info_for_locus(data, locus_chrom, locus_start_0based, locus_end)
         result["ehdn_sample_read_depth"] = sample_read_depth
 
-        # get the 2 repeat_units with the most read support
+        # get the 2 motifs with the most read support
         records.sort(key=lambda r: (
             -r["anchored_irr_count_for_this_repeat_unit_and_region"],
             -r["total_irr_count_for_this_repeat_unit_and_region"],
@@ -312,17 +465,17 @@ def main():
 
         for i in 0, 1:
             record = records[i] if len(records) > i else {}
-            repeat_unit_number = i + 1
+            motif_number = i + 1
             result.update({
-                f"ehdn_allele{repeat_unit_number}_repeat_unit": record.get("repeat_unit"),
-                f"ehdn_allele{repeat_unit_number}_anchored_irr_count": record.get("anchored_irr_count_for_this_repeat_unit_and_region"),
-                f"ehdn_allele{repeat_unit_number}_n_anchored_regions": record.get("n_anchored_regions_for_this_repeat_unit"),
-                f"ehdn_allele{repeat_unit_number}_paired_irr_count": record.get("paired_irr_count_for_this_repeat_unit"),
-                f"ehdn_allele{repeat_unit_number}_total_irr_count": record.get("total_irr_count_for_this_repeat_unit_and_region"),
+                f"ehdn_motif{motif_number}_repeat_unit": record.get("repeat_unit"),
+                f"ehdn_motif{motif_number}_anchored_irr_count": record.get("anchored_irr_count_for_this_repeat_unit_and_region"),
+                f"ehdn_motif{motif_number}_n_anchored_regions": record.get("n_anchored_regions_for_this_repeat_unit"),
+                f"ehdn_motif{motif_number}_paired_irr_count": record.get("paired_irr_count_for_this_repeat_unit"),
+                f"ehdn_motif{motif_number}_total_irr_count": record.get("total_irr_count_for_this_repeat_unit_and_region"),
             })
 
     # generate output
-    output_filename = f"{args.output_prefix}.rfc1_canvas_alleles.json"
+    output_filename = f"{args.output_prefix}.rfc1_canvas_motifs.json"
     with open(output_filename, "wt") as f:
         json.dump(result, f, indent=2)
     print(f"Wrote results to {output_filename}")
