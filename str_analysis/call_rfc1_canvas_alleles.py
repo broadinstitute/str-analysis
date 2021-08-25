@@ -15,7 +15,6 @@ import pkgutil
 import pysam
 from pprint import pprint
 import re
-import subprocess
 
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_repeat_unit
 from str_analysis.utils.ehdn_info_for_locus import parse_ehdn_info_for_locus
@@ -161,11 +160,16 @@ def run_expansion_hunter(
 
         if verbose:
             print(expansion_hunter_command)
-        subprocess.run(expansion_hunter_command, shell=True, check=True)
+
+        os.system(expansion_hunter_command)
 
         # parse result
-        with open(f"{output_prefix}.json", "rt") as f:
-            expansion_hunter_output_json = json.load(f)
+        if os.path.isfile(f"{output_prefix}.json"):
+            with open(f"{output_prefix}.json", "rt") as f:
+                expansion_hunter_output_json = json.load(f)
+        else:
+            print(f"ERROR: ExpansionHunter didn't produce a {output_prefix}.json file. Skipping...")
+            continue
 
         if verbose:
             print("ExpansionHunter output:")
