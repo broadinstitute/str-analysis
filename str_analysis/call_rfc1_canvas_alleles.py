@@ -151,13 +151,17 @@ def run_expansion_hunter(
 
         filename_prefix = f"{sample_id}.{repeat_unit}"
         output_prefix = f"{os.path.join(output_dir, filename_prefix)}.expansion_hunter4"
-        subprocess.run(f"""{expansion_hunter_path} \
-            --sex male \
-            --reference {reference_fasta_path} \
-            --reads {bam_or_cram_path} \
-            --variant-catalog {variant_catalog_path} \
-            --output-prefix {output_prefix}
-        """, shell=True, check=True)
+        expansion_hunter_command = f"""{expansion_hunter_path} \
+--sex male \
+--reference {reference_fasta_path} \
+--reads {bam_or_cram_path} \
+--variant-catalog {variant_catalog_path} \
+--output-prefix {output_prefix}
+"""
+
+        if verbose:
+            print(expansion_hunter_command)
+        subprocess.run(expansion_hunter_command, shell=True, check=True)
 
         # parse result
         with open(f"{output_prefix}.json", "rt") as f:
@@ -208,8 +212,12 @@ def run_expansion_hunter(
                 total = 0
             else:
                 # eg .'CountsOfInrepeatReads': '(30, 4), (31, 6)',
-                read_count_tuples = ast.literal_eval(eh_result[read_count_label])
-                total = sum(t[1] for t in read_count_tuples)
+                try:
+                    read_count_tuples = ast.literal_eval(f"[{eh_result[read_count_label]}]")
+                    total = sum(t[1] for t in read_count_tuples)
+                except Exception as e:
+                    print(f"ERROR: unable to parse {read_count_label}: {read_count_tuples}. {e}")
+                    continue
 
             result[f"motif{repeat_unit_number}_expansion_hunter_total_{output_label}"] = total
 
@@ -470,7 +478,7 @@ def main():
             })
 
     # generate output
-    output_filename = f"{args.output_prefix}.rfc1_canvas_motifs.json"
+    output_filename = f"{args.output_prefix}.rfc1_canvas_alleles.json"
     with open(output_filename, "wt") as f:
         json.dump(result, f, indent=2)
     print(f"Wrote results to {output_filename}")
