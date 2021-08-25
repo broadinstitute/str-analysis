@@ -13,8 +13,9 @@ import json
 import os
 import pkgutil
 import pysam
-from pprint import pprint
+from pprint import pprint, pformat
 import re
+import subprocess
 
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_repeat_unit
 from str_analysis.utils.ehdn_info_for_locus import parse_ehdn_info_for_locus
@@ -155,13 +156,14 @@ def run_expansion_hunter(
 --reference {reference_fasta_path} \
 --reads {bam_or_cram_path} \
 --variant-catalog {variant_catalog_path} \
---output-prefix {output_prefix}
+--output-prefix {output_prefix} \
+--log-level debug
 """
 
         if verbose:
             print(expansion_hunter_command)
 
-        os.system(expansion_hunter_command)
+        subprocess.run(expansion_hunter_command, shell=True, stderr=subprocess.STDOUT, check=False)
 
         # parse result
         if os.path.isfile(f"{output_prefix}.json"):
@@ -172,8 +174,8 @@ def run_expansion_hunter(
             continue
 
         if verbose:
-            print("ExpansionHunter output:")
-            pprint(expansion_hunter_output_json)
+            print(f"ExpansionHunter output: {pformat(expansion_hunter_output_json)}")
+
 
         eh_result = expansion_hunter_output_json.get("LocusResults", {}).get(variant_catalog_locus_label, {}).get(
             "Variants", {}).get(variant_catalog_locus_label, {})
@@ -183,35 +185,38 @@ def run_expansion_hunter(
              result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_genotype"]) = None, None
             continue
 
-        (
-            result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_genotype"],
-            result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_genotype"]
-        ) = [
-            int(g) for g in eh_result["Genotype"].split("/")]
 
-        (
-            result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_start"],
-            result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_end"],
-            result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_start"],
-            result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_end"],
-        ) = [
-            int(b) for ci in eh_result["GenotypeConfidenceInterval"].split("/") for b in ci.split("-")
-        ]
+        if eh_result.get("Genotype"):
+            (
+                result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_genotype"],
+                result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_genotype"]
+            ) = [
+                int(g) for g in eh_result["Genotype"].split("/")]
 
-        result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_size"] = (
-                result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_end"] -
-                result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_start"]
-        )
+        if eh_result.get("GenotypeConfidenceInterval"):
+            (
+                result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_start"],
+                result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_end"],
+                result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_start"],
+                result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_end"],
+            ) = [
+                int(b) for ci in eh_result["GenotypeConfidenceInterval"].split("/") for b in ci.split("-")
+            ]
 
-        result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_size"] = (
-                result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_end"] -
-                result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_start"]
-        )
+            result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_size"] = (
+                    result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_end"] -
+                    result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_start"]
+            )
+
+            result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_size"] = (
+                    result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_end"] -
+                    result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_start"]
+            )
 
         for output_label in "spanning_reads", "flanking_reads", "inrepeat_reads":
             read_count_label = "CountsOf" + "".join(word.title() for word in output_label.split('_'))
 
-            if eh_result[read_count_label] == "()":
+            if not eh_result.get(read_count_label) or eh_result[read_count_label] == "()":
                 # eg. 'CountsOfSpanningReads': '()'
                 total = 0
             else:
