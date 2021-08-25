@@ -52,6 +52,19 @@ GENOME_VERSION_ALIASES = {
 
 OFFTARGET_REGIONS = json.loads(gzip.decompress(pkgutil.get_data(__name__, "data/offtarget_regions.json.gz")))
 
+PATHOGENIC_MOTIF_CALL = "PATHOGENIC MOTIF"
+BENIGN_MOTIF_CALL = "BENIGN MOTIF"
+UNCERTAIN_SIG_CALL = "MOTIF OF UNCERTAIN SIGNIFICANCE"
+
+NO_CALL1 = f"NO CALL (no motif has sufficient read support)"
+
+PATHOGENIC_PATHOGENIC_CALL = f"{PATHOGENIC_MOTIF_CALL} / {PATHOGENIC_MOTIF_CALL}"
+BENIGN_BENIGN_CALL = f"{BENIGN_MOTIF_CALL} / {BENIGN_MOTIF_CALL}"
+UNCERTAIN_SIG_UNCERTAIN_SIG_CALL = f"{UNCERTAIN_SIG_CALL} / {UNCERTAIN_SIG_CALL}"
+
+BENIGN_PATHOGENIC_CALL = f"{BENIGN_MOTIF_CALL} / {PATHOGENIC_MOTIF_CALL}"
+PATHOGENIC_UNCERTAIN_SIG_CALL = f"{PATHOGENIC_MOTIF_CALL} / {UNCERTAIN_SIG_CALL}"
+BENIGN_UNCERTAIN_SIG_CALL = f"{BENIGN_MOTIF_CALL} / {UNCERTAIN_SIG_CALL}"
 
 def parse_args():
     p = argparse.ArgumentParser()
@@ -77,6 +90,13 @@ def parse_args():
         "regions. The output will be the same, except that it won't contain *_read_count_with_offtargets fields. "
         "Also, if --run-expansion-hunter is used, ExpansionHunter will be run without off-target regions.")
 
+    group = p.add_mutually_exclusive_group(required=True)
+    group.add_argument("--run-reviewer", action="store_true", help="Run the REViewer tool to visualize "
+        "ExpansionHunter output. --run-expansion-hunter must also be specified.")
+    group.add_argument("--run-reviewer-for-pathogenic-calls", action="store_true", help="Run the REViewer tool "
+        f"to visualize ExpansionHunter output when this script calls a sample as having {PATHOGENIC_PATHOGENIC_CALL}. "
+        f"--run-expansion-hunter must also be specified.")
+
     p.add_argument("-v", "--verbose", action="store_true", help="Print detailed log messages")
     p.add_argument("bam_or_cram_path", help="bam or cram path")
 
@@ -91,6 +111,9 @@ def parse_args():
 
     if args.run_expansion_hunter and not args.reference_fasta:
         p.error("--reference-fasta is required when --run-expansion-hunter is used")
+
+    if args.run_reviewer and not args.run_expansion_hunter:
+        p.error("--run-expansion-hunter is required when --run-reviewer is used since REViewer depends on the output of ExpansionHunter")
 
     return args
 
@@ -114,6 +137,7 @@ def run_expansion_hunter(
         repeat_units,
         result,
         use_offtarget_regions=True,
+        run_reviewer=False,
         output_dir=".",
         verbose=False,
 ):
@@ -131,6 +155,7 @@ def run_expansion_hunter(
     chrom, start_1based, end_1based = RFC1_LOCUS_COORDS_0BASED[genome_version]
 
     for repeat_unit_number, repeat_unit in enumerate(repeat_units):
+        motif_number = repeat_unit_number + 1 
         # generate variant catalog
         variant_catalog_locus_label = f"RFC1_{repeat_unit}"
         variant_catalog = generate_variant_catalog(
@@ -150,7 +175,7 @@ def run_expansion_hunter(
             pprint(variant_catalog)
 
         filename_prefix = f"{sample_id}.{repeat_unit}"
-        output_prefix = f"{os.path.join(output_dir, filename_prefix)}.expansion_hunter4"
+        output_prefix = f"{os.path.join(output_dir, filename_prefix)}.expansion_hunter"
         expansion_hunter_command = f"""{expansion_hunter_path} \
 --sex male \
 --reference {reference_fasta_path} \
@@ -161,7 +186,7 @@ def run_expansion_hunter(
 """
 
         if verbose:
-            print(expansion_hunter_command)
+            print(f"Running: {expansion_hunter_command}")
 
         subprocess.run(expansion_hunter_command, shell=True, stderr=subprocess.STDOUT, check=False)
 
@@ -176,41 +201,39 @@ def run_expansion_hunter(
         if verbose:
             print(f"ExpansionHunter output: {pformat(expansion_hunter_output_json)}")
 
-
         eh_result = expansion_hunter_output_json.get("LocusResults", {}).get(variant_catalog_locus_label, {}).get(
             "Variants", {}).get(variant_catalog_locus_label, {})
 
         if not eh_result:
-            (result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_genotype"],
-             result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_genotype"]) = None, None
             continue
 
+        result[f"expansion_hunter_motif{motif_number}_repeat_unit"] = repeat_unit
 
         if eh_result.get("Genotype"):
             (
-                result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_genotype"],
-                result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_genotype"]
+                result[f"expansion_hunter_motif{motif_number}_short_allele_genotype"],
+                result[f"expansion_hunter_motif{motif_number}_long_allele_genotype"]
             ) = [
                 int(g) for g in eh_result["Genotype"].split("/")]
 
         if eh_result.get("GenotypeConfidenceInterval"):
             (
-                result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_start"],
-                result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_end"],
-                result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_start"],
-                result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_end"],
+                result[f"expansion_hunter_motif{motif_number}_short_allele_CI_start"],
+                result[f"expansion_hunter_motif{motif_number}_short_allele_CI_end"],
+                result[f"expansion_hunter_motif{motif_number}_long_allele_CI_start"],
+                result[f"expansion_hunter_motif{motif_number}_long_allele_CI_end"],
             ) = [
                 int(b) for ci in eh_result["GenotypeConfidenceInterval"].split("/") for b in ci.split("-")
             ]
 
-            result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_size"] = (
-                    result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_end"] -
-                    result[f"motif{repeat_unit_number}_expansion_hunter_short_allele_CI_start"]
+            result[f"expansion_hunter_motif{motif_number}_short_allele_CI_size"] = (
+                    result[f"expansion_hunter_motif{motif_number}_short_allele_CI_end"] -
+                    result[f"expansion_hunter_motif{motif_number}_short_allele_CI_start"]
             )
 
-            result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_size"] = (
-                    result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_end"] -
-                    result[f"motif{repeat_unit_number}_expansion_hunter_long_allele_CI_start"]
+            result[f"expansion_hunter_motif{motif_number}_long_allele_CI_size"] = (
+                    result[f"expansion_hunter_motif{motif_number}_long_allele_CI_end"] -
+                    result[f"expansion_hunter_motif{motif_number}_long_allele_CI_start"]
             )
 
         for output_label in "spanning_reads", "flanking_reads", "inrepeat_reads":
@@ -228,7 +251,23 @@ def run_expansion_hunter(
                     print(f"ERROR: unable to parse {read_count_label}: {read_count_tuples}. {e}")
                     continue
 
-            result[f"motif{repeat_unit_number}_expansion_hunter_total_{output_label}"] = total
+            result[f"expansion_hunter_motif{motif_number}_total_{output_label}"] = total
+
+        if run_reviewer:
+            reviewer_command = f"""samtools sort {output_prefix}_realigned.bam -o {output_prefix}.sorted.bam \
+                && samtools index {output_prefix}.sorted.bam \
+                && REViewer --reads {output_prefix}.sorted.bam  \
+                    --vcf {output_prefix}.vcf \
+                    --reference {reference_fasta_path} \
+                    --catalog {variant_catalog_path} \
+                    --locus {variant_catalog_locus_label} \
+                    --output-prefix {output_prefix}_reviewer
+            """
+
+            if verbose:
+                print(f"Running: {reviewer_command}")
+
+            subprocess.run(reviewer_command, shell=True, stderr=subprocess.STDOUT, check=False)
 
 
 def main():
@@ -366,18 +405,6 @@ def main():
         2 if motif in RFC1_LOCUS_KNOWN_MOTIFS_BY_CATEGORY["PATHOGENIC"] else
         3)
 
-    if args.run_expansion_hunter:
-        run_expansion_hunter(
-            args.sample_id,
-            args.expansion_hunter_path,
-            args.genome_version,
-            args.reference_fasta,
-            args.bam_or_cram_path,
-            selected_motifs,
-            result,
-            use_offtarget_regions=not args.ignore_offtarget_regions,
-            verbose=args.verbose)
-
     flank_coverage_mean = (left_flank_coverage + right_flank_coverage) / 2.0
     n_pathogenic_motifs = 0
     n_benign_motifs = 0
@@ -429,25 +456,25 @@ def main():
     # decide which combination of motifs is supported by the data
     # NOTE: there's no attempt to determine the size of the expansion and whether it's in the pathogenic range
     if n_total_well_supported_motifs == 0:
-        final_call = f"NO CALL (no motif has sufficient read support)"
+        final_call = NO_CALL1
     elif n_pathogenic_motifs == n_total_well_supported_motifs:
         # reads support only known pathogenic motif(s)
-        final_call = "PATHOGENIC MOTIF / PATHOGENIC MOTIF"
+        final_call = PATHOGENIC_PATHOGENIC_CALL
     elif n_benign_motifs == n_total_well_supported_motifs:
         # reads support only known benign motif(s)
-        final_call = "BENIGN MOTIF / BENIGN MOTIF"
+        final_call = BENIGN_BENIGN_CALL
     elif n_benign_motifs == 0 and n_pathogenic_motifs == 0:
         # reads support one or more non-reference motifs of unknown significance
-        final_call = "MOTIF OF UNCERTAIN SIGNIFICANCE / MOTIF OF UNCERTAIN SIGNIFICANCE"
+        final_call = UNCERTAIN_SIG_UNCERTAIN_SIG_CALL
     elif n_benign_motifs > 0 and n_pathogenic_motifs > 0:
         # reads support one known benign motif and one pathogenic motif
-        final_call = "BENIGN MOTIF / PATHOGENIC MOTIF"
+        final_call = BENIGN_PATHOGENIC_CALL
     elif n_pathogenic_motifs > 0:
         # reads support one pathogenic motif and at least one other motif of unknown significance
-        final_call = "PATHOGENIC MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE"
+        final_call = PATHOGENIC_UNCERTAIN_SIG_CALL
     elif n_benign_motifs > 0:
         # reads support one known benign motif and at least one other motif of unknown significance
-        final_call = "BENIGN MOTIF / MOTIF OF UNCERTAIN SIGNIFICANCE"
+        final_call = BENIGN_UNCERTAIN_SIG_CALL
 
     result.update({
         "n_total_well_supported_motifs": n_total_well_supported_motifs,
@@ -459,10 +486,26 @@ def main():
 
     print(f"Final call: {final_call}")
 
+    if args.run_expansion_hunter:
+        run_expansion_hunter(
+            args.sample_id,
+            args.expansion_hunter_path,
+            args.genome_version,
+            args.reference_fasta,
+            args.bam_or_cram_path,
+            selected_motifs,
+            result,
+            run_reviewer=args.run_reviewer or (
+                    args.run_reviewer_for_pathogenic_calls and final_call == PATHOGENIC_PATHOGENIC_CALL
+            ),
+            use_offtarget_regions=not args.ignore_offtarget_regions,
+            verbose=args.verbose)
+
     # process EHdn profile if one was provided
     if args.ehdn_profile:
         print(f"Parsing {args.ehdn_profile}")
-        with open(args.ehdn_profile, "rt") as f:
+        open_func = gzip.open if args.ehdn_profile.endswith("gz") else open
+        with open_func(args.ehdn_profile, "rt") as f:
             data = json.load(f)
 
         records, sample_read_depth, _ = parse_ehdn_info_for_locus(data, locus_chrom, locus_start_0based, locus_end)
@@ -476,7 +519,10 @@ def main():
         ))
 
         for i in 0, 1:
-            record = records[i] if len(records) > i else {}
+            if i >= len(records):
+                continue
+
+            record = records[i]
             motif_number = i + 1
             result.update({
                 f"ehdn_motif{motif_number}_repeat_unit": record.get("repeat_unit"),

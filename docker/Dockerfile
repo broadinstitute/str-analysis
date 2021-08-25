@@ -61,13 +61,19 @@ RUN wget -q https://github.com/Illumina/ExpansionHunterDenovo/releases/download/
     && mv ExpansionHunterDenovo-${VERSION}-linux_x86_64/bin/ExpansionHunterDenovo /usr/local/bin/ExpansionHunterDenovo \
     && rm -r ExpansionHunterDenovo-${VERSION}-linux_x86_64 ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz
 
-
-# install ExpansionHunter v4 binary from 
+# install ExpansionHunter binary
 ENV EH_VERSION=v5.0.0
 RUN wget -q https://github.com/Illumina/ExpansionHunter/releases/download/${EH_VERSION}/ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz \
     && tar xzf ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz \
     && mv /ExpansionHunter-${EH_VERSION}-linux_x86_64/bin/ExpansionHunter /usr/local/bin/ \
     && rm -r ExpansionHunter-${EH_VERSION}-linux_x86_64 ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz
+
+# install REViewer
+ENV REVIEWER_VERSION=v0.2.4
+RUN wget -q https://github.com/Illumina/REViewer/releases/download/${REVIEWER_VERSION}/REViewer-${REVIEWER_VERSION}-linux_x86_64.gz \
+    && gunzip REViewer-${REVIEWER_VERSION}-linux_x86_64.gz \
+    && mv /REViewer-${REVIEWER_VERSION}-linux_x86_64 /usr/local/bin/REViewer \
+    && chmod 777 /usr/local/bin/REViewer
 
 # install gcloud
 ENV GCLOUD_SDK_VERISON="354.0.0"
