@@ -45,13 +45,6 @@ RUN wget https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VERSI
 	&& make install \
 	&& make clean
 
-# install ExpansionHunterDenovo binary release https://github.com/Illumina/ExpansionHunterDenovo
-ENV VERSION=v0.9.0
-RUN wget https://github.com/Illumina/ExpansionHunterDenovo/releases/download/${VERSION}/ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz \
-    && tar xzf ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz \
-    && rm ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz \
-    && mv ExpansionHunterDenovo-${VERSION}-linux_x86_64/bin/ExpansionHunterDenovo /ExpansionHunterDenovo
-
 # install python3.7 (adds 800Mb)
 RUN apt-get update \
 	&& apt-get dist-upgrade -y \
@@ -65,6 +58,21 @@ RUN wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VER
 	&& ./configure --enable-optimizations \
 	&& make install \
 	&& make clean
+
+
+# install ExpansionHunterDenovo binary from https://github.com/Illumina/ExpansionHunterDenovo
+ENV VERSION=v0.9.0
+RUN wget https://github.com/Illumina/ExpansionHunterDenovo/releases/download/${VERSION}/ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz \
+    && tar xzf ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz \
+    && rm ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz \
+    && mv ExpansionHunterDenovo-${VERSION}-linux_x86_64/bin/ExpansionHunterDenovo /ExpansionHunterDenovo
+
+# install ExpansionHunter v4 binary from 
+ENV EH_VERSION=v5.0.0
+RUN wget https://github.com/Illumina/ExpansionHunter/releases/download/${EH_VERSION}/ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz \
+    && tar xzf ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz \
+    && rm ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz \
+    && mv /ExpansionHunter-${EH_VERSION}-linux_x86_64 /ExpansionHunter4
 
 # install gcloud
 ENV GCLOUD_SDK_VERISON="352.0.0"
