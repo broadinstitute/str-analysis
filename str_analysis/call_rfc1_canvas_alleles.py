@@ -72,8 +72,6 @@ def parse_args():
          "Running ExpansionHunter separately for each motif provides a work-around.")
     p.add_argument("--expansion-hunter-path", help="The path of the ExpansionHunter executable to use if -r is "
         "specified. This must be ExpansionHunter v3 or v4.", default="ExpansionHunter")
-    p.add_argument("-t", "--temp-dir", help="Directory for intermediate files such as those generated when "
-                                            "running ExpansionHunter", default=".")
 
     p.add_argument("--ignore-offtarget-regions", action="store_true", help="Don't compute read support in off-target "
         "regions. The output will be the same, except that it won't contain *_read_count_with_offtargets fields. "
@@ -115,8 +113,8 @@ def run_expansion_hunter(
         bam_or_cram_path,
         repeat_units,
         result,
-        output_dir=".",
         use_offtarget_regions=True,
+        output_dir=".",
         verbose=False,
 ):
     """
@@ -153,14 +151,13 @@ def run_expansion_hunter(
 
         filename_prefix = f"{sample_id}.{repeat_unit}"
         output_prefix = f"{os.path.join(output_dir, filename_prefix)}.expansion_hunter4"
-        subprocess.check_call(f"""{expansion_hunter_path} \
+        subprocess.run(f"""{expansion_hunter_path} \
             --sex male \
-            --aligner path-aligner \
             --reference {reference_fasta_path} \
             --reads {bam_or_cram_path} \
             --variant-catalog {variant_catalog_path} \
             --output-prefix {output_prefix}
-        """, shell=True)
+        """, shell=True, check=True)
 
         # parse result
         with open(f"{output_prefix}.json", "rt") as f:
@@ -169,7 +166,6 @@ def run_expansion_hunter(
         if verbose:
             print("ExpansionHunter output:")
             pprint(expansion_hunter_output_json)
-
 
         eh_result = expansion_hunter_output_json.get("LocusResults", {}).get(variant_catalog_locus_label, {}).get(
             "Variants", {}).get(variant_catalog_locus_label, {})
@@ -362,7 +358,6 @@ def main():
             args.bam_or_cram_path,
             selected_motifs,
             result,
-            output_dir=args.temp_dir,
             use_offtarget_regions=not args.ignore_offtarget_regions,
             verbose=args.verbose)
 
