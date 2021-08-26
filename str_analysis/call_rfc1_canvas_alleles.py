@@ -255,14 +255,14 @@ def run_expansion_hunter(
 
         if run_reviewer:
             reviewer_command = f"""samtools sort {output_prefix}_realigned.bam -o {output_prefix}.sorted.bam \
-                && samtools index {output_prefix}.sorted.bam \
-                && REViewer --reads {output_prefix}.sorted.bam  \
-                    --vcf {output_prefix}.vcf \
-                    --reference {reference_fasta_path} \
-                    --catalog {variant_catalog_path} \
-                    --locus {variant_catalog_locus_label} \
-                    --output-prefix {output_prefix}_reviewer
-            """
+&& samtools index {output_prefix}.sorted.bam \
+&& REViewer --reads {output_prefix}.sorted.bam  \
+    --vcf {output_prefix}.vcf \
+    --reference {reference_fasta_path} \
+    --catalog {variant_catalog_path} \
+    --locus {variant_catalog_locus_label} \
+    --output-prefix {output_prefix}_reviewer
+"""
 
             if verbose:
                 print(f"Running: {reviewer_command}")
