@@ -32,9 +32,20 @@ def parse_args(args_list=None):
         "-m",
         "--sample-metadata",
         help="Table of sample annotations. If specified, all columns from this table will be added to the output table."
-             " Both the json file(s) and this table should have a 'sample_id' field or column. Variations of this are"
-             "also accepted - including 'SampleId', 'sample', and 'ParticipantId'",
     )
+    p.add_argument(
+        "--json-sample-id-key",
+        help="The json field that contains a sample id to use for joining with the --sample-metadata table. "
+             "If not specified, 'sample_id' and other variations like 'SampleId', 'sample', and 'ParticipantId' "
+             "will be tried."
+    )
+    p.add_argument(
+        "--sample-metadata-key",
+        help="The column name in the --sample-metdata table that contains a sample id. "
+             "If not specified, 'sample_id' and other variations like 'SampleId', 'sample', and 'ParticipantId' "
+             "will be tried."
+    )
+
     p.add_argument(
         "-o",
         "--output-prefix",
@@ -54,6 +65,12 @@ def parse_args(args_list=None):
         if len(args.json_paths) == 0:
             sys.exit(0)
 
+    if args.sample_metadata_key and not args.sample_metadata:
+        p.error("--sample-metadata-key should only be specified along with --sample-metadata")
+
+    if args.json_sample_id_key and not args.sample_metadata:
+        p.error("--json-sample-id-key should only be specified along with --sample-metadata")
+
     return args
 
 
@@ -65,10 +82,23 @@ SAMPLE_ID_COLUMN_ALAISES = {
 }
 
 
-def get_sample_id_column_index(df):
+def get_sample_id_column_index(df, column_name=None):
+    """Try to find a column in df that contains sample ids
+
+    Args:
+         df (DataFrame): pandas DataFrame
+         column_name (str): if specified this function will get the index of this specific column name
+
+    Return:
+        Index of sample id column, or -1 if not found
+    """
     for i, column in enumerate(df.columns):
-        if column.lower() in SAMPLE_ID_COLUMN_ALAISES:
+        if column_name is not None:
+            if column == column_name:
+                return i
+        elif column.lower() in SAMPLE_ID_COLUMN_ALAISES:
             return i
+
     return -1
 
 
@@ -94,7 +124,11 @@ def parse_json_files(json_paths, add_dirname_column=False, add_filename_column=F
                 if add_filename_column:
                     json_contents["Filename"] = os.path.basename(json_path)
 
-            yield json_contents
+                json_contents_excluding_complex_values = {
+                    key: value for key, value in json_contents.items() if isinstance(value, (int, str, bool, float, tuple))
+                }
+
+                yield json_contents_excluding_complex_values
 
 
 def main():
@@ -108,16 +142,19 @@ def main():
         add_filename_column=args.add_filename_column))
 
     if args.sample_metadata:
-        sample_id_column_idx1 = get_sample_id_column_index(df)
+
+        sample_id_column_idx1 = get_sample_id_column_index(df, column_name=args.json_sample_id_key)
         if sample_id_column_idx1 is -1:
             raise ValueError(f"'sample_id' field not found in json files. The fields found were: {df.columns}")
 
         metadata_df = pd.read_table(args.sample_metadata)
 
-        sample_id_column_idx2 = get_sample_id_column_index(metadata_df)
-        if sample_id_column_idx1 is -1:
+        sample_id_column_idx2 = get_sample_id_column_index(metadata_df, column_name=args.sample_metadata_key)
+        if sample_id_column_idx2 is -1:
             raise ValueError(f"'sample_id' column not found in {args.sample_metadata}. The columns found were: {metadata_df.columns}")
 
+        print(f"Doing a LEFT JOIN with {args.sample_metadata} using keys "
+              f"{df.columns[sample_id_column_idx1]} and {metadata_df.columns[sample_id_column_idx2]}")
         df = pd.merge(df, metadata_df, how="left", left_on=df.columns[sample_id_column_idx1], right_on=metadata_df.columns[sample_id_column_idx2])
 
     output_filename = f"{output_prefix}.tsv"
