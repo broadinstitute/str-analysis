@@ -21,6 +21,7 @@ def parse_args(args_list=None):
              "be added to the output table as additional columns. This option can be specified more than once to "
              "use multiple variant catalogs as an annotation source.",
         action="append",
+        default=[],
     )
     p.add_argument(
         "-o",
