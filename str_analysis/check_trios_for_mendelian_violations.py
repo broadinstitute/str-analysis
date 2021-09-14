@@ -149,10 +149,13 @@ def compute_mendelian_violations(trios):
             # Strictly speaking, this means the X-chrom allele should always be inheritted from the mother. However, since there might be more complicated
             # scenarios (such as in the PAR region), call it ok (not a mendelian violation) even if it matches the father's allele
             ok_mendelian = proband_alleles[0] in father_alleles or proband_alleles[0] in mother_alleles
-            distance_mendelian = compute_min_distance_mendelian(proband_alleles[0], father_alleles) + compute_min_distance_mendelian(proband_alleles[0], mother_alleles)
+            distance_mendelian = min(compute_min_distance_mendelian(proband_alleles[0], father_alleles),
+                                     compute_min_distance_mendelian(proband_alleles[0], mother_alleles))
 
             ok_mendelian_ci = any([intervals_overlap(proband_CIs[0], i) for i in father_CIs]) or any([intervals_overlap(proband_CIs[0], i) for i in mother_CIs])
-            distance_mendelian_ci = compute_min_distance_mendelian_ci(proband_CIs[0], father_CIs) + compute_min_distance_mendelian_ci(proband_CIs[0], mother_CIs)
+            distance_mendelian_ci = min(
+                compute_min_distance_mendelian_ci(proband_CIs[0], father_CIs),
+                compute_min_distance_mendelian_ci(proband_CIs[0], mother_CIs))
 
         elif len(proband_alleles) == 2:
             ok_mendelian = (
@@ -161,7 +164,7 @@ def compute_mendelian_violations(trios):
             distance_mendelian = min(
                 compute_min_distance_mendelian(proband_alleles[0], father_alleles) + compute_min_distance_mendelian(proband_alleles[1], mother_alleles),
                 compute_min_distance_mendelian(proband_alleles[1], father_alleles) + compute_min_distance_mendelian(proband_alleles[0], mother_alleles),
-                )
+            )
 
             ok_mendelian_ci = (
                     (any([intervals_overlap(proband_CIs[0], i) for i in father_CIs]) and any([intervals_overlap(proband_CIs[1], i)for i in mother_CIs])) or
@@ -169,7 +172,7 @@ def compute_mendelian_violations(trios):
             distance_mendelian_ci = min(
                 compute_min_distance_mendelian_ci(proband_CIs[0], father_CIs) + compute_min_distance_mendelian_ci(proband_CIs[1], mother_CIs),
                 compute_min_distance_mendelian_ci(proband_CIs[1], father_CIs) + compute_min_distance_mendelian_ci(proband_CIs[0], mother_CIs),
-                )
+            )
         else:
             raise ValueError(f"Unexpected proband_alleles value: {proband_alleles}")
 
@@ -269,6 +272,8 @@ def main():
     fam_file_df.set_index("individual_id", inplace=True)
 
     combined_str_calls_df = combined_str_calls_df.join(fam_file_df, how="left").reset_index().rename(columns={"index": "SampleId"})
+
+    combined_str_calls_df = combined_str_calls_df.fillna(0)
 
     trios, other_rows = group_rows_by_trio(combined_str_calls_df)
 
