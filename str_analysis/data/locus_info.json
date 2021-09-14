@@ -1,0 +1,93 @@
+{
+  "RFC1": {
+    "LocusCoords_1based": {
+      "38": "chr4:39348425-39348479",
+      "37": "4:39350045-39350099"
+    },
+    "Motifs": {
+      "BENIGN": ["AAAAG", "AAAGG"],
+      "PATHOGENIC": ["AAGGG", "ACAGG"]
+    }
+  },
+
+  "BEAN1": {
+    "LocusCoords_1based": {
+      "38": "chr16:66490399-66490466",
+      "37": "16:66524302-66524369"
+    },
+    "Motifs": {
+      "BENIGN": ["TAAAA"],
+      "PATHOGENIC": ["TGGAA", "TAGAA"]
+    }
+  },
+  "DAB1": {
+    "LocusCoords_1based": {
+      "38": "chr1:57367044-57367118",
+      "37": "1:57832716-57832790"
+    },
+    "Motifs": {
+      "BENIGN": ["AAAAT"],
+      "PATHOGENIC": ["AAAGT"]
+    }
+  },
+  "MARCHF6": {
+    "LocusCoords_1based": {
+      "38": "chr5:10356347-10356411",
+      "37": "5:10356459-10356523"
+    },
+    "Motifs": {
+      "BENIGN": ["ATTTT"],
+      "PATHOGENIC": ["ATTTC"]
+    }
+  },
+  "RAPGEF2": {
+    "LocusCoords_1based": {
+      "38": "chr4:159342527-159342616",
+      "37": "4:160263679-160263768"
+    },
+    "Motifs": {
+      "BENIGN": ["TTTTA"],
+      "PATHOGENIC": ["TTTCA"]
+    }
+  },
+  "SAMD12": {
+    "LocusCoords_1based": {
+      "38": "chr8:118366816-118366918",
+      "37": "8:119379055-119379157"
+    },
+    "Motifs": {
+      "BENIGN": ["TAAAA"],
+      "PATHOGENIC": ["TAAAG"]
+    }
+  },
+  "STARD7": {
+    "LocusCoords_1based": {
+      "38": "chr2:96197067-96197121",
+      "37": "2:96862805-96862859"
+    },
+    "Motifs": {
+      "BENIGN": ["AAAAT"],
+      "PATHOGENIC": ["AAAGT"]
+    }
+  },
+  "TNRC6A": {
+    "LocusCoords_1based": {
+      "38": "chr16:24613440-24613529",
+      "37": "16:24624761-24624850"
+    },
+    "Motifs": {
+      "BENIGN": ["TTTTA"],
+      "PATHOGENIC": ["TTTCA"]
+    }
+  },
+  "YEATS2": {
+    "LocusCoords_1based": {
+      "38": "chr3:183712188-183712222",
+      "37": "3:183429976-183430010"
+    },
+    "Motifs": {
+      "BENIGN": ["TTTTA"],
+      "PATHOGENIC": ["TTTCA"]
+    }
+  }
+}

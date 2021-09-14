@@ -1,3 +1,6 @@
+import logging
+import subprocess
+
 
 CHROMOSOME_ORDER = list(map(str, range(1,23))) + ["X", "Y", "M", "MT"]
 CHROMOSOME_ORDER += [f"chr{s}" for s in CHROMOSOME_ORDER]
@@ -28,4 +31,19 @@ def parse_interval(interval_string):
         raise ValueError(f"Unable to parse off_target_region: '{interval_string}': {e}")
 
     return chrom, start, end
+
+
+def run(command):
+    """Run a shell command and return its output. Raises an exception if the command exits with a non-zero exit code"""
+    logging.info(command)
+
+    return subprocess.check_output(['/bin/bash', '-c', command]).decode('UTF-8')
+
+
+def parse_key_value(key_value):
+    key_value_list = key_value.split("=")
+    if len(key_value_list) != 2 or not key_value_list[0] or not key_value_list[1]:
+        raise ValueError(f"Invalid arg {key_value}")
+
+    return tuple(key_value_list)
 

@@ -35,7 +35,7 @@ def test_suite():
 
 setup(
     name='str_analysis',
-    version="0.3.5",
+    version="0.4",
     description="Utilities  short tandem repeats (STRs)",
     install_requires=requirements,
     cmdclass={
@@ -44,8 +44,9 @@ setup(
     },
     entry_points = {
         'console_scripts': [
-            'call_rfc1_canvas_alleles = str_analysis.call_rfc1_canvas_alleles:main',
+            'call_non_ref_pathogenic_motifs = str_analysis.call_non_ref_pathogenic_motifs:main',
             'combine_json_to_tsv = str_analysis.combine_json_to_tsv:main',
+            'simulate_str_expansions = str_analysis.simulate_str_expansions:main',
         ],
     },
     long_description_content_type="text/markdown",
@@ -53,6 +54,7 @@ setup(
     packages=["str_analysis", "str_analysis.utils"],
     data_files=[
         ('data', ['str_analysis/data/offtarget_regions.json.gz']),
+        ('data', ['str_analysis/data/locus_info.json']),
     ],
     include_package_data=True,
     python_requires=">=3.7",
