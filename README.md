@@ -82,7 +82,7 @@ repeat motif(s) it detects, then run ExpansionHunter on those motifs, and then c
 output `*.RFC1_motifs.json` file.  
 
 **9/15/2021** Besides RFC1, this tool now also supports calling 8 known pathogenic autosomal dominant loci with 
-known non-ref pathogenic alleles. These loci are BEAN1, DAB1, MARCHF6, RAPGEF2, SAMD12, STARD7, TNRC6A, YEATS2. 
+known non-ref pathogenic motifs. These loci are BEAN1, DAB1, MARCHF6, RAPGEF2, SAMD12, STARD7, TNRC6A, YEATS2. 
 Use the `--locus` option to specify the names of one or more loci to call, or use the `--all-loci` option to generate 
 calls for all 9 loci. 
 See [[Depienne et. al](https://www.cell.com/ajhg/pdf/S0002-9297(21)00095-1.pdf)] for more information on these loci.
