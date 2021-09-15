@@ -4,7 +4,7 @@ This package contains scripts and utilities related to analyzing short tandem re
 ---
 ## Scripts
 
-### call_rfc1_canvas_alleles
+### call_non_ref_pathogenic_motifs
 
 RFC1 STR expansions have recently been linked to [CANVAS](https://www.omim.org/entry/614575) [ [Cortese 2019](https://pubmed.ncbi.nlm.nih.gov/30926972/) ].
 This STR locus is unique in that it's both autosomal recessive and has a pathogenic repeat motif (AAGGG) 
@@ -34,7 +34,7 @@ is highly consistent with CANVAS (now proceeding to clinical validation). The ot
 (or secondary findings). In the future, as we continue to test the script on additional positive controls as well 
 as simulated data, we may adjust thresholds to optimize sensitivity/specificity.
 
-Description of all fields in the output `*.rfc1_canvas_alleles.json`:
+Description of the output `*.RFC1_motifs.json`:
 
 **sample_id**: *If this value is not specified as a command line arg, it is parsed from the input bam/cram file header or filename prefix.*    
 **call**: *describes the motifs detected at the RFC1/CANVAS locus. Its format is analogous to a VCF genotype. Possible values are:*
@@ -71,33 +71,42 @@ at the RFC1 locus and have a MAPQ > 2*
 **found_repeats_in_n_reads**: *number of reads that overlap the AAAAG repeat in the reference genome at the RFC1 locus, and have both MAPQ > 2 as well as some 5bp or 6bp repeat motif that covers > 70% of the overlapping read sequence (including any soft-clipped bases)*    
 **found_repeats_in_fraction_of_reads**: `found_repeats_in_n_reads` / `found_n_reads_overlap_rfc1_locus`  
 
-This script optionally takes an ExpansionHunterDenovo profile and copies relevant info to the output
-`*.rfc1_canvas_alleles.json` file, adding more fields. The ExpansionHunterDenovo profile isn't used in calculating the 
-fields listed above.  
+This script optionally runs ExpansionHunterDenovo or takes an existing ExpansionHunterDenovo profile and 
+copies relevant info to the output `*.RFC1_motifs.json` file. The ExpansionHunterDenovo profile isn't used in 
+calculating the fields listed above, and this feature just makes it easier to collect information from multiple tools 
+in a single output file. 
 
-Similarly, the script can optionally run ExpansionHunter v4 on the RFC1 locus in which case it will generate a variant 
-catalog for the repeat motif(s) it detects and then include ExpansionHunter results in the output.  
+Similarly, the `--run-expansion-hunter` and `--run-reviewer` options tell the script to run ExpansionHunter and REViewer 
+on the RFC1 locus. If these option(s) are specified, the script will first generate a custom variant catalog for the 
+repeat motif(s) it detects, then run ExpansionHunter on those motifs, and then copy ExpansionHunter results to the 
+output `*.RFC1_motifs.json` file.  
+
+**9/15/2021** Besides RFC1, this tool now also supports calling 8 known pathogenic autosomal dominant loci with 
+known non-ref pathogenic alleles. These loci are BEAN1, DAB1, MARCHF6, RAPGEF2, SAMD12, STARD7, TNRC6A, YEATS2. 
+Use the `--locus` option to specify the names of one or more loci to call, or use the `--all-loci` option to generate 
+calls for all 9 loci. 
+See [[Depienne et. al](https://www.cell.com/ajhg/pdf/S0002-9297(21)00095-1.pdf)] for more information on these loci.
 
 Example command lines:
 
 ```
 # basic command 
-call_rfc1_canvas_alleles -R hg38.fasta -g 38 sample1.cram
+call_non_ref_pathogenic_motifs -R hg38.fasta -g 38 sample1.cram
 
 
 # add information from ExpansionHunterDenovo and ExpansionHunter to the output
-call_rfc1_canvas_alleles -R hg38.fasta --run-expansion-hunter --ehdn-profile sample1.str_profile.json -g 38 sample1.cram
+call_non_ref_pathogenic_motifs -R hg38.fasta --run-expansion-hunter --run-reviewer --ehdn-profile sample1.str_profile.json -g 38 sample1.cram
 ```
 
 ### combine_json_to_tsv
 
-This script can combine the `call_rfc1_canvas_alleles` output json files for multiple samples into 
+This script can combine the `call_non_ref_pathogenic_motifs` output json files for multiple samples into 
 a single .tsv. The script takes the paths of the .json files as input, or, if none are provided, it searches for .json 
 files in the current directory and subdirectories.
 
 Example command line:
 ```
-combine_json_to_tsv  sample1.rfc1_canvas_alleles.json  sample2.rfc1_canvas_alleles.json
+combine_json_to_tsv  sample1.RFC1_motifs.json  sample2.RFC1_motifs.json
 ```
 
 ## Installation
