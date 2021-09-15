@@ -91,11 +91,13 @@ Example command lines:
 
 ```
 # basic command 
-call_non_ref_pathogenic_motifs -R hg38.fasta -g 38 sample1.cram
+call_non_ref_pathogenic_motifs -R hg38.fasta -g 38 sample1.cram --locus RFC1
 
+# run ExpansionHunter and REViewer on all 9 loci with known non-ref pathogenic motifs
+call_non_ref_pathogenic_motifs -R hg38.fasta --run-expansion-hunter --run-reviewer -g 38 sample1.cram --all-loci
 
-# add information from ExpansionHunterDenovo and ExpansionHunter to the output
-call_non_ref_pathogenic_motifs -R hg38.fasta --run-expansion-hunter --run-reviewer --ehdn-profile sample1.str_profile.json -g 38 sample1.cram
+# for 2 specific loci, run ExpansionHunter and REViewer + provide an existing ExpansionHunterDenovo profile
+call_non_ref_pathogenic_motifs -R hg38.fasta --run-expansion-hunter --run-reviewer --ehdn-profile sample1.str_profile.json -g 38 sample1.cram --locus RFC1 --locus BEAN1
 ```
 
 ### combine_json_to_tsv
