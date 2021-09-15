@@ -79,8 +79,10 @@ def parse_args():
     p.add_argument("--expansion-hunter-path", help="The path of the ExpansionHunter executable to use if -r is "
         "specified. This must be ExpansionHunter v3 or v4.", default="ExpansionHunter")
 
-    p.add_argument("-l", "--locus", action="append", help="Call a subset of the known pathogenic loci with alternate motifs. "
-        "If not specified, all these loci will be called.", choices=LOCUS_INFO.keys())
+    grp = p.add_mutually_exclusive_group(required=True)
+    grp.add_argument("--all-loci", action="store_true", help="Generate calls for all these loci: " + ", ".join(LOCUS_INFO.keys()))
+    grp.add_argument("-l", "--locus", action="append", help="Call a subset of the known pathogenic loci with alternate motifs.",
+        choices=LOCUS_INFO.keys())
 
     group = p.add_mutually_exclusive_group()
     group.add_argument("--run-reviewer", action="store_true", help="Run the REViewer tool to visualize "
@@ -195,7 +197,7 @@ def run_expansion_hunter(
             print("Using variant catalog: ")
             pprint(variant_catalog)
 
-        output_prefix = f"{args.sample_id}.expansion_hunter"
+        output_prefix = f"{args.sample_id}.{locus_id}_{repeat_unit}.expansion_hunter"
         expansion_hunter_command = f"""{args.expansion_hunter_path} \
 --sex male \
 --reference {args.reference_fasta} \
@@ -227,6 +229,7 @@ def run_expansion_hunter(
         if not eh_result:
             continue
 
+        locus_results_json[f"expansion_hunter_motif{motif_number}_json_output_file"] = f"{output_prefix}.json"
         locus_results_json[f"expansion_hunter_motif{motif_number}_repeat_unit"] = repeat_unit
 
         if eh_result.get("Genotype"):
@@ -283,11 +286,14 @@ def run_expansion_hunter(
     --locus {variant_catalog_locus_label} \
     --output-prefix {output_prefix}_reviewer
 """
-
             if args.verbose:
                 print(f"Running: {reviewer_command}")
 
             subprocess.run(reviewer_command, shell=True, stderr=subprocess.STDOUT, check=False)
+
+            reviewer_output_filename = f"{output_prefix}_reviewer.{variant_catalog_locus_label}.svg"
+            if os.path.isfile(reviewer_output_filename):
+                locus_results_json[f"expansion_hunter_motif{motif_number}_reviewer_svg"] = reviewer_output_filename
 
 
 def run_expansion_hunter_denovo(args):
@@ -621,6 +627,7 @@ def process_locus(locus_id, args):
         records, sample_read_depth, _ = parse_ehdn_info_for_locus(
             expansion_hunter_denovo_json, locus_chrom, locus_start_0based, locus_end)
 
+        #locus_results_json[f"expansion_hunter_denovo_profile"] = args.expansion_hunter_denovo_profile
         locus_results_json["ehdn_sample_read_depth"] = sample_read_depth
 
         # get the 2 motifs with the most read support
@@ -645,7 +652,7 @@ def process_locus(locus_id, args):
             })
 
     # generate output json
-    output_filename = f"{args.output_prefix}.alleles.{locus_id}.json"
+    output_filename = f"{args.output_prefix}.{locus_id}_motifs.json"
     with open(output_filename, "wt") as f:
         json.dump(locus_results_json, f, indent=2)
     print(f"Wrote results to {output_filename}")
@@ -676,7 +683,13 @@ def main():
     if args.run_expansion_hunter_denovo:
         args.expansion_hunter_denovo_profile = run_expansion_hunter_denovo(args)
 
-    loci = args.locus if args.locus else LOCUS_INFO.keys()
+    if args.locus:
+        loci = args.locus
+    elif args.all_loci:
+        loci = LOCUS_INFO.keys()
+    else:
+        raise ValueError("Must specify --locus or --all-loci")
+
     for locus_id in loci:
         print(f"Processing {locus_id} in {args.bam_or_cram_path}")
         process_locus(locus_id, args)
