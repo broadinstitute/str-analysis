@@ -7,7 +7,8 @@
     "Motifs": {
       "BENIGN": ["AAAAG", "AAAGG"],
       "PATHOGENIC": ["AAGGG", "ACAGG"]
-    }
+    },
+    "UseOfftargetRegions": true
   },
 
   "BEAN1": {
@@ -18,7 +19,8 @@
     "Motifs": {
       "BENIGN": ["TAAAA"],
       "PATHOGENIC": ["TGGAA", "TAGAA"]
-    }
+    },
+    "UseOfftargetRegions": false
   },
   "DAB1": {
     "LocusCoords_1based": {
@@ -28,7 +30,8 @@
     "Motifs": {
       "BENIGN": ["AAAAT"],
       "PATHOGENIC": ["AAAGT"]
-    }
+    },
+    "UseOfftargetRegions": false
   },
   "MARCHF6": {
     "LocusCoords_1based": {
@@ -38,7 +41,8 @@
     "Motifs": {
       "BENIGN": ["ATTTT"],
       "PATHOGENIC": ["ATTTC"]
-    }
+    },
+    "UseOfftargetRegions": false
   },
   "RAPGEF2": {
     "LocusCoords_1based": {
@@ -48,7 +52,8 @@
     "Motifs": {
       "BENIGN": ["TTTTA"],
       "PATHOGENIC": ["TTTCA"]
-    }
+    },
+    "UseOfftargetRegions": false
   },
   "SAMD12": {
     "LocusCoords_1based": {
@@ -58,7 +63,8 @@
     "Motifs": {
       "BENIGN": ["TAAAA"],
       "PATHOGENIC": ["TAAAG"]
-    }
+    },
+    "UseOfftargetRegions": false
   },
   "STARD7": {
     "LocusCoords_1based": {
@@ -68,7 +74,8 @@
     "Motifs": {
       "BENIGN": ["AAAAT"],
       "PATHOGENIC": ["AAAGT"]
-    }
+    },
+    "UseOfftargetRegions": false
   },
   "TNRC6A": {
     "LocusCoords_1based": {
@@ -78,7 +85,8 @@
     "Motifs": {
       "BENIGN": ["TTTTA"],
       "PATHOGENIC": ["TTTCA"]
-    }
+    },
+    "UseOfftargetRegions": false
   },
   "YEATS2": {
     "LocusCoords_1based": {
@@ -88,6 +96,7 @@
     "Motifs": {
       "BENIGN": ["TTTTA"],
       "PATHOGENIC": ["TTTCA"]
-    }
+    },
+    "UseOfftargetRegions": false
   }
 }

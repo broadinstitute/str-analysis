@@ -81,9 +81,6 @@ def parse_args():
 
     p.add_argument("-l", "--locus", action="append", help="Call a subset of the known pathogenic loci with alternate motifs. "
         "If not specified, all these loci will be called.", choices=LOCUS_INFO.keys())
-    p.add_argument("--ignore-offtarget-regions", action="store_true", help="Don't compute read support in off-target "
-        "regions. The output will be the same, except that it won't contain *_read_count_with_offtargets fields. "
-        "Also, if --run-expansion-hunter is used, ExpansionHunter will be run without off-target regions.")
 
     group = p.add_mutually_exclusive_group()
     group.add_argument("--run-reviewer", action="store_true", help="Run the REViewer tool to visualize "
@@ -120,8 +117,8 @@ def generate_variant_catalog(locus_id, repeat_unit, chrom, start_1based, end_1ba
         "LocusId": locus_id,
         "LocusStructure": f"({repeat_unit})*",
         "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
-        "VariantType": "RareRepeat",
-        "OfftargetRegions": [] if not offtarget_regions else offtarget_regions,
+        "VariantType": "RareRepeat" if offtarget_regions else "Repeat",
+        "OfftargetRegions": offtarget_regions or [],
     }
 
 
@@ -155,6 +152,7 @@ def run_expansion_hunter(
     args,
     locus_results_json,
     run_reviewer=False,
+    use_offtarget_regions=False,
 ):
     """Run ExpansionHunter and parse relevant output fields + add them to results.
     Then optionally run REViewer to generate read visualizations.
@@ -178,7 +176,7 @@ def run_expansion_hunter(
         # generate variant catalog
         variant_catalog_locus_label = f"{locus_id}_{repeat_unit}"
         offtarget_regions = []
-        if not args.ignore_offtarget_regions:
+        if use_offtarget_regions:
             offtarget_regions = OFFTARGET_REGIONS[args.genome_version][repeat_unit]
 
         variant_catalog = generate_variant_catalog(
@@ -476,6 +474,7 @@ def process_locus(locus_id, args):
     locus_chrom, start_1based, end_1based = parse_interval(locus_coords_1based)
     locus_start_0based = start_1based - 1
     locus_end = end_1based
+    use_offtarget_regions = LOCUS_INFO[locus_id]["UseOfftargetRegions"]
 
     known_pathogenic_motifs = list(map(compute_canonical_repeat_unit, LOCUS_INFO[locus_id]["Motifs"]["PATHOGENIC"]))
     known_benign_motifs = list(map(compute_canonical_repeat_unit, LOCUS_INFO[locus_id]["Motifs"]["BENIGN"]))
@@ -584,7 +583,7 @@ def process_locus(locus_id, args):
             f"motif{motif_number}_n_occurrences": n_occurrences,
         })
 
-        if not args.ignore_offtarget_regions:
+        if use_offtarget_regions:
             process_offtarget_regions(motif, motif_number, read_count, flank_coverage_mean, args, locus_results_json)
 
     final_call = compute_final_call(n_total_well_supported_motifs, n_pathogenic_motifs, n_benign_motifs)
@@ -609,6 +608,7 @@ def process_locus(locus_id, args):
             run_reviewer=args.run_reviewer or (
                 args.run_reviewer_for_pathogenic_calls and final_call == PATHOGENIC_PATHOGENIC_CALL
             ),
+            use_offtarget_regions=use_offtarget_regions,
         )
 
     # process EHdn profile if one was provided
