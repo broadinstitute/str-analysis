@@ -572,12 +572,12 @@ def process_locus(locus_id, args):
             continue
 
         n_total_well_supported_motifs += 1
+        motif = selected_motifs[i]
         if motif in known_pathogenic_motifs:
             n_pathogenic_motifs += 1
         elif motif in known_benign_motifs:
             n_benign_motifs += 1
 
-        motif = selected_motifs[i]
         read_count = motif_to_read_count.get(motif)
         n_occurrences = motif_to_n_occurrences.get(motif)
 
