@@ -112,6 +112,13 @@ def parse_args():
     return args
 
 
+def run(command, verbose=False):
+    if verbose:
+        print(f"Command: {command}")
+
+    subprocess.run(command, shell=True, stderr=subprocess.STDOUT, check=False)
+
+
 def generate_variant_catalog(locus_id, repeat_unit, chrom, start_1based, end_1based, offtarget_regions=None):
     """Generate the ExpansionHunter variant catalog contents for a particular locus"""
 
@@ -207,10 +214,7 @@ def run_expansion_hunter(
 --log-level debug
 """
 
-        if args.verbose:
-            print(f"Running: {expansion_hunter_command}")
-
-        subprocess.run(expansion_hunter_command, shell=True, stderr=subprocess.STDOUT, check=False)
+        run(expansion_hunter_command, verbose=args.verbose)
 
         # parse result
         if os.path.isfile(f"{output_prefix}.json"):
@@ -286,10 +290,7 @@ def run_expansion_hunter(
     --locus {variant_catalog_locus_label} \
     --output-prefix {output_prefix}_reviewer
 """
-            if args.verbose:
-                print(f"Running: {reviewer_command}")
-
-            subprocess.run(reviewer_command, shell=True, stderr=subprocess.STDOUT, check=False)
+            run(reviewer_command, verbose=args.verbose)
 
             reviewer_output_filename = f"{output_prefix}_reviewer.{variant_catalog_locus_label}.svg"
             if os.path.isfile(reviewer_output_filename):
@@ -315,10 +316,7 @@ def run_expansion_hunter_denovo(args):
 --output-prefix {output_prefix} \
 """
 
-    if args.verbose:
-        print(f"Running: {expansion_hunter_denovo_command}")
-
-    subprocess.run(expansion_hunter_denovo_command, shell=True, stderr=subprocess.STDOUT, check=False)
+    run(expansion_hunter_denovo_command, verbose=args.verbose)
 
     # parse result
     output_path = f"{output_prefix}.str_profile.json"
