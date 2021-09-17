@@ -53,17 +53,16 @@ call_non_ref_pathogenic_motifs -R hg38.fasta --run-expansion-hunter --run-review
 call_non_ref_pathogenic_motifs -R hg38.fasta --run-expansion-hunter --run-reviewer --ehdn-profile sample1.str_profile.json -g 38 sample1.cram --locus RFC1 --locus BEAN1
 ```
 
-**Main output fields in `*_motifs.json`:**
+**`*_motifs.json` output file:**
 
-The script outputs a .json file with many fields which are described in the next section.  
-The key fields are:
+`call_non_ref_pathogenic_motifs` outputs a .json file with many fields. The key fields are:
 
-**call**: (ex. `BENIGN MOTIF / PATHOGENIC MOTIF`) 
-**motif1_repeat_unit**: (ex. `AAAGG`)
-**motif2_repeat_unit**: (ex. `AAGGG`)
-**expansion_hunter_call_genotype**: (ex. `15/68`)
-**expansion_hunter_call_CI**:  (ex. `15-15/55-87`)
-**expansion_hunter_call_reviewer_svg**: (ex. `sample1.RFC1_AAGGG.expansion_hunter_reviewer.svg`)
+**call**: (ex. `BENIGN MOTIF / PATHOGENIC MOTIF`)   
+**motif1_repeat_unit**: (ex. `AAAGG`)  
+**motif2_repeat_unit**: (ex. `AAGGG`)  
+**expansion_hunter_call_genotype**: (ex. `15/68`)  
+**expansion_hunter_call_CI**:  (ex. `15-15/55-87`)  
+**expansion_hunter_call_reviewer_svg**: (ex. `sample1.RFC1_AAGGG.expansion_hunter_reviewer.svg`)  
 
 
 Description of all output fields in `*_motifs.json`:
