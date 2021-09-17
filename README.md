@@ -200,12 +200,12 @@ at the RFC1 locus and have a MAPQ > 2*
 
 *NOTE: the ehn_ fields below are only added when `--run-expansion-hunter-denovo` is used.
 
-**ehdn_motif1_repeat_unit**
-**ehdn_motif1_anchored_irr_count**
-**ehdn_motif1_paired_irr_count**
-**ehdn_motif1_total_irr_count**
-**ehdn_sample_read_depth**
-**ehdn_motif1_n_anchored_regions**
+**ehdn_motif1_repeat_unit**  
+**ehdn_motif1_anchored_irr_count**  
+**ehdn_motif1_paired_irr_count**  
+**ehdn_motif1_total_irr_count**    
+**ehdn_sample_read_depth**  
+**ehdn_motif1_n_anchored_regions**  
 
 
 **Example Scenario:**
