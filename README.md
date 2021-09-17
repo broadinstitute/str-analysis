@@ -215,9 +215,11 @@ some with AAAAG. The script then runs ExpansionHunter for the AAGGG motif and th
 Lets say ExpansionHunter outputs 15/73 as the genotype for AAGGG and 15/22 as the genotype for AAAAG.
 This script would then output:
 
-**call**: `BENIGN MOTIF / PATHOGENIC MOTIF`
-**expansion_hunter_call_repeat_unit**: `AAAAG / AAGGG`
-**expansion_hunter_call_reviewer_svg**
+**call**: (`BENIGN MOTIF / PATHOGENIC MOTIF`)  
+**expansion_hunter_call_repeat_unit**: (`AAAAG / AAGGG`)  
+**expansion_hunter_call_genotype**: (`15/73`) Selected from the two genotypes above.  
+**expansion_hunter_call_CI**: (`15-15/55-87`) Selected from two sets of confidence intervals.  
+**expansion_hunter_call_reviewer_svg** (`sample1.RFC1_AAGGG.expansion_hunter_reviewer.svg`) Merged from the two REViewer images for motifs 1 and 2.   
 
 
 ### combine_json_to_tsv
