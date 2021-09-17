@@ -1,5 +1,21 @@
 # str-analysis
 This package contains scripts and utilities related to analyzing short tandem repeats (STRs). 
+---
+
+## Installation
+
+To install the scripts or utilities, run:
+
+```
+python3 -m pip install --upgrade str_analysis
+```
+
+Alternatively, you can use this docker image:
+
+```
+docker run -it weisburd/str-analysis:latest
+```
+
 
 ---
 ## Scripts
@@ -232,18 +248,3 @@ Example command line:
 ```
 combine_json_to_tsv  sample1.RFC1_motifs.json  sample2.RFC1_motifs.json
 ```
-
-## Installation
-
-To install the scripts or utilities, run:
-
-```
-python3 -m pip install --upgrade str_analysis
-```
-
-Alternatively, you can use this docker image:
-
-```
-docker run -it weisburd/str-analysis:latest
-```
-
