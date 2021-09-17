@@ -59,7 +59,13 @@ def parse_args(args_list=None):
     )
     args = p.parse_args(args=args_list)
 
-    if not args.json_paths:
+    if args.json_paths:
+        # check if files exist
+        for json_path in args.json_paths:
+            if not os.path.isfile(json_path):
+                p.error(f"File not found: {json_path}")
+    else:
+        # find all .json files underneath the current directory
         args.json_paths = [p for p in pathlib.Path(".").glob("**/*.json")]
         print(f"Found {len(args.json_paths)} .json files under {os.getcwd()}")
         if len(args.json_paths) == 0:
