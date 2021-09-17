@@ -38,7 +38,7 @@ See the Example Scenario section below for a concrete example.
 
 The script can also apply this approach to other known STR loci where the pathogenic motif differs from the reference 
 such as DAB1, BEAN1, SAMD12, and others. Unlike RFC1/CANVAS, these other loci are autosomal dominant, which simplifies 
-the task and makes it more ammenable to ExpansionHunterDenovo. To assist with this, the script also has a   
+the task and makes it more ammenable to ExpansionHunterDenovo. To assist with this, the script also has a 
 `--run-expansion-hunter-denovo` option to run ExpansionHunterDenovo on the input bam, or alternatively 
 the `--ehdn-profile` to pass in an existing ExpansionHunterDenovo output file so that all relevant results from this 
 script, ExpansionHunter, and ExpansionHunterDenovo can be combined into a single output file.  
