@@ -1,6 +1,7 @@
 # str-analysis
-This package contains scripts and utilities related to analyzing short tandem repeats (STRs). 
 ---
+This package contains scripts and utilities related to analyzing short tandem repeats (STRs). 
+
 
 ## Installation
 
