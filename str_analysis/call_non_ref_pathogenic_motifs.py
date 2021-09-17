@@ -415,7 +415,7 @@ def combine_reviewer_images(short_allele_image_path, long_allele_image_path, out
     short_allele_contents = get_read_image_section(short_allele_contents, get_upper_section=True)
     long_allele_contents = get_read_image_section(long_allele_contents, get_upper_section=False)
 
-    output_path = f"{output_file_prefix}_reviewer_combined.svg"
+    output_path = f"{output_file_prefix}_reviewer.svg"
     with open(output_path, "wt") as f:
         f.write(f"""<svg width="{final_width}" height="{final_height}" xmlns="http://www.w3.org/2000/svg">""")
         f.write(defs)
@@ -817,7 +817,7 @@ def main():
     args = parse_args()
 
     if not args.sample_id:
-        args.sample_id = compute_sample_id(args.bam_or_cram_path, reference_filename=args.reference_fasta)
+        args.sample_id = compute_sample_id(args.bam_or_cram_path, args.reference_fasta)
 
     args.output_prefix = args.output_prefix or args.sample_id
 
