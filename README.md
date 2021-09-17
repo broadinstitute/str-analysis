@@ -145,7 +145,7 @@ The key fields are:
 **expansion_hunter_call_repeat_unit**: (ex. `AAAGG / AAGGG`) The same information as above, but in genotype form.
 **expansion_hunter_call_genotype**: (ex. `15/68`) The number of repeats of the motif(s) above.  
 **expansion_hunter_call_CI**:  (ex. `15-15/55-87`) The confidence intervals for the genotype.   
-**expansion_hunter_call_reviewer_svg**: (ex. `sample1.RFC1_AAGGG.expansion_hunter_reviewer_combined.svg`) The REViewer read visualization image path.   
+**expansion_hunter_call_reviewer_svg**: (ex. `sample1.RFC1_AAGGG.expansion_hunter_reviewer.svg`) The REViewer read visualization image path.   
 
 
 Output fields:
