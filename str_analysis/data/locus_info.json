@@ -28,7 +28,7 @@
     },
     "Motifs": {
       "BENIGN": ["AAAAT"],
-      "PATHOGENIC": ["AAAGT"]
+      "PATHOGENIC": ["GAAAT"]
     },
     "UseOfftargetRegions": false
   },
@@ -61,7 +61,7 @@
     },
     "Motifs": {
       "BENIGN": ["TAAAA"],
-      "PATHOGENIC": ["TAAAG"]
+      "PATHOGENIC": ["TGAAA", "TCAAA"]
     },
     "UseOfftargetRegions": false
   },
@@ -72,7 +72,7 @@
     },
     "Motifs": {
       "BENIGN": ["AAAAT"],
-      "PATHOGENIC": ["AAAGT"]
+      "PATHOGENIC": ["GAAAT"]
     },
     "UseOfftargetRegions": false
   },

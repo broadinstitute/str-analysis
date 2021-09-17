@@ -296,6 +296,135 @@ def run_expansion_hunter(
             if os.path.isfile(reviewer_output_filename):
                 locus_results_json[f"expansion_hunter_motif{motif_number}_reviewer_svg"] = reviewer_output_filename
 
+    compute_final_expansion_hunter_results(locus_results_json, output_prefix)
+
+
+def compute_final_expansion_hunter_results(locus_results_json, output_file_prefix):
+    """If 2 different motifs were detected at the STR locus, then ExpansionHunter is run separately for each motif. This
+    results in 2 diploid ExpansionHunter genotypes (one for each motif), as well as two separate REViewer images.
+    This method collapses the 2 ExpansionHunter calls into a single diploid genotype by selecting a short allele and
+    a long allele. By comparing different approaches using simulated data, the approach that works best is
+    to select the longest long allele out of the 2 ExpansionHunter calls, and then select the short allele from the
+    other call.
+    """
+    n_motifs = locus_results_json["n_total_well_supported_motifs"]
+    if n_motifs == 0:
+        return
+
+    elif (n_motifs == 1
+          and "expansion_hunter_motif1_repeat_unit" in locus_results_json):
+
+        long_allele_motif = "motif1"
+        short_allele_motif = "motif1"
+        locus_results_json["expansion_hunter_call_repeat_unit"] = locus_results_json["expansion_hunter_motif1_repeat_unit"]
+
+        if "expansion_hunter_motif1_reviewer_svg" in locus_results_json:
+            locus_results_json["expansion_hunter_call_reviewer_svg"] = locus_results_json["expansion_hunter_motif1_reviewer_svg"]
+
+    elif (n_motifs == 2
+          and "expansion_hunter_motif1_repeat_unit" in locus_results_json
+          and "expansion_hunter_motif2_repeat_unit" in locus_results_json):
+
+        if (
+                int(locus_results_json["expansion_hunter_motif1_long_allele_genotype"]) <
+                int(locus_results_json["expansion_hunter_motif2_long_allele_genotype"])
+        ):
+            short_allele_motif = "motif1"
+            long_allele_motif = "motif2"
+        else:
+            short_allele_motif = "motif2"
+            long_allele_motif = "motif1"
+
+        locus_results_json["expansion_hunter_call_repeat_unit"] = "%s / %s" % (
+            locus_results_json[f"expansion_hunter_{short_allele_motif}_repeat_unit"],
+            locus_results_json[f"expansion_hunter_{long_allele_motif}_repeat_unit"]
+        )
+
+        if "expansion_hunter_motif1_reviewer_svg" in locus_results_json and "expansion_hunter_motif2_reviewer_svg" in locus_results_json:
+            locus_results_json["expansion_hunter_call_reviewer_svg"] = combine_reviewer_images(
+                locus_results_json[f"expansion_hunter_{short_allele_motif}_reviewer_svg"],
+                locus_results_json[f"expansion_hunter_{long_allele_motif}_reviewer_svg"],
+                output_file_prefix,
+            )
+    else:
+        print(f"ERROR: unable to compute final expansion hunter results due to unexpected number of motifs: {n_motifs}")
+        return
+
+    locus_results_json["expansion_hunter_call_genotype"] = "%s/%s" % (
+        locus_results_json[f"expansion_hunter_{short_allele_motif}_short_allele_genotype"],
+        locus_results_json[f"expansion_hunter_{long_allele_motif}_long_allele_genotype"],
+    )
+    locus_results_json["expansion_hunter_call_CI"] = "%s-%s/%s-%s" % (
+        locus_results_json[f"expansion_hunter_{short_allele_motif}_short_allele_CI_start"],
+        locus_results_json[f"expansion_hunter_{short_allele_motif}_short_allele_CI_end"],
+        locus_results_json[f"expansion_hunter_{long_allele_motif}_long_allele_CI_start"],
+        locus_results_json[f"expansion_hunter_{long_allele_motif}_long_allele_CI_end"],
+    )
+
+
+class ParseError(Exception):
+    pass
+
+
+def combine_reviewer_images(short_allele_image_path, long_allele_image_path, output_file_prefix):
+
+    # parse svg tag
+    with open(short_allele_image_path, "rt") as f:
+        short_allele_svg_tag = f.readline()
+        short_allele_contents = f.read()
+
+    with open(long_allele_image_path, "rt") as f:
+        long_allele_svg_tag = f.readline()
+        long_allele_contents = f.read()
+
+    final_width = 0
+    final_height = 0
+    for svg_tag in short_allele_svg_tag, long_allele_svg_tag:
+        match = re.search("""<svg width="(\d+)" height="(\d+)".+>""", svg_tag)
+        if not match:
+            raise ParseError(f"Unable to parse svg tag: {svg_tag}")
+
+        svg_width, svg_height = map(int, match.groups())
+        final_width = max(final_width, svg_width)
+        final_height = max(final_height, svg_height)
+
+    final_height = int(final_height * 1.5)
+
+    match = re.search("<defs>.+?</defs>", short_allele_contents, re.DOTALL)
+    if not match:
+        raise ParseError(f"Unable to parse defs tag from {short_allele_image_path}")
+    defs = match.group(0)
+
+    def get_read_image_section(s, get_upper_section):
+        """Extract either the upper panel (short allele) or lower panel (long allele) of the REViewer image.
+        The panels start with this line tag:
+        <line x1="510" y1="386" x2="11710" y2="386" stroke="black" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+        so split on that. Also, handle hemizygous genotypes which only have 1 allele and one REViewer image panel.
+        """
+
+        s = s.replace("</svg>", "").split("</defs>")[-1]
+        matches = list(re.finditer("<line[^>]+#arrow[^>]+>", s, re.DOTALL))
+        if len(matches) < 2:
+            return s
+
+        if get_upper_section:
+            return s[matches[0].start():matches[1].start()]
+        else:
+            return s[matches[1].start():]
+
+    short_allele_contents = get_read_image_section(short_allele_contents, get_upper_section=True)
+    long_allele_contents = get_read_image_section(long_allele_contents, get_upper_section=False)
+
+    output_path = f"{output_file_prefix}_reviewer_combined.svg"
+    with open(output_path, "wt") as f:
+        f.write(f"""<svg width="{final_width}" height="{final_height}" xmlns="http://www.w3.org/2000/svg">""")
+        f.write(defs)
+        f.write(short_allele_contents)
+        f.write(long_allele_contents)
+        f.write("</svg>")
+
+    return output_path
+
 
 def run_expansion_hunter_denovo(args):
     """Run ExpansionHunterDenovo.
@@ -318,7 +447,6 @@ def run_expansion_hunter_denovo(args):
 
     run(expansion_hunter_denovo_command, verbose=args.verbose)
 
-    # parse result
     output_path = f"{output_prefix}.str_profile.json"
     if not os.path.isfile(output_path):
         print(f"ERROR: ExpansionHunterDenovo didn't produce a {output_path} file.")
@@ -623,7 +751,7 @@ def process_locus(locus_id, args):
             expansion_hunter_denovo_json = json.load(f)
 
         records, sample_read_depth, _ = parse_ehdn_info_for_locus(
-            expansion_hunter_denovo_json, locus_chrom, locus_start_0based, locus_end)
+            expansion_hunter_denovo_json, locus_chrom, locus_start_0based, locus_end)  #, motifs_of_interest=selected_motifs)
 
         #locus_results_json[f"expansion_hunter_denovo_profile"] = args.expansion_hunter_denovo_profile
         locus_results_json["ehdn_sample_read_depth"] = sample_read_depth
@@ -657,26 +785,41 @@ def process_locus(locus_id, args):
     pprint(locus_results_json)
 
 
+def compute_sample_id(bam_or_cram_path, reference_fasta):
+    """Determine a sample id from the given bam or cram file
+
+    Args:
+        bam_or_cram_path (str): bam or cram file path
+        reference_fasta (str): reference fasta file path
+    Return:
+        str: sample id
+    """
+    bam_cram_prefix = re.sub(".bam$|.cram$", "", os.path.basename(bam_or_cram_path))
+
+    sample_id = None
+    # try to get sample id from bam/cram header
+    with pysam.Samfile(bam_or_cram_path, reference_filename=reference_fasta) as f:
+
+        read_groups = f.header.as_dict().get("RG", [])
+        if read_groups:
+            sample_id = read_groups[0].get("SM")
+
+    if sample_id:
+        print(f"Using sample id '{sample_id}' from the bam/cram header")
+    else:
+        sample_id = bam_cram_prefix
+        print(f"Using sample id '{sample_id}' based on the input filename prefix")
+
+    return sample_id
+
+
 def main():
     args = parse_args()
 
-    bam_cram_prefix = re.sub(".bam$|.cram$", "", os.path.basename(args.bam_or_cram_path))
-    args.output_prefix = args.output_prefix or bam_cram_prefix
-
-    # process bam/cram
     if not args.sample_id:
-        # try to get sample id from bam/cram header
-        with pysam.Samfile(args.bam_or_cram_path, reference_filename=args.reference_fasta) as f:
+        args.sample_id = compute_sample_id(args.bam_or_cram_path, reference_filename=args.reference_fasta)
 
-            read_groups = f.header.as_dict().get("RG", [])
-            if read_groups:
-                args.sample_id = read_groups[0].get("SM")
-                if args.sample_id:
-                    print(f"Using sample id '{args.sample_id}' from the bam/cram header")
-
-            if not args.sample_id:
-                args.sample_id = bam_cram_prefix
-                print(f"Using sample id '{args.sample_id}' based on the input filename prefix")
+    args.output_prefix = args.output_prefix or args.sample_id
 
     if args.run_expansion_hunter_denovo:
         args.expansion_hunter_denovo_profile = run_expansion_hunter_denovo(args)
