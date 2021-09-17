@@ -77,19 +77,19 @@ def parse_args():
          "an individual may have 2 alleles with motifs that differ from eachother (and from the reference motif). "
          "Running ExpansionHunter separately for each motif provides a work-around.")
     p.add_argument("--expansion-hunter-path", help="The path of the ExpansionHunter executable to use if -r is "
-        "specified. This must be ExpansionHunter v3 or v4.", default="ExpansionHunter")
+        "specified. This must be ExpansionHunter version 3 or greater.", default="ExpansionHunter")
 
     grp = p.add_mutually_exclusive_group(required=True)
     grp.add_argument("--all-loci", action="store_true", help="Generate calls for all these loci: " + ", ".join(LOCUS_INFO.keys()))
-    grp.add_argument("-l", "--locus", action="append", help="Call a subset of the known pathogenic loci with alternate motifs.",
+    grp.add_argument("-l", "--locus", action="append", help="Generate calls for this specific locus. "
+        "This argument can be specified more than once to call multiple loci.",
         choices=LOCUS_INFO.keys())
-
     group = p.add_mutually_exclusive_group()
     group.add_argument("--run-reviewer", action="store_true", help="Run the REViewer tool to visualize "
         "ExpansionHunter output. --run-expansion-hunter must also be specified.")
-    group.add_argument("--run-reviewer-for-pathogenic-calls", action="store_true", help="Run the REViewer tool "
-        f"to visualize ExpansionHunter output when this script calls a sample as having {PATHOGENIC_PATHOGENIC_CALL}. "
-        f"--run-expansion-hunter must also be specified.")
+    group.add_argument("--run-reviewer-for-pathogenic-calls", action="store_true", help="Run the REViewer tool to "
+        f"visualize ExpansionHunter output only when this script calls a sample as having {PATHOGENIC_PATHOGENIC_CALL}."
+        f" --run-expansion-hunter must also be specified.")
 
     p.add_argument("-v", "--verbose", action="store_true", help="Print detailed log messages")
     p.add_argument("bam_or_cram_path", help="bam or cram path")
