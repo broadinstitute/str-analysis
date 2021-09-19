@@ -296,7 +296,8 @@ def run_expansion_hunter(
             if os.path.isfile(reviewer_output_filename):
                 locus_results_json[f"expansion_hunter_motif{motif_number}_reviewer_svg"] = reviewer_output_filename
 
-    compute_final_expansion_hunter_results(locus_results_json, output_prefix)
+    if repeat_units:
+        compute_final_expansion_hunter_results(locus_results_json, output_prefix)
 
 
 def compute_final_expansion_hunter_results(locus_results_json, output_file_prefix):
@@ -659,9 +660,8 @@ def process_locus(locus_id, args):
                               f"that overlap the {locus_id} locus: {overlapping_sequence}")
 
             if motif is not None:
-                canonical_motif = compute_canonical_repeat_unit(motif)
-                motif_to_read_count[canonical_motif] += 1
-                motif_to_n_occurrences[canonical_motif] += count
+                motif_to_read_count[motif] += 1
+                motif_to_n_occurrences[motif] += count
 
     locus_results_json.update({
         "found_n_reads_overlap_the_locus": len(overlapping_sequences),
@@ -684,8 +684,8 @@ def process_locus(locus_id, args):
 
     # sort then into BENIGN .. PATHOGENIC .. UNCERTAIN SIGNIFICANCE to match the order in the "call" output field
     selected_motifs = sorted(selected_motifs, key=lambda motif:
-        1 if motif in known_benign_motifs else
-        2 if motif in known_pathogenic_motifs else
+        1 if compute_canonical_repeat_unit(motif) in known_benign_motifs else
+        2 if compute_canonical_repeat_unit(motif) in known_pathogenic_motifs else
         3)
 
     flank_coverage_mean = (left_flank_coverage + right_flank_coverage) / 2.0
@@ -699,9 +699,10 @@ def process_locus(locus_id, args):
 
         n_total_well_supported_motifs += 1
         motif = selected_motifs[i]
-        if motif in known_pathogenic_motifs:
+        canonical_motif = compute_canonical_repeat_unit(motif)
+        if canonical_motif in known_pathogenic_motifs:
             n_pathogenic_motifs += 1
-        elif motif in known_benign_motifs:
+        elif canonical_motif in known_benign_motifs:
             n_benign_motifs += 1
 
         read_count = motif_to_read_count.get(motif)
