@@ -186,7 +186,7 @@ def run_expansion_hunter(
         variant_catalog_locus_label = f"{locus_id}_{repeat_unit}"
         offtarget_regions = []
         if use_offtarget_regions:
-            offtarget_regions = OFFTARGET_REGIONS[args.genome_version][repeat_unit]
+            offtarget_regions = OFFTARGET_REGIONS[args.genome_version][compute_canonical_repeat_unit(repeat_unit)]
 
         variant_catalog = generate_variant_catalog(
             variant_catalog_locus_label,
@@ -236,6 +236,8 @@ def run_expansion_hunter(
         locus_results_json[f"expansion_hunter_motif{motif_number}_json_output_file"] = f"{output_prefix}.json"
         locus_results_json[f"expansion_hunter_motif{motif_number}_repeat_unit"] = repeat_unit
 
+        # TODO currently there are no X chromosome loci, but if they do get added, this will be need to be updated
+        # to support single-allele genotypes for males on the X chromosome
         if eh_result.get("Genotype"):
             (
                 locus_results_json[f"expansion_hunter_motif{motif_number}_short_allele_genotype"],
@@ -332,6 +334,18 @@ def compute_final_expansion_hunter_results(locus_results_json, output_file_prefi
         ):
             short_allele_motif = "motif1"
             long_allele_motif = "motif2"
+        elif (
+                int(locus_results_json["expansion_hunter_motif1_long_allele_genotype"]) ==
+                int(locus_results_json["expansion_hunter_motif2_long_allele_genotype"])
+            ) and (
+                "expansion_hunter_motif1_reviewer_svg" in locus_results_json and
+                "expansion_hunter_motif2_reviewer_svg" in locus_results_json
+            ):
+            long_allele_motif = select_long_allele_based_on_reviewer_images(
+                locus_results_json["expansion_hunter_motif1_reviewer_svg"],
+                locus_results_json["expansion_hunter_motif2_reviewer_svg"],
+            )
+            short_allele_motif = "motif1" if long_allele_motif == "motif2" else "motif2"
         else:
             short_allele_motif = "motif2"
             long_allele_motif = "motif1"
@@ -367,6 +381,69 @@ class ParseError(Exception):
     pass
 
 
+def get_reviewer_image_section(s, get_short_allele_image):
+    """Extract either the upper panel (short allele) or lower panel (long allele) of the REViewer image.
+    The panels start with this line tag:
+    <line x1="510" y1="386" x2="11710" y2="386" stroke="black" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+    so split on that. Also, handle hemizygous genotypes which only have 1 allele and one REViewer image panel.
+    """
+
+    s = s.replace("</svg>", "").split("</defs>")[-1]
+    matches = list(re.finditer("<line[^>]+y1=\"(\d+)\"[^>]+#arrow[^>]+>", s, re.DOTALL))
+    if len(matches) == 0:
+        return "", 0, 0
+
+    if len(matches) == 1:
+        section = s
+        start_y_coord = int(matches[0].group(1))
+    elif get_short_allele_image:
+        section = s[matches[0].start():matches[1].start()]
+        start_y_coord = int(matches[0].group(1))
+    else:
+        section = s[matches[1].start():]
+        start_y_coord = int(matches[1].group(1))
+
+    # get the last y-coord in this section
+    end_y_coord = start_y_coord
+    for match in re.finditer("<[^>]+y=\"(\d+)\"[^>]+fill[^>]+>", section, re.DOTALL):
+        end_y_coord = max(int(match.group(1)) + 10, end_y_coord)
+
+    return section, start_y_coord, end_y_coord
+
+
+def select_long_allele_based_on_reviewer_images(reviewer_image_path_motif1, reviewer_image_path_motif2):
+    """When both motifs have long alleles of the same length, select the motif based on interruptions."""
+    def compute_normalized_interruption_count(reviewer_image_contents, short_allele=False):
+        panel_contents, start_y, end_y = get_reviewer_image_section(
+            reviewer_image_contents, get_short_allele_image=short_allele)
+
+        # rough read depth estimate based on vertical size of the svg image section
+        denominator = end_y - start_y
+        if denominator == 0:
+            denominator = 1   # just in case - avoid divide-by-0
+
+        # rough interruption estimate based on number of text tags in the svg image
+        interruption_count = panel_contents.count("<text")
+        return interruption_count / float(denominator)
+
+    with open(reviewer_image_path_motif1, "rt") as f:
+        motif1_image_contents = f.read()
+        motif1_normalized_interruption_count1 = compute_normalized_interruption_count(motif1_image_contents, short_allele=True)
+        motif1_normalized_interruption_count2 = compute_normalized_interruption_count(motif1_image_contents, short_allele=False)
+
+    with open(reviewer_image_path_motif2, "rt") as f:
+        motif2_image_contents = f.read()
+        motif2_normalized_interruption_count1 = compute_normalized_interruption_count(motif2_image_contents, short_allele=True)
+        motif2_normalized_interruption_count2 = compute_normalized_interruption_count(motif2_image_contents, short_allele=False)
+
+    # check whether selecting motif2 as the long allele yields a lower total interruption estimate than selecting motif1
+    if (motif1_normalized_interruption_count1 + motif2_normalized_interruption_count2
+            < motif2_normalized_interruption_count1 + motif1_normalized_interruption_count2):
+        return "motif2"
+    else:
+        return "motif1"
+
+
 def combine_reviewer_images(short_allele_image_path, long_allele_image_path, output_file_prefix):
 
     # parse svg tag
@@ -396,32 +473,18 @@ def combine_reviewer_images(short_allele_image_path, long_allele_image_path, out
         raise ParseError(f"Unable to parse defs tag from {short_allele_image_path}")
     defs = match.group(0)
 
-    def get_read_image_section(s, get_upper_section):
-        """Extract either the upper panel (short allele) or lower panel (long allele) of the REViewer image.
-        The panels start with this line tag:
-        <line x1="510" y1="386" x2="11710" y2="386" stroke="black" marker-start="url(#arrow)" marker-end="url(#arrow)" />
-        so split on that. Also, handle hemizygous genotypes which only have 1 allele and one REViewer image panel.
-        """
-
-        s = s.replace("</svg>", "").split("</defs>")[-1]
-        matches = list(re.finditer("<line[^>]+#arrow[^>]+>", s, re.DOTALL))
-        if len(matches) < 2:
-            return s
-
-        if get_upper_section:
-            return s[matches[0].start():matches[1].start()]
-        else:
-            return s[matches[1].start():]
-
-    short_allele_contents = get_read_image_section(short_allele_contents, get_upper_section=True)
-    long_allele_contents = get_read_image_section(long_allele_contents, get_upper_section=False)
+    short_allele_contents, start1_y, end1_y = get_reviewer_image_section(short_allele_contents, get_short_allele_image=True)
+    long_allele_contents, start2_y, end2_y = get_reviewer_image_section(long_allele_contents, get_short_allele_image=False)
 
     output_path = f"{output_file_prefix}_reviewer.svg"
     with open(output_path, "wt") as f:
         f.write(f"""<svg width="{final_width}" height="{final_height}" xmlns="http://www.w3.org/2000/svg">""")
         f.write(defs)
         f.write(short_allele_contents)
+        # shift the long allele panel vertically so it appears just below the short allele panel
+        f.write("""<g transform="translate(0,%s)">""" % (end1_y - start2_y + 50))
         f.write(long_allele_contents)
+        f.write("</g>")
         f.write("</svg>")
 
     return output_path
@@ -631,8 +694,10 @@ def process_locus(locus_id, args):
     })
 
     # compute the motif(s) found in the soft-clipped reads, and how many times each one occurs
-    motif_to_n_occurrences = collections.defaultdict(int)
     motif_to_read_count = collections.defaultdict(int)
+    motif_to_n_occurrences = collections.defaultdict(int)
+    canonical_motif_to_read_count = collections.defaultdict(int)
+    canonical_motif_to_n_occurrences = collections.defaultdict(int)
     if locus_id == "RFC1":
         # in gnomAD, EHdn sometimes finds 6bp repeat units (eg. AAAGGG), so check for those as well
         motif_sizes_to_check = [pathogenic_motif_size, pathogenic_motif_size + 1]
@@ -652,7 +717,7 @@ def process_locus(locus_id, args):
 
             if args.verbose:
                 if motif:
-                    print(f"Found {compute_canonical_repeat_unit(motif)} occurs {count}x in read bases that "
+                    print(f"Found {motif} occurs {count}x in read bases that "
                           f"overlap the {locus_id} locus: {overlapping_sequence}")
                 else:
                     if motif_size == pathogenic_motif_size:
@@ -660,8 +725,12 @@ def process_locus(locus_id, args):
                               f"that overlap the {locus_id} locus: {overlapping_sequence}")
 
             if motif is not None:
+                canonical_motif = compute_canonical_repeat_unit(motif)
                 motif_to_read_count[motif] += 1
                 motif_to_n_occurrences[motif] += count
+                canonical_motif_to_read_count[canonical_motif] += 1
+                canonical_motif_to_n_occurrences[canonical_motif] += count
+
 
     locus_results_json.update({
         "found_n_reads_overlap_the_locus": len(overlapping_sequences),
@@ -671,12 +740,22 @@ def process_locus(locus_id, args):
 
     # evaluate the repeat units
     well_supported_motifs = []
+    well_supported_canonical_motifs = set()
     for motif, read_count in motif_to_read_count.items():
         if "N" in motif:
             continue
         if read_count < 3:
             continue
+
+        # check that this motif hasn't already been added to the list, treating different variations
+        # of the same canonical motif as the same thing (eg. AAAAT = AAATA = TTTTA)
+        canonical_motif = compute_canonical_repeat_unit(motif)
+        if canonical_motif in well_supported_canonical_motifs:
+            continue
+        well_supported_canonical_motifs.add(canonical_motif)
+
         well_supported_motifs.append(motif)
+
 
     # select the repeat unit(s) with the most read support
     well_supported_motifs.sort(key=lambda motif: motif_to_n_occurrences[motif], reverse=True)
@@ -705,8 +784,8 @@ def process_locus(locus_id, args):
         elif canonical_motif in known_benign_motifs:
             n_benign_motifs += 1
 
-        read_count = motif_to_read_count.get(motif)
-        n_occurrences = motif_to_n_occurrences.get(motif)
+        read_count = canonical_motif_to_read_count.get(canonical_motif)
+        n_occurrences = canonical_motif_to_n_occurrences.get(canonical_motif)
 
         locus_results_json.update({
             f"motif{motif_number}_repeat_unit": motif,
