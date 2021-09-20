@@ -369,16 +369,27 @@ def compute_final_expansion_hunter_results(locus_results_json, output_file_prefi
         print(f"ERROR: unable to compute final expansion hunter results due to unexpected number of motifs: {n_motifs}")
         return
 
-    locus_results_json["expansion_hunter_call_genotype"] = "%s/%s" % (
-        locus_results_json[f"expansion_hunter_{short_allele_motif}_short_allele_genotype"],
-        locus_results_json[f"expansion_hunter_{long_allele_motif}_long_allele_genotype"],
-    )
-    locus_results_json["expansion_hunter_call_CI"] = "%s-%s/%s-%s" % (
-        locus_results_json[f"expansion_hunter_{short_allele_motif}_short_allele_CI_start"],
-        locus_results_json[f"expansion_hunter_{short_allele_motif}_short_allele_CI_end"],
-        locus_results_json[f"expansion_hunter_{long_allele_motif}_long_allele_CI_start"],
-        locus_results_json[f"expansion_hunter_{long_allele_motif}_long_allele_CI_end"],
-    )
+    if all(key in locus_results_json for key in (
+            f"expansion_hunter_{short_allele_motif}_short_allele_genotype",
+            f"expansion_hunter_{long_allele_motif}_long_allele_genotype",
+    )):
+        locus_results_json["expansion_hunter_call_genotype"] = "%s/%s" % (
+            locus_results_json[f"expansion_hunter_{short_allele_motif}_short_allele_genotype"],
+            locus_results_json[f"expansion_hunter_{long_allele_motif}_long_allele_genotype"],
+        )
+
+    if all(key in locus_results_json for key in (
+        f"expansion_hunter_{short_allele_motif}_short_allele_CI_start",
+        f"expansion_hunter_{short_allele_motif}_short_allele_CI_end",
+        f"expansion_hunter_{long_allele_motif}_long_allele_CI_start",
+        f"expansion_hunter_{long_allele_motif}_long_allele_CI_end",
+    )):
+        locus_results_json["expansion_hunter_call_CI"] = "%s-%s/%s-%s" % (
+            locus_results_json[f"expansion_hunter_{short_allele_motif}_short_allele_CI_start"],
+            locus_results_json[f"expansion_hunter_{short_allele_motif}_short_allele_CI_end"],
+            locus_results_json[f"expansion_hunter_{long_allele_motif}_long_allele_CI_start"],
+            locus_results_json[f"expansion_hunter_{long_allele_motif}_long_allele_CI_end"],
+        )
 
 
 class ParseError(Exception):
