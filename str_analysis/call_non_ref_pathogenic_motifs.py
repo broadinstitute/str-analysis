@@ -356,10 +356,14 @@ def compute_final_expansion_hunter_results(locus_results_json, output_file_prefi
         )
 
         if "expansion_hunter_motif1_reviewer_svg" in locus_results_json and "expansion_hunter_motif2_reviewer_svg" in locus_results_json:
-            locus_results_json["expansion_hunter_call_reviewer_svg"] = combine_reviewer_images(
+            locus_id = locus_results_json["locus_id"]
+            motif1_repeat_unit = locus_results_json[f"expansion_hunter_{short_allele_motif}_repeat_unit"]
+            motif2_repeat_unit = locus_results_json[f"expansion_hunter_{long_allele_motif}_repeat_unit"]
+            locus_results_json["expansion_hunter_call_reviewer_svg"] = f"{output_file_prefix}_reviewer.{locus_id}_{motif1_repeat_unit}_and_{motif2_repeat_unit}.svg"
+            combine_reviewer_images(
                 locus_results_json[f"expansion_hunter_{short_allele_motif}_reviewer_svg"],
                 locus_results_json[f"expansion_hunter_{long_allele_motif}_reviewer_svg"],
-                output_file_prefix,
+                locus_results_json["expansion_hunter_call_reviewer_svg"],
             )
     else:
         print(f"ERROR: unable to compute final expansion hunter results due to unexpected number of motifs: {n_motifs}")
@@ -444,7 +448,7 @@ def select_long_allele_based_on_reviewer_images(reviewer_image_path_motif1, revi
         return "motif1"
 
 
-def combine_reviewer_images(short_allele_image_path, long_allele_image_path, output_file_prefix):
+def combine_reviewer_images(short_allele_image_path, long_allele_image_path, output_file_path):
 
     # parse svg tag
     with open(short_allele_image_path, "rt") as f:
@@ -456,7 +460,6 @@ def combine_reviewer_images(short_allele_image_path, long_allele_image_path, out
         long_allele_contents = f.read()
 
     final_width = 0
-    final_height = 0
     for svg_tag in short_allele_svg_tag, long_allele_svg_tag:
         match = re.search("""<svg width="(\d+)" height="(\d+)".+>""", svg_tag)
         if not match:
@@ -464,9 +467,6 @@ def combine_reviewer_images(short_allele_image_path, long_allele_image_path, out
 
         svg_width, svg_height = map(int, match.groups())
         final_width = max(final_width, svg_width)
-        final_height = max(final_height, svg_height)
-
-    final_height = int(final_height * 1.5)
 
     match = re.search("<defs>.+?</defs>", short_allele_contents, re.DOTALL)
     if not match:
@@ -476,8 +476,9 @@ def combine_reviewer_images(short_allele_image_path, long_allele_image_path, out
     short_allele_contents, start1_y, end1_y = get_reviewer_image_section(short_allele_contents, get_short_allele_image=True)
     long_allele_contents, start2_y, end2_y = get_reviewer_image_section(long_allele_contents, get_short_allele_image=False)
 
-    output_path = f"{output_file_prefix}_reviewer.svg"
-    with open(output_path, "wt") as f:
+    final_height = (end1_y - start1_y) + (end2_y - start2_y) + 150
+
+    with open(output_file_path, "wt") as f:
         f.write(f"""<svg width="{final_width}" height="{final_height}" xmlns="http://www.w3.org/2000/svg">""")
         f.write(defs)
         f.write(short_allele_contents)
@@ -487,8 +488,7 @@ def combine_reviewer_images(short_allele_image_path, long_allele_image_path, out
         f.write("</g>")
         f.write("</svg>")
 
-    return output_path
-
+    return output_file_path
 
 def run_expansion_hunter_denovo(args):
     """Run ExpansionHunterDenovo.
