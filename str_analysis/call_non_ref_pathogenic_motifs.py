@@ -193,7 +193,7 @@ def run_expansion_hunter(
             repeat_unit, chrom, start_1based, end_1based,
             offtarget_regions=offtarget_regions)
 
-        variant_catalog_path = f"{repeat_unit}.variant_catalog.json"
+        variant_catalog_path = f"{variant_catalog_locus_label}.variant_catalog.json"
         with open(variant_catalog_path, "wt") as f:
             json.dump([variant_catalog], f)
 
