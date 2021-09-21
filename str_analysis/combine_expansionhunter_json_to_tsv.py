@@ -95,7 +95,7 @@ def main():
                         variant_output_file.write("\t".join(variant_table_columns) + "\n")
                         wrote_variant_table_header = True
                     variant_records_counter += 1
-                    variant_output_file.write("\t".join([str(record.get(c) or "") for c in variant_table_columns]) + "\n")
+                    variant_output_file.write("\t".join([str(record[c] if c in record else "") for c in variant_table_columns]) + "\n")
 
             for record in convert_expansionhunter_json_to_tsv_columns(
                     json_contents,
@@ -103,6 +103,7 @@ def main():
                     json_file_path=json_path,
                     return_allele_records=True,
                 ):
+
                 if just_get_header:
                     allele_table_columns.extend([k for k in record.keys() if k not in allele_table_columns])
                 else:
@@ -110,7 +111,7 @@ def main():
                         allele_output_file.write("\t".join(allele_table_columns) + "\n")
                         wrote_allele_table_header = True
                     allele_records_counter += 1
-                    allele_output_file.write("\t".join([str(record.get(c) or "") for c in allele_table_columns]) + "\n")
+                    allele_output_file.write("\t".join([str(record[c] if c in record else "") for c in allele_table_columns]) + "\n")
 
 
     logging.info(f"Wrote {variant_records_counter} records to {output_prefix}.variants.tsv")
