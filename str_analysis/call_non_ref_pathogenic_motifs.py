@@ -207,10 +207,10 @@ def run_expansion_hunter(
         output_prefix = f"{args.sample_id}.{locus_id}_{repeat_unit}.expansion_hunter"
         expansion_hunter_command = f"""{args.expansion_hunter_path} \
 --sex male \
---reference {args.reference_fasta} \
---reads {args.bam_or_cram_path} \
---variant-catalog {variant_catalog_path} \
---output-prefix {output_prefix} \
+--reference "{args.reference_fasta}" \
+--reads "{args.bam_or_cram_path}" \
+--variant-catalog "{variant_catalog_path}" \
+--output-prefix "{output_prefix}" \
 --log-level debug
 """
 
@@ -283,14 +283,14 @@ def run_expansion_hunter(
             locus_results_json[f"expansion_hunter_motif{motif_number}_total_{output_label}"] = total
 
         if run_reviewer:
-            reviewer_command = f"""samtools sort {output_prefix}_realigned.bam -o {output_prefix}.sorted.bam \
-&& samtools index {output_prefix}.sorted.bam \
-&& REViewer --reads {output_prefix}.sorted.bam  \
-    --vcf {output_prefix}.vcf \
-    --reference {args.reference_fasta} \
-    --catalog {variant_catalog_path} \
-    --locus {variant_catalog_locus_label} \
-    --output-prefix {output_prefix}_reviewer
+            reviewer_command = f"""samtools sort "{output_prefix}_realigned.bam" -o "{output_prefix}.sorted.bam" \
+&& samtools index "{output_prefix}.sorted.bam" \
+&& REViewer --reads "{output_prefix}.sorted.bam" \
+    --vcf "{output_prefix}.vcf" \
+    --reference "{args.reference_fasta}" \
+    --catalog "{variant_catalog_path}" \
+    --locus "{variant_catalog_locus_label}" \
+    --output-prefix "{output_prefix}_reviewer"
 """
             run(reviewer_command, verbose=args.verbose)
 
@@ -515,9 +515,9 @@ def run_expansion_hunter_denovo(args):
     print(f"Running ExpansionHunterDenovo on {args.sample_id}")
     output_prefix = f"{args.sample_id}.expansion_hunter_denovo"
     expansion_hunter_denovo_command = f"""{args.expansion_hunter_denovo_path} profile \
---reference {args.reference_fasta} \
---reads {args.bam_or_cram_path} \
---output-prefix {output_prefix} \
+--reference "{args.reference_fasta}" \
+--reads "{args.bam_or_cram_path}" \
+--output-prefix "{output_prefix}"
 """
 
     run(expansion_hunter_denovo_command, verbose=args.verbose)
