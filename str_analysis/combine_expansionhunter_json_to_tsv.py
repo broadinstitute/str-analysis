@@ -6,6 +6,7 @@ import json
 import logging
 import numpy as np
 import os
+import pandas as pd
 import pathlib
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
@@ -24,13 +25,24 @@ def parse_args(args_list=None):
         default=[],
     )
     p.add_argument(
+        "-m",
+        "--sample-metadata",
+        help="Table of sample annotations. If specified, all columns from this table will be added to the output table."
+    )
+    p.add_argument(
+        "--sample-metadata-key",
+        help="The column name in the --sample-metdata table that contains a sample id. "
+             "If not specified, 'sample_id' and other variations like 'SampleId', 'sample', and 'ParticipantId' "
+             "will be tried."
+    )
+    p.add_argument(
         "-o",
         "--output-prefix",
         help="Combined table output filename prefix",
     )
     p.add_argument(
         "json_paths",
-        help="EpxansionHunter output json path(s). If not specified, all json files in the current directory and subdirectories will be found",
+        help="EpxansionHunter output json path(s). If not specified, this script will retrieve all json files in the current directory and subdirectories",
         type=pathlib.Path,
         nargs="*"
     )
@@ -59,6 +71,9 @@ def main():
             combined_variant_catalog_contents.extend(variant_catalog_contents)
         #for d in variant_catalog_contents:
         #    logging.info("    " + d["LocusId"])
+
+    if args.sample_metadata:
+        sample_metadata_df = pd.read_table(args.sample_metadata)
 
     variant_table_columns = []
     allele_table_columns = []
@@ -103,7 +118,6 @@ def main():
                     json_file_path=json_path,
                     return_allele_records=True,
                 ):
-
                 if just_get_header:
                     allele_table_columns.extend([k for k in record.keys() if k not in allele_table_columns])
                 else:
@@ -112,7 +126,6 @@ def main():
                         wrote_allele_table_header = True
                     allele_records_counter += 1
                     allele_output_file.write("\t".join([str(record[c] if c in record else "") for c in allele_table_columns]) + "\n")
-
 
     logging.info(f"Wrote {variant_records_counter} records to {output_prefix}.variants.tsv")
     logging.info(f"Wrote {allele_records_counter} records to {output_prefix}.alleles.tsv")

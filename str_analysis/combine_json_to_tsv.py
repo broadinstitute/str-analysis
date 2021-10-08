@@ -53,7 +53,7 @@ def parse_args(args_list=None):
     )
     p.add_argument(
         "json_paths",
-        help="EpxansionHunter output json path(s). If not specified, this script will retrieve all json files in the current directory and subdirectories",
+        help="json path(s). If not specified, this script will retrieve all json files in the current directory and subdirectories",
         type=pathlib.Path,
         nargs="*"
     )
@@ -137,6 +137,22 @@ def parse_json_files(json_paths, add_dirname_column=False, add_filename_column=F
                 yield json_contents_excluding_complex_values
 
 
+def join_with_sample_metadata(df, df_sample_id_columns, sample_metadata_df, sample_metadata_df_sample_id_column):
+    sample_id_column_idx1 = get_sample_id_column_index(df, column_name=df_sample_id_columns)
+    if sample_id_column_idx1 is -1:
+        raise ValueError(f"'sample_id' field not found in json files. The fields found were: {df.columns}")
+
+    sample_id_column_idx2 = get_sample_id_column_index(sample_metadata_df, column_name=sample_metadata_df_sample_id_column)
+    if sample_id_column_idx2 is -1:
+        raise ValueError(f"'sample_id' column not found in sample metadata table. The columns found were: {sample_metadata_df.columns}")
+
+    print(f"Doing a LEFT JOIN with sample metadata table using keys "
+          f"{df.columns[sample_id_column_idx1]} and {sample_metadata_df.columns[sample_id_column_idx2]}")
+    df = pd.merge(df, sample_metadata_df, how="left", left_on=df.columns[sample_id_column_idx1], right_on=sample_metadata_df.columns[sample_id_column_idx2])
+
+    return df
+
+
 def main():
     args = parse_args()
 
@@ -148,20 +164,8 @@ def main():
         add_filename_column=args.add_filename_column))
 
     if args.sample_metadata:
-
-        sample_id_column_idx1 = get_sample_id_column_index(df, column_name=args.json_sample_id_key)
-        if sample_id_column_idx1 is -1:
-            raise ValueError(f"'sample_id' field not found in json files. The fields found were: {df.columns}")
-
-        metadata_df = pd.read_table(args.sample_metadata)
-
-        sample_id_column_idx2 = get_sample_id_column_index(metadata_df, column_name=args.sample_metadata_key)
-        if sample_id_column_idx2 is -1:
-            raise ValueError(f"'sample_id' column not found in {args.sample_metadata}. The columns found were: {metadata_df.columns}")
-
-        print(f"Doing a LEFT JOIN with {args.sample_metadata} using keys "
-              f"{df.columns[sample_id_column_idx1]} and {metadata_df.columns[sample_id_column_idx2]}")
-        df = pd.merge(df, metadata_df, how="left", left_on=df.columns[sample_id_column_idx1], right_on=metadata_df.columns[sample_id_column_idx2])
+        sample_metadata_df = pd.read_table(args.sample_metadata)
+        df = join_with_sample_metadata(df, args.json_sample_id_key, sample_metadata_df, args.sample_metadata_key)
 
     output_filename = f"{output_prefix}.tsv"
     df.to_csv(output_filename, index=False, header=True, sep="\t")

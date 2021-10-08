@@ -44,7 +44,7 @@ PATHOGENIC_MOTIF_CALL = "PATHOGENIC MOTIF"
 BENIGN_MOTIF_CALL = "BENIGN MOTIF"
 UNCERTAIN_SIG_CALL = "MOTIF OF UNCERTAIN SIGNIFICANCE"
 
-NO_CALL1 = f"NO CALL (no motif has sufficient read support)"
+NO_CALL1 = "NO CALL (no motif has sufficient read support)"
 
 PATHOGENIC_PATHOGENIC_CALL = f"{PATHOGENIC_MOTIF_CALL} / {PATHOGENIC_MOTIF_CALL}"
 BENIGN_BENIGN_CALL = f"{BENIGN_MOTIF_CALL} / {BENIGN_MOTIF_CALL}"
@@ -501,6 +501,7 @@ def combine_reviewer_images(short_allele_image_path, long_allele_image_path, out
 
     return output_file_path
 
+
 def run_expansion_hunter_denovo(args):
     """Run ExpansionHunterDenovo.
 
@@ -704,7 +705,7 @@ def process_locus(locus_id, args):
         "right_flank_coverage": right_flank_coverage,
     })
 
-    # compute the motif(s) found in the soft-clipped reads, and how many times each one occurs
+    # compute the motif(s) found in the reads, and how many times each one occurs
     motif_to_read_count = collections.defaultdict(int)
     motif_to_n_occurrences = collections.defaultdict(int)
     canonical_motif_to_read_count = collections.defaultdict(int)
@@ -741,7 +742,6 @@ def process_locus(locus_id, args):
                 motif_to_n_occurrences[motif] += count
                 canonical_motif_to_read_count[canonical_motif] += 1
                 canonical_motif_to_n_occurrences[canonical_motif] += count
-
 
     locus_results_json.update({
         "found_n_reads_overlap_the_locus": len(overlapping_sequences),
@@ -885,7 +885,6 @@ def compute_sample_id(bam_or_cram_path, reference_fasta):
     Return:
         str: sample id
     """
-    bam_cram_prefix = re.sub(".bam$|.cram$", "", os.path.basename(bam_or_cram_path))
 
     sample_id = None
     # try to get sample id from bam/cram header
@@ -898,7 +897,7 @@ def compute_sample_id(bam_or_cram_path, reference_fasta):
     if sample_id:
         print(f"Using sample id '{sample_id}' from the bam/cram header")
     else:
-        sample_id = bam_cram_prefix
+        sample_id = re.sub(".bam$|.cram$", "", os.path.basename(bam_or_cram_path))
         print(f"Using sample id '{sample_id}' based on the input filename prefix")
 
     return sample_id
