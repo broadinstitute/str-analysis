@@ -42,7 +42,8 @@ def parse_args(args_list=None):
     )
     p.add_argument(
         "json_paths",
-        help="EpxansionHunter output json path(s). If not specified, this script will retrieve all json files in the current directory and subdirectories",
+        help="EpxansionHunter output json path(s). If not specified, this script will retrieve all json files in the "
+             "current directory and subdirectories",
         type=pathlib.Path,
         nargs="*"
     )

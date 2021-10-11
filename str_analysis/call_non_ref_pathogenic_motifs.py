@@ -332,29 +332,35 @@ def compute_final_expansion_hunter_results(locus_results_json, output_file_prefi
 
     elif (n_motifs == 2
           and "expansion_hunter_motif1_repeat_unit" in locus_results_json
-          and "expansion_hunter_motif2_repeat_unit" in locus_results_json):
+          and "expansion_hunter_motif2_repeat_unit" in locus_results_json
+    ):
 
-        if (
-                int(locus_results_json["expansion_hunter_motif1_long_allele_genotype"]) <
-                int(locus_results_json["expansion_hunter_motif2_long_allele_genotype"])
-        ):
+        if ("expansion_hunter_motif1_long_allele_genotype" not in locus_results_json or
+            "expansion_hunter_motif2_long_allele_genotype" not in locus_results_json):
             short_allele_motif = "motif1"
             long_allele_motif = "motif2"
-        elif (
-                int(locus_results_json["expansion_hunter_motif1_long_allele_genotype"]) ==
-                int(locus_results_json["expansion_hunter_motif2_long_allele_genotype"])
-            ) and (
-                "expansion_hunter_motif1_reviewer_svg" in locus_results_json and
-                "expansion_hunter_motif2_reviewer_svg" in locus_results_json
-            ):
-            long_allele_motif = select_long_allele_based_on_reviewer_images(
-                locus_results_json["expansion_hunter_motif1_reviewer_svg"],
-                locus_results_json["expansion_hunter_motif2_reviewer_svg"],
-            )
-            short_allele_motif = "motif1" if long_allele_motif == "motif2" else "motif2"
         else:
-            short_allele_motif = "motif2"
-            long_allele_motif = "motif1"
+            if (
+                    int(locus_results_json["expansion_hunter_motif1_long_allele_genotype"]) <
+                    int(locus_results_json["expansion_hunter_motif2_long_allele_genotype"])
+            ):
+                short_allele_motif = "motif1"
+                long_allele_motif = "motif2"
+            elif (
+                    int(locus_results_json["expansion_hunter_motif1_long_allele_genotype"]) ==
+                    int(locus_results_json["expansion_hunter_motif2_long_allele_genotype"])
+                ) and (
+                    "expansion_hunter_motif1_reviewer_svg" in locus_results_json and
+                    "expansion_hunter_motif2_reviewer_svg" in locus_results_json
+                ):
+                long_allele_motif = select_long_allele_based_on_reviewer_images(
+                    locus_results_json["expansion_hunter_motif1_reviewer_svg"],
+                    locus_results_json["expansion_hunter_motif2_reviewer_svg"],
+                )
+                short_allele_motif = "motif1" if long_allele_motif == "motif2" else "motif2"
+            else:
+                short_allele_motif = "motif2"
+                long_allele_motif = "motif1"
 
         locus_results_json["expansion_hunter_call_repeat_unit"] = "%s / %s" % (
             locus_results_json[f"expansion_hunter_{short_allele_motif}_repeat_unit"],
@@ -721,7 +727,7 @@ def process_locus(locus_id, args):
         # in gnomAD, EHdn sometimes finds 6bp repeat units (eg. AAAGGG), so check for those as well
         motif_sizes_to_check = [pathogenic_motif_size, pathogenic_motif_size + 1]
     else:
-        motif_sizes_to_check = [pathogenic_motif_size]
+        motif_sizes_to_check = {len(m) for m in known_pathogenic_motifs + known_benign_motifs}
 
     for overlapping_sequence in overlapping_sequences:
         for motif_size in motif_sizes_to_check:
