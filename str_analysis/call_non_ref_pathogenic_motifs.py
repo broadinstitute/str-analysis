@@ -2,7 +2,8 @@
 
 DESCRIPTION = """This script takes a bam or cram file and determines which motifs are present at known pathogenic loci 
 (such as RFC1, BEAN1, DAB1, etc.) where several motifs are known to segregate in the population. It then optionally runs
- ExpansionHunterDenovo and/or ExpansionHunter on the detected motifs and gathers relevant fields from their outputs. 
+ ExpansionHunterDenovo and/or ExpansionHunter on the detected motifs and gathers relevant fields from their outputs. It
+ can also then run REViewer to generate read visualization images. 
 Finally it outputs a json file per locus with collected information as well as a "call" field indicating whether 
 pathogenic motifs were detected.
 """
@@ -102,6 +103,9 @@ def parse_args():
 
     if args.reference_fasta and not os.path.isfile(args.reference_fasta):
         p.error(f"{args.reference_fasta} not found")
+
+    if args.expansion_hunter_denovo_profile and not os.path.isfile(args.expansion_hunter_denovo_profile):
+        p.error(f"{args.expansion_hunter_denovo_profile} not found")
 
     if args.run_expansion_hunter and not args.reference_fasta:
         p.error("--reference-fasta is required when --run-expansion-hunter is used")
@@ -644,9 +648,10 @@ def process_offtarget_regions(motif, motif_number, read_count, flank_coverage_me
         args (object): command-line arguments from argparse.
         locus_results_json (dict): Results will be added to this dictionary.
     """
-    offtarget_regions = OFFTARGET_REGIONS[args.genome_version].get(motif)
+    canonical_motif = compute_canonical_repeat_unit(motif)
+    offtarget_regions = OFFTARGET_REGIONS[args.genome_version].get(canonical_motif)
     if offtarget_regions is None:
-        print(f"WARNING: off-target regions not available for {motif}")
+        print(f"WARNING: off-target regions not available for {canonical_motif}")
         return
 
     read_count_with_offtargets = read_count
@@ -755,18 +760,20 @@ def process_locus(locus_id, args):
     for motif, read_count in motif_to_read_count.items():
         if "N" in motif:
             continue
-        if read_count < 3:
-            continue
 
         # check that this motif hasn't already been added to the list, treating different variations
         # of the same canonical motif as the same thing (eg. AAAAT = AAATA = TTTTA)
         canonical_motif = compute_canonical_repeat_unit(motif)
         if canonical_motif in well_supported_canonical_motifs:
             continue
+
+        # make sure at least 3 reads support some variation of this motif
+        canonical_motif_read_count = canonical_motif_to_read_count[canonical_motif]
+        if canonical_motif_read_count < 3:
+            continue
+
         well_supported_canonical_motifs.add(canonical_motif)
-
         well_supported_motifs.append(motif)
-
 
     # select the repeat unit(s) with the most read support
     well_supported_motifs.sort(key=lambda motif: motif_to_n_occurrences[motif], reverse=True)
