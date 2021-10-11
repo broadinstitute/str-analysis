@@ -72,6 +72,7 @@ def main():
     grp.add_argument("--wgsim-p-indel-extension", type=float, help="wgsim -X arg (probability an indel is "
                                                                  "extended [0.30])")
 
+    p.add_argument("--output-label", help="If specified, this label will be added to output filenames")
     p.add_argument("ref_repeat_coords", help="1-based coordinates in the reference genome (eg. chr1:12345-54321). "
         "The reference bases in this interval will be replaced with -n copies of the --new-repeat-unit sequence.")
 
@@ -100,6 +101,7 @@ def main():
     fasta_obj = pyfaidx.Fasta(args.ref_fasta, one_based_attributes=False, as_raw=True)
 
     output_filename_prefix = (
+        (f"{args.output_label}_" if args.output_label else "") +
         f"{chrom}-{start_1based}-{end_1based}__rl{args.read_length}__{padding}bp_pad"
     ).replace(" ", "_")
 
@@ -143,7 +145,7 @@ def main():
             coverage,
             args.fragment_length,
             args.fragment_length_stddev,
-            f"{output_filename_prefix}__{int(coverage)}x_cov__{args.num_copies1:03d}x{args.new_repeat_unit1}".replace(" ", "_"),
+            f"{output_filename_prefix}__{int(coverage)}x_cov__{args.num_copies1:3d}x{args.new_repeat_unit1}".replace(" ", "_"),
             wgsim_base_error_rate=args.wgsim_base_error_rate,
             wgsim_mutation_rate=args.wgsim_mutation_rate,
             wgsim_fraction_indels=args.wgsim_fraction_indels,
@@ -177,7 +179,7 @@ def main():
 
             # in HET case, divide coverage by 2 to generate ref and alt .bams with 1/2 original coverage, and then merge them.
             coverage = args.coverage / (2 if het_or_hom == "het" else 1)
-            output_prefix = f"{output_filename_prefix}__{int(coverage)}x_cov__{num_copies2:03d}x{args.new_repeat_unit2}"
+            output_prefix = f"{output_filename_prefix}__{int(coverage)}x_cov__{num_copies2:3d}x{args.new_repeat_unit2}"
             output_prefix = output_prefix.replace(" ", "_")
             if het_or_hom == "hom":
                 output_prefix += "__hom"
@@ -193,12 +195,12 @@ def main():
                 force=args.force)
 
             if het_or_hom == "het":
-                logging.info(f"Merging bams from allele1 ({args.num_copies1:03d}x{args.new_repeat_unit1}) "
-                             f"and allele2 ({num_copies2:03d}x{args.new_repeat_unit2})")
+                logging.info(f"Merging bams from allele1 ({args.num_copies1:3d}x{args.new_repeat_unit1}) "
+                             f"and allele2 ({num_copies2:3d}x{args.new_repeat_unit2})")
                 merged_bam_path = output_filename_prefix
                 merged_bam_path += f"__{int(args.coverage)}x_cov"
-                merged_bam_path += f"__allele1_{args.num_copies1:03d}x{args.new_repeat_unit1}"
-                merged_bam_path += f"__allele2_{num_copies2:03d}x{args.new_repeat_unit2}"
+                merged_bam_path += f"__allele1_{args.num_copies1:3d}x{args.new_repeat_unit1}"
+                merged_bam_path += f"__allele2_{num_copies2:3d}x{args.new_repeat_unit2}"
                 merged_bam_path += f"__het.bam"
                 merged_bam_path = merged_bam_path.replace(" ", "_")
                 merge_bams(
@@ -290,9 +292,32 @@ def generate_synthetic_reference_sequence(fasta_obj, chrom, start_1based, end_1b
     """Generates a nucleotide sequence that consists of {num_copies} of the {repeat_unit} surrounded by {padding_length}
     bases from the reference on either side of the interval given by {chrom}:{start_1based}-{end_1based}.
     """
+    iupac_nucleotide_codes = {
+        "N": "ACGT",
+        "R": "AG",
+        "Y": "CT",
+        "S": "GC",
+        "W": "AT",
+        "K": "GT",
+        "M": "AC",
+    }
+
+    if len(set(iupac_nucleotide_codes) & set(repeat_unit)) > 0:
+        i = 0
+        repeat_sequence = ""
+        while len(repeat_sequence) < len(repeat_unit) * num_copies:
+            next_repeat_unit = repeat_unit
+            for iupac_code in iupac_nucleotide_codes:
+                if iupac_code in next_repeat_unit:
+                    possible_nucleotides = iupac_nucleotide_codes[iupac_code]
+                    next_repeat_unit = next_repeat_unit.replace(iupac_code, possible_nucleotides[i % len(possible_nucleotides)])
+            repeat_sequence += next_repeat_unit
+            i += 1
+    else:
+        repeat_sequence = repeat_unit * num_copies
 
     if padding_length == 0:
-        return repeat_unit * num_copies
+        return repeat_sequence
 
     if chrom not in fasta_obj:
         raise ValueError(f"Invalid chromosome name: {chrom}")
@@ -304,7 +329,7 @@ def generate_synthetic_reference_sequence(fasta_obj, chrom, start_1based, end_1b
     right_padding_end_1based = min(end_1based + padding_length, chromosome_length)
     right_padding = get_reference_sequence(fasta_obj, chrom, end_1based + 1, right_padding_end_1based)
 
-    return left_padding + repeat_unit * num_copies + right_padding
+    return left_padding + repeat_sequence + right_padding
 
 
 def compute_off_target_regions(merged_bam_path, ref_fasta, interval, min_reads_threshold=2, verbose=False):
