@@ -65,6 +65,8 @@ def parse_args():
     p.add_argument("-s", "--sample-id", help="The sample id to put in the output json file. If not specified, it "
         "will be retrieved from the bam/cram header or filename prefix.")
 
+    p.add_argument("--use-offtarget-regions", action="store_true", help="Optionally use off-target regions when "
+        "counting reads that support a motif, and when running ExpansionHunter")
     p.add_argument("--run-expansion-hunter-denovo", action="store_true", help="Optionally run ExpansionHunterDenovo "
         "and copy information relevant to the locus from ExpansionHunterDenovo results to the output json.")
     p.add_argument("--expansion-hunter-denovo-path", help="The path of the ExpansionHunterDenovo executable to use "
@@ -687,7 +689,7 @@ def process_locus(locus_id, args):
     locus_chrom, start_1based, end_1based = parse_interval(locus_coords_1based)
     locus_start_0based = start_1based - 1
     locus_end = end_1based
-    use_offtarget_regions = LOCUS_INFO[locus_id]["UseOfftargetRegions"]
+    use_offtarget_regions = args.use_offtarget_regions or LOCUS_INFO[locus_id]["UseOfftargetRegions"]
 
     known_pathogenic_motifs = list(map(compute_canonical_repeat_unit, LOCUS_INFO[locus_id]["Motifs"]["PATHOGENIC"]))
     known_benign_motifs = list(map(compute_canonical_repeat_unit, LOCUS_INFO[locus_id]["Motifs"]["BENIGN"]))

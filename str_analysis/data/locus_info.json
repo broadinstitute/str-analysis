@@ -8,7 +8,7 @@
       "BENIGN": ["AAAAG", "AAAGG"],
       "PATHOGENIC": ["AAGGG", "ACAGG"]
     },
-    "UseOfftargetRegions": true
+    "UseOfftargetRegions": false
   },
   "BEAN1": {
     "LocusCoords_1based": {
