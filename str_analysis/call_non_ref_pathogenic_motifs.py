@@ -66,7 +66,7 @@ def parse_args():
         "will be retrieved from the bam/cram header or filename prefix.")
 
     p.add_argument("--use-offtarget-regions", action="store_true", help="Optionally use off-target regions when "
-        "counting reads that support a motif, and when running ExpansionHunter")
+        "counting reads that support a motif, and when running ExpansionHunter.")
     p.add_argument("--run-expansion-hunter-denovo", action="store_true", help="Optionally run ExpansionHunterDenovo "
         "and copy information relevant to the locus from ExpansionHunterDenovo results to the output json.")
     p.add_argument("--expansion-hunter-denovo-path", help="The path of the ExpansionHunterDenovo executable to use "

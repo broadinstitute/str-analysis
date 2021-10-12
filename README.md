@@ -115,7 +115,10 @@ optional arguments:
   --expansion-hunter-path EXPANSION_HUNTER_PATH
                         The path of the ExpansionHunter executable to use if
                         -r is specified. This must be ExpansionHunter version
-                        3 or greater.
+                        3 or greater.  
+  --use-offtarget-regions  
+                        Optionally use off-target regions when counting reads that
+                        support a motif, and when running ExpansionHunter.
   --all-loci            Generate calls for all these loci: RFC1, BEAN1, DAB1,
                         MARCHF6, RAPGEF2, SAMD12, STARD7, TNRC6A, YEATS2
   -l {RFC1,BEAN1,DAB1,MARCHF6,RAPGEF2,SAMD12,STARD7,TNRC6A,YEATS2}, --locus {RFC1,BEAN1,DAB1,MARCHF6,RAPGEF2,SAMD12,STARD7,TNRC6A,YEATS2}
