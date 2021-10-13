@@ -163,16 +163,16 @@ def join_with_sample_metadata(df, df_sample_id_columns, sample_metadata_df, samp
     df_unique_sample_ids = sorted(set(df[sample_id_column1])-set(sample_metadata_df[sample_id_column2]))
     sample_metadata_df_unique_sample_ids = sorted(set(sample_metadata_df[sample_id_column2])-set(df[sample_id_column1]))
 
-    print(f"{len(shared_sample_ids)} out of {len(df)} ({100*len(shared_sample_ids)/len(df):0.1f}%) of sample ids "
-          f"in the json files have a matching sample id in the sample metadata table column {sample_id_column2}")
+    print(f"{len(shared_sample_ids)} out of {len(df)} ({100*len(shared_sample_ids)/len(df):0.1f}%) sample ids "
+          f"in the json files have a matching sample id in the sample metadata table")
 
     if len(df_unique_sample_ids) > 0 and len(df_unique_sample_ids) < 100:
         print("Sample ids found only in the json files: ", ", ".join(df_unique_sample_ids))
 
     if verbose:
         print(f"{len(shared_sample_ids)} out of {len(sample_metadata_df)} "
-              f"({100*len(shared_sample_ids)/len(sample_metadata_df):0.1f}%) of sample ids in the sample metadata table "
-              f"have a matching sample id in the json files field {sample_id_column1}")
+              f"({100*len(shared_sample_ids)/len(sample_metadata_df):0.1f}%) sample ids in the sample metadata table "
+              f"have a matching sample id in the json files")
 
         if len(sample_metadata_df_unique_sample_ids) > 0 and len(sample_metadata_df_unique_sample_ids) < 100:
             print("Sample ids found only in the sample metadata table: ", ", ".join(sample_metadata_df_unique_sample_ids))
