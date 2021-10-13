@@ -45,11 +45,16 @@ def parse_args(args_list=None):
              "If not specified, 'sample_id' and other variations like 'SampleId', 'sample', and 'ParticipantId' "
              "will be tried."
     )
-
     p.add_argument(
         "-o",
         "--output-prefix",
         help="Combined table output filename prefix",
+    )
+    p.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Print additional logging messages",
     )
     p.add_argument(
         "json_paths",
@@ -67,6 +72,10 @@ def parse_args(args_list=None):
     else:
         # find all .json files underneath the current directory
         args.json_paths = [p for p in pathlib.Path(".").glob("**/*.json")]
+        if args.verbose and len(args.json_paths) > 0:
+            print("Found json files: ")
+            for p in args.json_paths:
+                print(f"  {p}")
         print(f"Found {len(args.json_paths)} .json files under {os.getcwd()}")
         if len(args.json_paths) == 0:
             sys.exit(0)
@@ -137,7 +146,7 @@ def parse_json_files(json_paths, add_dirname_column=False, add_filename_column=F
                 yield json_contents_excluding_complex_values
 
 
-def join_with_sample_metadata(df, df_sample_id_columns, sample_metadata_df, sample_metadata_df_sample_id_column):
+def join_with_sample_metadata(df, df_sample_id_columns, sample_metadata_df, sample_metadata_df_sample_id_column, verbose=False):
     sample_id_column_idx1 = get_sample_id_column_index(df, column_name=df_sample_id_columns)
     if sample_id_column_idx1 is -1:
         raise ValueError(f"'sample_id' field not found in json files. The fields found were: {df.columns}")
@@ -146,10 +155,29 @@ def join_with_sample_metadata(df, df_sample_id_columns, sample_metadata_df, samp
     if sample_id_column_idx2 is -1:
         raise ValueError(f"'sample_id' column not found in sample metadata table. The columns found were: {sample_metadata_df.columns}")
 
-    print(f"Doing a LEFT JOIN with sample metadata table using keys "
-          f"{df.columns[sample_id_column_idx1]} and {sample_metadata_df.columns[sample_id_column_idx2]}")
-    df = pd.merge(df, sample_metadata_df, how="left", left_on=df.columns[sample_id_column_idx1], right_on=sample_metadata_df.columns[sample_id_column_idx2])
+    sample_id_column1 = df.columns[sample_id_column_idx1]
+    sample_id_column2 = sample_metadata_df.columns[sample_id_column_idx2]
+    print(f"Doing a LEFT JOIN with sample metadata table using keys {sample_id_column1} and {sample_id_column2}")
 
+    shared_sample_ids = set(df[sample_id_column1]) & set(sample_metadata_df[sample_id_column2])
+    df_unique_sample_ids = sorted(set(df[sample_id_column1])-set(sample_metadata_df[sample_id_column2]))
+    sample_metadata_df_unique_sample_ids = sorted(set(sample_metadata_df[sample_id_column2])-set(df[sample_id_column1]))
+
+    print(f"{len(shared_sample_ids)} out of {len(df)} ({100*len(shared_sample_ids)/len(df):0.1f}%) of sample ids "
+          f"in the json files have a matching sample id in the sample metadata table column {sample_id_column2}")
+
+    if len(df_unique_sample_ids) > 0 and len(df_unique_sample_ids) < 100:
+        print("Sample ids found only in the json files: ", ", ".join(df_unique_sample_ids))
+
+    if verbose:
+        print(f"{len(shared_sample_ids)} out of {len(sample_metadata_df)} "
+              f"({100*len(shared_sample_ids)/len(sample_metadata_df):0.1f}%) of sample ids in the sample metadata table "
+              f"have a matching sample id in the json files field {sample_id_column1}")
+
+        if len(sample_metadata_df_unique_sample_ids) > 0 and len(sample_metadata_df_unique_sample_ids) < 100:
+            print("Sample ids found only in the sample metadata table: ", ", ".join(sample_metadata_df_unique_sample_ids))
+
+    df = pd.merge(df, sample_metadata_df, how="left", left_on=sample_id_column1, right_on=sample_id_column2)
     return df
 
 
@@ -165,7 +193,7 @@ def main():
 
     if args.sample_metadata:
         sample_metadata_df = pd.read_table(args.sample_metadata)
-        df = join_with_sample_metadata(df, args.json_sample_id_key, sample_metadata_df, args.sample_metadata_key)
+        df = join_with_sample_metadata(df, args.json_sample_id_key, sample_metadata_df, args.sample_metadata_key, args.verbose)
 
     output_filename = f"{output_prefix}.tsv"
     df.to_csv(output_filename, index=False, header=True, sep="\t")
