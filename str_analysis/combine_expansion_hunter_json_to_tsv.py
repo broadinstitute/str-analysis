@@ -72,7 +72,7 @@ def parse_args(args_list=None):
 def main():
     args = parse_args()
 
-    output_prefix = args.output_prefix or f"combined.{len(args.json_paths)}_json_files"
+    output_prefix = args.output_prefix or f"combined_expansion_hunter.{len(args.json_paths)}_json_files"
     combined_variant_catalog_contents = []
     if args.variant_catalog:
         for variant_catalog in args.variant_catalog:
