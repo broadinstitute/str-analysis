@@ -241,13 +241,14 @@ def run_expansion_hunter(
 
         locus_results_json[f"expansion_hunter_motif{motif_number}_json_output_file"] = f"{output_prefix}.json"
         locus_results_json[f"expansion_hunter_motif{motif_number}_repeat_unit"] = repeat_unit
+        locus_results_json[f"expansion_hunter_motif{motif_number}_canonical_repeat_unit"] = compute_canonical_repeat_unit(repeat_unit)
 
         # TODO currently there are no X chromosome loci, but if they do get added, this will be need to be updated
         # to support single-allele genotypes for males on the X chromosome
         if eh_result.get("Genotype"):
             (
-                locus_results_json[f"expansion_hunter_motif{motif_number}_short_allele_genotype"],
-                locus_results_json[f"expansion_hunter_motif{motif_number}_long_allele_genotype"]
+                locus_results_json[f"expansion_hunter_motif{motif_number}_short_allele_size"],
+                locus_results_json[f"expansion_hunter_motif{motif_number}_long_allele_size"]
             ) = [
                 int(g) for g in eh_result["Genotype"].split("/")]
 
@@ -335,20 +336,20 @@ def compute_final_expansion_hunter_results(locus_results_json, output_file_prefi
           and "expansion_hunter_motif2_repeat_unit" in locus_results_json
     ):
 
-        if ("expansion_hunter_motif1_long_allele_genotype" not in locus_results_json or
-            "expansion_hunter_motif2_long_allele_genotype" not in locus_results_json):
+        if ("expansion_hunter_motif1_long_allele_size" not in locus_results_json or
+            "expansion_hunter_motif2_long_allele_size" not in locus_results_json):
             short_allele_motif = "motif1"
             long_allele_motif = "motif2"
         else:
             if (
-                    int(locus_results_json["expansion_hunter_motif1_long_allele_genotype"]) <
-                    int(locus_results_json["expansion_hunter_motif2_long_allele_genotype"])
+                    int(locus_results_json["expansion_hunter_motif1_long_allele_size"]) <
+                    int(locus_results_json["expansion_hunter_motif2_long_allele_size"])
             ):
                 short_allele_motif = "motif1"
                 long_allele_motif = "motif2"
             elif (
-                    int(locus_results_json["expansion_hunter_motif1_long_allele_genotype"]) ==
-                    int(locus_results_json["expansion_hunter_motif2_long_allele_genotype"])
+                    int(locus_results_json["expansion_hunter_motif1_long_allele_size"]) ==
+                    int(locus_results_json["expansion_hunter_motif2_long_allele_size"])
                 ) and (
                     "expansion_hunter_motif1_reviewer_svg" in locus_results_json and
                     "expansion_hunter_motif2_reviewer_svg" in locus_results_json
@@ -362,9 +363,9 @@ def compute_final_expansion_hunter_results(locus_results_json, output_file_prefi
                 short_allele_motif = "motif2"
                 long_allele_motif = "motif1"
 
-        locus_results_json["expansion_hunter_call_repeat_unit"] = "%s / %s" % (
-            locus_results_json[f"expansion_hunter_{short_allele_motif}_repeat_unit"],
-            locus_results_json[f"expansion_hunter_{long_allele_motif}_repeat_unit"]
+        locus_results_json["expansion_hunter_call_canonical_repeat_unit"] = "%s / %s" % (
+            locus_results_json[f"expansion_hunter_{short_allele_motif}_canonical_repeat_unit"],
+            locus_results_json[f"expansion_hunter_{long_allele_motif}_canonical_repeat_unit"]
         )
 
         if "expansion_hunter_motif1_reviewer_svg" in locus_results_json and "expansion_hunter_motif2_reviewer_svg" in locus_results_json:
@@ -382,12 +383,12 @@ def compute_final_expansion_hunter_results(locus_results_json, output_file_prefi
         return
 
     if all(key in locus_results_json for key in (
-            f"expansion_hunter_{short_allele_motif}_short_allele_genotype",
-            f"expansion_hunter_{long_allele_motif}_long_allele_genotype",
+            f"expansion_hunter_{short_allele_motif}_short_allele_size",
+            f"expansion_hunter_{long_allele_motif}_long_allele_size",
     )):
         locus_results_json["expansion_hunter_call_genotype"] = "%s/%s" % (
-            locus_results_json[f"expansion_hunter_{short_allele_motif}_short_allele_genotype"],
-            locus_results_json[f"expansion_hunter_{long_allele_motif}_long_allele_genotype"],
+            locus_results_json[f"expansion_hunter_{short_allele_motif}_short_allele_size"],
+            locus_results_json[f"expansion_hunter_{long_allele_motif}_long_allele_size"],
         )
 
     if all(key in locus_results_json for key in (
@@ -815,6 +816,7 @@ def process_locus(locus_id, args):
 
         locus_results_json.update({
             f"motif{motif_number}_repeat_unit": motif,
+            f"motif{motif_number}_canonical_repeat_unit": canonical_motif,
             f"motif{motif_number}_read_count": read_count,
             f"motif{motif_number}_normalized_read_count":
                 read_count * NORMALIZE_TO_COVERAGE / flank_coverage_mean if flank_coverage_mean > 0 else 0,
