@@ -140,7 +140,7 @@ def parse_json_files(json_paths, add_dirname_column=False, add_filename_column=F
                     json_contents["Filename"] = os.path.basename(json_path)
 
                 json_contents_excluding_complex_values = {
-                    key: value for key, value in json_contents.items() if isinstance(value, (int, str, bool, float, tuple))
+                    key: value for key, value in sorted(json_contents.items()) if isinstance(value, (int, str, bool, float, tuple))
                 }
 
                 yield json_contents_excluding_complex_values
@@ -184,6 +184,9 @@ def join_with_sample_metadata(df, df_sample_id_columns, sample_metadata_df, samp
         sample_ids = sorted(list(sample_metadata_df[sample_id_column2]))
         print(", ".join([str(i) for i in sample_ids if sample_ids.count(i) > 1]))
 
+    sample_metadata_df = sample_metadata_df.rename(columns={
+        c: f"Sample_{c}" for c in sample_metadata_df.columns if c != sample_id_column2
+    })
     df = pd.merge(df, sample_metadata_df, how="left", left_on=sample_id_column1, right_on=sample_id_column2)
     return df
 
