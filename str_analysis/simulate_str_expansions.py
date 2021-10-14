@@ -113,7 +113,6 @@ def main():
     if args.num_copies1 is None:
         args.num_copies1 = int(math.ceil((end_1based - start_1based + 1)/len(args.new_repeat_unit1 or args.new_repeat_unit2)))
 
-
     # if args.het, generate ALT allele1. This allele is the ref allele, or if num_copies1, then new_repeat_unit1 allele.
     if "het" in het_or_hom_list:
         if use_reference_allele:

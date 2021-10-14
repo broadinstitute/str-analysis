@@ -159,9 +159,11 @@ def join_with_sample_metadata(df, df_sample_id_columns, sample_metadata_df, samp
     sample_id_column2 = sample_metadata_df.columns[sample_id_column_idx2]
     print(f"Doing a LEFT JOIN with sample metadata table using keys {sample_id_column1} and {sample_id_column2}")
 
-    shared_sample_ids = set(df[sample_id_column1]) & set(sample_metadata_df[sample_id_column2])
-    df_unique_sample_ids = sorted(set(df[sample_id_column1])-set(sample_metadata_df[sample_id_column2]))
-    sample_metadata_df_unique_sample_ids = sorted(set(sample_metadata_df[sample_id_column2])-set(df[sample_id_column1]))
+    set1 = set(df[sample_id_column1])
+    set2 = set(sample_metadata_df[sample_id_column2])
+    shared_sample_ids = set1 & set2
+    df_unique_sample_ids = sorted(set1 - set2)
+    sample_metadata_df_unique_sample_ids = sorted(set2 - set1)
 
     print(f"{len(shared_sample_ids)} out of {len(df)} ({100*len(shared_sample_ids)/len(df):0.1f}%) sample ids "
           f"in the json files have a matching sample id in the sample metadata table")
@@ -176,6 +178,11 @@ def join_with_sample_metadata(df, df_sample_id_columns, sample_metadata_df, samp
 
         if len(sample_metadata_df_unique_sample_ids) > 0 and len(sample_metadata_df_unique_sample_ids) < 100:
             print("Sample ids found only in the sample metadata table: ", ", ".join(sample_metadata_df_unique_sample_ids))
+
+    if len(set2) < len(sample_metadata_df):
+        print("WARNING: the sample metadata table has", len(sample_metadata_df) - len(set2), "duplicate sample id(s)")
+        sample_ids = sorted(list(sample_metadata_df[sample_id_column2]))
+        print(", ".join([str(i) for i in sample_ids if sample_ids.count(i) > 1]))
 
     df = pd.merge(df, sample_metadata_df, how="left", left_on=sample_id_column1, right_on=sample_id_column2)
     return df

@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from combine_expansionhunter_json_to_tsv import parse_read_count_tuples, convert_expansionhunter_json_to_tsv_columns
+from combine_expansion_hunter_json_to_tsv import parse_read_count_tuples, convert_expansion_hunter_json_to_tsv_columns
 
 
 VARIANT_CATALOG_CONTENTS = json.loads("""[{
@@ -210,8 +210,8 @@ class Tests(unittest.TestCase):
         result = parse_read_count_tuples("()")
         self.assertListEqual(result, [])
 
-    def test_convert_expansionhunter_json_to_tsv_columns_for_variants(self):
-        variant_rows = convert_expansionhunter_json_to_tsv_columns(
+    def test_convert_expansion_hunter_json_to_tsv_columns_for_variants(self):
+        variant_rows = convert_expansion_hunter_json_to_tsv_columns(
             EHv4_JSON,
             variant_catalog_contents=VARIANT_CATALOG_CONTENTS,
             json_file_path="",
@@ -249,8 +249,8 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(variant_rows[0][f"NumReadsTotalThatSupportGenotype: Allele {allele_num}"], 30.5)
             self.assertAlmostEqual(variant_rows[0][f"FractionOfReadsThatSupportsGenotype: Allele {allele_num}"], 30.5/76)
 
-    def test_convert_expansionhunter_json_to_tsv_columns_for_alleles(self):
-        allele_rows = convert_expansionhunter_json_to_tsv_columns(
+    def test_convert_expansion_hunter_json_to_tsv_columns_for_alleles(self):
+        allele_rows = convert_expansion_hunter_json_to_tsv_columns(
             EHv4_JSON,
             variant_catalog_contents=VARIANT_CATALOG_CONTENTS,
             json_file_path="/temp/file.json",

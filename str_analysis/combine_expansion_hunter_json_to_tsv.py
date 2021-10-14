@@ -8,6 +8,8 @@ import numpy as np
 import os
 import pandas as pd
 import pathlib
+import re
+from str_analysis.combine_json_to_tsv import get_sample_id_column_index
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 ALREADY_WARNED_ABOUT = set()  # used for logging
@@ -41,12 +43,19 @@ def parse_args(args_list=None):
         help="Combined table output filename prefix",
     )
     p.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Print additional logging messages",
+    )
+    p.add_argument(
         "json_paths",
         help="EpxansionHunter output json path(s). If not specified, this script will retrieve all json files in the "
              "current directory and subdirectories",
         type=pathlib.Path,
         nargs="*"
     )
+
     args = p.parse_args(args=args_list)
 
     for variant_catalog in args.variant_catalog:
@@ -55,7 +64,7 @@ def parse_args(args_list=None):
 
     if not args.json_paths:
         args.json_paths = [p for p in pathlib.Path(".").glob("**/*.json")]
-        print(f"Found {len(args.json_paths)} json files in .")
+        logging.info(f"Found {len(args.json_paths)} json files in .")
 
     return args
 
@@ -73,8 +82,18 @@ def main():
         #for d in variant_catalog_contents:
         #    logging.info("    " + d["LocusId"])
 
+    sample_metadata_lookup = collections.defaultdict(list)
     if args.sample_metadata:
         sample_metadata_df = pd.read_table(args.sample_metadata)
+        sample_id_column_idx = get_sample_id_column_index(sample_metadata_df, column_name=args.sample_metadata_key)
+        if sample_id_column_idx is -1:
+            raise ValueError(f"'sample_id' column not found in sample metadata table. The columns found were: {sample_metadata_df.columns}")
+        sample_id_column = sample_metadata_df.columns[sample_id_column_idx]
+        for _, row in sample_metadata_df.iterrows():
+            if args.verbose and len(sample_metadata_lookup[row[sample_id_column]]) > 0:
+                logging.info(f"  {row[sample_id_column]} is a duplicate sample id in {args.sample_metadata}")
+            sample_metadata_lookup[row[sample_id_column]].append(row)
+        logging.info(f"Parsed {len(sample_metadata_df)} rows from {args.sample_metadata}")
 
     variant_table_columns = []
     allele_table_columns = []
@@ -82,6 +101,8 @@ def main():
     variant_records_counter = allele_records_counter = 0
     variant_output_file = open(f"{output_prefix}.variants.tsv", "wt")
     allele_output_file = open(f"{output_prefix}.alleles.tsv", "wt")
+    sample_metadata_lookup_counters = {}
+
     for just_get_header in True, False:
         if just_get_header:
             json_paths = args.json_paths[:20]
@@ -98,12 +119,14 @@ def main():
                 logging.info(f"Skipping {json_path}... Expected key 'SampleParameters' not found.")
                 continue
 
-            for record in convert_expansionhunter_json_to_tsv_columns(
-                    json_contents,
-                    variant_catalog_contents=combined_variant_catalog_contents,
-                    json_file_path=json_path,
-                    return_allele_records=False,
-                ):
+            for record in convert_expansion_hunter_json_to_tsv_columns(
+                json_contents,
+                variant_catalog_contents=combined_variant_catalog_contents,
+                sample_metadata_lookup=sample_metadata_lookup,
+                sample_metadata_lookup_counters=sample_metadata_lookup_counters,
+                json_file_path=json_path,
+                return_allele_records=False,
+            ):
                 if just_get_header:
                     variant_table_columns.extend([k for k in record.keys() if k not in variant_table_columns])
                 else:
@@ -113,12 +136,14 @@ def main():
                     variant_records_counter += 1
                     variant_output_file.write("\t".join([str(record[c] if c in record else "") for c in variant_table_columns]) + "\n")
 
-            for record in convert_expansionhunter_json_to_tsv_columns(
-                    json_contents,
-                    variant_catalog_contents=combined_variant_catalog_contents,
-                    json_file_path=json_path,
-                    return_allele_records=True,
-                ):
+            for record in convert_expansion_hunter_json_to_tsv_columns(
+                json_contents,
+                variant_catalog_contents=combined_variant_catalog_contents,
+                sample_metadata_lookup=sample_metadata_lookup,
+                json_file_path=json_path,
+                return_allele_records=True,
+            ):
+
                 if just_get_header:
                     allele_table_columns.extend([k for k in record.keys() if k not in allele_table_columns])
                 else:
@@ -128,6 +153,14 @@ def main():
                     allele_records_counter += 1
                     allele_output_file.write("\t".join([str(record[c] if c in record else "") for c in allele_table_columns]) + "\n")
 
+    if sample_metadata_lookup_counters:
+        logging.info(f"Found matches for {sample_metadata_lookup_counters['sample_ids_found']} out of "
+              f"{sample_metadata_lookup_counters['total_sample_ids']} "
+              f"({100*sample_metadata_lookup_counters['sample_ids_found']/sample_metadata_lookup_counters['total_sample_ids']:0.1f}%) "
+              f"ExpansionHunter json sample ids in {args.sample_metadata}")
+
+        if len(sample_metadata_lookup) != len(sample_metadata_df):
+            logging.info(f"{len(sample_metadata_df) - len(sample_metadata_lookup)} duplicate sample ids in {args.sample_metadata}")
     logging.info(f"Wrote {variant_records_counter} records to {output_prefix}.variants.tsv")
     logging.info(f"Wrote {allele_records_counter} records to {output_prefix}.alleles.tsv")
 
@@ -172,8 +205,14 @@ def weighted_avg_and_std(values, weights):
     return average, np.sqrt(variance)
 
 
-def convert_expansionhunter_json_to_tsv_columns(
-    json_contents, variant_catalog_contents=None, variant_info=None, json_file_path="", return_allele_records=True,
+def convert_expansion_hunter_json_to_tsv_columns(
+    json_contents,
+    variant_catalog_contents=None,
+    sample_metadata_lookup=None,
+    sample_metadata_lookup_counters=None,
+    variant_info=None,
+    json_file_path="",
+    return_allele_records=True,
 ):
     """
     Converts a dictionary that represents the contents of an ExpansionHunter v3 or v4 json output file to
@@ -181,8 +220,11 @@ def convert_expansionhunter_json_to_tsv_columns(
 
     Args:
         json_contents (dict): a dict with the contents of an ExpansionHunter v3 or v4 json output file
-        variant_catalog (dict): optional dict with the contents of the variant catalog used when running
+        variant_catalog_contents (dict): optional dict with the contents of the variant catalog used when running
             expansion hunter. If provided, the fields will be added to the output table.
+        sample_metadata_lookup (dict): maps sample id to row of sample metadata
+        sample_metadata_lookup_counters (dict): dictionary for accumulating counters and stats about the
+            ability to find samples in sample_metadata_lookup
         variant_info (dict): if provided, results will be added to this dict. Otherwise, a new dict will be created.
         json_file_path (str): if provided, it will be added as a field to the output table, and also used for logging
         return_allele_records (bool): if True, the result dict will have..
@@ -207,6 +249,35 @@ def convert_expansionhunter_json_to_tsv_columns(
         locus_results_list = json_contents["LocusResults"].values()
     except KeyError as e:
         raise ValueError(f"Key {e} not found in json file {json_file_path}")
+
+    if sample_metadata_lookup:
+        sample_metadata_rows = sample_metadata_lookup.get(variant_info["SampleId"])
+        if sample_metadata_rows is None:
+            sample_id_from_filename = re.sub("([._]expansion_hunter[0-9]?)?.json.*$", "", variant_info["Filename"])
+            sample_metadata_rows = sample_metadata_lookup.get(sample_id_from_filename)
+
+        if sample_metadata_rows is None:
+            if sample_metadata_lookup_counters is not None:
+                sample_metadata_lookup_counters["total_sample_ids"] = sample_metadata_lookup_counters.get(
+                    "total_sample_ids", 0) + 1
+                sample_metadata_lookup_counters["sample_ids_found"] = sample_metadata_lookup_counters.get(
+                    "sample_ids_found", 0)
+        else:
+            if sample_metadata_lookup_counters is not None:
+                sample_metadata_lookup_counters["total_sample_ids"] = sample_metadata_lookup_counters.get(
+                    "total_sample_ids", 0) + len(sample_metadata_rows)
+                sample_metadata_lookup_counters["sample_ids_found"] = sample_metadata_lookup_counters.get(
+                    "sample_ids_found", 0) + len(sample_metadata_rows)
+
+            for sample_metadata_row in sample_metadata_rows:
+                row_dict = sample_metadata_row.to_dict()
+                for key, value in row_dict.items():
+                    key = f"Sample_{key}"
+                    if value and not pd.isna(value):
+                        if key not in variant_info:
+                            variant_info[key] = str(value)
+                        else:
+                            variant_info[key] += f"; {value}"
 
     records_to_return = []
     for locus_json in locus_results_list:

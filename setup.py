@@ -46,6 +46,7 @@ setup(
         'console_scripts': [
             'call_non_ref_pathogenic_motifs = str_analysis.call_non_ref_pathogenic_motifs:main',
             'combine_json_to_tsv = str_analysis.combine_json_to_tsv:main',
+            'combine_expansion_hunter_json_to_tsv = str_analysis.combine_expansion_hunter_json_to_tsv:main',
             'simulate_str_expansions = str_analysis.simulate_str_expansions:main',
         ],
     },
