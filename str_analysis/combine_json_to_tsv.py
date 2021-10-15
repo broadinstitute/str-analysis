@@ -194,7 +194,8 @@ def join_with_sample_metadata(df, df_sample_id_columns, sample_metadata_df, samp
 def main():
     args = parse_args()
 
-    output_prefix = args.output_prefix or f"combined.{len(args.json_paths)}_json_files"
+    output_prefix = args.output_prefix or f"combined"
+    output_prefix += f".{len(args.json_paths)}_json_files"
 
     df = pd.DataFrame(parse_json_files(
         args.json_paths,
