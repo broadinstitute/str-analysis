@@ -1,4 +1,15 @@
 {
+  "ZNF37A": {
+    "LocusCoords_1based": {
+      "38": "chr10:38112731-38112818",
+      "37": "10:38401659-38401746"
+    },
+    "Motifs": {
+      "BENIGN": ["TTTTC"],
+      "PATHOGENIC": ["TCGGTC"]
+    },
+    "UseOfftargetRegions": false
+  },
   "RFC1": {
     "LocusCoords_1based": {
       "38": "chr4:39348425-39348479",
