@@ -90,7 +90,12 @@ RUN python3 -m pip install --upgrade pip \
 
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
-RUN python3 -m pip install --no-cache-dir str-analysis==0.9 \
+RUN python3 -m pip install --no-cache-dir str-analysis==0.9.1 \
     && python3 -m pip freeze \
     && sleep 2
 
+#COPY str_analysis ./str_analysis
+#COPY README.md .
+#COPY setup.py .
+#COPY requirements.txt .
+#RUN python3 setup.py install

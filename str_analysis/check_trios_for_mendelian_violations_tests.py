@@ -1,10 +1,10 @@
-from intervaltree import Interval
 import unittest
 
-from check_trios_for_mendelian_violations import compute_mendelian_violations, \
-    check_for_duplicate_keys, group_rows_by_trio, \
-    intervals_overlap, \
-    compute_min_distance_mendelian_ci, compute_min_distance_mendelian
+from check_trios_for_mendelian_violations import (
+    check_for_duplicate_keys, compute_mendelian_violations,
+    compute_min_distance_mendelian, compute_min_distance_mendelian_ci,
+    group_rows_by_trio, intervals_overlap)
+from intervaltree import Interval
 
 
 class Tests(unittest.TestCase):

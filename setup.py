@@ -1,7 +1,8 @@
 import os
-from setuptools import setup, find_packages
-from setuptools.command.build_py import build_py
 import unittest
+
+from setuptools import find_packages, setup
+from setuptools.command.build_py import build_py
 
 with open("README.md", "rt") as fh:
     long_description = fh.read()
@@ -35,7 +36,7 @@ def test_suite():
 
 setup(
     name='str_analysis',
-    version="0.9",
+    version="0.9.1",
     description="Utilities  short tandem repeats (STRs)",
     install_requires=requirements,
     cmdclass={

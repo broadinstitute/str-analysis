@@ -3,10 +3,11 @@ import json
 import logging
 import math
 import os
+
 import pyfaidx
 
-
-from str_analysis.utils.bam_utils import compute_bam_stats, simulate_reads, merge_bams
+from str_analysis.utils.bam_utils import (compute_bam_stats, merge_bams,
+                                          simulate_reads)
 from str_analysis.utils.fasta_utils import get_reference_sequence
 from str_analysis.utils.misc_utils import parse_interval, run
 

@@ -15,15 +15,18 @@ import gzip
 import json
 import os
 import pkgutil
-import pysam
-from pprint import pprint, pformat
 import re
 import subprocess
+from pprint import pformat, pprint
 
-from str_analysis.utils.canonical_repeat_unit import compute_canonical_repeat_unit
+import pysam
+
+from str_analysis.utils.canonical_repeat_unit import \
+    compute_canonical_repeat_unit
 from str_analysis.utils.ehdn_info_for_locus import parse_ehdn_info_for_locus
-from str_analysis.utils.most_frequent_repeat_unit import compute_most_frequent_repeat_unit
 from str_analysis.utils.misc_utils import parse_interval
+from str_analysis.utils.most_frequent_repeat_unit import \
+    compute_most_frequent_repeat_unit
 
 LOCUS_INFO = json.loads(pkgutil.get_data(__name__, "data/locus_info.json"))
 OFFTARGET_REGIONS = json.loads(gzip.decompress(pkgutil.get_data(__name__, "data/offtarget_regions.json.gz")))

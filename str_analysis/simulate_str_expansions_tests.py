@@ -1,7 +1,8 @@
 import os
-import pyfaidx
 import tempfile
 import unittest
+
+import pyfaidx
 
 from str_analysis.utils.fasta_utils import get_reference_sequence
 

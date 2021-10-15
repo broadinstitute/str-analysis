@@ -1,7 +1,6 @@
 import logging
 import subprocess
 
-
 CHROMOSOME_ORDER = list(map(str, range(1,23))) + ["X", "Y", "M", "MT"]
 CHROMOSOME_ORDER += [f"chr{s}" for s in CHROMOSOME_ORDER]
 

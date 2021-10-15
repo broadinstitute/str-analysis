@@ -4,11 +4,13 @@ import argparse
 import collections
 import json
 import logging
-import numpy as np
 import os
-import pandas as pd
 import pathlib
 import re
+
+import numpy as np
+import pandas as pd
+
 from str_analysis.combine_json_to_tsv import get_sample_id_column_index
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")

@@ -2,9 +2,10 @@ import collections
 import logging
 import math
 import os
-import pysam
 import re
 import statistics
+
+import pysam
 
 from str_analysis.utils.misc_utils import run
 

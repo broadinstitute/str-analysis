@@ -2,11 +2,12 @@
 
 import argparse
 import collections
-from intervaltree import Interval
 import logging
-import pandas as pd
 import pathlib
 import re
+
+import pandas as pd
+from intervaltree import Interval
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 

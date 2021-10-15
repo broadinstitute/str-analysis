@@ -7,9 +7,10 @@ import argparse
 import json
 import logging
 import os
-import pandas as pd
 import pathlib
 import sys
+
+import pandas as pd
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 

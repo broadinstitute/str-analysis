@@ -1,8 +1,8 @@
 import json
 import unittest
 
-from combine_expansion_hunter_json_to_tsv import parse_read_count_tuples, convert_expansion_hunter_json_to_tsv_columns
-
+from combine_expansion_hunter_json_to_tsv import (
+    convert_expansion_hunter_json_to_tsv_columns, parse_read_count_tuples)
 
 VARIANT_CATALOG_CONTENTS = json.loads("""[{
   "LocusId": "X-149631736-149631780-TMEM185A",
