@@ -16,6 +16,15 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 
 
 def parse_args(args_list=None):
+    """Parse command-line args and return the ArgumentParser args object.
+
+    Args:
+        arg_list (list): optional artificial list of command-line args to use for testing.
+
+    Returns:
+        args
+    """
+
     p = argparse.ArgumentParser()
     p.add_argument(
         "-d",
@@ -148,6 +157,18 @@ def parse_json_files(json_paths, add_dirname_column=False, add_filename_column=F
 
 
 def join_with_sample_metadata(df, df_sample_id_columns, sample_metadata_df, sample_metadata_df_sample_id_column, verbose=False):
+    """Performs a LEFT join between df and sample_metadata_df.
+
+    Args:
+        df (pandas.DataFrame): DataFrame representing the contents of the .json files.
+        df_sample_id_columns (str): Name of the column in df that should be used as the join key.
+        sample_metadata_df (pandas.DataFrame): DataFrame representing additional sample-level metadata.
+        sample_metadata_df_sample_id_column (str): Name of the column in sample_metadata_df that should be used as the join key.
+        verbose (bool): Whether to print additional log statements.
+
+    Return:
+        pandas.DataFrame: The DataFrame resulting from a LEFT join between df and sample_metadata_df
+    """
     sample_id_column_idx1 = get_sample_id_column_index(df, column_name=df_sample_id_columns)
     if sample_id_column_idx1 is -1:
         raise ValueError(f"'sample_id' field not found in json files. The fields found were: {df.columns}")
@@ -193,6 +214,8 @@ def join_with_sample_metadata(df, df_sample_id_columns, sample_metadata_df, samp
 
 
 def main():
+    """Combine json to tsv"""
+
     args = parse_args()
 
     output_prefix = args.output_prefix or f"combined"

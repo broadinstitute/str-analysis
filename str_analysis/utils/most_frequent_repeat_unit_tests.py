@@ -5,7 +5,6 @@ from str_analysis.utils.most_frequent_repeat_unit import compute_most_frequent_r
 class Test(unittest.TestCase):
 
     def test_compute_most_frequent_repeat_unit(self):
-
         self.assertEqual(
             compute_most_frequent_repeat_unit("CACAAA", repeat_unit_size=1, min_fraction_bases_covered=0.8),
             (None, 0))

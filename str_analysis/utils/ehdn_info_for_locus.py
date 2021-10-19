@@ -11,6 +11,7 @@ def parse_ehdn_info_for_locus(ehdn_profile, locus_chrom, locus_start, locus_end,
             This should be approximately the fragment-length or slightly larger.
         motifs_of_interest (set): optionally, a set of motifs to include in the results even if EHdn found only
             paired-IRRs, and no anchored IRRs near the given locus.
+
     Returns:
         list of dictionaries where each dictionary represents an :
                {

@@ -1,5 +1,4 @@
 import argparse
-import json
 import logging
 import math
 import os
@@ -15,6 +14,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(mes
 
 
 def main():
+    """Simulate STR expansions."""
+
     p = argparse.ArgumentParser(description="This script simulates STR expansions (either heterozygous or bi-allelic). "
         "It first creates a small synthetic reference sequence that contains the expanded STR + flanking sequence. "
         "Then it runs wgsim to simulate paired-end short reads from this reference, and then runs bwa to create a "

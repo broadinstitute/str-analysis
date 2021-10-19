@@ -9,7 +9,9 @@ with open("README.md", "rt") as fh:
 
 class CoverageCommand(build_py):
     """Run all unittests and generate a coverage report."""
+
     def run(self):
+        """Run the coverage command"""
         os.system("python3 -m coverage run --omit='*/site-packages/*,*tests.py,setup.py,*__init__.py' ./setup.py test "
                   "&& python3 -m coverage html --include=*.py "
                   "&& open htmlcov/index.html")
@@ -18,6 +20,7 @@ class CoverageCommand(build_py):
 class PublishCommand(build_py):
     """Publish package to PyPI"""
     def run(self):
+        """Publish"""
         os.system("rm -rf dist")
         os.system("python3 setup.py sdist"
                   "&& python3 setup.py bdist_wheel"
@@ -29,6 +32,7 @@ with open("requirements.txt", "rt") as f:
 
 
 def test_suite():
+    """Discover unittests"""
     test_loader = unittest.TestLoader()
     test_suite = test_loader.discover('str_analysis', pattern='*tests.py')
     return test_suite

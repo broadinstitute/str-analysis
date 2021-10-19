@@ -18,6 +18,7 @@ ALREADY_WARNED_ABOUT = set()  # used for logging
 
 
 def parse_args(args_list=None):
+    """Parse command line args and return the argparse args object"""
     p = argparse.ArgumentParser()
     p.add_argument(
         "-c",
@@ -72,6 +73,8 @@ def parse_args(args_list=None):
 
 
 def main():
+    """Main"""
+
     args = parse_args()
 
     output_prefix = args.output_prefix or f"combined_expansion_hunter"
@@ -147,7 +150,6 @@ def main():
                 json_file_path=json_path,
                 return_allele_records=True,
             ):
-
                 if just_get_header:
                     allele_table_columns.extend([k for k in record.keys() if k not in allele_table_columns])
                 else:
@@ -170,6 +172,7 @@ def main():
 
 
 class ParseError(Exception):
+    """Represents an error that occurs while parsing"""
     pass
 
 
@@ -218,8 +221,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
     json_file_path="",
     return_allele_records=True,
 ):
-    """
-    Converts a dictionary that represents the contents of an ExpansionHunter v3 or v4 json output file to
+    """Converts a dictionary that represents the contents of an ExpansionHunter v3 or v4 json output file to
     a dictionary of tsv column values.
 
     Args:
@@ -277,11 +279,16 @@ def convert_expansion_hunter_json_to_tsv_columns(
                 row_dict = sample_metadata_row.to_dict()
                 for key, value in row_dict.items():
                     key = f"Sample_{key}"
-                    if value and not pd.isna(value):
-                        if key not in variant_info:
-                            variant_info[key] = str(value)
-                        else:
-                            variant_info[key] += f"; {value}"
+
+                    if value is not None and not pd.isna(value):
+                        output_value = str(value)
+                    else:
+                        output_value = ""
+
+                    if key not in variant_info:
+                        variant_info[key] = output_value
+                    else:
+                        variant_info[key] += f"; {output_value}"
 
     records_to_return = []
     for locus_json in locus_results_list:

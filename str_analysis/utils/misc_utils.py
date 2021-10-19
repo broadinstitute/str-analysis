@@ -6,6 +6,11 @@ CHROMOSOME_ORDER += [f"chr{s}" for s in CHROMOSOME_ORDER]
 
 
 def intervals_in_genomic_sort_order(interval_strings):
+    """Sorts a list of intervals by genomic coordinates.
+    Takes a list of 'chr:start-end' interval strings like
+    ['chr1:12345-54321', 'chr1:23456-65432', 'chr3:34567-76543'] and returns the same list, but sorted by genomic
+    coordinates (based on the chromosome and start coordinate).
+    """
     def sort_key(interval_string):
         chrom, positions = interval_string.split(":")
         if chrom in CHROMOSOME_ORDER:
@@ -40,6 +45,8 @@ def run(command):
 
 
 def parse_key_value(key_value):
+    """Splits a string like "x=3" into a 2-tuple ("x", "3")"""
+
     key_value_list = key_value.split("=")
     if len(key_value_list) != 2 or not key_value_list[0] or not key_value_list[1]:
         raise ValueError(f"Invalid arg {key_value}")
