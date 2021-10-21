@@ -87,17 +87,18 @@ def parse_args():
     p.add_argument("--expansion-hunter-path", help="The path of the ExpansionHunter executable to use if -r is "
         "specified. This must be ExpansionHunter version 3 or greater.", default="ExpansionHunter")
 
+    grp = p.add_mutually_exclusive_group()
+    grp.add_argument("--run-reviewer", action="store_true", help="Run the REViewer tool to visualize "
+        "ExpansionHunter output. --run-expansion-hunter must also be specified.")
+    grp.add_argument("--run-reviewer-for-pathogenic-calls", action="store_true", help="Run the REViewer tool to "
+        f"visualize ExpansionHunter output only when this script calls a sample as having {PATHOGENIC_PATHOGENIC_CALL}."
+        " --run-expansion-hunter must also be specified.")
+
     grp = p.add_mutually_exclusive_group(required=True)
     grp.add_argument("--all-loci", action="store_true", help="Generate calls for all these loci: " + ", ".join(LOCUS_INFO.keys()))
     grp.add_argument("-l", "--locus", action="append", help="Generate calls for this specific locus. "
         "This argument can be specified more than once to call multiple loci.",
         choices=LOCUS_INFO.keys())
-    group = p.add_mutually_exclusive_group()
-    group.add_argument("--run-reviewer", action="store_true", help="Run the REViewer tool to visualize "
-        "ExpansionHunter output. --run-expansion-hunter must also be specified.")
-    group.add_argument("--run-reviewer-for-pathogenic-calls", action="store_true", help="Run the REViewer tool to "
-        f"visualize ExpansionHunter output only when this script calls a sample as having {PATHOGENIC_PATHOGENIC_CALL}."
-        f" --run-expansion-hunter must also be specified.")
 
     p.add_argument("-v", "--verbose", action="store_true", help="Print detailed log messages")
     p.add_argument("bam_or_cram_path", help="bam or cram path")
@@ -448,6 +449,7 @@ def get_reviewer_image_section(s, get_short_allele_image):
 
 def select_long_allele_based_on_reviewer_images(reviewer_image_path_motif1, reviewer_image_path_motif2):
     """When both motifs have long alleles of the same length, select the motif based on interruptions."""
+
     def compute_normalized_interruption_count(reviewer_image_contents, short_allele=False):
         panel_contents, start_y, end_y = get_reviewer_image_section(
             reviewer_image_contents, get_short_allele_image=short_allele)
@@ -607,15 +609,19 @@ def process_reads_in_locus(
             ) if r.mapq >= MIN_MAPQ))
 
         # get all sequences that overlap the locus (regardless of whether they're soft-clipped)
+        # pysam docs are @ https://pysam.readthedocs.io/en/latest/api.html#pysam.AlignedSegment.query_alignment_sequence
         overlapping_sequences = []
         for r in f.fetch(locus_chrom, locus_start_0based - MARGIN, locus_end + MARGIN):
-            # see https://pysam.readthedocs.io/en/latest/api.html#pysam.AlignedSegment.query_alignment_sequence
             if r.mapq < MIN_MAPQ:
+                # This filter discards MAPQ=0 reads. Although this may filter out some correctly-aligned informative
+                # reads, it also filters out reads that mis-mapped to this locus from other genomic regions that
+                # contain the reference motif. For example, for the RFC1 locus, positive control samples that are
+                # homozygous for the non-reference AAGGG motif may still have a few reads overlapping this
+                # locus that have the reference AAAAG motif and MAPQ=0. Not filtering out these reads would lead
+                # to this sample being incorrectly called heterozygous - having both the AAAAG and AAGGG motifs.
                 continue
 
             read_sequence = r.seq
-            #has_soft_clipped_bases_on_left = r.query_alignment_start > 0
-            #has_soft_clipped_bases_on_right = r.query_alignment_end < len(read_sequence)
             read_start_pos_including_soft_clips = r.reference_start - r.query_alignment_start
             read_end_pos_including_soft_clips = read_start_pos_including_soft_clips + len(read_sequence)
             start_offset = 0
