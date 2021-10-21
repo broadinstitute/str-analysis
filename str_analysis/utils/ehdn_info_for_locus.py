@@ -72,3 +72,4 @@ def parse_ehdn_info_for_locus(ehdn_profile, locus_chrom, locus_start, locus_end,
                 })
 
     return records, sample_read_depth, sample_read_length
+

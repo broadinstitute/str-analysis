@@ -42,3 +42,4 @@ def compute_canonical_repeat_unit(unit):
         return minimal_unit_rc
 
     return minimal_unit
+

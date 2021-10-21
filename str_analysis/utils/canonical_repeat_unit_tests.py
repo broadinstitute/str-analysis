@@ -35,3 +35,4 @@ class Tests(unittest.TestCase):
         self.assertEqual(compute_canonical_repeat_unit("T"), "A")
         self.assertEqual(compute_canonical_repeat_unit("TGAG"), "ACTC")
         self.assertEqual(compute_canonical_repeat_unit("G"*9), "C"*9)
+

@@ -35,3 +35,4 @@ def compute_most_frequent_repeat_unit(sequence, repeat_unit_size, min_occurrence
             most_frequent_repeat_unit_occurrences = count
 
     return most_frequent_repeat_unit, most_frequent_repeat_unit_occurrences
+

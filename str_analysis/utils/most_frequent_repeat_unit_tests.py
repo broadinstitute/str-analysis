@@ -28,3 +28,4 @@ class Test(unittest.TestCase):
         self.assertEqual(
             compute_most_frequent_repeat_unit(sequence, repeat_unit_size=5, min_fraction_bases_covered=0.8),
             ("AAAAG", 8))
+
