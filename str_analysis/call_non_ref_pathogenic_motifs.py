@@ -110,7 +110,7 @@ def parse_args():
     p.add_argument("--run-expansion-hunter", action="store_true", help="If this option is specified, this "
          "script will run ExpansionHunter once for each of the motif(s) it detects at the locus. "
          "ExpansionHunter doesn't currently support genotyping multiallelic repeats such as RFC1 where "
-         "an individual may have 2 alleles with motifs that differ from eachother (and from the reference motif). "
+         "an individual may have 2 alleles with motifs that differ from each other (and from the reference motif). "
          "Running ExpansionHunter separately for each motif provides a work-around.")
     p.add_argument("--expansion-hunter-path", help="The path of the ExpansionHunter executable to use if -r is "
         "specified. This must be ExpansionHunter version 3 or greater.", default="ExpansionHunter")
