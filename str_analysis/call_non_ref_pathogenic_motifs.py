@@ -219,11 +219,11 @@ def run_expansion_hunter(
     Args:
         locus_id (str): locus id (eg. "RFC1")
         locus_coords_1based (str): locus coordinates (eg. "chr1:12345-54321")
-        repeat_units (list): Repeat units to process at this locus.
+        repeat_units (list): repeat units to process at this locus.
         args (object): command-line arguments from argparse
-        locus_results_json (dict): Results will be added to this dictionary
-        run_reviewer (bool): Whether to run REViewer to generate read visualizations
-        use_offtarget_regions (bool): Whether to use off-target regions from LOCUS_INFO when running ExpansionHunter
+        locus_results_json (dict): results will be added to this dictionary
+        run_reviewer (bool): whether to run REViewer to generate read visualizations
+        use_offtarget_regions (bool): whether to use off-target regions from LOCUS_INFO when running ExpansionHunter
     """
 
     if args.genome_version not in ("37", "38"):
