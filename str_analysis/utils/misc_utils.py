@@ -6,10 +6,9 @@ CHROMOSOME_ORDER += [f"chr{s}" for s in CHROMOSOME_ORDER]
 
 
 def intervals_in_genomic_sort_order(interval_strings):
-    """Sorts a list of intervals by genomic coordinates.
-    Takes a list of 'chr:start-end' interval strings like
+    """Sorts a list of intervals by genomic coordinates. Takes a list of 'chr:start-end' interval strings like
     ['chr1:12345-54321', 'chr1:23456-65432', 'chr3:34567-76543'] and returns the same list, but sorted by genomic
-    coordinates (based on the chromosome and start coordinate).
+    coordinates (based on the chromosome, start coordinate, end coordinate).
     """
     def sort_key(interval_string):
         chrom, positions = interval_string.split(":")
@@ -19,7 +18,7 @@ def intervals_in_genomic_sort_order(interval_strings):
             chrom_ordinal = sum(ord(c)*10**(len(chrom) - i) for i, c in enumerate(chrom))
 
         start_pos, end_pos = positions.split("-")
-        return chrom_ordinal*10**9 + int(start_pos)
+        return chrom_ordinal, int(start_pos), int(end_pos)
 
     return sorted(interval_strings, key=sort_key)
 
