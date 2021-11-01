@@ -158,6 +158,9 @@ def run(command, verbose=False):
     Args:
         command (str): Shell command to run.
         verbose (bool): Print command before running.
+
+    Returns:
+        subprocess.CompletedProcess: An object with a .returncode attribute.
     """
     if verbose:
         print(f"Command: {command}")
