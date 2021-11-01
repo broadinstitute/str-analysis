@@ -734,8 +734,8 @@ def process_offtarget_regions(motif, motif_number, read_count, flank_coverage_me
         motif (str): Repeat unit
         motif_number (int): Motif number relative to other selected motifs.
         read_count (int): Not-offtarget read count.
-        flank_coverage_mean (float): mean coverage in flanking regions
-        args (object): command-line arguments from argparse.
+        flank_coverage_mean (float): Mean coverage in flanking regions.
+        args (object): Command-line arguments from argparse.
         locus_results_json (dict): Results will be added to this dictionary.
     """
     canonical_motif = compute_canonical_repeat_unit(motif)
