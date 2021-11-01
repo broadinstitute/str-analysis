@@ -263,10 +263,10 @@ def run_expansion_hunter(
 --output-prefix "{output_prefix}" \
 --log-level debug
 """
-
+        # run ExpansionHunter
         run(expansion_hunter_command, verbose=args.verbose)
 
-        # parse result
+        # parse ExpansionHunter output json file
         if os.path.isfile(f"{output_prefix}.json"):
             with open(f"{output_prefix}.json", "rt") as f:
                 expansion_hunter_output_json = json.load(f)
