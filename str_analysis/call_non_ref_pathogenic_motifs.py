@@ -288,7 +288,8 @@ def run_expansion_hunter(
         locus_results_json[f"expansion_hunter_motif{motif_number}_canonical_repeat_unit"] = compute_canonical_repeat_unit(repeat_unit)
 
         # TODO currently there are no X chromosome loci, but if they do get added, this will be need to be updated
-        # to support single-allele genotypes for males on the X chromosome
+        # to support single-allele genotypes for males on the X chromosome which are just a single number (eg. 35)
+        # rather than the standard bi-allelic genotype (eg. 20/35)
         if eh_result.get("Genotype"):
             (
                 locus_results_json[f"expansion_hunter_motif{motif_number}_short_allele_size"],

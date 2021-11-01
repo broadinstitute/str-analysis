@@ -58,7 +58,8 @@ def parse_ehdn_info_for_locus(ehdn_profile, locus_chrom, locus_start, locus_end,
                 "anchored_irr_count_for_this_repeat_unit_and_region": read_count,
                 "total_anchored_irr_count_for_this_repeat_unit": total_anchored_irr_count,
                 "paired_irr_count_for_this_repeat_unit": irr_pair_count,
-                "total_irr_count_for_this_repeat_unit_and_region":  read_count + irr_pair_count * read_count / float(total_anchored_irr_count),
+                "total_irr_count_for_this_repeat_unit_and_region":
+                    read_count + irr_pair_count * read_count / float(total_anchored_irr_count),
                 "sample_read_depth": sample_read_depth,
             })
             break
