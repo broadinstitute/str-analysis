@@ -63,7 +63,9 @@ def parse_ehdn_info_for_locus(ehdn_profile, locus_chrom, locus_start, locus_end,
             })
             break
         else:
-            # if there are irr_pairs for a known repeat unit, record them even though no anchored reads are present
+            # If none of the regions associated with `repeat_unit` overlap specified locus,
+            # and region isn't already appended to `records`/loop didn't exit with `break` statement, then
+            # check if `repeat_unit` is a known repeat unit and if there are irr_pairs
             if motifs_of_interest and repeat_unit in motifs_of_interest:
                 records.append({
                     "region": None,
