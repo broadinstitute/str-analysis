@@ -391,6 +391,7 @@ def compute_final_expansion_hunter_results(locus_results_json, output_file_prefi
 
         if ("expansion_hunter_motif1_long_allele_size" not in locus_results_json or
             "expansion_hunter_motif2_long_allele_size" not in locus_results_json):
+            # this case can occur when low coverage at this locus prevents ExpansionHunter from outputting a genotype
             short_allele_motif = "motif1"
             long_allele_motif = "motif2"
         else:
