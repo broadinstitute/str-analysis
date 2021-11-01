@@ -18,9 +18,6 @@ class Test(unittest.TestCase):
             compute_most_frequent_repeat_unit("TCAGCAGCAGC", repeat_unit_size=3, min_fraction_bases_covered=0.8),
             ("CAG", 3))
         self.assertEqual(
-            compute_most_frequent_repeat_unit("TCAGCAGCAGC", repeat_unit_size=3, min_fraction_bases_covered=0.8),
-            ("CAG", 3))
-        self.assertEqual(
             compute_most_frequent_repeat_unit("GGAAGGGAAGGGAAGGGAAGGG", repeat_unit_size=5, min_fraction_bases_covered=0.8),
             ("GGAAG", 4))
 
