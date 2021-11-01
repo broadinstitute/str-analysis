@@ -486,7 +486,19 @@ def get_reviewer_image_section(s, get_short_allele_image):
 
 
 def select_long_allele_based_on_reviewer_images(reviewer_image_path_motif1, reviewer_image_path_motif2):
-    """When both motifs have long alleles of the same length, select the motif based on interruptions."""
+    """When both motifs have long alleles of the same length, select the motif that leads to the fewest total
+    interruptions (aka. mutations) in the repeat sequence as this means this combination matches the read
+    alignments best.
+
+    Args:
+        reviewer_image_path_motif1 (str): The .svg file path for the REViewer image generated from running
+            ExpansionHunter for motif1.
+        reviewer_image_path_motif2 (str): The .svg file path for the REViewer image generated from running
+            ExpansionHunter for motif2.
+
+    Returns:
+        str: "motif1" or "motif2" to indicate which of the two input motifs should be reported as the long allele
+    """
 
     def compute_normalized_interruption_count(reviewer_image_contents, short_allele=False):
         panel_contents, start_y, end_y = get_reviewer_image_section(
@@ -564,7 +576,8 @@ def combine_reviewer_images(short_allele_image_path, long_allele_image_path, out
     short_allele_contents, start1_y, end1_y = get_reviewer_image_section(short_allele_contents, get_short_allele_image=True)
     long_allele_contents, start2_y, end2_y = get_reviewer_image_section(long_allele_contents, get_short_allele_image=False)
 
-    final_height = (end1_y - start1_y) + (end2_y - start2_y) + 150
+    y_margin = 150
+    final_height = (end1_y - start1_y) + (end2_y - start2_y) + y_margin
 
     with open(output_file_path, "wt") as f:
         f.write(f"""<svg width="{final_width}" height="{final_height}" xmlns="http://www.w3.org/2000/svg">""")
