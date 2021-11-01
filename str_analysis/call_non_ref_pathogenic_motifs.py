@@ -129,7 +129,7 @@ def parse_args():
         choices=LOCUS_INFO.keys())
 
     p.add_argument("-v", "--verbose", action="store_true", help="Print detailed log messages.")
-    p.add_argument("bam_or_cram_path", help="bam or cram path")
+    p.add_argument("bam_or_cram_path", help="bam or cram path.")
 
     args = p.parse_args()
     args.genome_version = GENOME_VERSION_ALIASES[args.genome_version]
