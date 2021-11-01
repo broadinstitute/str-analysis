@@ -176,7 +176,8 @@ def run_expansion_hunter(
     run_reviewer=False,
     use_offtarget_regions=False,
 ):
-    """Run ExpansionHunter and parse relevant output fields + add them to results.
+    """
+    Run ExpansionHunter and parse relevant output fields + add them to results.
     Then optionally run REViewer to generate read visualizations.
 
     Args:
