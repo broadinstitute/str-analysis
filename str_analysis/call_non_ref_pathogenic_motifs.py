@@ -174,7 +174,7 @@ def run(command, verbose=False):
 
 
 def generate_variant_catalog(locus_id, repeat_unit, chrom, start_1based, end_1based, offtarget_regions=None):
-    """Generate the ExpansionHunter variant catalog contents for a particular locus"""
+    """Generate the ExpansionHunter variant catalog contents for a particular locus."""
 
     return {
         "LocusId": locus_id,
