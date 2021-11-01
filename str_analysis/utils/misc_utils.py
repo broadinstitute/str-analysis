@@ -43,10 +43,18 @@ def run(command):
     return subprocess.check_output(['/bin/bash', '-c', command]).decode('UTF-8')
 
 
-def parse_key_value(key_value):
-    """Splits a string like "x=3" into a 2-tuple ("x", "3")"""
+def parse_key_value(key_value, delimiter="="):
+    """Splits a string like "x=3" into a 2-tuple ("x", "3")
 
-    key_value_list = key_value.split("=")
+    Args:
+        key_value (str): The string containing the key and value separated by the delimiter.
+        delimiter (str): Separator between the key and value. Default is "="
+
+    Return:
+        2-tuple: (key string, value string)
+    """
+
+    key_value_list = key_value.split(delimiter)
     if len(key_value_list) != 2 or not key_value_list[0] or not key_value_list[1]:
         raise ValueError(f"Invalid arg {key_value}")
 
