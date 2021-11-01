@@ -91,7 +91,8 @@ def parse_args():
     """Parse command-line args, perform basic validation, and then return the args object."""
 
     p = argparse.ArgumentParser(description=DESCRIPTION)
-    p.add_argument("-g", "--genome-version", choices=GENOME_VERSION_ALIASES.keys(), required=True)
+    p.add_argument("-g", "--genome-version", help="Reference genome version",
+                   choices=GENOME_VERSION_ALIASES.keys(), required=True)
     p.add_argument("-r", "--reference-fasta", help="Reference fasta path.", required=True)
     p.add_argument("-o", "--output-prefix", help="Output filename prefix")
     p.add_argument("-s", "--sample-id", help="The sample id to put in the output json file. If not specified, it "
