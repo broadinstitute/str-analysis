@@ -365,7 +365,10 @@ def compute_final_expansion_hunter_results(locus_results_json, output_file_prefi
     This method collapses the 2 ExpansionHunter calls into a single diploid genotype by selecting a short allele and
     a long allele. By comparing different approaches using simulated data, the approach that works best is
     to select the longest long allele out of the 2 ExpansionHunter calls, and then select the short allele from the
-    other call.
+    other .svg image (the one from the other motif).
+
+    If only 1 motif was detected, then no collapsing is necessary, and this method simply sets output fields to the
+    relevant values from the one detected motif.
     """
     n_motifs = locus_results_json["n_total_well_supported_motifs"]
     if n_motifs == 0:
