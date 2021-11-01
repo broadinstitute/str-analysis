@@ -128,7 +128,7 @@ def parse_args():
         "This argument can be specified more than once to call multiple loci.",
         choices=LOCUS_INFO.keys())
 
-    p.add_argument("-v", "--verbose", action="store_true", help="Print detailed log messages")
+    p.add_argument("-v", "--verbose", action="store_true", help="Print detailed log messages.")
     p.add_argument("bam_or_cram_path", help="bam or cram path")
 
     args = p.parse_args()
