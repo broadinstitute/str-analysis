@@ -15,7 +15,7 @@ def parse_ehdn_info_for_locus(ehdn_profile, locus_chrom, locus_start, locus_end,
             paired-IRRs, and no anchored IRRs near the given locus.
 
     Returns:
-        list of dictionaries where each dictionary represents an :
+        List of dictionaries where each dictionary represents a region and has this schema:
                {
                 "region": "chr18:52204909-52204910",   # EHdn region containing anchored IRRs
                 "repeat_unit": "CAG",
