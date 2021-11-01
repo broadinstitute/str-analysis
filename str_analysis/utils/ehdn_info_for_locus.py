@@ -2,6 +2,8 @@
 def parse_ehdn_info_for_locus(ehdn_profile, locus_chrom, locus_start, locus_end, margin=700, motifs_of_interest=None):
     """Extract info related to a specific locus from an ExpansionHunterDenovo profile.
 
+    # NOTE: Here "irr" refers to "In-Repeat Read" (see [Dolzhenko 2020] for details).
+
     Args:
         ehdn_profile (dict): dictionary representing the data from an EHdn str_profile.json file.
         locus_chrom (str): locus chromosome
