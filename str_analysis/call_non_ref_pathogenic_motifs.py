@@ -153,7 +153,12 @@ def parse_args():
 
 
 def run(command, verbose=False):
-    """Run a shell command and return the exist status code."""
+    """Run a shell command and return the exist status code.
+
+    Args:
+        command (str): Shell command to run.
+        verbose (bool): Print command before running.
+    """
     if verbose:
         print(f"Command: {command}")
 
