@@ -189,13 +189,13 @@ def count_repeat_in_sequences(sequences, repeat_unit, min_occurrences=3, min_fra
     """Count how many of the given sequences support a specific repeat unit.
 
     Args:
-        sequences (str): iterator over read sequences
-        repeat_unit (str): the repeat unit to search for within the sequences
-        min_occurrences (int): the repeat unit must occur in the sequence at least this many times for the sequence to be counted
-        min_fraction_bases_covered (float): the repeat unit must cover this fraction of the sequence for the sequence to be counted
+        sequences (str): Iterator over read sequences.
+        repeat_unit (str): The repeat unit to search for within the sequences.
+        min_occurrences (int): The repeat unit must occur in the sequence at least this many times for the sequence to be counted.
+        min_fraction_bases_covered (float): The repeat unit must cover this fraction of the sequence for the sequence to be counted.
 
     Returns:
-        2-tuple: (the number of sequences that contain the repeat unit, the total number of sequences in the input iterator)
+        2-tuple: (The number of sequences that contain the repeat unit, The total number of sequences in the input iterator)
     """
     read_count = 0
     total = 0
@@ -775,8 +775,8 @@ def process_locus(locus_id, args):
     """Compute results for a single locus and write them to a json file.
 
     Args:
-        locus_id (str): locus id
-        args (object): command-line args from argparse
+        locus_id (str): Locus id
+        args (object): Command-line args from argparse.
     """
     locus_coords_1based = LOCUS_INFO[locus_id]["LocusCoords_1based"][args.genome_version]
     locus_chrom, start_1based, end_1based = parse_interval(locus_coords_1based)
