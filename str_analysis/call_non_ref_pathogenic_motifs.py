@@ -257,7 +257,6 @@ def run_expansion_hunter(
 
         output_prefix = f"{args.sample_id}.{locus_id}_{repeat_unit}.expansion_hunter"
         expansion_hunter_command = f"""{args.expansion_hunter_path} \
---sex male \
 --reference "{args.reference_fasta}" \
 --reads "{args.bam_or_cram_path}" \
 --variant-catalog "{variant_catalog_path}" \
