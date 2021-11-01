@@ -105,7 +105,7 @@ def parse_args():
     p.add_argument("--expansion-hunter-denovo-path", help="The path of the ExpansionHunterDenovo executable to use "
         "when --expansion-hunter-denovo-path is specified.", default="ExpansionHunterDenovo")
     p.add_argument("--expansion-hunter-denovo-profile", help="Optionally copy information relevant to the locus "
-        "from this ExpansionHunterDenovo profile to the output json. This is instead of --run-expansion-hunter-denovo")
+        "from this ExpansionHunterDenovo profile to the output json. This is instead of --run-expansion-hunter-denovo.")
 
     p.add_argument("--run-expansion-hunter", action="store_true", help="If this option is specified, this "
          "script will run ExpansionHunter once for each of the motif(s) it detects at the locus. "
