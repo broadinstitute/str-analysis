@@ -16,7 +16,7 @@ def parse_ehdn_info_for_locus(ehdn_profile, locus_chrom, locus_start, locus_end,
             paired-IRRs, and no anchored IRRs near the given locus.
 
     Returns:
-        list of dictionaries where each dictionary represents an :
+        List of dictionaries where each dictionary represents a region and has this schema:
                {
                 "region": "chr18:52204909-52204910",   # EHdn region containing anchored IRRs
                 "repeat_unit": "CAG",
@@ -61,7 +61,7 @@ def parse_ehdn_info_for_locus(ehdn_profile, locus_chrom, locus_start, locus_end,
             })
             break
         else:
-            # if there are irr_pairs for a known repeat unit, record them even though no achored reads are present
+            # if there are irr_pairs for a known repeat unit, record them even though no anchored reads are present
             if motifs_of_interest and repeat_unit in motifs_of_interest:
                 records.append({
                     "region": None,
