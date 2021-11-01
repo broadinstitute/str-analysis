@@ -16,7 +16,9 @@ def compute_most_frequent_repeat_unit(sequence, repeat_unit_size, min_occurrence
     if len(sequence) < repeat_unit_size:
         raise ValueError(f"len(sequence) < repeat_unit_size: {len(sequence)} < {repeat_unit_size}")
 
-    repeat_units = {}  # maps repeat_unit to the number of times it occurs in sequence
+    # Check every repeat unit with `repeat_unit_size` and
+    # count the number of times it occurs in the specified sequence
+    repeat_units = {} 
     for i in range(len(sequence) - repeat_unit_size + 1):
         current_repeat_unit = sequence[i:i+repeat_unit_size]
         if current_repeat_unit not in repeat_units:
