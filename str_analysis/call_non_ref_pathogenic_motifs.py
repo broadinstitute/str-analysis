@@ -92,8 +92,7 @@ def parse_args():
 
     p = argparse.ArgumentParser(description=DESCRIPTION)
     p.add_argument("-g", "--genome-version", choices=GENOME_VERSION_ALIASES.keys(), required=True)
-    p.add_argument("-R", "--reference-fasta", help="Reference fasta path. The reference fasta is sometimes necessary "
-        "for decoding cram files.", required=True)
+    p.add_argument("-r", "--reference-fasta", help="Reference fasta path.", required=True)
     p.add_argument("-o", "--output-prefix", help="Output filename prefix")
     p.add_argument("-s", "--sample-id", help="The sample id to put in the output json file. If not specified, it "
         "will be retrieved from the bam/cram header or filename prefix.")
@@ -107,7 +106,7 @@ def parse_args():
     p.add_argument("--expansion-hunter-denovo-profile", help="Optionally copy information relevant to the locus "
         "from this ExpansionHunterDenovo profile to the output json. This is instead of --run-expansion-hunter-denovo")
 
-    p.add_argument("-r", "--run-expansion-hunter", action="store_true", help="If this option is specified, this "
+    p.add_argument("--run-expansion-hunter", action="store_true", help="If this option is specified, this "
          "script will run ExpansionHunter once for each of the motif(s) it detects at the locus. "
          "ExpansionHunter doesn't currently support genotyping multiallelic repeats such as RFC1 where "
          "an individual may have 2 alleles with motifs that differ from eachother (and from the reference motif). "
