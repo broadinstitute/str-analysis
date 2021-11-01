@@ -276,8 +276,7 @@ def run_expansion_hunter(
             with open(f"{output_prefix}.json", "rt") as f:
                 expansion_hunter_output_json = json.load(f)
         else:
-            print(f"ERROR: ExpansionHunter didn't produce a {output_prefix}.json file. Skipping...")
-            continue
+            raise ChildProcessError(f"ERROR: ExpansionHunter didn't produce a {output_prefix}.json file")
 
         if args.verbose:
             print(f"ExpansionHunter output: {pformat(expansion_hunter_output_json)}")
@@ -286,7 +285,8 @@ def run_expansion_hunter(
             "Variants", {}).get(variant_catalog_locus_label, {})
 
         if not eh_result:
-            continue
+            raise ValueError(f"Unable to parse {variant_catalog_locus_label} from {output_prefix}.json: "
+                             f"{pformat(expansion_hunter_output_json)}")
 
         locus_results_json[f"expansion_hunter_motif{motif_number}_json_output_file"] = f"{output_prefix}.json"
         locus_results_json[f"expansion_hunter_motif{motif_number}_repeat_unit"] = repeat_unit
