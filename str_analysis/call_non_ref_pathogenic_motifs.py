@@ -477,9 +477,10 @@ def get_reviewer_image_section(s, get_short_allele_image):
         start_y_coord = int(matches[1].group(1))
 
     # get the last y-coord in this section
+    y_margin = 10  # include some padding around the image features
     end_y_coord = start_y_coord
     for match in re.finditer("<[^>]+y=\"(\d+)\"[^>]+fill[^>]+>", section, re.DOTALL):
-        end_y_coord = max(int(match.group(1)) + 10, end_y_coord)
+        end_y_coord = max(int(match.group(1)) + y_margin, end_y_coord)
 
     return section, start_y_coord, end_y_coord
 
