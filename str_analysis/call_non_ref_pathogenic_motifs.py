@@ -947,7 +947,6 @@ def process_locus(locus_id, args):
         records, sample_read_depth, _ = parse_ehdn_info_for_locus(
             expansion_hunter_denovo_json, locus_chrom, locus_start_0based, locus_end) 
 
-        #locus_results_json[f"expansion_hunter_denovo_profile"] = args.expansion_hunter_denovo_profile
         locus_results_json["ehdn_sample_read_depth"] = sample_read_depth
 
         # get the 2 motifs with the most read support
