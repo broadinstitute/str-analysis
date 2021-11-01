@@ -55,6 +55,11 @@ MIN_MAPQ = 3
 Ignore reads with MAPQ lower than this threshold.  
 """
 
+MIN_READ_SUPPORT = 3
+"""
+Ignore motifs supported by fewer than this many reads.
+"""
+
 MIN_FRACTION_OF_BASES_COVERED = 0.7
 """
 Only count reads where the repeat motif covers at least this fraction of the sequence that overlaps the locus.  
@@ -859,7 +864,7 @@ def process_locus(locus_id, args):
 
         # make sure at least 3 reads support some variation of this motif
         canonical_motif_read_count = canonical_motif_to_read_count[canonical_motif]
-        if canonical_motif_read_count < 3:
+        if canonical_motif_read_count < MIN_READ_SUPPORT:
             continue
 
         well_supported_canonical_motifs.add(canonical_motif)
