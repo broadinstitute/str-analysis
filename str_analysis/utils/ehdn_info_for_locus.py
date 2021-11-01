@@ -2,7 +2,7 @@
 def parse_ehdn_info_for_locus(ehdn_profile, locus_chrom, locus_start, locus_end, margin=700, motifs_of_interest=None):
     """Extract info related to a specific locus from an ExpansionHunterDenovo profile.
 
-    # NOTE: Here "irr" refers to "In-Repeat Read" (see [Dolzhenko 2020] for details).
+    NOTE: Here "irr" refers to "In-Repeat Read" (see [Dolzhenko 2020] for details).
 
     Args:
         ehdn_profile (dict): dictionary representing the data from an EHdn str_profile.json file.
@@ -10,7 +10,8 @@ def parse_ehdn_info_for_locus(ehdn_profile, locus_chrom, locus_start, locus_end,
         locus_start (int): locus start coord
         locus_end (int): locus end coord
         margin (int): when looking for anchored-IRR regions, include regions this many base pairs away from the locus.
-            This should be approximately the fragment-length or slightly larger.
+            This should be approximately the fragment-length or slightly larger (700 is a reasonable value for
+            Illumina short read data).
         motifs_of_interest (set): optionally, a set of motifs to include in the results even if EHdn found only
             paired-IRRs, and no anchored IRRs near the given locus.
 
