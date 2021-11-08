@@ -1,7 +1,7 @@
 import unittest
 
 from str_analysis.utils.canonical_repeat_unit import (
-    _minimal_unit_under_shift, compute_canonical_repeat_unit,
+    _alphabetically_first_unit_under_shift, compute_canonical_repeat_unit,
     reverse_complement)
 
 
@@ -24,10 +24,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(reverse_complement("G"*10), "C"*10)
         self.assertRaises(KeyError, lambda: reverse_complement("X"))
 
-    def test_minimal_unit_under_shift(self):
-        self.assertEqual(_minimal_unit_under_shift("C"), "C")
-        self.assertEqual(_minimal_unit_under_shift("TAA"), "AAT")
-        self.assertEqual(_minimal_unit_under_shift("ACA"), "AAC")
+    def test_alphabetically_first_unit_under_shift(self):
+        self.assertEqual(_alphabetically_first_unit_under_shift("C"), "C")
+        self.assertEqual(_alphabetically_first_unit_under_shift("TAA"), "AAT")
+        self.assertEqual(_alphabetically_first_unit_under_shift("ACA"), "AAC")
 
     def test_compute_canonical_repeat_unit(self):
         self.assertEqual(compute_canonical_repeat_unit("G"), "C")
