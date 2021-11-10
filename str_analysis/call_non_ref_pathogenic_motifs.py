@@ -815,7 +815,7 @@ def process_locus(locus_id, args):
     canonical_motif_to_read_count = collections.defaultdict(int)
     canonical_motif_to_n_occurrences = collections.defaultdict(int)
     if locus_id == "RFC1":
-        # in gnomAD, EHdn sometimes finds 6bp repeat units (eg. AAAGGG), so check for those as well
+        # In gnomAD, EHdn sometimes finds 6bp repeat units (eg. AAAGGG), so check for those as well
         motif_sizes_to_check = [pathogenic_motif_size, pathogenic_motif_size + 1]
     else:
         motif_sizes_to_check = {len(m) for m in known_pathogenic_motifs + known_benign_motifs}
