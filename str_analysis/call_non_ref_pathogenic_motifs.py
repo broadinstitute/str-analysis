@@ -866,7 +866,7 @@ def process_locus(locus_id, args):
         if canonical_motif in well_supported_canonical_motifs:
             continue
 
-        # make sure at least 3 reads support some variation of this motif
+        # Make sure at least 3 reads support some variation of this motif
         canonical_motif_read_count = canonical_motif_to_read_count[canonical_motif]
         if canonical_motif_read_count < MIN_READ_SUPPORT:
             continue
