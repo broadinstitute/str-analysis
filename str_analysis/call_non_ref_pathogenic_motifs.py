@@ -809,7 +809,7 @@ def process_locus(locus_id, args):
         "right_flank_coverage": right_flank_coverage,
     })
 
-    # compute the motif(s) found in the reads, and how many times each one occurs
+    # Compute the motif(s) found in the reads and how many times each one occurs
     motif_to_read_count = collections.defaultdict(int)
     motif_to_n_occurrences = collections.defaultdict(int)
     canonical_motif_to_read_count = collections.defaultdict(int)
