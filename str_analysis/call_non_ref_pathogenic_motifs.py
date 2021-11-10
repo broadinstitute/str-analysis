@@ -927,7 +927,7 @@ def process_locus(locus_id, args):
 
     print(f"Final call: {final_call}")
 
-    # run ExpansionHunter if requested
+    # Run ExpansionHunter if requested
     if args.run_expansion_hunter:
         run_expansion_hunter(
             locus_id,
