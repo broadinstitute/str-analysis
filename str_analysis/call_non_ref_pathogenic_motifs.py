@@ -252,7 +252,7 @@ def run_expansion_hunter(
         with open(variant_catalog_path, "wt") as f:
             json.dump([variant_catalog], f)
 
-        # run expansion hunter
+        # Run expansion hunter
         print("--"*10)
         print(f"Running ExpansionHunter on {args.sample_id} for repeat unit {repeat_unit}")
         if args.verbose:
@@ -267,15 +267,14 @@ def run_expansion_hunter(
 --output-prefix "{output_prefix}" \
 --log-level debug
 """
-        # run ExpansionHunter
+        # Run ExpansionHunter
         run(expansion_hunter_command, verbose=args.verbose)
 
-        # parse ExpansionHunter output json file
-        if os.path.isfile(f"{output_prefix}.json"):
-            with open(f"{output_prefix}.json", "rt") as f:
-                expansion_hunter_output_json = json.load(f)
-        else:
+        # Parse ExpansionHunter output json file
+        if not os.path.isfile(f"{output_prefix}.json"):
             raise ChildProcessError(f"ERROR: ExpansionHunter didn't produce a {output_prefix}.json file")
+        with open(f"{output_prefix}.json", "rt") as f:
+            expansion_hunter_output_json = json.load(f)
 
         if args.verbose:
             print(f"ExpansionHunter output: {pformat(expansion_hunter_output_json)}")
@@ -291,7 +290,7 @@ def run_expansion_hunter(
         locus_results_json[f"expansion_hunter_motif{motif_number}_repeat_unit"] = repeat_unit
         locus_results_json[f"expansion_hunter_motif{motif_number}_canonical_repeat_unit"] = compute_canonical_repeat_unit(repeat_unit)
 
-        # TODO currently there are no X chromosome loci, but if they do get added, this will be need to be updated
+        # TODO: currently there are no X chromosome loci, but if they do get added, this will be need to be updated
         # to support single-allele genotypes for males on the X chromosome which are just a single number (eg. 35)
         # rather than the standard bi-allelic genotype (eg. 20/35)
         if eh_result.get("Genotype"):
@@ -359,7 +358,10 @@ def run_expansion_hunter(
 
 
 def compute_final_expansion_hunter_results(locus_results_json, output_file_prefix):
-    """If 2 different motifs were detected at the STR locus, then ExpansionHunter is run separately for each motif. This
+    """
+    Select output fields from ExpansionHunter.
+    
+    If 2 different motifs were detected at the STR locus, then ExpansionHunter is run separately for each motif. This
     results in 2 diploid ExpansionHunter genotypes (one for each motif), as well as two separate REViewer images.
     This method collapses the 2 ExpansionHunter calls into a single diploid genotype by selecting a short allele and
     a long allele. By comparing different approaches using simulated data, the approach that works best is
@@ -390,7 +392,7 @@ def compute_final_expansion_hunter_results(locus_results_json, output_file_prefi
 
         if ("expansion_hunter_motif1_long_allele_size" not in locus_results_json or
             "expansion_hunter_motif2_long_allele_size" not in locus_results_json):
-            # this case can occur when low coverage at this locus prevents ExpansionHunter from outputting a genotype
+            # This case can occur when low coverage at this locus prevents ExpansionHunter from outputting a genotype
             short_allele_motif = "motif1"
             long_allele_motif = "motif2"
         else:
@@ -484,7 +486,7 @@ def get_reviewer_image_section(s, get_short_allele_image):
         section = s[matches[1].start():]
         start_y_coord = int(matches[1].group(1))
 
-    # get the last y-coord in this section
+    # Get the last y-coord in this section
     y_margin = 10  # include some padding around the image features
     end_y_coord = start_y_coord
     for match in re.finditer("<[^>]+y=\"(\d+)\"[^>]+fill[^>]+>", section, re.DOTALL):
@@ -512,12 +514,12 @@ def select_long_allele_based_on_reviewer_images(reviewer_image_path_motif1, revi
         panel_contents, start_y, end_y = get_reviewer_image_section(
             reviewer_image_contents, get_short_allele_image=short_allele)
 
-        # rough read depth estimate based on vertical size of the svg image section
+        # Rough read depth estimate based on vertical size of the svg image section
         denominator = end_y - start_y
         if denominator == 0:
             denominator = 1   # just in case - avoid divide-by-0
 
-        # rough interruption estimate based on number of text tags in the svg image
+        # Rough interruption estimate based on number of text tags in the svg image
         interruption_count = panel_contents.count("<text")
         return interruption_count / float(denominator)
 
@@ -531,7 +533,7 @@ def select_long_allele_based_on_reviewer_images(reviewer_image_path_motif1, revi
         motif2_normalized_interruption_count1 = compute_normalized_interruption_count(motif2_image_contents, short_allele=True)
         motif2_normalized_interruption_count2 = compute_normalized_interruption_count(motif2_image_contents, short_allele=False)
 
-    # check whether selecting motif2 as the long allele yields a lower total interruption estimate than selecting motif1
+    # Check whether selecting motif2 as the long allele yields a lower total interruption estimate than selecting motif1
     if (motif1_normalized_interruption_count1 + motif2_normalized_interruption_count2
             < motif2_normalized_interruption_count1 + motif1_normalized_interruption_count2):
         return "motif2"
@@ -540,7 +542,10 @@ def select_long_allele_based_on_reviewer_images(reviewer_image_path_motif1, revi
 
 
 def combine_reviewer_images(short_allele_image_path, long_allele_image_path, output_file_path):
-    """.svg images generated by REViewer usually have 2 sections - the top one shows reads that support the short
+    """
+    Finalize REViewer image by combining the short and long allele panels into a single image. 
+    
+    .svg images generated by REViewer usually have 2 sections - the top one shows reads that support the short
     allele, and the bottom one shows reads that support the long allele. For chrX loci in a male sample, the image
     contains only 1 panel representing the hemizygous haplotype, but this method doesn't currently support this scenario
 
@@ -592,7 +597,7 @@ def combine_reviewer_images(short_allele_image_path, long_allele_image_path, out
         f.write(f"""<svg width="{final_width}" height="{final_height}" xmlns="http://www.w3.org/2000/svg">""")
         f.write(defs)
         f.write(short_allele_contents)
-        # shift the long allele panel vertically so it appears just below the short allele panel
+        # Shift the long allele panel vertically so it appears just below the short allele panel
         f.write("""<g transform="translate(0,%s)">""" % (end1_y - start2_y + long_allele_y_offset))
         f.write(long_allele_contents)
         f.write("</g>")
@@ -637,7 +642,7 @@ def process_reads_in_locus(
         locus_start_0based,
         locus_end,
         motif_size):
-    """Parses reads from the given bam/cram file that are within a window around the given STR locus. Then it computes
+    """Parse reads from the given bam/cram file that are within a window around the given STR locus. Then it computes
     a list that, for each well-aligned read that overlaps the locus, contains the subsequence of bases from that read
     that fall between the locus start and end coordinates. Also, it returns the total number of well-aligned read bases
     to the left and to the right of the STR locus.
@@ -655,7 +660,7 @@ def process_reads_in_locus(
     """
     with pysam.Samfile(bam_or_cram_path, reference_filename=reference_fasta) as f:
 
-        # count reads in the left & right flanks to estimate read depth
+        # Count reads in the left & right flanks to estimate read depth
         # NOTE: f.fetch retrieves all reads that *overlap* the given interval
         left_flank_n_well_aligned_bases = sum((r.query_alignment_length for r in f.fetch(
             locus_chrom,
@@ -668,7 +673,7 @@ def process_reads_in_locus(
             locus_end + MARGIN + FLANK_SIZE,
             ) if r.mapq >= MIN_MAPQ))
 
-        # get all sequences that overlap the locus (regardless of whether they're soft-clipped)
+        # Get all sequences that overlap the locus (regardless of whether they're soft-clipped)
         # pysam docs are @ https://pysam.readthedocs.io/en/latest/api.html#pysam.AlignedSegment.query_alignment_sequence
         overlapping_sequences = []
         for r in f.fetch(locus_chrom, locus_start_0based - MARGIN, locus_end + MARGIN):
@@ -711,10 +716,10 @@ def compute_final_call(n_total_well_supported_motifs, n_pathogenic_motifs, n_ben
     if n_total_well_supported_motifs == 0:
         final_call = NO_CALL
     elif n_pathogenic_motifs == n_total_well_supported_motifs:
-        # reads support only known pathogenic motif(s)
+        # Reads support only known pathogenic motif(s)
         final_call = PATHOGENIC_PATHOGENIC_CALL
     elif n_benign_motifs == n_total_well_supported_motifs:
-        # reads support only known benign motif(s)
+        # Reads support only known benign motif(s)
         final_call = BENIGN_BENIGN_CALL
     elif n_benign_motifs == 0 and n_pathogenic_motifs == 0:
         # Reads support one or more non-reference motifs of unknown significance
@@ -974,7 +979,7 @@ def process_locus(locus_id, args):
                 f"ehdn_motif{motif_number}_total_irr_count": record.get("total_irr_count_for_this_repeat_unit_and_region"),
             })
 
-    # generate output json
+    # Generate output json
     output_filename = f"{args.output_prefix}.{locus_id}_motifs.json"
     with open(output_filename, "wt") as f:
         json.dump(locus_results_json, f, indent=2)
