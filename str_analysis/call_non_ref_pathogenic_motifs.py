@@ -598,10 +598,10 @@ def combine_reviewer_images(short_allele_image_path, long_allele_image_path, out
     short_allele_contents, start1_y, end1_y = get_reviewer_image_section(short_allele_contents, get_short_allele_image=True)
     long_allele_contents, start2_y, end2_y = get_reviewer_image_section(long_allele_contents, get_short_allele_image=False)
 
-    height_margin = 150
+    height_margin = 150  # Increase the overall image height to avoid cropping the visualizations.
     final_height = (end1_y - start1_y) + (end2_y - start2_y) + height_margin
 
-    long_allele_y_offset = 50
+    long_allele_y_offset = 50  # Sets the vertical position of the long allele visualization in pixels.
     with open(output_file_path, "wt") as f:
         f.write(f"""<svg width="{final_width}" height="{final_height}" xmlns="http://www.w3.org/2000/svg">""")
         f.write(defs)
