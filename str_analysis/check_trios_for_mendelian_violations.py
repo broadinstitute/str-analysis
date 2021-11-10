@@ -21,6 +21,7 @@ def parse_args(args_list=None):
     Returns:
         args
     """
+
     p = argparse.ArgumentParser()
     p.add_argument(
         "-f",
@@ -55,6 +56,7 @@ def check_for_duplicate_keys(df, file_path):
     Raises:
          ValueError
     """
+
     num_duplicate_keys = sum(df.index.duplicated())
     if num_duplicate_keys > 0:
         for idx, row in df[df.index.duplicated()].iterrows():
@@ -72,8 +74,13 @@ def parse_combined_str_calls_tsv_path(combined_str_calls_tsv_path):
     Raises:
         ValueError: if it finds duplicates by ("SampleId", "LocusId", "VariantId")
     """
+
     combined_str_calls_df = pd.read_table(combined_str_calls_tsv_path)
-    combined_str_calls_df.set_index(["SampleId", "LocusId", "VariantId"], inplace=True)
+    combined_str_calls_df = combined_str_calls_df[[
+        "SampleId", "LocusId", "VariantId", "Filename", "Genotype", "GenotypeConfidenceInterval", "ReferenceRegion", "RepeatUnit", "Sex", "NumSpanningReads", "NumFlankingReads", "NumInrepeatReads", "NumAllelesSupportedBySpanningReads", "NumAllelesSupportedByFlankingReads", "NumAllelesSupportedByInrepeatReads", "Num Repeats: Allele 2", "Coverage"
+    ]]
+    #combined_str_calls_df = combined_str_calls_df.drop_duplicates()
+    combined_str_calls_df.set_index(["Filename", "SampleId", "LocusId", "VariantId"], inplace=True)
     check_for_duplicate_keys(combined_str_calls_df, combined_str_calls_tsv_path)
     return combined_str_calls_df.reset_index()
 
@@ -98,6 +105,7 @@ def parse_fam_file(fam_file_path):
     )
 
     fam_file_df = fam_file_df[["individual_id", "father_id", "mother_id"]]
+    fam_file_df = fam_file_df.drop_duplicates()
     fam_file_df.set_index("individual_id", inplace=True)
     check_for_duplicate_keys(fam_file_df, fam_file_path)
     return fam_file_df.reset_index()
@@ -105,6 +113,7 @@ def parse_fam_file(fam_file_path):
 
 def group_rows_by_trio(combined_str_calls_df):
     """Returns a list of row tuples"""
+
     print(f"{len(combined_str_calls_df)} rows before")
 
     all_rows = {}
@@ -144,6 +153,7 @@ def intervals_overlap(i1, i2):
     """Returns True if Interval i1 overlaps Interval i2. The intervals are considered to be closed, so the intervals
     still overlap if i1.end == i2.begin or i2.end == i1.begin.
     """
+
     return not (i1.end < i2.begin or i2.end < i1.begin)
 
 
@@ -157,6 +167,7 @@ def compute_min_distance_mendelian(proband_allele, parent_alleles):
     Return:
           int: the smallest distance (in base-pairs) between one of the parent_alleles, and the proband_allele.
     """
+
     return min([abs(int(proband_allele) - int(pa)) for pa in parent_alleles])
 
 
@@ -172,6 +183,7 @@ def compute_min_distance_mendelian_ci(proband_CI, parent_CIs):
           int: the smallest distance (in base-pairs) between one of the Interval in the parent_CIs Interval list, and
           the given proband_CI.
     """
+
     return min([abs(proband_CI.distance_to(parent_CI)) for parent_CI in parent_CIs])
 
 
@@ -258,6 +270,7 @@ def compute_mendelian_violations(trios):
 
             'ProbandGenotype': proband_row.Genotype,
             'ProbandGenotypeCI': proband_row.GenotypeConfidenceInterval,
+            'ProbandGenotypeCI_size': proband_CIs[-1].length(),
 
             'FatherGenotype': father_row.Genotype,
             'FatherGenotypeCI': father_row.GenotypeConfidenceInterval,

@@ -270,9 +270,10 @@ def run_expansion_hunter(
         # Run ExpansionHunter
         run(expansion_hunter_command, verbose=args.verbose)
 
-        # Parse ExpansionHunter output json file
         if not os.path.isfile(f"{output_prefix}.json"):
-            raise ChildProcessError(f"ERROR: ExpansionHunter didn't produce a {output_prefix}.json file")
+            raise ChildProcessError(f"ExpansionHunter didn't produce a {output_prefix}.json file")
+
+        # Parse ExpansionHunter output json file
         with open(f"{output_prefix}.json", "rt") as f:
             expansion_hunter_output_json = json.load(f)
 
@@ -293,6 +294,9 @@ def run_expansion_hunter(
         # TODO: currently there are no X chromosome loci, but if they do get added, this will be need to be updated
         # to support single-allele genotypes for males on the X chromosome which are just a single number (eg. 35)
         # rather than the standard bi-allelic genotype (eg. 20/35)
+        if "X" in chrom:
+            raise Exception("Need to add support for hemizygous genotypes")
+
         if eh_result.get("Genotype"):
             (
                 locus_results_json[f"expansion_hunter_motif{motif_number}_short_allele_size"],
@@ -338,7 +342,10 @@ def run_expansion_hunter(
             locus_results_json[f"expansion_hunter_motif{motif_number}_total_{output_label}"] = total
 
         if run_reviewer:
-            reviewer_command = f"""samtools sort "{output_prefix}_realigned.bam" -o "{output_prefix}.sorted.bam" \
+            if not eh_result.get("Genotype"):
+                print("WARNING: Skipping REViewer because ExpansionHunter didn't produce a Genotype for this locus")
+            else:
+                reviewer_command = f"""samtools sort "{output_prefix}_realigned.bam" -o "{output_prefix}.sorted.bam" \
 && samtools index "{output_prefix}.sorted.bam" \
 && REViewer --reads "{output_prefix}.sorted.bam" \
     --vcf "{output_prefix}.vcf" \
@@ -347,10 +354,12 @@ def run_expansion_hunter(
     --locus "{variant_catalog_locus_label}" \
     --output-prefix "{output_prefix}_reviewer"
 """
-            run(reviewer_command, verbose=args.verbose)
+                run(reviewer_command, verbose=args.verbose)
 
-            reviewer_output_filename = f"{output_prefix}_reviewer.{variant_catalog_locus_label}.svg"
-            if os.path.isfile(reviewer_output_filename):
+                reviewer_output_filename = f"{output_prefix}_reviewer.{variant_catalog_locus_label}.svg"
+                if not os.path.isfile(reviewer_output_filename):
+                    raise ChildProcessError(f"REViewer didn't produce a {reviewer_output_filename} file")
+
                 locus_results_json[f"expansion_hunter_motif{motif_number}_reviewer_svg"] = reviewer_output_filename
 
     if repeat_units:
@@ -629,8 +638,7 @@ def run_expansion_hunter_denovo(args):
 
     output_path = f"{output_prefix}.str_profile.json"
     if not os.path.isfile(output_path):
-        print(f"ERROR: ExpansionHunterDenovo didn't produce a {output_path} file.")
-        return None
+        raise ChildProcessError(f"ExpansionHunterDenovo didn't produce a {output_path} file.")
 
     return output_path
 
@@ -740,7 +748,15 @@ def compute_final_call(n_total_well_supported_motifs, n_pathogenic_motifs, n_ben
     return final_call
 
 
-def process_offtarget_regions(motif, motif_number, read_count, flank_coverage_mean, args, locus_results_json):
+def process_offtarget_regions(
+    motif,
+    motif_number,
+    read_count,
+    flank_coverage_mean,
+    args,
+    locus_results_json,
+    normalize_to_coverage=NORMALIZE_TO_COVERAGE,
+):
     """Look for off-target reads for a specific motif.
 
     Args:
@@ -750,6 +766,7 @@ def process_offtarget_regions(motif, motif_number, read_count, flank_coverage_me
         flank_coverage_mean (float): Mean coverage in flanking regions.
         args (object): Command-line arguments from argparse.
         locus_results_json (dict): Results will be added to this dictionary.
+        normalize_to_coverage (int): Normalize to this mean coverage. For example = 40 means normalize to 40x coverage.
     """
     canonical_motif = compute_canonical_repeat_unit(motif)
     offtarget_regions = OFFTARGET_REGIONS[args.genome_version].get(canonical_motif)
@@ -775,16 +792,18 @@ def process_offtarget_regions(motif, motif_number, read_count, flank_coverage_me
     locus_results_json.update({
         f"motif{motif_number}_read_count_with_offtargets": read_count_with_offtargets,
         f"motif{motif_number}_normalized_read_count_with_offtargets":
-            read_count_with_offtargets * NORMALIZE_TO_COVERAGE / flank_coverage_mean if flank_coverage_mean > 0 else 0,
+            read_count_with_offtargets * normalize_to_coverage / flank_coverage_mean if flank_coverage_mean > 0 else 0,
     })
 
 
-def process_locus(locus_id, args):
+def process_locus(locus_id, args, normalize_to_coverage=NORMALIZE_TO_COVERAGE, min_read_support=MIN_READ_SUPPORT):
     """Compute results for a single locus and write them to a json file.
 
     Args:
         locus_id (str): Locus id
         args (object): Command-line args from argparse.
+        normalize_to_coverage (int): Normalize to this mean coverage. For example = 40 means normalize to 40x coverage.
+        min_read_support (int): Ignore motifs supported by fewer than this many reads.
     """
     locus_coords_1based = LOCUS_INFO[locus_id]["LocusCoords_1based"][args.genome_version]
     locus_chrom, start_1based, end_1based = parse_interval(locus_coords_1based)
@@ -872,7 +891,7 @@ def process_locus(locus_id, args):
 
         # Make sure at least 3 reads support some variation of this motif
         canonical_motif_read_count = canonical_motif_to_read_count[canonical_motif]
-        if canonical_motif_read_count < MIN_READ_SUPPORT:
+        if canonical_motif_read_count < min_read_support:
             continue
 
         well_supported_canonical_motifs.add(canonical_motif)
@@ -913,7 +932,7 @@ def process_locus(locus_id, args):
             f"motif{motif_number}_canonical_repeat_unit": canonical_motif,
             f"motif{motif_number}_read_count": read_count,
             f"motif{motif_number}_normalized_read_count":
-                read_count * NORMALIZE_TO_COVERAGE / flank_coverage_mean if flank_coverage_mean > 0 else 0,
+                read_count * normalize_to_coverage / flank_coverage_mean if flank_coverage_mean > 0 else 0,
             f"motif{motif_number}_n_occurrences": n_occurrences,
         })
 
