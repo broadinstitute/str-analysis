@@ -941,7 +941,7 @@ def process_locus(locus_id, args):
             use_offtarget_regions=use_offtarget_regions,
         )
 
-    # process EHdn profile if one was provided
+    # Process EHdn profile if one was provided
     if args.expansion_hunter_denovo_profile:
         print(f"Parsing {args.expansion_hunter_denovo_profile}")
         open_func = gzip.open if args.expansion_hunter_denovo_profile.endswith("gz") else open
