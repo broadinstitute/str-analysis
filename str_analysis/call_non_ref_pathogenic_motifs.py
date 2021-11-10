@@ -718,7 +718,7 @@ def compute_final_call(n_total_well_supported_motifs, n_pathogenic_motifs, n_ben
         # reads support only known benign motif(s)
         final_call = BENIGN_BENIGN_CALL
     elif n_benign_motifs == 0 and n_pathogenic_motifs == 0:
-        # reads support one or more non-reference motifs of unknown significance
+        # Reads support one or more non-reference motifs of unknown significance
         final_call = UNCERTAIN_SIG_UNCERTAIN_SIG_CALL
     elif n_benign_motifs > 0 and n_pathogenic_motifs > 0:
         # Reads support one known benign motif and one pathogenic motif
