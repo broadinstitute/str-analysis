@@ -1,7 +1,7 @@
 
 
 def compute_most_frequent_repeat_unit(sequence, repeat_unit_size, min_occurrences=3, min_fraction_bases_covered=0.8):
-    """Returns the most frequent repeat unit of the given size within the given sequence.
+    """Return the most frequent repeat unit of the given size within the given sequence.
 
     Args:
         sequence (str): a sequence of dna bases
