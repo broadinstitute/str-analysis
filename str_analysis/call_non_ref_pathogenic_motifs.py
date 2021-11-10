@@ -167,6 +167,7 @@ def run(command, verbose=False):
     Returns:
         subprocess.CompletedProcess: An object with a .returncode attribute.
     """
+
     if verbose:
         print(f"Command: {command}")
 
@@ -197,6 +198,7 @@ def count_repeat_in_sequences(sequences, repeat_unit, min_occurrences=3, min_fra
     Returns:
         2-tuple: (The number of sequences that contain the repeat unit, The total number of sequences in the input iterator)
     """
+
     read_count = 0
     total = 0
     for sequence in sequences:
@@ -217,8 +219,8 @@ def run_expansion_hunter(
     run_reviewer=False,
     use_offtarget_regions=False,
 ):
-    """
-    Run ExpansionHunter, parse relevant output fields, and add them to results.
+    """Run ExpansionHunter, parse relevant output fields, and add them to results.
+
     Then optionally run REViewer to generate read visualizations.
 
     Args:
