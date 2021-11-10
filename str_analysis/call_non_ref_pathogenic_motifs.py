@@ -953,7 +953,7 @@ def process_locus(locus_id, args):
 
         locus_results_json["ehdn_sample_read_depth"] = sample_read_depth
 
-        # get the 2 motifs with the most read support
+        # Get the 2 motifs with the most read support
         # NOTE: Here "irr" refers to "In-Repeat Read" (see [Dolzhenko 2017] for details).
         records.sort(key=lambda r: (
             -r["anchored_irr_count_for_this_repeat_unit_and_region"],
