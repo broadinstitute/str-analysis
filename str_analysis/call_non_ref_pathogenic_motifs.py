@@ -874,7 +874,7 @@ def process_locus(locus_id, args):
         well_supported_canonical_motifs.add(canonical_motif)
         well_supported_motifs.append(motif)
 
-    # select the repeat unit(s) with the most read support
+    # Select the repeat unit(s) with the most read support
     well_supported_motifs.sort(key=lambda motif: motif_to_n_occurrences[motif], reverse=True)
     selected_motifs = well_supported_motifs[:2]
 
