@@ -19,7 +19,7 @@ def reverse_complement(dna):
 
 
 def _alphabetically_first_unit_under_shift(unit):
-    """Returns the permutation of the given repeat unit that's first alphabetically.
+    """Return the permutation of the given repeat unit that's first alphabetically.
 
     Args:
         unit (str): A repeat unit like "CAG".
