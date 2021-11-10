@@ -853,7 +853,7 @@ def process_locus(locus_id, args):
         "found_repeats_in_fraction_of_reads": sum(motif_to_read_count.values())/len(overlapping_sequences) if overlapping_sequences else 0,
     })
 
-    # evaluate the repeat units
+    # Evaluate the repeat units
     well_supported_motifs = []
     well_supported_canonical_motifs = set()
     for motif, read_count in motif_to_read_count.items():
