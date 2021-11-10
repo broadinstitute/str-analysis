@@ -984,7 +984,7 @@ def process_locus(locus_id, args):
 
 
 def compute_sample_id(bam_or_cram_path, reference_fasta):
-    """Determine a sample id from the given bam or cram file
+    """Determine a sample id from the given bam or cram file.
 
     Args:
         bam_or_cram_path (str): bam or cram file path
