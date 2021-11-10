@@ -878,7 +878,7 @@ def process_locus(locus_id, args):
     well_supported_motifs.sort(key=lambda motif: motif_to_n_occurrences[motif], reverse=True)
     selected_motifs = well_supported_motifs[:2]
 
-    # sort then into BENIGN .. PATHOGENIC .. UNCERTAIN SIGNIFICANCE to match the order in the "call" output field
+    # Sort then into BENIGN .. PATHOGENIC .. UNCERTAIN SIGNIFICANCE to match the order in the "call" output field
     selected_motifs = sorted(selected_motifs, key=lambda motif:
         1 if compute_canonical_repeat_unit(motif) in known_benign_motifs else
         2 if compute_canonical_repeat_unit(motif) in known_pathogenic_motifs else
