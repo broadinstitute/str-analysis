@@ -15,7 +15,7 @@ def parse_ehdn_info_for_locus(ehdn_profile, locus_chrom, locus_start, locus_end,
             This should be approximately the fragment-length or slightly larger (700 is a reasonable value for
             Illumina short read data).
         motifs_of_interest (set): optionally, a set of motifs to include in the results even if EHdn found only
-            paired-IRRs, and no anchored IRRs near the given locus.
+            paired-IRRs and no anchored IRRs near the given locus.
 
     Returns:
         List of dictionaries where each dictionary represents a region and has this schema:
