@@ -1,4 +1,5 @@
 import unittest
+
 from str_analysis.utils.most_frequent_repeat_unit import compute_most_frequent_repeat_unit
 
 
