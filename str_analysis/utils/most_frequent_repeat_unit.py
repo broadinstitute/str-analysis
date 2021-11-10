@@ -10,8 +10,8 @@ def compute_most_frequent_repeat_unit(sequence, repeat_unit_size, min_occurrence
         min_fraction_bases_covered (float): repeat units that cover less than this fraction the sequence will be ignored
 
     Returns:
-        2-tuple: (repeat unit (str), number of times it occurs within sequence (int)) If no repeat unit satisfies the
-            min_fraction_bases_covered constraint, the return value is (None, 0).
+        2-tuple: (repeat unit (str), number of times it occurs within sequence (int))
+        If no repeat unit satisfies the min_fraction_bases_covered constraint, the return value is (None, 0)
     """
     if len(sequence) < repeat_unit_size:
         raise ValueError(f"len(sequence) < repeat_unit_size: {len(sequence)} < {repeat_unit_size}")
