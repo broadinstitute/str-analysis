@@ -7,7 +7,7 @@ def parse_ehdn_info_for_locus(ehdn_profile, locus_chrom, locus_start, locus_end,
     Args:
         ehdn_profile (dict): dictionary representing the data from an EHdn str_profile.json file.
             See https://github.com/Illumina/ExpansionHunterDenovo/blob/master/documentation/05_Computing_profiles.md
-            for a description of the ExpansionHunterDenovo str_porfile output file.
+            for a description of the ExpansionHunterDenovo str_profile output file.
         locus_chrom (str): locus chromosome
         locus_start (int): locus start coord
         locus_end (int): locus end coord
