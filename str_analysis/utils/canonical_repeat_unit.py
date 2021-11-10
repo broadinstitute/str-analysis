@@ -14,7 +14,7 @@ COMPLEMENT = {
 
 
 def reverse_complement(dna):
-    """Takes a string representing a DNA sequence and returns its reverse-complement"""
+    """Take a string representing a DNA sequence and return its reverse-complement"""
     return "".join([COMPLEMENT[c] for c in dna[::-1]])
 
 
