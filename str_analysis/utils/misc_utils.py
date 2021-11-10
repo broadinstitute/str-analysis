@@ -10,6 +10,7 @@ def intervals_in_genomic_sort_order(interval_strings):
     ['chr1:12345-54321', 'chr1:23456-65432', 'chr3:34567-76543'] and returns the same list, but sorted by genomic
     coordinates (based on the chromosome, start coordinate, end coordinate).
     """
+
     def sort_key(interval_string):
         chrom, positions = interval_string.split(":")
         if chrom in CHROMOSOME_ORDER:
@@ -38,6 +39,7 @@ def parse_interval(interval_string):
 
 def run(command):
     """Run a shell command and return its output. Raises an exception if the command exits with a non-zero exit code"""
+    
     logging.info(command)
 
     return subprocess.check_output(['/bin/bash', '-c', command]).decode('UTF-8')
