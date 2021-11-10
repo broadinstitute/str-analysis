@@ -117,7 +117,7 @@ def parse_args():
          "ExpansionHunter doesn't currently support genotyping multiallelic repeats such as RFC1 where "
          "an individual may have 2 alleles with motifs that differ from each other (and from the reference motif). "
          "Running ExpansionHunter separately for each motif provides a work-around.")
-    p.add_argument("--expansion-hunter-path", help="The path of the ExpansionHunter executable to use if -r is "
+    p.add_argument("--expansion-hunter-path", help="The path of the ExpansionHunter executable to use if --run-expansion-hunter is "
         "specified. This must be ExpansionHunter version 3 or greater.", default="ExpansionHunter")
 
     grp = p.add_mutually_exclusive_group()
