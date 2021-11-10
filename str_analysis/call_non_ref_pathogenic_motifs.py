@@ -142,9 +142,6 @@ def parse_args():
     if not os.path.isfile(args.bam_or_cram_path):
         p.error(f"{args.bam_or_cram_path} not found")
 
-    if args.reference_fasta and not os.path.isfile(args.reference_fasta):
-        p.error(f"{args.reference_fasta} not found")
-
     if args.expansion_hunter_denovo_profile and not os.path.isfile(args.expansion_hunter_denovo_profile):
         p.error(f"{args.expansion_hunter_denovo_profile} not found")
 

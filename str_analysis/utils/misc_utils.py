@@ -39,7 +39,7 @@ def parse_interval(interval_string):
 
 def run(command):
     """Run a shell command and return its output. Raises an exception if the command exits with a non-zero exit code"""
-    
+
     logging.info(command)
 
     return subprocess.check_output(['/bin/bash', '-c', command]).decode('UTF-8')
