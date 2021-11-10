@@ -36,9 +36,10 @@ def _alphabetically_first_unit_under_shift(unit):
 
 
 def compute_canonical_repeat_unit(unit):
-    """Takes an STR motif string like "GAA" and returns the "canonical" representation of the motif. This is the
-    rearrangement of the motif bases (including reverse complements) that is alphabetically first. For "GAA", this would
-    return "AAG" since it's alphabetically first among "GAA", "AGA", "AAG", "TTC", "TCT", and "CTT"
+    """Take an STR motif string like "GAA" and returns the "canonical" representation of the motif. This is the
+    rearrangement of the motif bases (including reverse complements) that is alphabetically first. 
+    
+    For "GAA", this would return "AAG" since it's alphabetically first among "GAA", "AGA", "AAG", "TTC", "TCT", and "CTT".
 
     Args:
         unit (str): A repeat unit like "CAG".
