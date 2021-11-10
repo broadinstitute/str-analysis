@@ -727,7 +727,7 @@ def compute_final_call(n_total_well_supported_motifs, n_pathogenic_motifs, n_ben
         # reads support one pathogenic motif and at least one other motif of unknown significance
         final_call = PATHOGENIC_UNCERTAIN_SIG_CALL
     elif n_benign_motifs > 0:
-        # reads support one known benign motif and at least one other motif of unknown significance
+        # Reads support one known benign motif and at least one other motif of unknown significance
         final_call = BENIGN_UNCERTAIN_SIG_CALL
     else:
         raise Exception(f"Unexpected state when n_total_well_supported_motifs={n_total_well_supported_motifs}, "
