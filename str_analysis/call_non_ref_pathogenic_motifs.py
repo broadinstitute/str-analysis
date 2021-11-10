@@ -994,7 +994,7 @@ def compute_sample_id(bam_or_cram_path, reference_fasta):
     """
 
     sample_id = None
-    # try to get sample id from bam/cram header
+    # Try to get sample id from bam/cram header
     with pysam.Samfile(bam_or_cram_path, reference_filename=reference_fasta) as f:
 
         read_groups = f.header.as_dict().get("RG", [])
