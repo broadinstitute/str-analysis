@@ -237,7 +237,7 @@ def run_expansion_hunter(
 
     for repeat_unit_number, repeat_unit in enumerate(repeat_units):
         motif_number = repeat_unit_number + 1 
-        # generate variant catalog
+        # Generate variant catalog
         variant_catalog_locus_label = f"{locus_id}_{repeat_unit}"
         offtarget_regions = []
         if use_offtarget_regions:
