@@ -860,7 +860,7 @@ def process_locus(locus_id, args):
         if "N" in motif:
             continue
 
-        # check that this motif hasn't already been added to the list, treating different variations
+        # Check that this motif hasn't already been added to the list, treating different variations
         # of the same canonical motif as the same thing (eg. AAAAT = AAATA = TTTTA)
         canonical_motif = compute_canonical_repeat_unit(motif)
         if canonical_motif in well_supported_canonical_motifs:
