@@ -48,7 +48,7 @@ def parse_key_value(key_value, delimiter="="):
 
     Args:
         key_value (str): The string containing the key and value separated by the delimiter.
-        delimiter (str): Separator between the key and value. Default is "="
+        delimiter (str): Separator between the key and value. Default is "=".
 
     Return:
         2-tuple: (key string, value string)
