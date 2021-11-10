@@ -793,7 +793,7 @@ def process_locus(locus_id, args):
 
     pathogenic_motif_size = len(known_pathogenic_motifs[0])
 
-    # process bam/cram
+    # Process bam/cram
     overlapping_sequences, left_flank_n_well_aligned_bases, right_flank_n_well_aligned_bases = process_reads_in_locus(
         args.bam_or_cram_path, args.reference_fasta, locus_chrom, locus_start_0based, locus_end, pathogenic_motif_size)
 
