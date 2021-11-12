@@ -22,7 +22,7 @@ from pprint import pformat, pprint
 import pysam
 
 from str_analysis.utils.canonical_repeat_unit import \
-    compute_canonical_repeat_unit
+    compute_canonical_motif
 from str_analysis.utils.ehdn_info_for_locus import parse_ehdn_info_for_locus
 from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.most_frequent_repeat_unit import \
@@ -241,7 +241,7 @@ def run_expansion_hunter(
         variant_catalog_locus_label = f"{locus_id}_{repeat_unit}"
         offtarget_regions = []
         if use_offtarget_regions:
-            offtarget_regions = OFFTARGET_REGIONS[args.genome_version][compute_canonical_repeat_unit(repeat_unit)]
+            offtarget_regions = OFFTARGET_REGIONS[args.genome_version][compute_canonical_motif(repeat_unit)]
 
         variant_catalog = generate_variant_catalog(
             variant_catalog_locus_label,
@@ -289,7 +289,7 @@ def run_expansion_hunter(
 
         locus_results_json[f"expansion_hunter_motif{motif_number}_json_output_file"] = f"{output_prefix}.json"
         locus_results_json[f"expansion_hunter_motif{motif_number}_repeat_unit"] = repeat_unit
-        locus_results_json[f"expansion_hunter_motif{motif_number}_canonical_repeat_unit"] = compute_canonical_repeat_unit(repeat_unit)
+        locus_results_json[f"expansion_hunter_motif{motif_number}_canonical_repeat_unit"] = compute_canonical_motif(repeat_unit)
 
         # TODO: currently there are no X chromosome loci, but if they do get added, this will be need to be updated
         # to support single-allele genotypes for males on the X chromosome which are just a single number (eg. 35)
@@ -768,7 +768,7 @@ def process_offtarget_regions(
         locus_results_json (dict): Results will be added to this dictionary.
         normalize_to_coverage (int): Normalize to this mean coverage. For example = 40 means normalize to 40x coverage.
     """
-    canonical_motif = compute_canonical_repeat_unit(motif)
+    canonical_motif = compute_canonical_motif(motif)
     offtarget_regions = OFFTARGET_REGIONS[args.genome_version].get(canonical_motif)
     if offtarget_regions is None:
         print(f"WARNING: off-target regions not available for {canonical_motif}")
@@ -811,8 +811,8 @@ def process_locus(locus_id, args, normalize_to_coverage=NORMALIZE_TO_COVERAGE, m
     locus_end = end_1based
     use_offtarget_regions = args.use_offtarget_regions or LOCUS_INFO[locus_id]["UseOfftargetRegions"]
 
-    known_pathogenic_motifs = list(map(compute_canonical_repeat_unit, LOCUS_INFO[locus_id]["Motifs"]["PATHOGENIC"]))
-    known_benign_motifs = list(map(compute_canonical_repeat_unit, LOCUS_INFO[locus_id]["Motifs"]["BENIGN"]))
+    known_pathogenic_motifs = list(map(compute_canonical_motif, LOCUS_INFO[locus_id]["Motifs"]["PATHOGENIC"]))
+    known_benign_motifs = list(map(compute_canonical_motif, LOCUS_INFO[locus_id]["Motifs"]["BENIGN"]))
 
     pathogenic_motif_size = len(known_pathogenic_motifs[0])
 
@@ -864,7 +864,7 @@ def process_locus(locus_id, args, normalize_to_coverage=NORMALIZE_TO_COVERAGE, m
                               f"that overlap the {locus_id} locus: {overlapping_sequence}")
 
             if motif is not None:
-                canonical_motif = compute_canonical_repeat_unit(motif)
+                canonical_motif = compute_canonical_motif(motif)
                 motif_to_read_count[motif] += 1
                 motif_to_n_occurrences[motif] += count
                 canonical_motif_to_read_count[canonical_motif] += 1
@@ -885,7 +885,7 @@ def process_locus(locus_id, args, normalize_to_coverage=NORMALIZE_TO_COVERAGE, m
 
         # Check that this motif hasn't already been added to the list, treating different variations
         # of the same canonical motif as the same thing (eg. AAAAT = AAATA = TTTTA)
-        canonical_motif = compute_canonical_repeat_unit(motif)
+        canonical_motif = compute_canonical_motif(motif)
         if canonical_motif in well_supported_canonical_motifs:
             continue
 
@@ -903,8 +903,8 @@ def process_locus(locus_id, args, normalize_to_coverage=NORMALIZE_TO_COVERAGE, m
 
     # Sort then into BENIGN .. PATHOGENIC .. UNCERTAIN SIGNIFICANCE to match the order in the "call" output field
     selected_motifs = sorted(selected_motifs, key=lambda motif:
-        1 if compute_canonical_repeat_unit(motif) in known_benign_motifs else
-        2 if compute_canonical_repeat_unit(motif) in known_pathogenic_motifs else
+        1 if compute_canonical_motif(motif) in known_benign_motifs else
+        2 if compute_canonical_motif(motif) in known_pathogenic_motifs else
         3)
 
     flank_coverage_mean = (left_flank_coverage + right_flank_coverage) / 2.0
@@ -918,7 +918,7 @@ def process_locus(locus_id, args, normalize_to_coverage=NORMALIZE_TO_COVERAGE, m
 
         n_total_well_supported_motifs += 1
         motif = selected_motifs[i]
-        canonical_motif = compute_canonical_repeat_unit(motif)
+        canonical_motif = compute_canonical_motif(motif)
         if canonical_motif in known_pathogenic_motifs:
             n_pathogenic_motifs += 1
         elif canonical_motif in known_benign_motifs:

@@ -1,7 +1,7 @@
 import unittest
 
 from str_analysis.utils.canonical_repeat_unit import (
-    _alphabetically_first_unit_under_shift, compute_canonical_repeat_unit,
+    _alphabetically_first_motif_under_shift, compute_canonical_motif,
     reverse_complement)
 
 
@@ -24,15 +24,15 @@ class Tests(unittest.TestCase):
         self.assertEqual(reverse_complement("G"*10), "C"*10)
         self.assertRaises(KeyError, lambda: reverse_complement("X"))
 
-    def test_alphabetically_first_unit_under_shift(self):
-        self.assertEqual(_alphabetically_first_unit_under_shift("C"), "C")
-        self.assertEqual(_alphabetically_first_unit_under_shift("TAA"), "AAT")
-        self.assertEqual(_alphabetically_first_unit_under_shift("ACA"), "AAC")
+    def test_alphabetically_first_motif_under_shift(self):
+        self.assertEqual(_alphabetically_first_motif_under_shift("C"), "C")
+        self.assertEqual(_alphabetically_first_motif_under_shift("TAA"), "AAT")
+        self.assertEqual(_alphabetically_first_motif_under_shift("ACA"), "AAC")
 
-    def test_compute_canonical_repeat_unit(self):
-        self.assertEqual(compute_canonical_repeat_unit("G"), "C")
-        self.assertEqual(compute_canonical_repeat_unit("N"), "N")
-        self.assertEqual(compute_canonical_repeat_unit("T"), "A")
-        self.assertEqual(compute_canonical_repeat_unit("TGAG"), "ACTC")
-        self.assertEqual(compute_canonical_repeat_unit("G"*9), "C"*9)
+    def test_compute_canonical_motif(self):
+        self.assertEqual(compute_canonical_motif("G"), "C")
+        self.assertEqual(compute_canonical_motif("N"), "N")
+        self.assertEqual(compute_canonical_motif("T"), "A")
+        self.assertEqual(compute_canonical_motif("TGAG"), "ACTC")
+        self.assertEqual(compute_canonical_motif("G"*9), "C"*9)
 
