@@ -700,7 +700,7 @@ def export_readviz_json(args, readviz_json, readviz_json_output_path):
     with gzip.open(readviz_json_output_path, "wt") as f:
         json.dump(readviz_json, f, indent=3, ensure_ascii=True, allow_nan=False)
 
-    destination_path = os.path.join(args.output_dir, readviz_json_output_path)
+    destination_path = os.path.join(args.output_dir, os.path.basename(readviz_json_output_path))
     if destination_path.startswith("gs://"):
         os.system(f"gsutil -m cp {readviz_json_output_path} {destination_path}")
     else:
@@ -733,8 +733,8 @@ def main():
     # Write out the data structures
     date_stamp = datetime.now().strftime("%Y_%m_%d")
     local_output_dir = os.path.expanduser(os.path.dirname(args.expansion_hunter_tsv))
-    export_gnomad_json(args, gnomad_json, f"{local_output_dir}/gnomAD_STR_calls__{date_stamp}.json.gz")
-    export_readviz_json(args, readviz_json, f"{local_output_dir}/readviz_paths__{date_stamp}.json.gz")
+    export_gnomad_json(args, gnomad_json, f"{local_output_dir}/gnomAD_STR_distributions__{date_stamp}.json.gz")
+    export_readviz_json(args, readviz_json, f"{local_output_dir}/gnomAD_STR_readviz_metadata__{date_stamp}.json.gz")
     export_readviz_rename_list(readviz_paths_to_rename, f"{local_output_dir}/readviz_rename_list__{date_stamp}.tsv.gz")
 
     print("Done")
