@@ -91,6 +91,8 @@ AGE_RANGE_SIZE = 5
 
 # Show age for no more than this many of the most expanded samples per locus and male/female bucket
 MAX_AGES_TO_DISPLAY_PER_BUCKET = 100
+LOWER_AGE_CUTOFF = 20
+UPPER_AGE_CUTOFF = 80
 
 # Show age only for the these larger sub-populations to avoid increasing identifiability in smaller populations
 POPULATIONS_WITH_AGE_DISPLAYED = {"sas", "oth", "asj", "amr", "fin", "eas", "afr", "nfe"}
@@ -522,7 +524,12 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
                 age_lower_bound = AGE_RANGE_SIZE * math.floor(age/float(AGE_RANGE_SIZE))
                 age_upper_bound = AGE_RANGE_SIZE * math.ceil((age + 0.1)/float(AGE_RANGE_SIZE))
                 assert age_lower_bound != age_upper_bound
-                age_range = f"{age_lower_bound}-{age_upper_bound}"
+                if age_lower_bound <= LOWER_AGE_CUTOFF:
+                    age_range = f"<{LOWER_AGE_CUTOFF}"
+                if age_lower_bound >= UPPER_AGE_CUTOFF:
+                    age_range = f">{UPPER_AGE_CUTOFF}"
+                else:
+                    age_range = f"{age_lower_bound}-{age_upper_bound}"
             except ValueError:
                 pass
 

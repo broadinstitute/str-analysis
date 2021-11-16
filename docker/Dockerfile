@@ -99,3 +99,6 @@ COPY README.md .
 COPY setup.py .
 COPY requirements.txt .
 RUN python3 setup.py install
+
+
+COPY docker/ExpansionHunterOptimized /usr/local/bin/ExpansionHunterOptimized
