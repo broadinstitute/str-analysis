@@ -786,7 +786,7 @@ def main():
     readviz_paths_to_rename, readviz_json = add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_lookup)
     remove_readviz_filenames_that_dont_exist(args, readviz_json)
 
-    # Perform sanity checks
+    # Perform validity checks
     validate_json(df, gnomad_json, readviz_json)
 
     # Write out the data structures
