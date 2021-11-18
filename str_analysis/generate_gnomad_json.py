@@ -135,7 +135,7 @@ def parse_args():
     p.add_argument(
         "--known-pathogenic-strs-tsv",
         default="~/code/str-analysis/local_files/gnomad_str_data/known_pathogenic_strs.tsv",
-        help="gnomAD metadata table path.",
+        help="Table of known pathogenic STRs.",
     )
     p.add_argument(
         "--existing-readviz-filename-list",
@@ -159,7 +159,7 @@ def parse_args():
 
 
 def load_data_df(args):
-    """Load the tables specified by args.expansion_hunter_tsv, args.non_ref_motif_tsv, and args.gnomad_metadata_tsv,
+    """Load the tables specified by args.expansion_hunter_tsv, args.non_ref_motif_tsv, and args.gnomad_metadata_tsv.
     Rename and select relevant columns, combine the tables, then return a single combined table.
 
     Args:
@@ -171,9 +171,16 @@ def load_data_df(args):
 
     print(f"Loading {args.expansion_hunter_tsv}")
 
+    def split_by_forward_slash(expansion_hunter_call_repeat_unit):
+        repeat_units = expansion_hunter_call_repeat_unit.split("/")
+        return repeat_units[0].strip(), repeat_units[-1].strip()
+
+    def process_sample_id(sample_id):
+        return sample_id.split(".")[0]
+
     # Parse ExpansionHunter tsv
     df = pd.read_table(args.expansion_hunter_tsv)
-    df.loc[:, "SampleId"] = df.SampleId.apply(lambda s: s.split(".")[0])
+    df.loc[:, "SampleId"] = df.SampleId.apply(process_sample_id)
     df.loc[:, "Motif: Allele 1"] = df["RepeatUnit"]
     df.loc[:, "Motif: Allele 2"] = df["RepeatUnit"]
     df.loc[:, "ReadvizFilename"] = df["SampleId"] + "." + df["LocusId"] + ".svg"
@@ -190,17 +197,13 @@ def load_data_df(args):
     non_ref_motifs_df = pd.read_table(args.non_ref_motif_tsv)
     non_ref_motifs_df = non_ref_motifs_df[~non_ref_motifs_df["expansion_hunter_call_genotype"].isna()]
 
-    def split_by_forward_slash(expansion_hunter_call_repeat_unit):
-        repeat_units = expansion_hunter_call_repeat_unit.split("/")
-        return repeat_units[0].strip(), repeat_units[-1].strip()
-
     non_ref_motifs_df["Motif: Allele 1"], non_ref_motifs_df["Motif: Allele 2"] = zip(
         *non_ref_motifs_df["expansion_hunter_call_repeat_unit"].apply(split_by_forward_slash))
 
     non_ref_motifs_df.loc[:, "Num Repeats: Allele 1"], non_ref_motifs_df.loc[:, "Num Repeats: Allele 2"] = zip(
         *non_ref_motifs_df["expansion_hunter_call_genotype"].apply(split_by_forward_slash))
 
-    non_ref_motifs_df.loc[:, "SampleId"] = non_ref_motifs_df.sample_id.apply(lambda s: s.split(".")[0])
+    non_ref_motifs_df.loc[:, "SampleId"] = non_ref_motifs_df.sample_id.apply(process_sample_id)
     non_ref_motifs_df.loc[:, "LocusId"] = non_ref_motifs_df["locus_id"]
     non_ref_motifs_df.loc[:, "VariantCatalog_Gene"] = non_ref_motifs_df["locus_id"]
     non_ref_motifs_df.loc[:, "VariantId"] = non_ref_motifs_df["locus_id"]
@@ -355,8 +358,8 @@ def add_known_pathogenic_STR_annotations(args, gnomad_json):
         pathogenic_min_thresholds = row["PathogenicMin gnomAD"].split("; ")
         omim_disease_links = row["OMIM Disease Link"].split("; ")
 
-        intermediate_ranges = [row["IntermediateRange (STRipy)"] for _ in disease_symbols]
-        inheritance_modes = [row["InheritanceMode"] for _ in disease_symbols]
+        intermediate_ranges = [row["IntermediateRange (STRipy)"]] * len(disease_symbols)
+        inheritance_modes = [row["InheritanceMode"]] * len(disease_symbols)
 
         for (
             disease_symbol,
@@ -516,7 +519,7 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
         # Get gnomAD fields
         sex_karyotype = row["sex_imputation.sex_karyotype"]
         population = row["population_inference.pop"]
-        age_range = "not available"
+        age_range = "age-not-available"
         if population in POPULATIONS_WITH_AGE_DISPLAYED and age_counter[locus_id, sex_karyotype] < MAX_AGES_TO_DISPLAY_PER_BUCKET:
             age_counter[locus_id, sex_karyotype] += 1
             try:
@@ -524,9 +527,9 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
                 age_lower_bound = AGE_RANGE_SIZE * math.floor(age/float(AGE_RANGE_SIZE))
                 age_upper_bound = AGE_RANGE_SIZE * math.ceil((age + 0.1)/float(AGE_RANGE_SIZE))
                 assert age_lower_bound != age_upper_bound
-                if age_lower_bound <= LOWER_AGE_CUTOFF:
+                if age_upper_bound <= LOWER_AGE_CUTOFF:
                     age_range = f"<{LOWER_AGE_CUTOFF}"
-                if age_lower_bound >= UPPER_AGE_CUTOFF:
+                elif age_lower_bound >= UPPER_AGE_CUTOFF:
                     age_range = f">{UPPER_AGE_CUTOFF}"
                 else:
                     age_range = f"{age_lower_bound}-{age_upper_bound}"
@@ -554,9 +557,9 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
         num_repeats2 = int(num_repeats2)
 
         # Update histogram and scatter plot counts
-        histogram_key1 = f"{population}/{sex_karyotype}/{motif1}"
-        histogram_key2 = f"{population}/{sex_karyotype}/{motif2}"
-        scatter_plot_key = f"{population}/{sex_karyotype}/{motif1}/{motif2}"
+        histogram_key1 = f"{population}/{sex_karyotype}/{age_range}/{motif1}"
+        histogram_key2 = f"{population}/{sex_karyotype}/{age_range}/{motif2}"
+        scatter_plot_key = f"{population}/{sex_karyotype}/{age_range}/{motif1}/{motif2}"
 
         if is_adjacent_repeat:
             data_dict = gnomad_json[locus_id]["AdjacentRepeats"][adjacent_repeat_label]
@@ -583,12 +586,10 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
             original_svg_filename = row["ReadvizFilename"]
             readviz_paths_to_rename.add((original_svg_filename, f"{locus_id}/{encrypted_svg_filename}"))
 
-            order_counter[locus_id] += 1
             if locus_id not in readviz_json:
                 readviz_json[locus_id] = []
 
             readviz_json[locus_id].append({
-                "Order": order_counter[locus_id],
                 "Allele1Motif": motif1,
                 "Allele2Motif": motif2,
                 "Allele1HistogramKey": histogram_key1,
@@ -698,7 +699,6 @@ def validate_json(df, gnomad_json, readviz_json):
         if total_readviz_samples_with_image < (1 - MISSING_READVIZ_ERROR_THRESHOLD) * total_readviz_samples:
             raise ValueError(f"{locus_id}: found {total_readviz_samples_with_image} readviz images. Expected at "
                              f"least {total_readviz_samples}.")
-
 
 
 def export_readviz_rename_list(readviz_paths_to_rename, readviz_rename_list_output_path):
