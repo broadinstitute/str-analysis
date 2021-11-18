@@ -377,8 +377,12 @@ def compute_final_expansion_hunter_results(locus_results_json, output_file_prefi
     to select the longest long allele out of the 2 ExpansionHunter calls, and then select the short allele from the
     other .svg image (the one from the other motif).
 
-    If only 1 motif was detected, then no collapsing is necessary, and this method simply sets output fields to the
+    If only 1 motif was detected, then no collapsing is necessary, and this method just sets output fields to the
     relevant values from the one detected motif.
+
+    If 2 different motifs were detected, but ExpansionHunter wasn't able to call a genotype for one or both of them
+    (for example, due to low coverage), don't try to create a collapsed image, and leave interested users to
+    review the original REViewer images.
     """
     n_motifs = locus_results_json["n_total_well_supported_motifs"]
     if n_motifs == 0:
@@ -402,30 +406,29 @@ def compute_final_expansion_hunter_results(locus_results_json, output_file_prefi
         if ("expansion_hunter_motif1_long_allele_size" not in locus_results_json or
             "expansion_hunter_motif2_long_allele_size" not in locus_results_json):
             # This case can occur when low coverage at this locus prevents ExpansionHunter from outputting a genotype
+            return
+
+        if (
+                int(locus_results_json["expansion_hunter_motif1_long_allele_size"]) <
+                int(locus_results_json["expansion_hunter_motif2_long_allele_size"])
+        ):
             short_allele_motif = "motif1"
             long_allele_motif = "motif2"
-        else:
-            if (
-                    int(locus_results_json["expansion_hunter_motif1_long_allele_size"]) <
-                    int(locus_results_json["expansion_hunter_motif2_long_allele_size"])
+        elif (
+                int(locus_results_json["expansion_hunter_motif1_long_allele_size"]) ==
+                int(locus_results_json["expansion_hunter_motif2_long_allele_size"])
+            ) and (
+                "expansion_hunter_motif1_reviewer_svg" in locus_results_json and
+                "expansion_hunter_motif2_reviewer_svg" in locus_results_json
             ):
-                short_allele_motif = "motif1"
-                long_allele_motif = "motif2"
-            elif (
-                    int(locus_results_json["expansion_hunter_motif1_long_allele_size"]) ==
-                    int(locus_results_json["expansion_hunter_motif2_long_allele_size"])
-                ) and (
-                    "expansion_hunter_motif1_reviewer_svg" in locus_results_json and
-                    "expansion_hunter_motif2_reviewer_svg" in locus_results_json
-                ):
-                long_allele_motif = select_long_allele_based_on_reviewer_images(
-                    locus_results_json["expansion_hunter_motif1_reviewer_svg"],
-                    locus_results_json["expansion_hunter_motif2_reviewer_svg"],
-                )
-                short_allele_motif = "motif1" if long_allele_motif == "motif2" else "motif2"
-            else:
-                short_allele_motif = "motif2"
-                long_allele_motif = "motif1"
+            long_allele_motif = select_long_allele_based_on_reviewer_images(
+                locus_results_json["expansion_hunter_motif1_reviewer_svg"],
+                locus_results_json["expansion_hunter_motif2_reviewer_svg"],
+            )
+            short_allele_motif = "motif1" if long_allele_motif == "motif2" else "motif2"
+        else:
+            short_allele_motif = "motif2"
+            long_allele_motif = "motif1"
 
         locus_results_json["expansion_hunter_call_canonical_repeat_unit"] = "%s / %s" % (
             locus_results_json[f"expansion_hunter_{short_allele_motif}_canonical_repeat_unit"],
