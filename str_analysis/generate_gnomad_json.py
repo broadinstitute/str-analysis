@@ -668,6 +668,8 @@ def sort_keys(gnomad_json):
                     locus_data[histogram_name].items(), key=sort_by_key())
             }
 
+        # This sorts the top level keys, which contain the histogram names above (e.g., AgeDistribution)
+        # and other keys, like "Diseases", "GeneID", "GeneName", etc.
         gnomad_json[locus_id] = {
             key: value for key, value in sorted(gnomad_json[locus_id].items(), key=top_level_sort_order)
         }
