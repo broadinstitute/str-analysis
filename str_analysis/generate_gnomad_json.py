@@ -310,7 +310,7 @@ def add_gene_ids(gnomad_json):
             gnomad_json[locus_id]["GeneId"] = GENE_NAME_TO_GENE_ID[gene_name]
             continue
 
-        # get gene id via the Ensembl API.
+        # Get gene id via the Ensembl API.
         response = None
         while response is None or not response.ok or not response.json():
             print(f"Getting gene id for {gene_name}")
@@ -534,7 +534,7 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
         age = None
         if not pd.isna(row["project_meta.age"]):
             age = float(row["project_meta.age"])
-        elif not pd.isna(row["project_meta.age"]):
+        elif not pd.isna(row["project_meta.age_alt"]):
             age = float(row["project_meta.age_alt"])
 
         if age is None:
@@ -658,11 +658,19 @@ def sort_keys(gnomad_json):
             ("AlleleCountScatterPlot", str),
             ("AgeDistribution", int),
         ):
+            # `histogram_key` here refers to the top level keys in the histogram
+            # For example the "20-25" age range is a `histogram_key` within "AgeDistribution"
+            # Each of the age ranges within "AgeDistribution" has a nested dict. 
+            # e.g., "0" is a key within "20-25": 
+            # gnomad_json["AFF2"]["AgeDistribution"]["20-25"]["0"] = 10
+            # This first `for` loop below sorts these nested dicts (e.g., sorts the dicts within the age range "20-25")
             for histogram_key in locus_data[histogram_name]:
                 locus_data[histogram_name][histogram_key] = {
                     key: value for key, value in sorted(
                         locus_data[histogram_name][histogram_key].items(), key=sort_by_key(key_type=histogram_key_type))
                 }
+            # This sorts the `histogram_key` values
+            # e.g, this sorts "20-25", "25-30", "30-35", etc. within "AgeDistribution" 
             locus_data[histogram_name] = {
                 key: value for key, value in sorted(
                     locus_data[histogram_name].items(), key=sort_by_key())

@@ -8,8 +8,8 @@ def export_json(json_data, local_output_path, google_storage_dir=None):
 
     Args:
         json_data (dict or list): The .json structure to write out.
-        local_output_path (str): Local output path where to write the json data.
-        google_storage_dir (str): Optional "gs://" directory path where to copy the local json file after it's written.
+        local_output_path (str): Local output path (where to write the json data).
+        google_storage_dir (str): Optional "gs://" directory path to copy the local json file to after it's written.
     """
 
     if google_storage_dir and not google_storage_dir.startswith("gs://"):
