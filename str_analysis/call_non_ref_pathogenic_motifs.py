@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from str_analysis.utils.strling_info_for_locus import parse_strling_info_for_locus
 
 DESCRIPTION = """This script takes a bam or cram file and determines which motifs are present at known pathogenic loci 
 (such as RFC1, BEAN1, DAB1, etc.) where several motifs are known to segregate in the population. It then optionally runs
@@ -17,6 +18,7 @@ import os
 import pkgutil
 import re
 import subprocess
+import pandas as pd
 from pprint import pformat, pprint
 
 import pysam
@@ -103,22 +105,28 @@ def parse_args():
     p.add_argument("-s", "--sample-id", help="The sample id to put in the output json file. If not specified, it "
         "will be retrieved from the bam/cram header or filename prefix.")
 
-    p.add_argument("--use-offtarget-regions", action="store_true", help="Optionally use off-target regions when "
-        "counting reads that support a motif, and when running ExpansionHunter.")
+    p.add_argument("--strling-genotype-table", help="Optionally provide an existing STRling output file for this "
+        "sample. If specified, the script will skip running STRling.")
+    p.add_argument("--strling-path", help="The path of the STRling executable to use.", default="STRling")
+    p.add_argument("--strling-reference-index", help="Optionally provide the pathe of a pre-computed STRling reference "
+        "index file. If provided, it will save a step and allow STRling to complete faster.")
+
+    p.add_argument("--expansion-hunter-denovo-profile", help="Optionally copy information relevant to the locus "
+        "from this ExpansionHunterDenovo profile to the output json. This is instead of --run-expansion-hunter-denovo.")
     p.add_argument("--run-expansion-hunter-denovo", action="store_true", help="Optionally run ExpansionHunterDenovo "
         "and copy information relevant to the locus from ExpansionHunterDenovo results to the output json.")
     p.add_argument("--expansion-hunter-denovo-path", help="The path of the ExpansionHunterDenovo executable to use "
-        "when --expansion-hunter-denovo-path is specified.", default="ExpansionHunterDenovo")
-    p.add_argument("--expansion-hunter-denovo-profile", help="Optionally copy information relevant to the locus "
-        "from this ExpansionHunterDenovo profile to the output json. This is instead of --run-expansion-hunter-denovo.")
+        "if --run-expansion-hunter-denovo is specified.", default="ExpansionHunterDenovo")
 
     p.add_argument("--run-expansion-hunter", action="store_true", help="If this option is specified, this "
          "script will run ExpansionHunter once for each of the motif(s) it detects at the locus. "
          "ExpansionHunter doesn't currently support genotyping multiallelic repeats such as RFC1 where "
          "an individual may have 2 alleles with motifs that differ from each other (and from the reference motif). "
          "Running ExpansionHunter separately for each motif provides a work-around.")
-    p.add_argument("--expansion-hunter-path", help="The path of the ExpansionHunter executable to use if --run-expansion-hunter is "
-        "specified. This must be ExpansionHunter version 3 or greater.", default="ExpansionHunter")
+    p.add_argument("--expansion-hunter-path", help="The path of the ExpansionHunter executable to use if "
+        "--run-expansion-hunter is specified. This must be ExpansionHunter version 3 or greater.", default="ExpansionHunter")
+    p.add_argument("--use-offtarget-regions", action="store_true", help="Optionally use off-target regions when "
+        "counting reads that support a motif, and when running ExpansionHunter.")
 
     grp = p.add_mutually_exclusive_group()
     grp.add_argument("--run-reviewer", action="store_true", help="Run the REViewer tool to visualize "
@@ -618,6 +626,42 @@ def combine_reviewer_images(short_allele_image_path, long_allele_image_path, out
     return output_file_path
 
 
+def run_strling(args):
+    """Run STRling.
+
+    Arguments:
+        args (object): command-line arguments from argparse
+
+    Return:
+        Path of STRling *-genotype.txt output file.
+    """
+    print("--"*10)
+    print(f"Running STRling on {args.sample_id}")
+    output_prefix = f"{args.sample_id}.strling"
+
+    bin_file_output_path = f"{output_prefix}.bin"
+    if not os.path.isfile(bin_file_output_path):
+        strling_extract_command = f"{args.strling_path} extract -f {args.reference_fasta} "
+        if args.strling_reference_index:
+            strling_extract_command += f"-g {args.strling_reference_index} "
+        strling_extract_command += f"{args.bam_or_cram_path} {bin_file_output_path}"
+
+        run(strling_extract_command, verbose=args.verbose)
+
+    genotype_file_output_path = f"{output_prefix}-genotype.txt"
+    if not os.path.isfile(genotype_file_output_path):
+        strling_call_command = f"{args.strling_path} call -f {args.reference_fasta} -o {output_prefix} "
+        if args.strling_reference_index:
+            strling_call_command += f"-g {args.strling_reference_index} "
+        strling_call_command += f"{args.bam_or_cram_path} {bin_file_output_path}"
+
+        run(strling_call_command, verbose=args.verbose)
+        if not os.path.isfile(genotype_file_output_path):
+            raise ChildProcessError(f"STRling 'call' command didn't produce a {genotype_file_output_path} file.")
+
+    return genotype_file_output_path
+
+
 def run_expansion_hunter_denovo(args):
     """Run ExpansionHunterDenovo.
 
@@ -799,12 +843,20 @@ def process_offtarget_regions(
     })
 
 
-def process_locus(locus_id, args, normalize_to_coverage=NORMALIZE_TO_COVERAGE, min_read_support=MIN_READ_SUPPORT):
+def process_locus(
+        locus_id,
+        args,
+        strling_genotype_df=None,
+        expansion_hunter_denovo_json=None,
+        normalize_to_coverage=NORMALIZE_TO_COVERAGE,
+        min_read_support=MIN_READ_SUPPORT):
     """Compute results for a single locus and write them to a json file.
 
     Args:
         locus_id (str): Locus id
         args (object): Command-line args from argparse.
+        strling_genotype_df (pd.DataFrame): parsed STRling genotypes table
+        expansion_hunter_denovo_json (dict): optional parsed ExpansionHunterDenovo profile json
         normalize_to_coverage (int): Normalize to this mean coverage. For example = 40 means normalize to 40x coverage.
         min_read_support (int): Ignore motifs supported by fewer than this many reads.
     """
@@ -953,6 +1005,27 @@ def process_locus(locus_id, args, normalize_to_coverage=NORMALIZE_TO_COVERAGE, m
 
     print(f"Final call: {final_call}")
 
+    # Process STRling results
+    if strling_genotype_df is not None:
+        strling_records = parse_strling_info_for_locus(strling_genotype_df, locus_chrom, locus_start_0based, locus_end)
+        for i in 0, 1:
+            record = {}
+            if i < len(strling_records):
+                record = strling_records[i]
+            elif i > 0:
+                break
+
+            motif_number = i + 1
+            locus_results_json.update({
+                f"strling_motif{motif_number}_repeat_unit": record.get("repeatunit"),
+                f"strling_motif{motif_number}_allele1_est": record.get("allele1_est"),
+                f"strling_motif{motif_number}_allele2_est": record.get("allele2_est"),
+                f"strling_motif{motif_number}_spanning_reads": record.get("spanning_reads"),
+                f"strling_motif{motif_number}_spanning_pairs": record.get("spanning_pairs"),
+                f"strling_motif{motif_number}_anchored_reads": record.get("anchored_reads"),
+                f"strling_motif{motif_number}_unplaced_pairs": record.get("unplaced_pairs"),
+            })
+
     # Run ExpansionHunter if requested
     if args.run_expansion_hunter:
         run_expansion_hunter(
@@ -967,31 +1040,27 @@ def process_locus(locus_id, args, normalize_to_coverage=NORMALIZE_TO_COVERAGE, m
             use_offtarget_regions=use_offtarget_regions,
         )
 
-    # Process EHdn profile if one was provided
-    if args.expansion_hunter_denovo_profile:
-        print(f"Parsing {args.expansion_hunter_denovo_profile}")
-        open_func = gzip.open if args.expansion_hunter_denovo_profile.endswith("gz") else open
-        with open_func(args.expansion_hunter_denovo_profile, "rt") as f:
-            expansion_hunter_denovo_json = json.load(f)
+    # Process EHdn profile if one was provided or computed
+    if expansion_hunter_denovo_json:
 
-        records, sample_read_depth, _ = parse_ehdn_info_for_locus(
-            expansion_hunter_denovo_json, locus_chrom, locus_start_0based, locus_end) 
+        ehdn_records, sample_read_depth, _ = parse_ehdn_info_for_locus(
+            expansion_hunter_denovo_json, locus_chrom, locus_start_0based, locus_end)
 
         locus_results_json["ehdn_sample_read_depth"] = sample_read_depth
 
         # Get the 2 motifs with the most read support
         # NOTE: Here "irr" refers to "In-Repeat Read" (see [Dolzhenko 2017] for details).
-        records.sort(key=lambda r: (
+        ehdn_records.sort(key=lambda r: (
             -r["anchored_irr_count_for_this_repeat_unit_and_region"],
             -r["total_irr_count_for_this_repeat_unit_and_region"],
             r["repeat_unit"],
         ))
 
         for i in 0, 1:
-            if i >= len(records):
-                continue
+            if i >= len(ehdn_records):
+                break
 
-            record = records[i]
+            record = ehdn_records[i]
             motif_number = i + 1
             locus_results_json.update({
                 f"ehdn_motif{motif_number}_repeat_unit": record.get("repeat_unit"),
@@ -1046,8 +1115,25 @@ def main():
 
     args.output_prefix = args.output_prefix or args.sample_id
 
+    if not args.strling_genotype_table:
+        # Always run STRling unless the STRling genotype table was provide as an arg.
+        args.strling_genotype_table = run_strling(args)
+
+    print(f"Parsing {args.strling_genotype_table}")
+    strling_genotype_df = pd.read_table(args.strling_genotype_table)
+    strling_genotype_df.rename(columns={"#chrom": "chrom", "right": "end_1based"}, inplace=True)
+    strling_genotype_df.loc[:, "start_1based"] = strling_genotype_df["left"] + 1
+    strling_genotype_df.drop(columns=["left"], inplace=True)
+
     if args.run_expansion_hunter_denovo:
         args.expansion_hunter_denovo_profile = run_expansion_hunter_denovo(args)
+
+    expansion_hunter_denovo_json = None
+    if args.expansion_hunter_denovo_profile:
+        print(f"Parsing {args.expansion_hunter_denovo_profile}")
+        open_func = gzip.open if args.expansion_hunter_denovo_profile.endswith("gz") else open
+        with open_func(args.expansion_hunter_denovo_profile, "rt") as f:
+            expansion_hunter_denovo_json = json.load(f)
 
     if args.locus:
         loci = args.locus
@@ -1058,7 +1144,11 @@ def main():
 
     for locus_id in loci:
         print(f"Processing {locus_id} in {args.bam_or_cram_path}")
-        process_locus(locus_id, args)
+        process_locus(
+            locus_id,
+            args,
+            strling_genotype_df=strling_genotype_df,
+            expansion_hunter_denovo_json=expansion_hunter_denovo_json)
 
 
 if __name__ == "__main__":
