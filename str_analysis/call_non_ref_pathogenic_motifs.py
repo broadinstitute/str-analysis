@@ -105,15 +105,19 @@ def parse_args():
     p.add_argument("-s", "--sample-id", help="The sample id to put in the output json file. If not specified, it "
         "will be retrieved from the bam/cram header or filename prefix.")
 
-    p.add_argument("--strling-genotype-table", help="Optionally provide an existing STRling output file for this "
+    grp = p.add_mutually_exclusive_group()
+    grp.add_argument("--strling-genotype-table", help="Optionally provide an existing STRling output file for this "
         "sample. If specified, the script will skip running STRling.")
+    grp.add_argument("--run-strling", action="store_true", help="Optionally run STRling and copy information relevant "
+        "to the locus from the STRling results to the json output file.")
     p.add_argument("--strling-path", help="The path of the STRling executable to use.", default="STRling")
     p.add_argument("--strling-reference-index", help="Optionally provide the pathe of a pre-computed STRling reference "
         "index file. If provided, it will save a step and allow STRling to complete faster.")
 
-    p.add_argument("--expansion-hunter-denovo-profile", help="Optionally copy information relevant to the locus "
+    grp = p.add_mutually_exclusive_group()
+    grp.add_argument("--expansion-hunter-denovo-profile", help="Optionally copy information relevant to the locus "
         "from this ExpansionHunterDenovo profile to the output json. This is instead of --run-expansion-hunter-denovo.")
-    p.add_argument("--run-expansion-hunter-denovo", action="store_true", help="Optionally run ExpansionHunterDenovo "
+    grp.add_argument("--run-expansion-hunter-denovo", action="store_true", help="Optionally run ExpansionHunterDenovo "
         "and copy information relevant to the locus from ExpansionHunterDenovo results to the output json.")
     p.add_argument("--expansion-hunter-denovo-path", help="The path of the ExpansionHunterDenovo executable to use "
         "if --run-expansion-hunter-denovo is specified.", default="ExpansionHunterDenovo")
@@ -375,8 +379,7 @@ def run_expansion_hunter(
 
 
 def compute_final_expansion_hunter_results(locus_results_json, output_file_prefix):
-    """
-    Select output fields from ExpansionHunter.
+    """Select output fields from ExpansionHunter.
     
     If 2 different motifs were detected at the STR locus, then ExpansionHunter is run separately for each motif. This
     results in 2 diploid ExpansionHunter genotypes (one for each motif), as well as two separate REViewer images.
@@ -484,35 +487,55 @@ class ParseError(Exception):
     pass
 
 
-def get_reviewer_image_section(s, get_short_allele_image):
-    """Extract either the upper panel (short allele) or lower panel (long allele) of the REViewer image.
+def get_reviewer_image_section(svg_image_contents, section="both", insert_title=None):
+    """Extract the upper panel (short allele), lower panel (long allele), or both panels of the REViewer image.
     The panels start with this line tag:
     <line x1="510" y1="386" x2="11710" y2="386" stroke="black" marker-start="url(#arrow)" marker-end="url(#arrow)" />
     so split on that. Also, handle hemizygous genotypes which only have 1 allele and one REViewer image panel.
+
+    Args:
+        svg_image_contents (str): REViewer .svg image file contents.
+        section (str): "both-alleles", "short-allele", or "long-allele"
+        insert_title (str): optional text to add to the top-left of the image
+
+    Return:
+        3-tuple: section contents (str), start_y_coordinate (int), end_y_coordinate (int)
     """
 
-    s = s.replace("</svg>", "").split("</defs>")[-1]
-    matches = list(re.finditer("<line[^>]+y1=\"(\d+)\"[^>]+#arrow[^>]+>", s, re.DOTALL))
+    valid_section_values = ("both-alleles", "short-allele", "long-allele")
+
+    svg_image_contents_without_defs = svg_image_contents.replace("</svg>", "").split("</defs>")[-1]
+    matches = list(re.finditer("<line[^>]+y1=\"(\d+)\"[^>]+#arrow[^>]+>", svg_image_contents_without_defs, re.DOTALL))
     if len(matches) == 0:
         return "", 0, 0
 
-    if len(matches) == 1:
-        section = s
+    if len(matches) == 1 or section == "both-alleles":
+        section_contents = svg_image_contents_without_defs
         start_y_coord = int(matches[0].group(1))
-    elif get_short_allele_image:
-        section = s[matches[0].start():matches[1].start()]
+    elif section == "short-allele":
+        section_contents = svg_image_contents_without_defs[matches[0].start():matches[1].start()]
         start_y_coord = int(matches[0].group(1))
-    else:
-        section = s[matches[1].start():]
+    elif section == "long-allele":
+        section_contents = svg_image_contents_without_defs[matches[1].start():]
         start_y_coord = int(matches[1].group(1))
+    else:
+        raise ValueError(f"'section' arg is {section}. It must be one of " + ", ".join(valid_section_values))
+
+    if insert_title:
+        section_contents = f"""
+        <text x="10" y="11" dy="0.25em" text-anchor="left" font-family="monospace" font-size="13px" style="stroke:white; stroke-width:1.0em" >
+            {insert_title}
+        </text>
+        {section_contents}
+        """
 
     # Get the last y-coord in this section
     y_margin = 10  # include some padding around the image features
     end_y_coord = start_y_coord
-    for match in re.finditer("<[^>]+y=\"(\d+)\"[^>]+fill[^>]+>", section, re.DOTALL):
+    for match in re.finditer("<[^>]+y=\"(\d+)\"[^>]+fill[^>]+>", section_contents, re.DOTALL):
         end_y_coord = max(int(match.group(1)) + y_margin, end_y_coord)
 
-    return section, start_y_coord, end_y_coord
+    return section_contents, start_y_coord, end_y_coord
 
 
 def select_long_allele_based_on_reviewer_images(reviewer_image_path_motif1, reviewer_image_path_motif2):
@@ -531,8 +554,7 @@ def select_long_allele_based_on_reviewer_images(reviewer_image_path_motif1, revi
     """
 
     def compute_normalized_interruption_count(reviewer_image_contents, short_allele=False):
-        panel_contents, start_y, end_y = get_reviewer_image_section(
-            reviewer_image_contents, get_short_allele_image=short_allele)
+        panel_contents, start_y, end_y = get_reviewer_image_section(reviewer_image_contents, section="short-allele")
 
         # Rough read depth estimate based on vertical size of the svg image section
         denominator = end_y - start_y
@@ -561,39 +583,35 @@ def select_long_allele_based_on_reviewer_images(reviewer_image_path_motif1, revi
         return "motif1"
 
 
-def combine_reviewer_images(short_allele_image_path, long_allele_image_path, output_file_path):
-    """
-    Finalize REViewer image by combining the short and long allele panels into a single image. 
+def combine_reviewer_images(motif1_image_path, motif2_image_path, output_file_path):
+    """Finalize REViewer image by concatenating the motif1 and motif2 images into a single image.
     
-    .svg images generated by REViewer usually have 2 sections - the top one shows reads that support the short
-    allele, and the bottom one shows reads that support the long allele. For chrX loci in a male sample, the image
-    contains only 1 panel representing the hemizygous haplotype, but this method doesn't currently support this scenario
+    .svg images generated by REViewer usually have 2 sections - the upper one shows reads that support the short
+    allele, and the lower one shows reads that support the long allele. For chrX loci in a male sample, the image
+    contains only 1 section representing the hemizygous haplotype.
 
-    This method takes the .svg image paths of two REViewer visualizations and writes out a new image that
-    contains one panel from each of the input images - specifically the top panel from "short_allele_image_path"
-    and the bottom (or only) panel from the "long_allele_image_path". This allows combining 2 REViewer images
-    representing 2 different motifs into a single visualization of a heterozygous genotype where one haplotype
-    contains one motif and the 2nd haplotype contains another.
+    This method takes the .svg image paths of the two REViewer visualizations (for motif1 and motif2) and concatenates
+    them into a single image.
 
     Args:
-        short_allele_image_path (str): Path of .svg image generated by REViewer. The output image will include the top panel of this image.
-        long_allele_image_path (str): Path of .svg image generated by REViewer. The output image will include the bottom panel of this image.
+        motif1_image_path (str): Path of .svg image generated by REViewer after running ExpansionHunter for motif1.
+        motif2_image_path (str): Path of .svg image generated by REViewer after running ExpansionHunter for motif2.
         output_file_path (str): Where to write the combined .svg image.
 
     Returns:
         str: Returns the output_file_path which is the same as the "output_file_path" arg.
     """
     # parse svg tag
-    with open(short_allele_image_path, "rt") as f:
-        short_allele_svg_tag = f.readline()
-        short_allele_contents = f.read()
+    with open(motif1_image_path, "rt") as f:
+        motif1_svg_tag = f.readline()
+        motif1_svg_image_contents = f.read()
 
-    with open(long_allele_image_path, "rt") as f:
-        long_allele_svg_tag = f.readline()
-        long_allele_contents = f.read()
+    with open(motif2_image_path, "rt") as f:
+        motif2_svg_tag = f.readline()
+        motif2_svg_image_contents = f.read()
 
     final_width = 0
-    for svg_tag in short_allele_svg_tag, long_allele_svg_tag:
+    for svg_tag in motif1_svg_tag, motif2_svg_tag:
         match = re.search("""<svg width="(\d+)" height="(\d+)".+>""", svg_tag)
         if not match:
             raise ParseError(f"Unable to parse svg tag: {svg_tag}")
@@ -601,25 +619,27 @@ def combine_reviewer_images(short_allele_image_path, long_allele_image_path, out
         svg_width, svg_height = map(int, match.groups())
         final_width = max(final_width, svg_width)
 
-    match = re.search("<defs>.+?</defs>", short_allele_contents, re.DOTALL)
+    match = re.search("<defs>.+?</defs>", motif1_svg_image_contents, re.DOTALL)
     if not match:
-        raise ParseError(f"Unable to parse defs tag from {short_allele_image_path}")
+        raise ParseError(f"Unable to parse defs tag from {motif1_image_path}")
     defs = match.group(0)
 
-    short_allele_contents, start1_y, end1_y = get_reviewer_image_section(short_allele_contents, get_short_allele_image=True)
-    long_allele_contents, start2_y, end2_y = get_reviewer_image_section(long_allele_contents, get_short_allele_image=False)
+    motif1_contents, start1_y, end1_y = get_reviewer_image_section(motif1_svg_image_contents, section="both-alleles")
+    motif2_contents, start2_y, end2_y = get_reviewer_image_section(motif2_svg_image_contents, section="both-alleles")
 
     height_margin = 150  # Increase the overall image height to avoid cropping the visualizations.
     final_height = (end1_y - start1_y) + (end2_y - start2_y) + height_margin
 
-    long_allele_y_offset = 50  # Sets the vertical position of the long allele visualization in pixels.
+    motif2_y_offset = 50  # Sets the vertical position of the motif2 visualization in pixels.
     with open(output_file_path, "wt") as f:
         f.write(f"""<svg width="{final_width}" height="{final_height}" xmlns="http://www.w3.org/2000/svg">""")
         f.write(defs)
-        f.write(short_allele_contents)
-        # Shift the long allele panel vertically so it appears just below the short allele panel
-        f.write("""<g transform="translate(0,%s)">""" % (end1_y - start2_y + long_allele_y_offset))
-        f.write(long_allele_contents)
+        f.write(motif1_contents)
+        # Shift the motif2 panel vertically so it appears just below the motif1 panel
+        line_y_coord = end1_y - start2_y + motif2_y_offset/2
+        f.write(f"""<line x1="0" y1="{line_y_coord}" x2="{final_width}" y2="{line_y_coord}" stroke="black" stroke-width="5" />""")
+        f.write("""<g transform="translate(0,%s)">""" % (end1_y - start2_y + motif2_y_offset))
+        f.write(motif2_contents)
         f.write("</g>")
         f.write("</svg>")
 
@@ -650,10 +670,10 @@ def run_strling(args):
 
     genotype_file_output_path = f"{output_prefix}-genotype.txt"
     if not os.path.isfile(genotype_file_output_path):
-        strling_call_command = f"{args.strling_path} call -f {args.reference_fasta} -o {output_prefix} "
-        if args.strling_reference_index:
-            strling_call_command += f"-g {args.strling_reference_index} "
-        strling_call_command += f"{args.bam_or_cram_path} {bin_file_output_path}"
+        strling_call_command = (
+            f"{args.strling_path} call -f {args.reference_fasta} -o {output_prefix} "
+            f"{args.bam_or_cram_path} {bin_file_output_path}"
+        )
 
         run(strling_call_command, verbose=args.verbose)
         if not os.path.isfile(genotype_file_output_path):
@@ -855,7 +875,7 @@ def process_locus(
     Args:
         locus_id (str): Locus id
         args (object): Command-line args from argparse.
-        strling_genotype_df (pd.DataFrame): parsed STRling genotypes table
+        strling_genotype_df (pd.DataFrame): optional parsed STRling genotypes table
         expansion_hunter_denovo_json (dict): optional parsed ExpansionHunterDenovo profile json
         normalize_to_coverage (int): Normalize to this mean coverage. For example = 40 means normalize to 40x coverage.
         min_read_support (int): Ignore motifs supported by fewer than this many reads.
@@ -1018,6 +1038,8 @@ def process_locus(
             motif_number = i + 1
             locus_results_json.update({
                 f"strling_motif{motif_number}_repeat_unit": record.get("repeatunit"),
+                f"strling_motif{motif_number}_start_1based": record.get("left"),
+                f"strling_motif{motif_number}_end_1based": record.get("right"),
                 f"strling_motif{motif_number}_allele1_est": record.get("allele1_est"),
                 f"strling_motif{motif_number}_allele2_est": record.get("allele2_est"),
                 f"strling_motif{motif_number}_spanning_reads": record.get("spanning_reads"),
@@ -1115,15 +1137,16 @@ def main():
 
     args.output_prefix = args.output_prefix or args.sample_id
 
-    if not args.strling_genotype_table:
-        # Always run STRling unless the STRling genotype table was provide as an arg.
+    if args.run_strling:
         args.strling_genotype_table = run_strling(args)
 
-    print(f"Parsing {args.strling_genotype_table}")
-    strling_genotype_df = pd.read_table(args.strling_genotype_table)
-    strling_genotype_df.rename(columns={"#chrom": "chrom", "right": "end_1based"}, inplace=True)
-    strling_genotype_df.loc[:, "start_1based"] = strling_genotype_df["left"] + 1
-    strling_genotype_df.drop(columns=["left"], inplace=True)
+    strling_genotype_df = None
+    if args.strling_genotype_table:
+        print(f"Parsing {args.strling_genotype_table}")
+        strling_genotype_df = pd.read_table(args.strling_genotype_table)
+        strling_genotype_df.rename(columns={"#chrom": "chrom", "right": "end_1based"}, inplace=True)
+        strling_genotype_df.loc[:, "start_1based"] = strling_genotype_df["left"] + 1
+        strling_genotype_df.drop(columns=["left"], inplace=True)
 
     if args.run_expansion_hunter_denovo:
         args.expansion_hunter_denovo_profile = run_expansion_hunter_denovo(args)
