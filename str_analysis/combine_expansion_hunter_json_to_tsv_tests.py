@@ -216,6 +216,7 @@ class Tests(unittest.TestCase):
             variant_catalog_contents=VARIANT_CATALOG_CONTENTS,
             json_file_path="",
             return_allele_records=False,
+            include_all_fields=True,
         )
         self.assertEqual(len(variant_rows), 4)
         for row in variant_rows:
@@ -255,6 +256,7 @@ class Tests(unittest.TestCase):
             variant_catalog_contents=VARIANT_CATALOG_CONTENTS,
             json_file_path="/temp/file.json",
             return_allele_records=True,
+            include_all_fields=True,
         )
         self.assertEqual(len(allele_rows), 7)
         for row in allele_rows:

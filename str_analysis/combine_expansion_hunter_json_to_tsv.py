@@ -41,6 +41,12 @@ def parse_args(args_list=None):
              "will be tried."
     )
     p.add_argument(
+        "--include-all-fields",
+        action="store_true",
+        help="If specified, all fields from the ExpansionHunter will be added."
+    )
+
+    p.add_argument(
         "-o",
         "--output-prefix",
         help="Combined table output filename prefix",
@@ -121,6 +127,7 @@ def main():
                 json_contents = parse_json_file(json_path)
             except Exception as e:
                 logging.info(f"Skipping {json_path}... Unable to parse json: {e}")
+                continue
 
             if not isinstance(json_contents, dict) or "SampleParameters" not in json_contents:
                 logging.info(f"Skipping {json_path}... Expected key 'SampleParameters' not found.")
@@ -133,6 +140,7 @@ def main():
                 sample_metadata_lookup_counters=sample_metadata_lookup_counters,
                 json_file_path=json_path,
                 return_allele_records=False,
+                include_all_fields=args.include_all_fields,
             ):
                 if just_get_header:
                     variant_table_columns.extend([k for k in record.keys() if k not in variant_table_columns])
@@ -149,6 +157,7 @@ def main():
                 sample_metadata_lookup=sample_metadata_lookup,
                 json_file_path=json_path,
                 return_allele_records=True,
+                include_all_fields=args.include_all_fields,
             ):
                 if just_get_header:
                     allele_table_columns.extend([k for k in record.keys() if k not in allele_table_columns])
@@ -220,6 +229,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
     variant_info=None,
     json_file_path="",
     return_allele_records=True,
+    include_all_fields=False,
 ):
     """Converts a dictionary that represents the contents of an ExpansionHunter v3 or v4 json output file to
     a dictionary of tsv column values.
@@ -233,7 +243,8 @@ def convert_expansion_hunter_json_to_tsv_columns(
             ability to find samples in sample_metadata_lookup
         variant_info (dict): if provided, results will be added to this dict. Otherwise, a new dict will be created.
         json_file_path (str): if provided, it will be added as a field to the output table, and also used for logging
-        return_allele_records (bool): if True, the result dict will have..
+        return_allele_records (bool): if True, the returned list will have one record per allele rather than per variant
+        include_all_fields (bool): if True, include all fields in the returned records, not just the basic ones.
 
     Returns:
         list: a list of tsv rows
@@ -321,23 +332,24 @@ def convert_expansion_hunter_json_to_tsv_columns(
             variant_record["RepeatUnitLength"] = len(variant_json["RepeatUnit"])
             variant_record["ReferenceRegion"] = variant_json["ReferenceRegion"]
 
-            variant_record["CountsOfSpanningReads"] = variant_json["CountsOfSpanningReads"]
-            variant_record["CountsOfFlankingReads"] = variant_json["CountsOfFlankingReads"]
-            variant_record["CountsOfInrepeatReads"] = variant_json["CountsOfInrepeatReads"]
+            if include_all_fields:
+                variant_record["CountsOfSpanningReads"] = variant_json["CountsOfSpanningReads"]
+                variant_record["CountsOfFlankingReads"] = variant_json["CountsOfFlankingReads"]
+                variant_record["CountsOfInrepeatReads"] = variant_json["CountsOfInrepeatReads"]
 
-            spanning_read_tuples = parse_read_count_tuples(variant_json["CountsOfSpanningReads"])
-            flanking_read_tuples = parse_read_count_tuples(variant_json["CountsOfFlankingReads"])
-            inrepeat_read_tuples = parse_read_count_tuples(variant_json["CountsOfInrepeatReads"])
+                spanning_read_tuples = parse_read_count_tuples(variant_json["CountsOfSpanningReads"])
+                flanking_read_tuples = parse_read_count_tuples(variant_json["CountsOfFlankingReads"])
+                inrepeat_read_tuples = parse_read_count_tuples(variant_json["CountsOfInrepeatReads"])
 
-            variant_record["NumSpanningReads"] = sum(t[1] for t in spanning_read_tuples)
-            variant_record["NumFlankingReads"] = sum(t[1] for t in flanking_read_tuples)
-            variant_record["NumInrepeatReads"] = sum(t[1] for t in inrepeat_read_tuples)
-            variant_record["NumReadsTotal"] = sum([variant_record[k] for k in ("NumSpanningReads", "NumFlankingReads", "NumInrepeatReads")])
+                variant_record["NumSpanningReads"] = sum(t[1] for t in spanning_read_tuples)
+                variant_record["NumFlankingReads"] = sum(t[1] for t in flanking_read_tuples)
+                variant_record["NumInrepeatReads"] = sum(t[1] for t in inrepeat_read_tuples)
+                variant_record["NumReadsTotal"] = sum([variant_record[k] for k in ("NumSpanningReads", "NumFlankingReads", "NumInrepeatReads")])
 
-            variant_record["NumAllelesSupportedBySpanningReads"] = len(spanning_read_tuples)
-            variant_record["NumAllelesSupportedByFlankingReads"] = len(flanking_read_tuples)
-            variant_record["NumAllelesSupportedByInrepeatReads"] = len(inrepeat_read_tuples)
-            variant_record["NumAllelesSupportedTotal"] = sum([variant_record[k] for k in ("NumAllelesSupportedBySpanningReads", "NumAllelesSupportedByFlankingReads", "NumAllelesSupportedByInrepeatReads")])
+                variant_record["NumAllelesSupportedBySpanningReads"] = len(spanning_read_tuples)
+                variant_record["NumAllelesSupportedByFlankingReads"] = len(flanking_read_tuples)
+                variant_record["NumAllelesSupportedByInrepeatReads"] = len(inrepeat_read_tuples)
+                variant_record["NumAllelesSupportedTotal"] = sum([variant_record[k] for k in ("NumAllelesSupportedBySpanningReads", "NumAllelesSupportedByFlankingReads", "NumAllelesSupportedByInrepeatReads")])
 
             variant_record["Genotype"] = variant_json["Genotype"]
             variant_record["GenotypeConfidenceInterval"] = variant_json["GenotypeConfidenceInterval"]
@@ -362,19 +374,20 @@ def convert_expansion_hunter_json_to_tsv_columns(
                 allele_record[f"CI end{suffix}"] = int(confidence_interval_end)
                 allele_record[f"CI size{suffix}"] = int(confidence_interval_end) - int(confidence_interval_start)
 
-                is_homozygous = len(genotype_tuples) > 1 and genotype_tuples[0][0] == genotype_tuples[1][0]
-                divisor = 2 if is_homozygous else 1
-                allele_record[f"NumSpanningReadsThatSupportGenotype{suffix}"] = sum(t[1] for t in spanning_read_tuples if t[0] == int(genotype)) / divisor
-                allele_record[f"NumFlankingReadsThatSupportGenotype{suffix}"] = sum(t[1] for t in flanking_read_tuples if t[0] == int(genotype)) / divisor
-                allele_record[f"NumInrepeatReadsThatSupportGenotype{suffix}"] = sum(t[1] for t in inrepeat_read_tuples if t[0] == int(genotype)) / divisor
-                allele_record[f"NumReadsTotalThatSupportGenotype{suffix}"] = (
-                    allele_record[f"NumSpanningReadsThatSupportGenotype{suffix}"] +
-                    allele_record[f"NumFlankingReadsThatSupportGenotype{suffix}"] +
-                    allele_record[f"NumInrepeatReadsThatSupportGenotype{suffix}"]
-                )
-                allele_record[f"FractionOfReadsThatSupportsGenotype{suffix}"] = (
-                    allele_record[f"NumReadsTotalThatSupportGenotype{suffix}"] / float(allele_record["NumReadsTotal"]) if int(allele_record["NumReadsTotal"]) > 0 else 0
-                )
+                if include_all_fields:
+                    is_homozygous = len(genotype_tuples) > 1 and genotype_tuples[0][0] == genotype_tuples[1][0]
+                    divisor = 2 if is_homozygous else 1
+                    allele_record[f"NumSpanningReadsThatSupportGenotype{suffix}"] = sum(t[1] for t in spanning_read_tuples if t[0] == int(genotype)) / divisor
+                    allele_record[f"NumFlankingReadsThatSupportGenotype{suffix}"] = sum(t[1] for t in flanking_read_tuples if t[0] == int(genotype)) / divisor
+                    allele_record[f"NumInrepeatReadsThatSupportGenotype{suffix}"] = sum(t[1] for t in inrepeat_read_tuples if t[0] == int(genotype)) / divisor
+                    allele_record[f"NumReadsTotalThatSupportGenotype{suffix}"] = (
+                        allele_record[f"NumSpanningReadsThatSupportGenotype{suffix}"] +
+                        allele_record[f"NumFlankingReadsThatSupportGenotype{suffix}"] +
+                        allele_record[f"NumInrepeatReadsThatSupportGenotype{suffix}"]
+                    )
+                    allele_record[f"FractionOfReadsThatSupportsGenotype{suffix}"] = (
+                        allele_record[f"NumReadsTotalThatSupportGenotype{suffix}"] / float(allele_record["NumReadsTotal"]) if int(allele_record["NumReadsTotal"]) > 0 else 0
+                    )
 
                 if return_allele_records:
                     records_to_return.append(allele_record)
