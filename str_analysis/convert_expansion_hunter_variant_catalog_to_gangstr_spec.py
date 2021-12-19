@@ -63,8 +63,6 @@ def process_variant_catalog(variant_catalog_path, output_file_path):
                     ",".join(offtarget_regions) if variant_type == "RareRepeat" else "",
                 ])) + "\n")
 
-                f.write("\t".join(map(str, [chrom, start_0based, end_1based, locus_structure, "."])) + "\n")
-
     print(f"Wrote out {output_file_path}")
 
 
