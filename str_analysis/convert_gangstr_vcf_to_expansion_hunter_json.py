@@ -121,7 +121,7 @@ def process_gangstr_vcf(vcf_path):
                 end = info_dict["END"]
                 ref_repeat_count = int(info_dict["REF"])
 
-                locus_id = f"{chrom}-{start_1based - 1}-{end}-{repeat_unit}"
+                locus_id = f"{chrom}-{int(start_1based) - 1}-{end}-{repeat_unit}"
                 locus_results["LocusResults"][locus_id] = {
                     "AlleleCount": genotype_dict["REPCN"].count(",") + 1,
                     "LocusId": locus_id,
@@ -132,7 +132,7 @@ def process_gangstr_vcf(vcf_path):
                         locus_id: {
                             "Genotype": genotype_dict["REPCN"].replace(",", "/"), #"17/17",
                             "GenotypeConfidenceInterval": genotype_dict["REPCI"].replace(",", "/"), #"17-17/17-17",
-                            "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end}",
+                            "ReferenceRegion": f"{chrom}:{int(start_1based) - 1}-{end}",
                             "RepeatUnit": repeat_unit,
                             "VariantId": locus_id,
                             "VariantSubtype": "Repeat",
