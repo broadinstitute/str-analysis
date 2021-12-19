@@ -74,27 +74,28 @@ def main():
         print(f"Processing {strling_txt_path}")
         locus_results = process_strling_txt(strling_txt_path)
 
-        output_json_path = re.sub("(-genotype)?.txt$", "", strling_txt_path) + ".json"
+        output_json_path = re.sub(".txt$", "", strling_txt_path) + ".json"
         print(f"Writing results for", len(locus_results["LocusResults"]), f"loci to {output_json_path}")
         with open(output_json_path, "wt") as f:
             json.dump(locus_results, f, indent=3)
 
 
-def compute_CI(allele_size):
+def compute_CI(allele_size, repeat_unit_length):
     """Compute a pseudo "confidence interval" based on the criteria using for mendelian violation tests in the
     STRling pre-print - where a genotype was considered not to be a mendelian violation if it was within
     25% or 10bp of the expected genotype.
 
     Args:
         allele_size (int): The number of repeats.
+        repeat_unit_length (str): Length of the repeat unit in base pairs.
 
     Returns:
          str: "{lower}-{upper}" representing the lower/upper bound in numbers of repeats.
     """
-    base_pairs = 10.0
+    max_repeats_distance = 10.0/repeat_unit_length
     fraction = 0.25
-    lower = int(round(min(allele_size - base_pairs/len(row.repeatunit), (1-fraction) * allele_size)))
-    upper = int(round(max(allele_size + base_pairs/len(row.repeatunit), (1+fraction) * allele_size)))
+    lower = int(round(min(allele_size - max_repeats_distance, (1-fraction) * allele_size)))
+    upper = int(round(max(allele_size + max_repeats_distance, (1+fraction) * allele_size)))
 
     lower = max(0, lower)
 
@@ -133,17 +134,17 @@ def process_strling_txt(strling_txt_path):
             allele2 = max(int(round(row.allele2_est)), 0)
             counter["allele1 is NaN"] += 1
             genotype = f"{allele2}"
-            genotype_ci = f"{compute_CI(allele2)}"
+            genotype_ci = f"{compute_CI(allele2, len(row.repeatunit))}"
         elif pd.isna(row.allele2_est):
             allele1 = max(int(round(row.allele1_est)), 0)
             genotype = f"{allele1}"
-            genotype_ci = f"{compute_CI(allele1)}"
+            genotype_ci = f"{compute_CI(allele1, len(row.repeatunit))}"
             counter["allele2 is NaN"] += 1
         else:
             allele1 = max(int(round(row.allele1_est)), 0)
             allele2 = max(int(round(row.allele2_est)), 0)
             genotype = f"{allele1}/{allele2}"
-            genotype_ci = f"{compute_CI(allele1)}/{compute_CI(allele2)}"
+            genotype_ci = f"{compute_CI(allele1, len(row.repeatunit))}/{compute_CI(allele2, len(row.repeatunit))}"
 
         locus_results["LocusResults"][locus_id] = {
             "AlleleCount": 2,
