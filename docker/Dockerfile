@@ -19,7 +19,8 @@ RUN install_packages \
     libncurses5-dev \
     libcurl4-openssl-dev \
     libbz2-dev \
-    liblzma-dev
+    liblzma-dev \
+    time
 
 ENV SAMTOOLS_VERSION="1.9"
 RUN wget -q https://github.com/samtools/htslib/releases/download/${SAMTOOLS_VERSION}/htslib-${SAMTOOLS_VERSION}.tar.bz2 \
@@ -88,14 +89,45 @@ ENV PATH=/google-cloud-sdk/bin:$PATH
 RUN python3 -m pip install --upgrade pip \
 	&& python3 -m pip install --no-cache-dir "intervaltree>=3.1.0" "numpy>=1.20.3" "pandas>=1.1.4" "pysam>=0.16.0.1"
 
-ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
+# install GangSTR from https://github.com/gymreklab/GangSTR
+ENV GANGSTR_VERSION="2.5.0-Source"
+ENV HTSLIB_CFLAGS="-I./htslib-1.9"
+ENV HTSLIB_LIBS=" -L$./htslib-1.9 -lhts"
+ENV NLOPT_CFLAGS="-I./nlopt-2.4.2"
+ENV NLOPT_LIBS=" -L$./nlopt-2.4.2 -lnlopt"
+ENV CPPFLAGS="-std=c++98"
 
-RUN curl https://github.com/quinlan-lab/STRling/releases/download/v0.5.1/strling -o /usr/bin/strling
-RUN chmod 777 /usr/bin/strling
+ENV LD_LIBRARY_PATH=/usr/local/lib/
+
+RUN wget -q https://github.com/gymreklab/GangSTR/releases/download/v2.5/GangSTR-${GANGSTR_VERSION}.tar.gz \
+    && tar xzf GangSTR-${GANGSTR_VERSION}.tar.gz \
+    && rm GangSTR-${GANGSTR_VERSION}.tar.gz
+
+WORKDIR /GangSTR-${GANGSTR_VERSION}
+
+RUN python3 -m pip install --upgrade cmake pip \
+    && install_packages git autoconf automake libtool
+
+RUN mkdir build \
+    && cd build \
+    && cmake .. \
+    && make \
+    && cmake --install . \
+    && cp GangSTR /usr/local/bin/ \
+    && cp thirdparty/htslib/lib/libhts.so.3 /usr/local/lib/ \
+    && rm -rf /GangSTR-${GANGSTR_VERSION}
+
+WORKDIR /
+
+# STRLing
+RUN curl -L https://github.com/quinlan-lab/STRling/releases/download/v0.5.1/strling -o /usr/local/bin/strling \
+    && chmod 777 /usr/local/bin/strling
 
 #RUN python3 -m pip install --no-cache-dir str-analysis==0.9.1 \
 #    && python3 -m pip freeze \
 #    && sleep 2
+
+ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
 COPY str_analysis ./str_analysis
 COPY README.md .
