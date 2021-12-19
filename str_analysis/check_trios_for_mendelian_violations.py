@@ -10,6 +10,8 @@ from intervaltree import Interval
 import pandas as pd
 import tqdm
 
+from str_analysis.utils.misc_utils import parse_interval
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
 # The basic set of columns that need to be present in the input table
@@ -271,17 +273,30 @@ def compute_mendelian_violations(trio_rows):
             counters_ci[f"{locus_id} ({proband_row.RepeatUnit})"] += 1
 
         #assert not (ok_mendelian and not ok_mendelian_ci)  # it should never be the case that mendelian inheritance is consistent for exact genotypes, and not consistent for CI interval-overlap.
+        _, reference_region_start_0based, reference_region_end_1based = parse_interval(proband_row.ReferenceRegion)
+        if (reference_region_end_1based - reference_region_start_0based) % len(proband_row.RepeatUnit):
+            print(f"WARNING: {proband_row.ReferenceRegion} is not a multiple of the repeat unit size ({len(proband_row.RepeatUnit)})")
+
+        repeats_in_reference = str(int((reference_region_end_1based - reference_region_start_0based) / len(proband_row.RepeatUnit)))
+        proband_is_homozygous_reference = all(proband_allele == repeats_in_reference for proband_allele in proband_alleles)
+        mother_is_homozygous_reference = all(mother_allele == repeats_in_reference for mother_allele in mother_alleles)
+        father_is_homozygous_reference = all(father_allele == repeats_in_reference for father_allele in father_alleles)
+
+        all_genotypes_are_the_same = set(proband_alleles) == set(mother_alleles) and set(proband_alleles) == set(father_alleles)
+        all_genotypes_are_homozygous_reference = proband_is_homozygous_reference and mother_is_homozygous_reference and father_is_homozygous_reference
 
         results_row = {
             'LocusId': f"{locus_id} ({proband_row.VariantId})",
             'ReferenceRegion': proband_row.ReferenceRegion,
             'VariantId': proband_row.VariantId,
             'RepeatUnit': proband_row.RepeatUnit,
+            'RepeatUnitLength': len(proband_row.RepeatUnit),
             'IsMendelianViolation': not ok_mendelian,
             'IsMendelianViolationCI': not ok_mendelian_ci,
-
             'MendelianViolationDistance': distance_mendelian,
             'MendelianViolationDistanceCI': distance_mendelian_ci,
+
+            'MendelianViolationSummary': 'MV-CI!' if not ok_mendelian_ci else ('MV' if not ok_mendelian else 'ok'),
 
             'ProbandGenotype': proband_row.Genotype,
             'ProbandGenotypeCI': proband_row.GenotypeConfidenceInterval,
@@ -293,11 +308,13 @@ def compute_mendelian_violations(trio_rows):
             'MotherGenotype': mother_row.Genotype,
             'MotherGenotypeCI': mother_row.GenotypeConfidenceInterval,
 
+            'AllGenotypesAreTheSame': all_genotypes_are_the_same,
+            'AllGenotypesAreHomozygousReference': all_genotypes_are_homozygous_reference,
+
             'ProbandSampleId': proband_row.SampleId,
             'FatherSampleId': father_row.SampleId,
             'MotherSampleId': mother_row.SampleId,
             'ProbandSex': proband_row.Sex,
-
 
             'ProbandNumRepeatsAllele2': proband_row['Num Repeats: Allele 2'],
             'FatherNumRepeatsAllele2 ': father_row['Num Repeats: Allele 2'],
