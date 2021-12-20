@@ -1,6 +1,7 @@
 """This script converts a GangSTR output VCF to the .json format ExpansionHunter uses to output results.
 This makes it easier to pass GangSTR results to downstream scripts.
 """
+from pprint import pprint
 
 """
 GangSTR output vcf format:
@@ -58,12 +59,22 @@ import re
 
 def main():
     p = argparse.ArgumentParser()
+    p.add_argument("--variant-catalog", help="ExpansionHunter variant catalog. If specified, fields from this"
+                                             " variant catalog will be added to the output .json.")
     p.add_argument("vcf_path", nargs="+", help="GangSTR vcf path(s)")
     args = p.parse_args()
 
+    variant_catalog = None
+    if args.variant_catalog:
+        if not os.path.isfile(args.variant_catalog):
+            p.error(f"{args.variant_catalog} not found")
+
+        with open(args.variant_catalog) as f:
+            variant_catalog = json.load(f)
+
     for vcf_path in args.vcf_path:
         print(f"Processing {vcf_path}")
-        locus_results = process_gangstr_vcf(vcf_path)
+        locus_results = process_gangstr_vcf(vcf_path, variant_catalog)
 
         output_json_path = vcf_path.replace(".vcf", "").replace(".gz", "") + ".json"
         print(f"Writing results for", len(locus_results["LocusResults"]), f"loci to {output_json_path}")
@@ -71,7 +82,27 @@ def main():
             json.dump(locus_results, f, indent=3)
 
 
-def process_gangstr_vcf(vcf_path):
+def create_variant_catalog_lookup(variant_catalog):
+    variant_catalog_lookup = {}
+    for record in variant_catalog:
+        reference_regions = record["ReferenceRegion"]
+        variant_types = record["VariantType"]
+        variant_ids = record.get("VariantId", record["LocusId"])
+        if not isinstance(reference_regions, list):
+            reference_regions = [reference_regions]
+            variant_types = [variant_types]
+            variant_ids = [variant_ids]
+        for variant_id, variant_type, reference_region in zip(variant_ids, variant_types, reference_regions):
+            variant_catalog_lookup[reference_region] = dict(record)
+            variant_catalog_lookup[reference_region]["ReferenceRegion"] = reference_region
+            variant_catalog_lookup[reference_region]["VariantType"] = variant_type
+            variant_catalog_lookup[reference_region]["VariantId"] = variant_id
+
+    #pprint(variant_catalog_lookup)
+    return variant_catalog_lookup
+
+
+def process_gangstr_vcf(vcf_path, variant_catalog=None):
     sample_id = os.path.basename(vcf_path).replace("gangstr.", "").strip(".")
     locus_results = {
         "LocusResults": {},
@@ -80,6 +111,8 @@ def process_gangstr_vcf(vcf_path):
             "Sex": None,
         },
     }
+
+    variant_catalog_lookup = create_variant_catalog_lookup(variant_catalog or [])
 
     with open(vcf_path, "rt") as vcf:
         line_counter = 0
@@ -104,9 +137,9 @@ def process_gangstr_vcf(vcf_path):
             line_counter += 1
             fields = line.strip().split("\t")
             chrom = fields[0]
-            start_1based = fields[1]
-            #ref = fields[3]
-            #alt = fields[4]
+            start_1based = int(fields[1])
+            ref = fields[3]
+            alts = fields[4].split(",")
             info = fields[7]
             if not fields[9] or fields[9] == ".":  # no genotype
                 continue
@@ -118,23 +151,29 @@ def process_gangstr_vcf(vcf_path):
 
             try:
                 repeat_unit = info_dict["RU"].upper()
-                end = info_dict["END"]
+                end_1based = int(info_dict["END"])
                 ref_repeat_count = int(info_dict["REF"])
 
-                locus_id = f"{chrom}-{int(start_1based) - 1}-{end}-{repeat_unit}"
+                variant_catalog_record = variant_catalog_lookup.get(f"{chrom}:{start_1based - 1}-{end_1based}", {})
+                locus_id = variant_catalog_record.get("LocusId", f"{chrom}-{start_1based - 1}-{end_1based}-{repeat_unit}")
+                variant_id = variant_catalog_record.get("VariantId", locus_id)
+                if locus_id != variant_id:
+                    print(f"Skipping adjacent locus {locus_id}, variant_id: {variant_id}")
+                    continue
+
                 locus_results["LocusResults"][locus_id] = {
                     "AlleleCount": genotype_dict["REPCN"].count(",") + 1,
                     "LocusId": locus_id,
-                    "Coverage": float(genotype_dict["DP"]), #10.757737459978655,
+                    "Coverage": float(genotype_dict["DP"]),  #10.757737459978655,
                     "ReadLength": None,
                     "FragmentLength": None,
                     "Variants": {
                         locus_id: {
                             "Genotype": genotype_dict["REPCN"].replace(",", "/"), #"17/17",
                             "GenotypeConfidenceInterval": genotype_dict["REPCI"].replace(",", "/"), #"17-17/17-17",
-                            "ReferenceRegion": f"{chrom}:{int(start_1based) - 1}-{end}",
+                            "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
                             "RepeatUnit": repeat_unit,
-                            "VariantId": locus_id,
+                            "VariantId": variant_id,
                             "VariantSubtype": "Repeat",
                             "VariantType": "Repeat",
                             #"CountsOfFlankingReads": "()",
