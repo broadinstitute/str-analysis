@@ -20,6 +20,7 @@ RUN install_packages \
     libcurl4-openssl-dev \
     libbz2-dev \
     liblzma-dev \
+    parallel \
     time
 
 ENV SAMTOOLS_VERSION="1.9"
