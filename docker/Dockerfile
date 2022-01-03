@@ -55,28 +55,6 @@ RUN wget -q https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_
 	&& make install \
 	&& make clean
 
-
-# install ExpansionHunterDenovo binary from https://github.com/Illumina/ExpansionHunterDenovo
-ENV VERSION="v0.9.0"
-RUN wget -q https://github.com/Illumina/ExpansionHunterDenovo/releases/download/${VERSION}/ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz \
-    && tar xzf ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz \
-    && mv ExpansionHunterDenovo-${VERSION}-linux_x86_64/bin/ExpansionHunterDenovo /usr/local/bin/ExpansionHunterDenovo \
-    && rm -r ExpansionHunterDenovo-${VERSION}-linux_x86_64 ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz
-
-# install ExpansionHunter binary
-ENV EH_VERSION="v5.0.0"
-RUN wget -q https://github.com/Illumina/ExpansionHunter/releases/download/${EH_VERSION}/ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz \
-    && tar xzf ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz \
-    && mv /ExpansionHunter-${EH_VERSION}-linux_x86_64/bin/ExpansionHunter /usr/local/bin/ \
-    && rm -r ExpansionHunter-${EH_VERSION}-linux_x86_64 ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz
-
-# install REViewer
-ENV REVIEWER_VERSION="v0.2.4"
-RUN wget -q https://github.com/Illumina/REViewer/releases/download/${REVIEWER_VERSION}/REViewer-${REVIEWER_VERSION}-linux_x86_64.gz \
-    && gunzip REViewer-${REVIEWER_VERSION}-linux_x86_64.gz \
-    && mv /REViewer-${REVIEWER_VERSION}-linux_x86_64 /usr/local/bin/REViewer \
-    && chmod 777 /usr/local/bin/REViewer
-
 # install gcloud
 ENV GCLOUD_SDK_VERISON="365.0.0"
 RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
@@ -124,6 +102,32 @@ WORKDIR /
 RUN curl -L https://github.com/quinlan-lab/STRling/releases/download/v0.5.1/strling -o /usr/local/bin/strling \
     && chmod 777 /usr/local/bin/strling
 
+
+
+# install ExpansionHunterDenovo binary from https://github.com/Illumina/ExpansionHunterDenovo
+ENV VERSION="v0.9.0"
+RUN wget -q https://github.com/Illumina/ExpansionHunterDenovo/releases/download/${VERSION}/ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz \
+    && tar xzf ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz \
+    && mv ExpansionHunterDenovo-${VERSION}-linux_x86_64/bin/ExpansionHunterDenovo /usr/local/bin/ExpansionHunterDenovo \
+    && rm -r ExpansionHunterDenovo-${VERSION}-linux_x86_64 ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz
+
+# install ExpansionHunter binary
+#ENV EH_VERSION="v5.0.0"
+#RUN wget -q https://github.com/Illumina/ExpansionHunter/releases/download/${EH_VERSION}/ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz \
+#    && tar xzf ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz \
+#    && mv /ExpansionHunter-${EH_VERSION}-linux_x86_64/bin/ExpansionHunter /usr/local/bin/ \
+#    && rm -r ExpansionHunter-${EH_VERSION}-linux_x86_64 ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz
+
+RUN wget https://github.com/bw2/ExpansionHunter/raw/optimized_binaries/bin/linux/ExpansionHunter -O /usr/local/bin/ExpansionHunter \
+    && chmod 777 /usr/local/bin/ExpansionHunter
+
+# install REViewer
+ENV REVIEWER_VERSION="v0.2.4"
+RUN wget -q https://github.com/Illumina/REViewer/releases/download/${REVIEWER_VERSION}/REViewer-${REVIEWER_VERSION}-linux_x86_64.gz \
+    && gunzip REViewer-${REVIEWER_VERSION}-linux_x86_64.gz \
+    && mv /REViewer-${REVIEWER_VERSION}-linux_x86_64 /usr/local/bin/REViewer \
+    && chmod 777 /usr/local/bin/REViewer
+
 #RUN python3 -m pip install --no-cache-dir str-analysis==0.9.1 \
 #    && python3 -m pip freeze \
 #    && sleep 2
@@ -136,5 +140,3 @@ COPY setup.py .
 COPY requirements.txt .
 RUN python3 setup.py install
 
-
-COPY docker/ExpansionHunterOptimized /usr/local/bin/ExpansionHunterOptimized
