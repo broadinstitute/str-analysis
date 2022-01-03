@@ -17,7 +17,6 @@ import json
 import os
 import pkgutil
 import re
-import subprocess
 import pandas as pd
 from pprint import pformat, pprint
 
@@ -174,13 +173,13 @@ def run(command, verbose=False):
         verbose (bool): Print command before running.
 
     Returns:
-        subprocess.CompletedProcess: An object with a .returncode attribute.
+        int: The exit code of the command
     """
 
     if verbose:
         print(f"Command: {command}")
 
-    return subprocess.run(command, shell=True, stderr=subprocess.STDOUT, check=False)
+    return os.system(command)
 
 
 def generate_variant_catalog(locus_id, repeat_unit, chrom, start_1based, end_1based, offtarget_regions=None):
@@ -404,7 +403,10 @@ def compute_final_expansion_hunter_results(locus_results_json, output_file_prefi
 
         long_allele_motif = "motif1"
         short_allele_motif = "motif1"
-        locus_results_json["expansion_hunter_call_repeat_unit"] = locus_results_json["expansion_hunter_motif1_repeat_unit"]
+        locus_results_json["expansion_hunter_call_repeat_unit"] = locus_results_json[
+            "expansion_hunter_motif1_repeat_unit"]
+        locus_results_json["expansion_hunter_call_canonical_repeat_unit"] = locus_results_json[
+            "expansion_hunter_motif1_canonical_repeat_unit"]
 
         if "expansion_hunter_motif1_reviewer_svg" in locus_results_json:
             locus_results_json["expansion_hunter_call_reviewer_svg"] = locus_results_json["expansion_hunter_motif1_reviewer_svg"]
@@ -440,6 +442,11 @@ def compute_final_expansion_hunter_results(locus_results_json, output_file_prefi
         else:
             short_allele_motif = "motif2"
             long_allele_motif = "motif1"
+
+        locus_results_json["expansion_hunter_call_repeat_unit"] = "%s / %s" % (
+            locus_results_json[f"expansion_hunter_{short_allele_motif}_repeat_unit"],
+            locus_results_json[f"expansion_hunter_{long_allele_motif}_repeat_unit"]
+        )
 
         locus_results_json["expansion_hunter_call_canonical_repeat_unit"] = "%s / %s" % (
             locus_results_json[f"expansion_hunter_{short_allele_motif}_canonical_repeat_unit"],

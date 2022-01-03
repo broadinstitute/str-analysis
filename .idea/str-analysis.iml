@@ -13,6 +13,7 @@
       <excludeFolder url="file://$MODULE_DIR$/build" />
       <excludeFolder url="file://$MODULE_DIR$/dist" />
       <excludeFolder url="file://$MODULE_DIR$/local_files/gnomad_str_data" />
+      <excludeFolder url="file://$MODULE_DIR$/local_files/gnomad_str_data_prev" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
