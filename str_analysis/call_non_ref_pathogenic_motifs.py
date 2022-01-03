@@ -110,7 +110,7 @@ def parse_args():
     grp.add_argument("--run-strling", action="store_true", help="Optionally run STRling and copy information relevant "
         "to the locus from the STRling results to the json output file.")
     p.add_argument("--strling-path", help="The path of the STRling executable to use.", default="STRling")
-    p.add_argument("--strling-reference-index", help="Optionally provide the pathe of a pre-computed STRling reference "
+    p.add_argument("--strling-reference-index", help="Optionally provide the path of a pre-computed STRling reference "
         "index file. If provided, it will save a step and allow STRling to complete faster.")
 
     grp = p.add_mutually_exclusive_group()
@@ -496,7 +496,7 @@ class ParseError(Exception):
     pass
 
 
-def get_reviewer_image_section(svg_image_contents, section="both", insert_title=None):
+def get_reviewer_image_section(svg_image_contents, section="both-alleles", insert_title=None):
     """Extract the upper panel (short allele), lower panel (long allele), or both panels of the REViewer image.
     The panels start with this line tag:
     <line x1="510" y1="386" x2="11710" y2="386" stroke="black" marker-start="url(#arrow)" marker-end="url(#arrow)" />
@@ -566,7 +566,8 @@ def select_long_allele_based_on_reviewer_images(reviewer_image_path_motif1, revi
     """
 
     def compute_normalized_interruption_count(reviewer_image_contents, short_allele=False):
-        panel_contents, start_y, end_y = get_reviewer_image_section(reviewer_image_contents, section="short-allele")
+        section = "short-allele" if short_allele else "long-allele"
+        panel_contents, start_y, end_y = get_reviewer_image_section(reviewer_image_contents, section=section)
 
         # Rough read depth estimate based on vertical size of the svg image section
         denominator = end_y - start_y
@@ -667,7 +668,7 @@ def combine_reviewer_images(motif1_image_path, motif2_image_path, motif1_repeat_
 
 
 def run_strling(args):
-    """Run STRling.
+    """Run STRling. See https://strling.readthedocs.io/en/latest/run.html for more details.
 
     Arguments:
         args (object): command-line arguments from argparse
@@ -1049,12 +1050,10 @@ def process_locus(
     if strling_genotype_df is not None:
         strling_records = parse_strling_info_for_locus(strling_genotype_df, locus_chrom, locus_start_0based, locus_end)
         for i in 0, 1:
-            record = {}
-            if i < len(strling_records):
-                record = strling_records[i]
-            elif i > 0:
+            if i == 1 and len(strling_records) < 2:
                 break
 
+            record = strling_records[i] if i < len(strling_records) else {}
             motif_number = i + 1
             locus_results_json.update({
                 f"strling_motif{motif_number}_repeat_unit": record.get("repeatunit"),
