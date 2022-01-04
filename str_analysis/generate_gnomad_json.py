@@ -102,7 +102,7 @@ MAX_AGES_PER_BUCKET_TO_DISPLAY_IN_THE_READVIZ_SECTION = 100
 # Use this value instead of the age range for samples where age is not available or not shown.
 AGE_NOT_AVAILABLE = "age_not_available"
 
-PCR_FREE_INFO_NOT_AVAILABLE = "pcr_free_info_not_available"
+PCR_INFO_NOT_AVAILABLE = "pcr_info_not_available"
 
 
 # Show age only for the these larger sub-populations to avoid increasing identifiability in smaller populations
@@ -240,15 +240,15 @@ def load_data_df(args):
     gnomad_df = gnomad_df[gnomad_df.release]
     gnomad_df.loc[:, "age"] = gnomad_df["project_meta.age"].fillna(gnomad_df["project_meta.age_alt"])
     gnomad_df["age"].fillna(AGE_NOT_AVAILABLE, inplace=True)
-    gnomad_df.loc[:, "pcr_free"] = gnomad_df["project_meta.product"].apply(
+    gnomad_df.loc[:, "pcr_protocol"] = gnomad_df["project_meta.product"].apply(
         lambda s: pd.NA if not s or pd.isna(s) else (True if "pcr-free" in s.lower() else False), convert_dtype="boolean")
-    gnomad_df["pcr_free"].fillna(gnomad_df["project_meta.v2_pcr_free"].astype("boolean"), inplace=True)
-    gnomad_df["pcr_free"].fillna(PCR_FREE_INFO_NOT_AVAILABLE, inplace=True)
-    gnomad_df.loc[:, "pcr_free"] = gnomad_df["pcr_free"].replace({True: "pcr_free", False: "pcr_plus"})
+    gnomad_df["pcr_protocol"].fillna(gnomad_df["project_meta.v2_pcr_free"].astype("boolean"), inplace=True)
+    gnomad_df["pcr_protocol"].fillna(PCR_INFO_NOT_AVAILABLE, inplace=True)
+    gnomad_df.loc[:, "pcr_protocol"] = gnomad_df["pcr_protocol"].replace({True: "pcr_free", False: "pcr_plus"})
 
     gnomad_df = gnomad_df[[
         "s", "population_inference.pop", "sex_imputation.sex_karyotype",
-        "age", "pcr_free",
+        "age", "pcr_protocol",
     ]]
     gnomad_df.loc[:, "s"] = gnomad_df.s.apply(process_sample_id)
 
@@ -484,7 +484,7 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
         # Get gnomAD fields
         sex_karyotype = row["sex_imputation.sex_karyotype"]
         population = row["population_inference.pop"]
-        pcr_free = row["pcr_free"]
+        pcr_protocol = row["pcr_protocol"]
 
         # Compute age_range
         if row["age"] == AGE_NOT_AVAILABLE:
@@ -528,9 +528,9 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
         num_repeats2 = int(num_repeats2)
 
         # Update histogram and scatter plot counts
-        histogram_key1 = f"{population}/{sex_karyotype}/{pcr_free}/{motif1}"
-        histogram_key2 = f"{population}/{sex_karyotype}/{pcr_free}/{motif2}"
-        scatter_plot_key = f"{population}/{sex_karyotype}/{pcr_free}/{motif1}/{motif2}"
+        histogram_key1 = f"{population}/{sex_karyotype}/{pcr_protocol}/{motif1}"
+        histogram_key2 = f"{population}/{sex_karyotype}/{pcr_protocol}/{motif2}"
+        scatter_plot_key = f"{population}/{sex_karyotype}/{pcr_protocol}/{motif1}/{motif2}"
         age_distribution_key = f"{age_range}"
 
         if is_adjacent_repeat:
@@ -579,7 +579,7 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
                 "Sex": sex_karyotype,
                 "Age": age_range_to_show_in_readviz_section,
                 "Population": population,
-                "PcrFree": pcr_free,
+                "PcrProtocol": pcr_protocol,
                 "Genotype": row["Genotype"],
                 "GenotypeConfidenceInterval": row["GenotypeConfidenceInterval"],
                 "ReadvizFilename": encrypted_svg_filename,
@@ -824,7 +824,17 @@ def main():
     # Write out the data structures
     date_stamp = datetime.now().strftime("%Y_%m_%d")
     local_output_dir = os.path.expanduser(os.path.dirname(args.expansion_hunter_tsv))
-    df.to_csv(f"{local_output_dir}/gnomAD_STR_calls_with_gnomAD_metadata__{date_stamp}.tsv", sep="\t", index=False, header=True)
+
+    df.to_csv(f"{local_output_dir}/gnomAD_STR_calls_with_gnomAD_metadata_and_sample_ids__{date_stamp}.tsv.gz",
+              compression="gzip", sep="\t", index=False, header=True)
+
+    readviz_metadata_df = pd.DataFrame([
+        {**readviz_record, **{"LocusId": locus_id}}
+        for locus_id, readviz_records in readviz_json.items() for readviz_record in readviz_records
+    ])
+    readviz_metadata_df.to_csv(f"{local_output_dir}/gnomAD_STR_readviz_metadata__{date_stamp}.tsv.gz",
+              compression="gzip", sep="\t", index=False, header=True)
+
     export_json(gnomad_json, f"{local_output_dir}/gnomAD_STR_distributions__{date_stamp}.json.gz", args.output_dir)
     export_json(readviz_json, f"{local_output_dir}/gnomAD_STR_readviz_metadata__{date_stamp}.json.gz", args.output_dir)
     export_readviz_rename_list(readviz_paths_to_rename, f"{local_output_dir}/readviz_rename_list__{date_stamp}.tsv.gz")
