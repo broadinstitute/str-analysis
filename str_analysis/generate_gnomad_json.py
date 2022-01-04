@@ -150,7 +150,6 @@ def parse_args():
     )
     p.add_argument(
         "--existing-readviz-filename-list",
-        #default="~/code/str-analysis/local_files/gnomad_str_data/existing_public_readviz_image_filenames.txt.gz",
         help="A text file that lists all readviz .svg filenames that exist (one per line). These are the encrypted "
              "public filenames that don't contain sample ids - for example: ffa0880117e0791d51b0ef85b56f3a54216.svg",
     )
