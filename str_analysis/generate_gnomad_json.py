@@ -191,10 +191,10 @@ def load_data_df(args):
 
     # Parse ExpansionHunter tsv
     df = pd.read_table(args.expansion_hunter_tsv)
+    df.loc[:, "SampleId"] = df.SampleId.apply(process_sample_id)
     df.loc[:, "Motif: Allele 1"] = df["RepeatUnit"]
     df.loc[:, "Motif: Allele 2"] = df["RepeatUnit"]
     df.loc[:, "ReadvizFilename"] = df["SampleId"] + "." + df["LocusId"] + ".svg"
-    df.loc[:, "SampleId"] = df.SampleId.apply(process_sample_id)
     df = df[[
         "SampleId", "LocusId", "VariantCatalog_Gene", "VariantId", "ReferenceRegion",
         "Motif: Allele 1", "Motif: Allele 2",
