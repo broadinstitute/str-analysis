@@ -528,9 +528,9 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
         num_repeats2 = int(num_repeats2)
 
         # Update histogram and scatter plot counts
-        histogram_key1 = f"{population}/{sex_karyotype}/{pcr_protocol}/{motif1}"
-        histogram_key2 = f"{population}/{sex_karyotype}/{pcr_protocol}/{motif2}"
-        scatter_plot_key = f"{population}/{sex_karyotype}/{pcr_protocol}/{motif1}/{motif2}"
+        histogram_key1 = f"{population}/{sex_karyotype}/{motif1}"
+        histogram_key2 = f"{population}/{sex_karyotype}/{motif2}"
+        scatter_plot_key = f"{population}/{sex_karyotype}/{motif1}/{motif2}"
         age_distribution_key = f"{age_range}"
 
         if is_adjacent_repeat:
