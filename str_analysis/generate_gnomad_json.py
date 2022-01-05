@@ -113,7 +113,7 @@ POPULATIONS_WITH_AGE_DISPLAYED_IN_READVIZ_SECTION = {"sas", "oth", "asj", "amr",
 MISSING_GENOTYPES_ERROR_THRESHOLD = 0.01
 
 # Fraction of readviz images that can be missing for a locus before generating an error
-MISSING_READVIZ_ERROR_THRESHOLD = 0.01
+MISSING_READVIZ_ERROR_THRESHOLD = 0.04
 
 # Expected number of known pathogenic repeats
 EXPECTED_N_KNOWN_PATHOGENIC_REPEATS = 59
