@@ -1,6 +1,5 @@
-"""This script converts an ExpansionHunter variant catalog to a GangSTR spec. Variant catalog entries
-that include adjacent repeats (eg. with LocusStructure like "(A)*(ACG)*") are split into multiple GangSTR
-specs - one per repeat.
+"""This script converts a GangSTR repeat spec to an ExpansionHunter variant catalog. This simplifies the process of
+switching from GangSTR to ExpansionHunter to genotype a set of loci previously genotyped using GangSTR.
 """
 
 import argparse
@@ -16,7 +15,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("-o", "--output-file", help="json file output path")
     p.add_argument("-v", "--verbose", action="store_true")
-    p.add_argument("gangstr_spec")
+    p.add_argument("gangstr_spec", help="path of the GangSTR repeat spec .bed file")
     args = p.parse_args()
 
     if not args.output_file:
@@ -37,7 +36,10 @@ def process_variant_catalog(gangstr_spec_path, output_file_path, verbose=False):
             start_0based = int(fields[1]) - 1
             end_1based = int(fields[2])
             repeat_unit = fields[4]
-            # off_target_regions = fields[6]
+            off_target_regions = fields[6]
+            if len(off_target_regions) > 1:
+                print(f"WARNING: found GangSTR spec with off-target regions. This script doesn't yet support "
+                      f"transferring off-target regions to the variant catalog")
             counter["total input loci"] += 1
             trim_bp = (end_1based - start_0based) % len(repeat_unit)
             if trim_bp != 0:
@@ -71,6 +73,7 @@ def process_variant_catalog(gangstr_spec_path, output_file_path, verbose=False):
 
     print(f"Wrote out {output_file_path}")
     print(pformat(dict(counter)))
+
 
 if __name__ == "__main__":
     main()
