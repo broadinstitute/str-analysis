@@ -252,7 +252,11 @@ def run_expansion_hunter(
         variant_catalog_locus_label = f"{locus_id}_{repeat_unit}"
         offtarget_regions = []
         if use_offtarget_regions:
-            offtarget_regions = OFFTARGET_REGIONS[args.genome_version][compute_canonical_motif(repeat_unit)]
+            canonical_motif = compute_canonical_motif(repeat_unit)
+            offtarget_regions = OFFTARGET_REGIONS[args.genome_version].get(canonical_motif)
+            if offtarget_regions is None:
+                print(f"WARNING: off-target regions not available for {canonical_motif}")
+                offtarget_regions = []
 
         variant_catalog = generate_variant_catalog(
             variant_catalog_locus_label,

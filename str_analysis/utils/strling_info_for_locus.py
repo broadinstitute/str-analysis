@@ -2,7 +2,7 @@
 
 def parse_strling_info_for_locus(strling_genotype_df, locus_chrom, locus_start, locus_end, margin=700):
     """Extract info related to a specific locus from the STRling genotype table.
-    See  https://strling.readthedocs.io/en/latest/outputs.html for more details.
+    See https://strling.readthedocs.io/en/latest/outputs.html for more details.
 
     Args:
         strling_genotype_df (pd.DataFrame): parsed STRling genotype table

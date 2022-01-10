@@ -99,17 +99,16 @@ RUN mkdir build \
 WORKDIR /
 
 # STRLing
-RUN curl -L https://github.com/quinlan-lab/STRling/releases/download/v0.5.1/strling -o /usr/local/bin/strling \
+ENV STRLING_VERSION="v0.5.1"
+RUN curl -L https://github.com/quinlan-lab/STRling/releases/download/${STRLING_VERSION}/strling -o /usr/local/bin/strling \
     && chmod 777 /usr/local/bin/strling
 
-
-
 # install ExpansionHunterDenovo binary from https://github.com/Illumina/ExpansionHunterDenovo
-ENV VERSION="v0.9.0"
-RUN wget -q https://github.com/Illumina/ExpansionHunterDenovo/releases/download/${VERSION}/ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz \
-    && tar xzf ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz \
-    && mv ExpansionHunterDenovo-${VERSION}-linux_x86_64/bin/ExpansionHunterDenovo /usr/local/bin/ExpansionHunterDenovo \
-    && rm -r ExpansionHunterDenovo-${VERSION}-linux_x86_64 ExpansionHunterDenovo-${VERSION}-linux_x86_64.tar.gz
+ENV EH_DENOVO_VERSION="v0.9.0"
+RUN wget -q https://github.com/Illumina/ExpansionHunterDenovo/releases/download/${EH_DENOVO_VERSION}/ExpansionHunterDenovo-${EH_DENOVO_VERSION}-linux_x86_64.tar.gz \
+    && tar xzf ExpansionHunterDenovo-${EH_DENOVO_VERSION}-linux_x86_64.tar.gz \
+    && mv ExpansionHunterDenovo-${EH_DENOVO_VERSION}-linux_x86_64/bin/ExpansionHunterDenovo /usr/local/bin/ExpansionHunterDenovo \
+    && rm -r ExpansionHunterDenovo-${EH_DENOVO_VERSION}-linux_x86_64 ExpansionHunterDenovo-${EH_DENOVO_VERSION}-linux_x86_64.tar.gz
 
 # install ExpansionHunter binary
 #ENV EH_VERSION="v5.0.0"

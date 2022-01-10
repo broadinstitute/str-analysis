@@ -130,7 +130,9 @@ def parse_fam_file(fam_file_path):
 
 
 def group_rows_by_trio(combined_str_calls_df):
-    """Returns a list of row tuples"""
+    """Returns a list of 3-tuples containing the row of the proband, father and mother for full trios, as well as a
+    2nd list of rows for samples that aren't part of a full trio.
+    """
     print("Caching paternal & maternal genotypes")
     all_rows = {}
     for _, row in tqdm.tqdm(combined_str_calls_df.iterrows(), unit=" table rows", total=len(combined_str_calls_df)):
@@ -142,9 +144,9 @@ def group_rows_by_trio(combined_str_calls_df):
     trio_ids = set()
     trio_rows = []
     other_rows = []
+    print(f"{len(combined_str_calls_df)} total rows")
     combined_str_calls_df = combined_str_calls_df[~combined_str_calls_df.father_id.isna() & ~combined_str_calls_df.mother_id.isna()]
-    print(f"{len(combined_str_calls_df)} total rows in table, including father and mother genotypes")
-    print(f"{len(combined_str_calls_df)} total rows for proband")
+    print(f"{len(combined_str_calls_df)} rows remaining after filtering to rows that represent full trios")
 
     for _, row in tqdm.tqdm(combined_str_calls_df.iterrows(), unit=" table rows", total=len(combined_str_calls_df)):
         father_row = all_rows.get((row.father_id, row.LocusId, row.VariantId))

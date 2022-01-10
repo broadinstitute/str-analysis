@@ -104,10 +104,8 @@ AGE_NOT_AVAILABLE = "age_not_available"
 
 PCR_INFO_NOT_AVAILABLE = "pcr_info_not_available"
 
-
 # Show age only for the these larger sub-populations to avoid increasing identifiability in smaller populations
 POPULATIONS_WITH_AGE_DISPLAYED_IN_READVIZ_SECTION = {"sas", "oth", "asj", "amr", "fin", "eas", "afr", "nfe", "mid"}
-
 
 # Fraction of genotypes that can be missing for a locus before generating an error
 MISSING_GENOTYPES_ERROR_THRESHOLD = 0.01
@@ -240,11 +238,11 @@ def load_data_df(args):
     gnomad_df = gnomad_df[gnomad_df.release]
     gnomad_df.loc[:, "age"] = gnomad_df["project_meta.age"].fillna(gnomad_df["project_meta.age_alt"])
     gnomad_df["age"].fillna(AGE_NOT_AVAILABLE, inplace=True)
-    gnomad_df.loc[:, "pcr_protocol"] = gnomad_df["project_meta.product"].apply(
+    gnomad_df.loc[:, "pcr_free"] = gnomad_df["project_meta.product"].apply(
         lambda s: pd.NA if not s or pd.isna(s) else (True if "pcr-free" in s.lower() else False), convert_dtype="boolean")
-    gnomad_df["pcr_protocol"].fillna(gnomad_df["project_meta.v2_pcr_free"].astype("boolean"), inplace=True)
-    gnomad_df["pcr_protocol"].fillna(PCR_INFO_NOT_AVAILABLE, inplace=True)
-    gnomad_df.loc[:, "pcr_protocol"] = gnomad_df["pcr_protocol"].replace({True: "pcr_free", False: "pcr_plus"})
+    gnomad_df["pcr_free"].fillna(gnomad_df["project_meta.v2_pcr_free"].astype("boolean"), inplace=True)
+    gnomad_df["pcr_free"].fillna(PCR_INFO_NOT_AVAILABLE, inplace=True)
+    gnomad_df.loc[:, "pcr_protocol"] = gnomad_df["pcr_free"].replace({True: "pcr_free", False: "pcr_plus"})
 
     gnomad_df = gnomad_df[[
         "s", "population_inference.pop", "sex_imputation.sex_karyotype",
