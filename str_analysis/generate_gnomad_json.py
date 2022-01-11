@@ -234,7 +234,7 @@ def load_data_df(args):
     non_ref_motifs_df.loc[:, "Genotype"] = non_ref_motifs_df["expansion_hunter_call_genotype"]
     non_ref_motifs_df.loc[:, "GenotypeConfidenceInterval"] = non_ref_motifs_df["expansion_hunter_call_CI"]
     non_ref_motifs_df.loc[:, "RepeatUnit"] = None   # will be set later
-    non_ref_motifs_df.loc[:, "ReadvizFilename"] = non_ref_motifs_df["expansion_hunter_call_reviewer_svg"]
+    non_ref_motifs_df.loc[:, "ReadvizFilename"] = non_ref_motifs_df.get("expansion_hunter_call_reviewer_svg")
     non_ref_motifs_df = non_ref_motifs_df[[
         "SampleId", "LocusId", "VariantId", "ReferenceRegion",
         "Motif: Allele 1", "Motif: Allele 2",
