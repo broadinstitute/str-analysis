@@ -12,8 +12,7 @@
       <excludeFolder url="file://$MODULE_DIR$/str_analysis.egg-info" />
       <excludeFolder url="file://$MODULE_DIR$/build" />
       <excludeFolder url="file://$MODULE_DIR$/dist" />
-      <excludeFolder url="file://$MODULE_DIR$/local_files/gnomad_str_data" />
-      <excludeFolder url="file://$MODULE_DIR$/local_files/gnomad_str_data_prev" />
+      <excludeFolder url="file://$MODULE_DIR$/local_files" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
