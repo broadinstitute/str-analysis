@@ -209,7 +209,7 @@ def load_data_df(args):
     df.loc[:, "Motif: Allele 2"] = df["RepeatUnit"]
     df.loc[:, "ReadvizFilename"] = df["SampleId"] + "." + df["LocusId"] + ".svg"
     df = df[[
-        "SampleId", "LocusId", "VariantCatalog_Gene", "VariantId", "ReferenceRegion",
+        "SampleId", "LocusId", "VariantId", "ReferenceRegion",
         "Motif: Allele 1", "Motif: Allele 2",
         "Num Repeats: Allele 1", "Num Repeats: Allele 2",
         "Genotype", "GenotypeConfidenceInterval",
@@ -229,7 +229,6 @@ def load_data_df(args):
 
     non_ref_motifs_df.loc[:, "SampleId"] = non_ref_motifs_df.sample_id.apply(process_sample_id)
     non_ref_motifs_df.loc[:, "LocusId"] = non_ref_motifs_df["locus_id"]
-    non_ref_motifs_df.loc[:, "VariantCatalog_Gene"] = non_ref_motifs_df["locus_id"]
     non_ref_motifs_df.loc[:, "VariantId"] = non_ref_motifs_df["locus_id"]
     non_ref_motifs_df.loc[:, "ReferenceRegion"] = non_ref_motifs_df["locus_coords"]
     non_ref_motifs_df.loc[:, "Genotype"] = non_ref_motifs_df["expansion_hunter_call_genotype"]
@@ -237,7 +236,7 @@ def load_data_df(args):
     non_ref_motifs_df.loc[:, "RepeatUnit"] = None   # will be set later
     non_ref_motifs_df.loc[:, "ReadvizFilename"] = non_ref_motifs_df["expansion_hunter_call_reviewer_svg"]
     non_ref_motifs_df = non_ref_motifs_df[[
-        "SampleId", "LocusId", "VariantCatalog_Gene", "VariantId", "ReferenceRegion",
+        "SampleId", "LocusId", "VariantId", "ReferenceRegion",
         "Motif: Allele 1", "Motif: Allele 2",
         "Num Repeats: Allele 1", "Num Repeats: Allele 2",
         "Genotype", "GenotypeConfidenceInterval",
@@ -316,7 +315,7 @@ def init_gnomad_json(df):
     """
 
     # Compute the STR loci
-    df = df[["LocusId", "VariantCatalog_Gene", "VariantId", "ReferenceRegion", "RepeatUnit"]]
+    df = df[["LocusId", "VariantId", "ReferenceRegion", "RepeatUnit"]]
     df = df.drop_duplicates()
 
     # Init sub-dictionaries for each locus
@@ -326,11 +325,9 @@ def init_gnomad_json(df):
         variant_id = row["VariantId"]
         adjacent_repeat_label = ADJACENT_REPEAT_LABELS[variant_id] if variant_id in ADJACENT_REPEAT_LABELS else None
 
-        gene_name = row["VariantCatalog_Gene"]
         if locus_id not in gnomad_json:
             gnomad_json[locus_id] = {
                 "LocusId": locus_id,
-                "GeneName": gene_name,
             }
 
         repeat_specific_fields = {
@@ -845,8 +842,8 @@ def main():
     # Generate the 3 data structures
     df = load_data_df(args)
     gnomad_json = init_gnomad_json(df)
-    add_gene_ids(gnomad_json)
     add_known_pathogenic_STR_annotations(args, gnomad_json)
+    add_gene_ids(gnomad_json)
     most_common_motif_lookup = compute_most_common_motif_lookup_dict(df)
     add_motif_classification_field(gnomad_json, most_common_motif_lookup)
     readviz_paths_to_rename, readviz_json = add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_lookup)

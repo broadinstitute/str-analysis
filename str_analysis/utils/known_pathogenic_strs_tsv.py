@@ -51,6 +51,7 @@ def parse_known_pathogenic_strs_tsv(known_pathogenic_strs_tsv):
 
         known_pathogenic_strs_lookup[row["LocusId"]] = {
             "Diseases": [],
+            "GeneName": row["Gene"],
             "GeneRegion": row["Gene Region"],
             "ReferenceRepeatUnit": row["RU"],
         }
