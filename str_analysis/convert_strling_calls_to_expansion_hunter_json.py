@@ -92,7 +92,7 @@ def compute_CI(allele_size, repeat_unit_length):
     Returns:
          str: "{lower}-{upper}" representing the lower/upper bound in numbers of repeats.
     """
-    max_repeats_distance = 10.0/repeat_unit_length
+    max_repeats_distance = 10.0  # based on this utility script in the STRling repo: https://github.com/laurelhiatt/strling-MV/blob/main/denovo.py#L170
     fraction = 0.25
     lower = int(round(min(allele_size - max_repeats_distance, (1-fraction) * allele_size)))
     upper = int(round(max(allele_size + max_repeats_distance, (1+fraction) * allele_size)))
