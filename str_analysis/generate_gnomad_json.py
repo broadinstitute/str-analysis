@@ -156,6 +156,11 @@ def parse_args():
         default="gs://gnomad-browser/STRs",
         help="Where to write output files. Supports local and Google storage (gs://) paths.",
     )
+    p.add_argument(
+        "--output-filename-suffix",
+        default="",
+        help="An optional label to append to all output filenames",
+    )
     args = p.parse_args()
 
     for path in args.expansion_hunter_tsv, args.non_ref_motif_tsv, args.gnomad_metadata_tsv, \
@@ -822,20 +827,21 @@ def main():
     # Write out the data structures
     date_stamp = datetime.now().strftime("%Y_%m_%d")
     local_output_dir = os.path.expanduser(os.path.dirname(args.expansion_hunter_tsv))
+    output_filename_label = f"__{args.output_filename_suffix}" if args.output_filename_suffix else ""
 
-    df.to_csv(f"{local_output_dir}/gnomAD_STR_calls_with_gnomAD_metadata_and_sample_ids__{date_stamp}.tsv.gz",
+    df.to_csv(f"{local_output_dir}/gnomAD_STR_calls_with_gnomAD_metadata_and_sample_ids{output_filename_label}__{date_stamp}.tsv.gz",
               compression="gzip", sep="\t", index=False, header=True)
 
     readviz_metadata_df = pd.DataFrame([
         {**readviz_record, **{"LocusId": locus_id}}
         for locus_id, readviz_records in readviz_json.items() for readviz_record in readviz_records
     ])
-    readviz_metadata_df.to_csv(f"{local_output_dir}/gnomAD_STR_readviz_metadata__{date_stamp}.tsv.gz",
+    readviz_metadata_df.to_csv(f"{local_output_dir}/gnomAD_STR_readviz_metadata{output_filename_label}__{date_stamp}.tsv.gz",
               compression="gzip", sep="\t", index=False, header=True)
 
-    export_json(gnomad_json, f"{local_output_dir}/gnomAD_STR_distributions__{date_stamp}.json.gz", args.output_dir)
-    export_json(readviz_json, f"{local_output_dir}/gnomAD_STR_readviz_metadata__{date_stamp}.json.gz", args.output_dir)
-    export_readviz_rename_list(readviz_paths_to_rename, f"{local_output_dir}/readviz_rename_list__{date_stamp}.tsv.gz")
+    export_json(gnomad_json, f"{local_output_dir}/gnomAD_STR_distributions{output_filename_label}__{date_stamp}.json.gz", args.output_dir)
+    export_json(readviz_json, f"{local_output_dir}/gnomAD_STR_readviz_metadata{output_filename_label}__{date_stamp}.json.gz", args.output_dir)
+    export_readviz_rename_list(readviz_paths_to_rename, f"{local_output_dir}/readviz_rename_list{output_filename_label}__{date_stamp}.tsv.gz")
 
     print("Done")
 
