@@ -40,7 +40,7 @@ def test_suite():
 
 setup(
     name='str_analysis',
-    version="0.9.3",
+    version="0.9.4",
     description="Utilities  short tandem repeats (STRs)",
     install_requires=requirements,
     cmdclass={
@@ -59,8 +59,8 @@ setup(
     long_description=long_description,
     packages=["str_analysis", "str_analysis.utils"],
     data_files=[
-        ('data', ['str_analysis/data/offtarget_regions.json.gz']),
-        ('data', ['str_analysis/data/locus_info.json']),
+        ('data', ['str_analysis/data/non_ref_motif.offtarget_regions.json.gz']),
+        ('data', ['str_analysis/data/non_ref_motif.locus_info.json']),
     ],
     include_package_data=True,
     python_requires=">=3.7",
