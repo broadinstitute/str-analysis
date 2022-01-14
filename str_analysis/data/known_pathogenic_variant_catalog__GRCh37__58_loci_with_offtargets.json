@@ -1,0 +1,2433 @@
+[
+   {
+      "LocusId": "AFF2",
+      "LocusStructure": "(GCC)*",
+      "ReferenceRegion": "chrX:147582151-147582211",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "AFF2",
+      "Inheritance": "XR",
+      "GeneRegion": "5'-UTR",
+      "DiscoveryMethod": "K, L",
+      "DiscoveryYear": 1993,
+      "Diseases": [
+         {
+            "Symbol": "FRAXE",
+            "Name": "FRAXE mental retardation",
+            "Inheritance": "XR",
+            "OMIM": "309548",
+            "NormalMax": 25,
+            "PathogenicMin": 200
+         }
+      ],
+      "OfftargetRegions": [
+         "16:24740836-24741193",
+         "1:21502905-21503255",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:443175-443544",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246"
+      ]
+   },
+   {
+      "LocusId": "AR",
+      "LocusStructure": "(GCA)*",
+      "ReferenceRegion": "chrX:66765158-66765227",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "AR",
+      "Inheritance": "XR",
+      "GeneRegion": "exon - polyglutamine",
+      "DiscoveryMethod": "L, CGA",
+      "DiscoveryYear": 1991,
+      "Diseases": [
+         {
+            "Symbol": "SBMA",
+            "Name": "Spinal and bulbar muscular atrophy",
+            "Inheritance": "XR",
+            "OMIM": "313200",
+            "NormalMax": 35,
+            "PathogenicMin": 40
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:53793354-53793697",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "7:121928089-121928459",
+         "X:21385178-21385539",
+         "X:24382204-24382718"
+      ]
+   },
+   {
+      "LocusId": "ARX_1",
+      "LocusStructure": "(NGC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "X:25031766-25031814",
+      "RepeatUnit": "NGC",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "ARX",
+      "Inheritance": "XR",
+      "GeneRegion": "exon - polyalanine",
+      "Diseases": [
+         {
+            "Symbol": "DEE1",
+            "Name": "Developmental and epileptic encephalopathy-1",
+            "Inheritance": "XR",
+            "OMIM": "308350",
+            "NormalMax": 16,
+            "PathogenicMin": 23
+         },
+         {
+            "Symbol": "MRXARX",
+            "Name": "X-linked mental retardation with or without seizures",
+            "Inheritance": "XR",
+            "OMIM": "300419",
+            "NormalMax": 16,
+            "PathogenicMin": 18
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24740836-24741193",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:21502905-21503255",
+         "1:53793354-53793697",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "5:443175-443544",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "7:121928089-121928459",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "ARX_2",
+      "LocusStructure": "(NGC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "X:25031646-25031682",
+      "RepeatUnit": "NGC",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "ARX",
+      "Inheritance": "XR",
+      "GeneRegion": "exon - polyalanine",
+      "Diseases": [
+         {
+            "Symbol": "DEE1",
+            "Name": "Developmental and epileptic encephalopathy-1",
+            "Inheritance": "XR",
+            "OMIM": "308350",
+            "NormalMax": 12,
+            "PathogenicMin": 20
+         },
+         {
+            "Symbol": "PRTS",
+            "Name": "Partington syndrome",
+            "Inheritance": "XR",
+            "OMIM": "309510",
+            "NormalMax": 12,
+            "PathogenicMin": 20
+         },
+         {
+            "Symbol": "MRXARX",
+            "Name": "X-linked mental retardation with or without seizures",
+            "Inheritance": "XR",
+            "OMIM": "300419",
+            "NormalMax": 12,
+            "PathogenicMin": 23
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24740836-24741193",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:21502905-21503255",
+         "1:53793354-53793697",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "5:443175-443544",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "7:121928089-121928459",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "ATN1",
+      "LocusStructure": "(CAG)*",
+      "ReferenceRegion": "chr12:7045879-7045936",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "ATN1",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyglutamine",
+      "DiscoveryMethod": "L, ExScr",
+      "DiscoveryYear": 1994,
+      "Diseases": [
+         {
+            "Symbol": "DRPLA",
+            "Name": "Dentatorubral-pallidoluysian atrophy",
+            "Inheritance": "AD",
+            "OMIM": "125370",
+            "NormalMax": 23,
+            "PathogenicMin": 49
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:53793354-53793697",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "7:121928089-121928459",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "ATXN1",
+      "LocusStructure": "(TGC)*",
+      "ReferenceRegion": "chr6:16327864-16327954",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "ATXN1",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyglutamine",
+      "DiscoveryMethod": "L, ExScr",
+      "DiscoveryYear": 1993,
+      "Diseases": [
+         {
+            "Symbol": "SCA1",
+            "Name": "Spinocerebellar ataxia 1",
+            "Inheritance": "AD",
+            "OMIM": "164400",
+            "NormalMax": 32,
+            "PathogenicMin": 39,
+            "IntermediateRange": "36-38"
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:53793354-53793697",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "6:104467037-104467394",
+         "6:170870842-170871263",
+         "7:121928089-121928459",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "ATXN10",
+      "LocusStructure": "(ATTCT)*",
+      "ReferenceRegion": "chr22:46191234-46191304",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "ATXN10",
+      "Inheritance": "AD",
+      "GeneRegion": "intron",
+      "DiscoveryMethod": "L, ExScr",
+      "DiscoveryYear": 2000,
+      "Diseases": [
+         {
+            "Symbol": "SCA10",
+            "Name": "Spinocerebellar ataxia 10",
+            "Inheritance": "AD",
+            "OMIM": "603516",
+            "NormalMax": 29,
+            "PathogenicMin": 800,
+            "IntermediateRange": "30-799"
+         }
+      ],
+      "OfftargetRegions": [
+         "8:117627661-117628137",
+         "X:9759856-9760354"
+      ]
+   },
+   {
+      "LocusId": "ATXN2",
+      "LocusStructure": "(GCT)*",
+      "ReferenceRegion": "chr12:112036753-112036822",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "ATXN2",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyglutamine",
+      "DiscoveryMethod": "L, cl",
+      "DiscoveryYear": 1996,
+      "Diseases": [
+         {
+            "Symbol": "SCA2",
+            "Name": "Spinocerebellar ataxia 2",
+            "Inheritance": "AD",
+            "OMIM": "183090",
+            "NormalMax": 31,
+            "PathogenicMin": 35,
+            "IntermediateRange": "32-34"
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:53793354-53793697",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "7:121928089-121928459",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "ATXN3",
+      "LocusStructure": "(GCT)*",
+      "ReferenceRegion": "chr14:92537353-92537386",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "ATXN3",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyglutamine",
+      "DiscoveryMethod": "L, cl",
+      "DiscoveryYear": 1994,
+      "Diseases": [
+         {
+            "Symbol": "SCA3",
+            "Name": "Spinocerebellar ataxia 3",
+            "Inheritance": "AD",
+            "OMIM": "109150",
+            "NormalMax": 44,
+            "PathogenicMin": 56,
+            "IntermediateRange": "45-55"
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:53793354-53793697",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "7:121928089-121928459",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "ATXN7",
+      "LocusStructure": "(GCA)*(GCC)+",
+      "ReferenceRegion": [
+         "chr3:63898360-63898390",
+         "chr3:63898390-63898402"
+      ],
+      "VariantId": [
+         "ATXN7",
+         "ATXN7_GCC"
+      ],
+      "VariantType": [
+         "RareRepeat",
+         "Repeat"
+      ],
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "ATXN7",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyglutamine",
+      "DiscoveryMethod": "L, cl",
+      "DiscoveryYear": 1996,
+      "Diseases": [
+         {
+            "Symbol": "SCA7",
+            "Name": "Spinocerebellar ataxia 7",
+            "Inheritance": "AD",
+            "OMIM": "164500",
+            "NormalMax": 35,
+            "PathogenicMin": 36,
+            "IntermediateRange": "28-35"
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:53793354-53793697",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "7:121928089-121928459",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "ATXN8OS",
+      "LocusStructure": "(CTA)*(CTG)*",
+      "ReferenceRegion": [
+         "chr13:70713485-70713515",
+         "chr13:70713515-70713560"
+      ],
+      "VariantId": [
+         "ATXN8OS_CTA",
+         "ATXN8OS"
+      ],
+      "VariantType": [
+         "Repeat",
+         "RareRepeat"
+      ],
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "ATXN8",
+      "Inheritance": "AD",
+      "GeneRegion": "3'-UTR",
+      "DiscoveryMethod": "L, cl",
+      "DiscoveryYear": 1999,
+      "Diseases": [
+         {
+            "Symbol": "SCA8",
+            "Name": "Spinocerebellar ataxia 8",
+            "Inheritance": "AD",
+            "OMIM": "608768",
+            "NormalMax": 37,
+            "PathogenicMin": 80,
+            "IntermediateRange": "38-79"
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:53793354-53793697",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "7:121928089-121928459",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "BEAN1",
+      "LocusStructure": "(TAAAA)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "16:66524301-66524356",
+      "RepeatUnit": "TAAAA",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "BEAN1",
+      "Inheritance": "AD",
+      "GeneRegion": "intron",
+      "DiscoveryMethod": "L",
+      "DiscoveryYear": 2009,
+      "PathogenicMotif": "TGGAA  (+TAGAA)",
+      "Diseases": [
+         {
+            "Symbol": "SCA31",
+            "Name": "Spinocerebellar ataxia 31",
+            "Inheritance": "AD",
+            "OMIM": "117210",
+            "PathogenicMin": 500
+         }
+      ],
+      "OfftargetRegions": [
+         "13:72228369-72228809",
+         "17:45077212-45077654",
+         "20:17061734-17062177",
+         "21:25083287-25083703",
+         "2:44240340-44240777",
+         "4:160263526-160263921",
+         "4:21716254-21716873",
+         "5:116061909-116062354",
+         "5:54401648-54402330",
+         "6:48671520-48672005",
+         "7:151013461-151013921",
+         "8:98134960-98135646",
+         "9:113463787-113464361",
+         "X:6720818-6721331"
+      ]
+   },
+   {
+      "LocusId": "C9ORF72",
+      "LocusStructure": "(GGCCCC)*",
+      "OfftargetRegions": [
+         "11:2905908-2906343",
+         "11:44748440-44748826",
+         "12:54476191-54476555",
+         "13:107569777-107570152",
+         "18:51750490-51750859",
+         "20:60640154-60640514",
+         "2:240659665-240660103",
+         "3:49591934-49592403",
+         "5:176797891-176798284",
+         "X:153569778-153570152",
+         "X:153618688-153619062",
+         "X:53652598-53653029"
+      ],
+      "ReferenceRegion": "chr9:27573526-27573544",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "C9orf72",
+      "Inheritance": "AD",
+      "GeneRegion": "intron",
+      "DiscoveryMethod": "L, WGS",
+      "DiscoveryYear": 2011,
+      "Diseases": [
+         {
+            "Symbol": "FTDALS1",
+            "Name": "Amyotrophic lateral sclerosis and/or frontotemporal dementia",
+            "Inheritance": "AD",
+            "OMIM": "105550",
+            "NormalMax": 23,
+            "PathogenicMin": 31,
+            "IntermediateRange": "20-30"
+         }
+      ]
+   },
+   {
+      "LocusId": "CACNA1A",
+      "LocusStructure": "(CTG)*",
+      "ReferenceRegion": "chr19:13318672-13318711",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "CACNA1A",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyglutamine",
+      "DiscoveryMethod": "L, ExScr",
+      "DiscoveryYear": 1997,
+      "Diseases": [
+         {
+            "Symbol": "SCA6",
+            "Name": "Spinocerebellar ataxia 6",
+            "Inheritance": "AD",
+            "OMIM": "183086",
+            "NormalMax": 18,
+            "PathogenicMin": 21,
+            "IntermediateRange": "19-19"
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "1:53793354-53793697",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "7:121928089-121928459",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "CNBP",
+      "LocusStructure": "(CAGG)*(CAGA)*(CA)*",
+      "ReferenceRegion": [
+         "chr3:128891419-128891499",
+         "chr3:128891499-128891539",
+         "chr3:128891539-128891575"
+      ],
+      "VariantId": [
+         "CNBP",
+         "CNBP_CAGA",
+         "CNBP_CA"
+      ],
+      "VariantType": [
+         "RareRepeat",
+         "Repeat",
+         "Repeat"
+      ],
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "CNBP",
+      "Inheritance": "AD",
+      "GeneRegion": "intron",
+      "DiscoveryMethod": "L, ExScr",
+      "DiscoveryYear": 2001,
+      "Diseases": [
+         {
+            "Symbol": "DM2",
+            "Name": "Myotonic dystrophy 2",
+            "Inheritance": "AD",
+            "OMIM": "602668",
+            "NormalMax": 29,
+            "PathogenicMin": 55,
+            "IntermediateRange": "30-55"
+         }
+      ],
+      "OfftargetRegions": [
+         "11:93318717-93319091",
+         "15:59902190-59902565",
+         "15:77165503-77165881",
+         "1:22569813-22570157",
+         "1:64143856-64144229",
+         "20:62515017-62515363",
+         "3:122870421-122870941",
+         "4:112983534-112983920",
+         "4:126749130-126749510",
+         "6:128755954-128756470",
+         "6:161640749-161641160",
+         "8:60368496-60368945",
+         "9:113654943-113655313",
+         "9:14719350-14719723",
+         "GL000229.1:15064-15412"
+      ]
+   },
+   {
+      "LocusId": "COMP",
+      "LocusStructure": "(GTC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "19:18896844-18896859",
+      "RepeatUnit": "GTC",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "COMP",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - poly-aspartic-acid",
+      "Diseases": [
+         {
+            "Symbol": "EDM1",
+            "Name": "Multiple epiphyseal dysplasia",
+            "Inheritance": "AD",
+            "OMIM": "132400",
+            "NormalMax": 5,
+            "PathogenicMin": 6
+         },
+         {
+            "Symbol": "PSACH",
+            "Name": "Pseudoachondroplasia",
+            "Inheritance": "AD",
+            "OMIM": "177170",
+            "NormalMax": 5,
+            "PathogenicMin": 7
+         }
+      ],
+      "OfftargetRegions": [
+         "11:133010525-133011110",
+         "1:10698985-10699367",
+         "1:236079247-236079630",
+         "2:170701846-170702205"
+      ]
+   },
+   {
+      "LocusId": "CSTB",
+      "LocusStructure": "(CGCGGGGCGGGG)*",
+      "ReferenceRegion": "chr21:45196324-45196360",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "CSTB",
+      "Inheritance": "AR",
+      "GeneRegion": "promoter",
+      "DiscoveryMethod": "L, cl, exp",
+      "DiscoveryYear": 1997,
+      "Diseases": [
+         {
+            "Symbol": "EPM1",
+            "Name": "Epilepsy Progressive Myoclonic",
+            "Inheritance": "AR",
+            "OMIM": "254800",
+            "PathogenicMin": 30
+         }
+      ],
+      "OfftargetRegions": [
+         "16:214559-215144",
+         "8:1711398-1711982"
+      ]
+   },
+   {
+      "LocusId": "DAB1",
+      "LocusStructure": "(AAAAT)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "1:57832715-57832790",
+      "RepeatUnit": "AAAAT",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "DAB1",
+      "Inheritance": "AD",
+      "GeneRegion": "intron",
+      "DiscoveryMethod": "L, ExScr",
+      "DiscoveryYear": 2017,
+      "PathogenicMotif": "ATTTC",
+      "Diseases": [
+         {
+            "Symbol": "SCA37",
+            "Name": "Spinocerebellar ataxia 37",
+            "Inheritance": "AD",
+            "OMIM": "615945",
+            "PathogenicMin": 31
+         }
+      ],
+      "OfftargetRegions": [
+         "13:72228369-72228809",
+         "17:45077212-45077654",
+         "20:17061734-17062177",
+         "21:25083287-25083703",
+         "2:44240340-44240777",
+         "4:160263526-160263921",
+         "4:21716254-21716873",
+         "5:116061909-116062354",
+         "5:54401648-54402330",
+         "6:48671520-48672005",
+         "7:151013461-151013921",
+         "8:98134960-98135646",
+         "9:113463787-113464361",
+         "X:6720818-6721331"
+      ]
+   },
+   {
+      "LocusId": "DIP2B",
+      "LocusStructure": "(GGC)*",
+      "ReferenceRegion": "chr12:50898784-50898805",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "DIP2B",
+      "Inheritance": "AD",
+      "GeneRegion": "5'-UTR",
+      "Diseases": [
+         {
+            "Symbol": "MRFRA12A",
+            "Name": "Mental retardation, FRA12A type",
+            "Inheritance": "AD",
+            "OMIM": "136630",
+            "NormalMax": 23,
+            "PathogenicMin": 150
+         }
+      ],
+      "OfftargetRegions": [
+         "16:24740836-24741193",
+         "1:21502905-21503255",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:443175-443544",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246"
+      ]
+   },
+   {
+      "LocusId": "DMD",
+      "LocusStructure": "(TTC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "X:31302674-31302722",
+      "RepeatUnit": "TTC",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "DMD",
+      "Inheritance": "XR",
+      "GeneRegion": "intron",
+      "Diseases": [
+         {
+            "Symbol": "DMD",
+            "Name": "Duchenne muscular dystrophy",
+            "Inheritance": "XR",
+            "OMIM": "310200",
+            "NormalMax": 33,
+            "PathogenicMin": 59
+         }
+      ],
+      "OfftargetRegions": [
+         "13:102813766-102814231",
+         "15:38973293-38973785",
+         "1:102123258-102123745",
+         "20:22519268-22519861",
+         "2:221410750-221411319",
+         "2:48791391-48791872",
+         "5:126582852-126583333",
+         "6:50675783-50676269",
+         "7:20804789-20805152",
+         "7:37887624-37888126",
+         "7:47428429-47428964",
+         "7:84320265-84320758",
+         "X:30557919-30558404",
+         "X:51364202-51364708",
+         "Y:26170269-26170747",
+         "Y:27791678-27792160",
+         "Y:8333344-8333856"
+      ]
+   },
+   {
+      "LocusId": "DMPK",
+      "LocusStructure": "(CAG)*",
+      "ReferenceRegion": "chr19:46273462-46273522",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "DMPK",
+      "Inheritance": "AD",
+      "GeneRegion": "3'-UTR",
+      "DiscoveryMethod": "L, cl",
+      "DiscoveryYear": 1992,
+      "Diseases": [
+         {
+            "Symbol": "DM1",
+            "Name": "Myotonic dystrophy 1",
+            "Inheritance": "AD",
+            "OMIM": "160900",
+            "NormalMax": 34,
+            "PathogenicMin": 50,
+            "IntermediateRange": "35-49"
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:53793354-53793697",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "7:121928089-121928459",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "EIF4A3",
+      "LocusStructure": "(CCTCGCTGTGCCGCTGCCGA)*",
+      "VariantType": "Repeat",
+      "ReferenceRegion": "17:78120858-78120938",
+      "RepeatUnit": "CCTCGCTGTGCCGCTGCCGA",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "EIF4A3",
+      "Inheritance": "AR",
+      "GeneRegion": "5'-UTR",
+      "Diseases": [
+         {
+            "Symbol": "RCPS",
+            "Name": "Richieri-Costa-Pereira syndrome",
+            "Inheritance": "AR",
+            "OMIM": "268305",
+            "PathogenicMin": 14
+         }
+      ]
+   },
+   {
+      "LocusId": "FMR1",
+      "LocusStructure": "(CGG)*",
+      "OfftargetRegions": [
+         "16:24740836-24741193",
+         "1:21502905-21503255",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:443175-443544",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "X:150151713-150152085",
+         "X:20008884-20009246"
+      ],
+      "ReferenceRegion": "chrX:146993568-146993628",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "FMR1",
+      "Inheritance": "XD",
+      "GeneRegion": "5'-UTR",
+      "DiscoveryMethod": "K, FS, L, Me, cl",
+      "DiscoveryYear": 1991,
+      "Diseases": [
+         {
+            "Symbol": "FXTAS",
+            "Name": "Fragile X tremor/ataxia syndrome",
+            "Inheritance": "XD",
+            "OMIM": "300623",
+            "NormalMax": 40,
+            "PathogenicMin": 55,
+            "IntermediateRange": "41-54"
+         },
+         {
+            "Symbol": "FXS",
+            "Name": "Fragile X Syndrome",
+            "Inheritance": "XD",
+            "OMIM": "300624",
+            "NormalMax": 40,
+            "PathogenicMin": 201,
+            "IntermediateRange": "41-54"
+         }
+      ]
+   },
+   {
+      "LocusId": "FOXL2",
+      "LocusStructure": "(NGC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "3:138664862-138664904",
+      "RepeatUnit": "NGC",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "FOXL2",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyalanine",
+      "DiscoveryMethod": "L, CGA",
+      "DiscoveryYear": 2001,
+      "Diseases": [
+         {
+            "Symbol": "BPES",
+            "Name": "Blepharophimosis, ptosis, and epicanthus inversus syndrome",
+            "Inheritance": "AD",
+            "OMIM": "110100",
+            "NormalMax": 14,
+            "PathogenicMin": 19
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24740836-24741193",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:21502905-21503255",
+         "1:53793354-53793697",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "5:443175-443544",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "7:121928089-121928459",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "FXN",
+      "LocusStructure": "(A)*(GAA)*",
+      "ReferenceRegion": [
+         "chr9:71652177-71652202",
+         "chr9:71652202-71652220"
+      ],
+      "VariantId": [
+         "FXN_A",
+         "FXN"
+      ],
+      "VariantType": [
+         "Repeat",
+         "RareRepeat"
+      ],
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "FXN",
+      "Inheritance": "AR",
+      "GeneRegion": "intron",
+      "DiscoveryMethod": "L, ExScr",
+      "DiscoveryYear": 1996,
+      "Diseases": [
+         {
+            "Symbol": "FRDA",
+            "Name": "Friedreich ataxia",
+            "Inheritance": "AR",
+            "OMIM": "229300",
+            "NormalMax": 30,
+            "PathogenicMin": 70
+         }
+      ],
+      "OfftargetRegions": [
+         "13:102813766-102814231",
+         "15:38973293-38973785",
+         "1:102123258-102123745",
+         "20:22519268-22519861",
+         "2:221410750-221411319",
+         "2:48791391-48791872",
+         "5:126582852-126583333",
+         "6:50675783-50676269",
+         "7:20804789-20805152",
+         "7:37887624-37888126",
+         "7:47428429-47428964",
+         "7:84320265-84320758",
+         "X:30557919-30558404",
+         "X:51364202-51364708",
+         "Y:26170269-26170747",
+         "Y:27791678-27792160",
+         "Y:8333344-8333856"
+      ]
+   },
+   {
+      "LocusId": "GIPC1",
+      "LocusStructure": "(CCG)*",
+      "ReferenceRegion": "chr19:14606853-14606886",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "GIPC1",
+      "Inheritance": "AD",
+      "GeneRegion": "5'-UTR",
+      "DiscoveryMethod": "L, WGS, LRS",
+      "DiscoveryYear": 2020,
+      "Diseases": [
+         {
+            "Symbol": "OPDM2",
+            "Name": "Oculopharyngodistal myopathy 2",
+            "Inheritance": "AD",
+            "OMIM": "618940",
+            "NormalMax": 32,
+            "PathogenicMin": 73
+         }
+      ],
+      "OfftargetRegions": [
+         "16:24740836-24741193",
+         "1:21502905-21503255",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:443175-443544",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246"
+      ]
+   },
+   {
+      "LocusId": "GLS",
+      "LocusStructure": "(GCA)*",
+      "ReferenceRegion": "chr2:191745598-191745646",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "GLS",
+      "Inheritance": "AR",
+      "GeneRegion": "5'-UTR",
+      "DiscoveryMethod": "CGA",
+      "DiscoveryYear": 2019,
+      "Diseases": [
+         {
+            "Symbol": "GD",
+            "Name": "Glutaminase deficiency with impaired intellectual development and progressive ataxia",
+            "Inheritance": "AR",
+            "OMIM": "618412",
+            "NormalMax": 26,
+            "PathogenicMin": 680
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:53793354-53793697",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "7:121928089-121928459",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "HOXA13_1",
+      "LocusStructure": "(NGC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "7:27239543-27239585",
+      "RepeatUnit": "NGC",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "HOXA13",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyalanine",
+      "DiscoveryMethod": "L, CGA",
+      "DiscoveryYear": 2000,
+      "Diseases": [
+         {
+            "Symbol": "HFG",
+            "Name": "Hand-foot-genital syndrome",
+            "Inheritance": "AD",
+            "OMIM": "140000",
+            "NormalMax": 14,
+            "PathogenicMin": 22
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24740836-24741193",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:21502905-21503255",
+         "1:53793354-53793697",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "5:443175-443544",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "7:121928089-121928459",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "HOXA13_2",
+      "LocusStructure": "(NGC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "7:27239444-27239480",
+      "RepeatUnit": "NGC",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "HOXA13",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyalanine",
+      "DiscoveryMethod": "L, CGA",
+      "DiscoveryYear": 2000,
+      "Diseases": [
+         {
+            "Symbol": "HFG",
+            "Name": "Hand-foot-genital syndrome",
+            "Inheritance": "AD",
+            "OMIM": "140000",
+            "NormalMax": 12,
+            "PathogenicMin": 18
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24740836-24741193",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:21502905-21503255",
+         "1:53793354-53793697",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "5:443175-443544",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "7:121928089-121928459",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "HOXA13_3",
+      "LocusStructure": "(NGC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "7:27239297-27239351",
+      "RepeatUnit": "NGC",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "HOXA13",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyalanine",
+      "DiscoveryMethod": "L, CGA",
+      "DiscoveryYear": 2000,
+      "Diseases": [
+         {
+            "Symbol": "HFG",
+            "Name": "Hand-foot-genital syndrome",
+            "Inheritance": "AD",
+            "OMIM": "140000",
+            "NormalMax": 18,
+            "PathogenicMin": 24
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24740836-24741193",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:21502905-21503255",
+         "1:53793354-53793697",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "5:443175-443544",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "7:121928089-121928459",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "HOXD13",
+      "LocusStructure": "(GCG)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "2:176957786-176957831",
+      "RepeatUnit": "GCG",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "HOXD13",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyalanine",
+      "DiscoveryMethod": "L, CGA",
+      "DiscoveryYear": 1996,
+      "Diseases": [
+         {
+            "Symbol": "SPD",
+            "Name": "Synpolydactyly",
+            "Inheritance": "AD",
+            "OMIM": "186300",
+            "NormalMax": 15,
+            "PathogenicMin": 22
+         }
+      ],
+      "OfftargetRegions": [
+         "16:24740836-24741193",
+         "1:21502905-21503255",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:443175-443544",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246"
+      ]
+   },
+   {
+      "LocusId": "HTT",
+      "LocusStructure": "(CAG)*CAACAG(CCG)*",
+      "ReferenceRegion": [
+         "chr4:3076603-3076660",
+         "chr4:3076666-3076693"
+      ],
+      "VariantId": [
+         "HTT",
+         "HTT_CCG"
+      ],
+      "VariantType": [
+         "RareRepeat",
+         "Repeat"
+      ],
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "HTT",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyglutamine",
+      "DiscoveryMethod": "L, ExScr",
+      "DiscoveryYear": 1993,
+      "Diseases": [
+         {
+            "Symbol": "HD",
+            "Name": "Huntington's disease",
+            "Inheritance": "AD",
+            "OMIM": "143100",
+            "NormalMax": 26,
+            "PathogenicMin": 36,
+            "IntermediateRange": "27-35"
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:53793354-53793697",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "7:121928089-121928459",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "JPH3",
+      "LocusStructure": "(CTG)*",
+      "ReferenceRegion": "chr16:87637893-87637935",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "JPH3",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyglutamine",
+      "DiscoveryMethod": "L, RED",
+      "DiscoveryYear": 2001,
+      "Diseases": [
+         {
+            "Symbol": "HDL2",
+            "Name": "Huntington disease-like 2",
+            "Inheritance": "AD",
+            "OMIM": "606438",
+            "NormalMax": 27,
+            "PathogenicMin": 41
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:53793354-53793697",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "7:121928089-121928459",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "NUTM2B-AS1",
+      "LocusStructure": "(GGC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "10:81586139-81586160",
+      "RepeatUnit": "GGC",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "LOC642361",
+      "Inheritance": "AD",
+      "GeneRegion": "non-coding RNA",
+      "DiscoveryMethod": "TRhist",
+      "DiscoveryYear": 2019,
+      "Diseases": [
+         {
+            "Symbol": "OPML1",
+            "Name": "Oculopharyngeal myopathy with leukoencephalopathy 1",
+            "Inheritance": "AD",
+            "OMIM": "618637",
+            "NormalMax": 16,
+            "PathogenicMin": 700
+         }
+      ],
+      "OfftargetRegions": [
+         "16:24740836-24741193",
+         "1:21502905-21503255",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:443175-443544",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246"
+      ]
+   },
+   {
+      "LocusId": "LRP12",
+      "LocusStructure": "(CGC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "8:105601198-105601225",
+      "RepeatUnit": "CGC",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "LRP12",
+      "Inheritance": "AD",
+      "GeneRegion": "5'-UTR",
+      "DiscoveryMethod": "TRhist",
+      "DiscoveryYear": 2019,
+      "Diseases": [
+         {
+            "Symbol": "OPDM1",
+            "Name": "Oculopharyngodistal myopathy 1",
+            "Inheritance": "AD",
+            "OMIM": "164310",
+            "NormalMax": 45,
+            "PathogenicMin": 93
+         }
+      ],
+      "OfftargetRegions": [
+         "16:24740836-24741193",
+         "1:21502905-21503255",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:443175-443544",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246"
+      ]
+   },
+   {
+      "LocusId": "MARCHF6",
+      "LocusStructure": "(ATTTT)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "5:10356458-10356523",
+      "RepeatUnit": "ATTTT",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "MARCHF6",
+      "Inheritance": "AD",
+      "GeneRegion": "intron",
+      "DiscoveryMethod": "L, ExScr",
+      "DiscoveryYear": 2019,
+      "PathogenicMotif": "ATTTC",
+      "Diseases": [
+         {
+            "Symbol": "FAME3",
+            "Name": "Familial adult myoclonic epilepsy 3",
+            "Inheritance": "AD",
+            "OMIM": "613608",
+            "PathogenicMin": 668
+         }
+      ],
+      "OfftargetRegions": [
+         "13:72228369-72228809",
+         "17:45077212-45077654",
+         "20:17061734-17062177",
+         "21:25083287-25083703",
+         "2:44240340-44240777",
+         "4:160263526-160263921",
+         "4:21716254-21716873",
+         "5:116061909-116062354",
+         "5:54401648-54402330",
+         "6:48671520-48672005",
+         "7:151013461-151013921",
+         "8:98134960-98135646",
+         "9:113463787-113464361",
+         "X:6720818-6721331"
+      ]
+   },
+   {
+      "LocusId": "NIPA1",
+      "LocusStructure": "(CGC)*",
+      "ReferenceRegion": "chr15:23086366-23086390",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "NIPA1",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyalanine",
+      "Diseases": [
+         {
+            "Symbol": "ALS",
+            "Name": "Amyotrophic lateral sclerosis",
+            "Inheritance": "AD",
+            "OMIM": "105400",
+            "NormalMax": 10,
+            "PathogenicMin": 11
+         }
+      ],
+      "OfftargetRegions": [
+         "16:24740836-24741193",
+         "1:21502905-21503255",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:443175-443544",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246"
+      ]
+   },
+   {
+      "LocusId": "NOP56",
+      "LocusStructure": "(GGCCTG)*(CGCCTG)*",
+      "ReferenceRegion": [
+         "chr20:2633379-2633403",
+         "chr20:2633403-2633421"
+      ],
+      "VariantId": [
+         "NOP56",
+         "NOP56_CGCCTG"
+      ],
+      "VariantType": [
+         "RareRepeat",
+         "Repeat"
+      ],
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "NOP56",
+      "Inheritance": "AD",
+      "GeneRegion": "intron",
+      "DiscoveryMethod": "L, ExScr",
+      "DiscoveryYear": 2011,
+      "Diseases": [
+         {
+            "Symbol": "SCA36",
+            "Name": "Spinocerebellar ataxia 36",
+            "Inheritance": "AD",
+            "OMIM": "614153",
+            "NormalMax": 14,
+            "PathogenicMin": 650
+         }
+      ],
+      "OfftargetRegions": [
+         "5:145838390-145838909"
+      ]
+   },
+   {
+      "LocusId": "PABPN1",
+      "LocusStructure": "(GCG)*",
+      "ReferenceRegion": "chr14:23790681-23790699",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "PABPN1",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyalanine",
+      "DiscoveryMethod": "L, ExScr",
+      "DiscoveryYear": 1998,
+      "Diseases": [
+         {
+            "Symbol": "OPMD",
+            "Name": "Oculopharyngeal muscular dystrophy",
+            "Inheritance": "AD",
+            "OMIM": "164300",
+            "NormalMax": 6,
+            "PathogenicMin": 7
+         }
+      ],
+      "OfftargetRegions": [
+         "16:24740836-24741193",
+         "1:21502905-21503255",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:443175-443544",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246"
+      ]
+   },
+   {
+      "LocusId": "PHOX2B",
+      "LocusStructure": "(GCN)*",
+      "ReferenceRegion": "chr4:41747989-41748049",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "PHOX2B",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyalanine",
+      "DiscoveryMethod": "L, CGA",
+      "DiscoveryYear": 2003,
+      "Diseases": [
+         {
+            "Symbol": "CCHS",
+            "Name": "Central hypoventilation syndrome",
+            "Inheritance": "AD",
+            "OMIM": "209880",
+            "NormalMax": 20,
+            "PathogenicMin": 24
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24740836-24741193",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:21502905-21503255",
+         "1:53793354-53793697",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "5:443175-443544",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "7:121928089-121928459",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "PPP2R2B",
+      "LocusStructure": "(GCT)*",
+      "ReferenceRegion": "chr5:146258290-146258320",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "PPP2R2B",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyserine",
+      "DiscoveryMethod": "L, RED",
+      "DiscoveryYear": 1999,
+      "Diseases": [
+         {
+            "Symbol": "SCA12",
+            "Name": "Spinocerebellar ataxia 12",
+            "Inheritance": "AD",
+            "OMIM": "604326",
+            "NormalMax": 31,
+            "PathogenicMin": 51
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:53793354-53793697",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "7:121928089-121928459",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "PRDM12",
+      "LocusStructure": "(GCC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "9:133556993-133557026",
+      "RepeatUnit": "GCC",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "PRDM12",
+      "Inheritance": "AR",
+      "GeneRegion": "exon - polyalanine",
+      "Diseases": [
+         {
+            "Symbol": "HSAN8",
+            "Name": "Hereditary sensory and autonomic neuropathy type VIII",
+            "Inheritance": "AR",
+            "OMIM": "616488",
+            "NormalMax": 14,
+            "PathogenicMin": 18
+         }
+      ],
+      "OfftargetRegions": [
+         "16:24740836-24741193",
+         "1:21502905-21503255",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:443175-443544",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246"
+      ]
+   },
+   {
+      "LocusId": "PRNP",
+      "LocusStructure": "(GGTGGTGGCTGGGGGCAGCCTCAT)*",
+      "VariantType": "Repeat",
+      "ReferenceRegion": "20:4680025-4680139",
+      "RepeatUnit": "GGTGGTGGCTGGGGGCAGCCTCAT",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "PRNP",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - coding",
+      "Diseases": [
+         {
+            "Symbol": "CJD",
+            "Name": "Creutzfeldt-Jakob disease",
+            "Inheritance": "AD",
+            "OMIM": "123400",
+            "NormalMax": 4,
+            "PathogenicMin": 5
+         }
+      ]
+   },
+   {
+      "LocusId": "RAPGEF2",
+      "LocusStructure": "(TTTTA)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "4:160263678-160263768",
+      "RepeatUnit": "TTTTA",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "RAPGEF2",
+      "Inheritance": "AD",
+      "GeneRegion": "intron",
+      "DiscoveryMethod": "TRhist",
+      "DiscoveryYear": 2018,
+      "PathogenicMotif": "ATTTC",
+      "Diseases": [
+         {
+            "Symbol": "FAME7",
+            "Name": "Familial adult myoclonic epilepsy 7",
+            "Inheritance": "AD",
+            "OMIM": "618075",
+            "PathogenicMin": 60
+         }
+      ],
+      "OfftargetRegions": [
+         "13:72228369-72228809",
+         "17:45077212-45077654",
+         "20:17061734-17062177",
+         "21:25083287-25083703",
+         "2:44240340-44240777",
+         "4:21716254-21716873",
+         "5:116061909-116062354",
+         "5:54401648-54402330",
+         "6:48671520-48672005",
+         "7:151013461-151013921",
+         "8:98134960-98135646",
+         "9:113463787-113464361",
+         "X:6720818-6721331"
+      ]
+   },
+   {
+      "LocusId": "RFC1",
+      "LocusStructure": "(AARRG)*",
+      "ReferenceRegion": "chr4:39350044-39350099",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "RFC1",
+      "Inheritance": "AR",
+      "GeneRegion": "intron",
+      "DiscoveryMethod": "L, WGS",
+      "DiscoveryYear": 2019,
+      "PathogenicMotif": "AAGGG",
+      "Diseases": [
+         {
+            "Symbol": "CANVAS",
+            "Name": "Cerebellar ataxia, neuropathy, and vestibular areflexia syndrome",
+            "Inheritance": "AR",
+            "OMIM": "614575",
+            "PathogenicMin": 400
+         }
+      ],
+      "OfftargetRegions": [
+         "18:43835211-43835574",
+         "1:157929591-157929948",
+         "2:163609258-163609693",
+         "6:51418689-51419033",
+         "9:102221065-102221412"
+      ]
+   },
+   {
+      "LocusId": "RUNX2",
+      "LocusStructure": "(GCN)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "6:45390487-45390529",
+      "RepeatUnit": "GCN",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "RUNX2",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyalanine",
+      "DiscoveryMethod": "L, CGA",
+      "DiscoveryYear": 1997,
+      "Diseases": [
+         {
+            "Symbol": "CCD",
+            "Name": "Cleidocranial dysplasia",
+            "Inheritance": "AD",
+            "OMIM": "119600",
+            "NormalMax": 17,
+            "PathogenicMin": 27
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24740836-24741193",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:21502905-21503255",
+         "1:53793354-53793697",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "5:443175-443544",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "7:121928089-121928459",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "SAMD12",
+      "LocusStructure": "(TAAAA)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "8:119379054-119379119",
+      "RepeatUnit": "TAAAA",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "SAMD12",
+      "Inheritance": "AD",
+      "GeneRegion": "intron",
+      "DiscoveryMethod": "L, ExScr",
+      "DiscoveryYear": 2018,
+      "PathogenicMotif": "ATTTC",
+      "Diseases": [
+         {
+            "Symbol": "FAME1",
+            "Name": "Familial adult myoclonic epilepsy 1",
+            "Inheritance": "AD",
+            "OMIM": "601068",
+            "PathogenicMin": 100
+         }
+      ],
+      "OfftargetRegions": [
+         "13:72228369-72228809",
+         "17:45077212-45077654",
+         "20:17061734-17062177",
+         "21:25083287-25083703",
+         "2:44240340-44240777",
+         "4:160263526-160263921",
+         "4:21716254-21716873",
+         "5:116061909-116062354",
+         "5:54401648-54402330",
+         "6:48671520-48672005",
+         "7:151013461-151013921",
+         "8:98134960-98135646",
+         "9:113463787-113464361",
+         "X:6720818-6721331"
+      ]
+   },
+   {
+      "LocusId": "SOX3",
+      "LocusStructure": "(NGC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "X:139586481-139586526",
+      "RepeatUnit": "NGC",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "SOX3",
+      "Inheritance": "XR",
+      "GeneRegion": "exon - polyalanine",
+      "DiscoveryMethod": "L, CGA",
+      "DiscoveryYear": 2002,
+      "Diseases": [
+         {
+            "Symbol": "XLMR",
+            "Name": "X-linked mental retardation with isolated growth hormone",
+            "Inheritance": "XR",
+            "OMIM": "300123",
+            "NormalMax": 15,
+            "PathogenicMin": 26
+         },
+         {
+            "Symbol": "PHPX",
+            "Name": "X-linked panhypopituitarism",
+            "Inheritance": "XR",
+            "OMIM": "312000",
+            "NormalMax": 15,
+            "PathogenicMin": 22
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24740836-24741193",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:21502905-21503255",
+         "1:53793354-53793697",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "5:443175-443544",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "7:121928089-121928459",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "STARD7",
+      "LocusStructure": "(AAAAT)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "2:96862804-96862859",
+      "RepeatUnit": "AAAAT",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "STARD7",
+      "Inheritance": "AD",
+      "GeneRegion": "intron",
+      "DiscoveryMethod": "L, ExScr",
+      "DiscoveryYear": 2019,
+      "PathogenicMotif": "ATTTC",
+      "Diseases": [
+         {
+            "Symbol": "FAME2",
+            "Name": "Familial adult myoclonic epilepsy 2",
+            "Inheritance": "AD",
+            "OMIM": "607876",
+            "PathogenicMin": 274
+         }
+      ],
+      "OfftargetRegions": [
+         "13:72228369-72228809",
+         "17:45077212-45077654",
+         "20:17061734-17062177",
+         "21:25083287-25083703",
+         "2:44240340-44240777",
+         "4:160263526-160263921",
+         "4:21716254-21716873",
+         "5:116061909-116062354",
+         "5:54401648-54402330",
+         "6:48671520-48672005",
+         "7:151013461-151013921",
+         "8:98134960-98135646",
+         "9:113463787-113464361",
+         "X:6720818-6721331"
+      ]
+   },
+   {
+      "LocusId": "TBP",
+      "LocusStructure": "(GCA)*",
+      "ReferenceRegion": "chr6:170870994-170871105",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "TBP",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyglutamine",
+      "DiscoveryMethod": "L, CGA",
+      "DiscoveryYear": 1999,
+      "Diseases": [
+         {
+            "Symbol": "SCA17",
+            "Name": "Spinocerebellar ataxia 17",
+            "Inheritance": "AD",
+            "OMIM": "607136",
+            "NormalMax": 42,
+            "PathogenicMin": 43
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:53793354-53793697",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "7:121928089-121928459",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "TBX1",
+      "LocusStructure": "(GCN)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "22:19754285-19754330",
+      "RepeatUnit": "GCN",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "TBX1",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyalanine",
+      "Diseases": [
+         {
+            "Symbol": "TOF",
+            "Name": "Tetralogy of Fallot",
+            "Inheritance": "AD",
+            "OMIM": "187500",
+            "NormalMax": 15,
+            "PathogenicMin": 25
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24740836-24741193",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:21502905-21503255",
+         "1:53793354-53793697",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "5:443175-443544",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "7:121928089-121928459",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "TCF4",
+      "LocusStructure": "(CAG)*",
+      "ReferenceRegion": "chr18:53253386-53253458",
+      "VariantType": "RareRepeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "TCF4",
+      "Inheritance": "AD",
+      "GeneRegion": "intron",
+      "DiscoveryMethod": "L, GWAS",
+      "DiscoveryYear": 2015,
+      "Diseases": [
+         {
+            "Symbol": "FECD3",
+            "Name": "Fuchs endothelial corneal dystrophy-3",
+            "Inheritance": "AD",
+            "OMIM": "613267",
+            "NormalMax": 31,
+            "PathogenicMin": 50
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "19:13318521-13318866",
+         "1:53793354-53793697",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "7:121928089-121928459",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "TNRC6A",
+      "LocusStructure": "(TTTTA)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "16:24624760-24624850",
+      "RepeatUnit": "TTTTA",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "TNRC6A",
+      "Inheritance": "AD",
+      "GeneRegion": "intron",
+      "DiscoveryMethod": "TRhist",
+      "DiscoveryYear": 2018,
+      "PathogenicMotif": "ATTTC",
+      "Diseases": [
+         {
+            "Symbol": "FAME6",
+            "Name": "Familial adult myoclonic epilepsy 6",
+            "Inheritance": "AD",
+            "OMIM": "618074",
+            "PathogenicMin": 1100
+         }
+      ],
+      "OfftargetRegions": [
+         "13:72228369-72228809",
+         "17:45077212-45077654",
+         "20:17061734-17062177",
+         "21:25083287-25083703",
+         "2:44240340-44240777",
+         "4:160263526-160263921",
+         "4:21716254-21716873",
+         "5:116061909-116062354",
+         "5:54401648-54402330",
+         "6:48671520-48672005",
+         "7:151013461-151013921",
+         "8:98134960-98135646",
+         "9:113463787-113464361",
+         "X:6720818-6721331"
+      ]
+   },
+   {
+      "LocusId": "VWA1",
+      "LocusStructure": "(GGCGCGGAGC)*",
+      "VariantType": "Repeat",
+      "ReferenceRegion": "1:1371178-1371198",
+      "RepeatUnit": "GGCGCGGAGC",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "VWA1",
+      "Inheritance": "AR",
+      "GeneRegion": "exon - coding",
+      "Diseases": [
+         {
+            "Symbol": "HMN",
+            "Name": "Hereditary motor neuropathy",
+            "Inheritance": "AR",
+            "OMIM": "619216",
+            "NormalMax": 2,
+            "PathogenicMin": 3
+         }
+      ]
+   },
+   {
+      "LocusId": "XYLT1",
+      "LocusStructure": "(GCC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "16:17564764-17564779",
+      "RepeatUnit": "GCC",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "XYLT1",
+      "Inheritance": "AR",
+      "GeneRegion": "5'-UTR",
+      "DiscoveryMethod": "ADO, Me",
+      "DiscoveryYear": 2019,
+      "Diseases": [
+         {
+            "Symbol": "DBQD2",
+            "Name": "Desbuquois dysplasia-2",
+            "Inheritance": "AR",
+            "OMIM": "615777",
+            "NormalMax": 20,
+            "PathogenicMin": 110
+         }
+      ],
+      "OfftargetRegions": [
+         "16:24740836-24741193",
+         "1:21502905-21503255",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:443175-443544",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246"
+      ]
+   },
+   {
+      "LocusId": "YEATS2",
+      "LocusStructure": "(TTTTA)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "3:183429975-183430010",
+      "RepeatUnit": "TTTTA",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "YEATS2",
+      "Inheritance": "AD",
+      "GeneRegion": "intron",
+      "DiscoveryMethod": "L, ExScr",
+      "DiscoveryYear": 2019,
+      "PathogenicMotif": "ATTTC",
+      "Diseases": [
+         {
+            "Symbol": "FAME4",
+            "Name": "Familial adult myoclonic epilepsy 4",
+            "Inheritance": "AD",
+            "OMIM": "615127",
+            "PathogenicMin": 1000
+         }
+      ],
+      "OfftargetRegions": [
+         "13:72228369-72228809",
+         "17:45077212-45077654",
+         "20:17061734-17062177",
+         "21:25083287-25083703",
+         "2:44240340-44240777",
+         "4:160263526-160263921",
+         "4:21716254-21716873",
+         "5:116061909-116062354",
+         "5:54401648-54402330",
+         "6:48671520-48672005",
+         "7:151013461-151013921",
+         "8:98134960-98135646",
+         "9:113463787-113464361",
+         "X:6720818-6721331"
+      ]
+   },
+   {
+      "LocusId": "ZIC2",
+      "LocusStructure": "(GCN)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "13:100637702-100637747",
+      "RepeatUnit": "GCN",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "ZIC2",
+      "Inheritance": "AD",
+      "GeneRegion": "exon - polyalanine",
+      "DiscoveryMethod": "L, CGA",
+      "DiscoveryYear": 2001,
+      "Diseases": [
+         {
+            "Symbol": "HPE5",
+            "Name": "Holoprosencephaly 5",
+            "Inheritance": "AD",
+            "OMIM": "609637",
+            "NormalMax": 15,
+            "PathogenicMin": 25
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24740836-24741193",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:21502905-21503255",
+         "1:53793354-53793697",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "5:443175-443544",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "7:121928089-121928459",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   },
+   {
+      "LocusId": "ZIC3",
+      "LocusStructure": "(GCN)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "X:136648985-136649015",
+      "RepeatUnit": "GCN",
+      "InExpansionHunterVariantCatalog": false,
+      "Gene": "ZIC3",
+      "Inheritance": "XR",
+      "GeneRegion": "exon - polyalanine",
+      "Diseases": [
+         {
+            "Symbol": "VACTERLX",
+            "Name": "X-linked VACTERL syndrome",
+            "Inheritance": "XR",
+            "OMIM": "314390",
+            "NormalMax": 10,
+            "PathogenicMin": 12
+         }
+      ],
+      "OfftargetRegions": [
+         "12:65957339-65957682",
+         "16:24740836-24741193",
+         "16:24788215-24788616",
+         "16:56849613-56849994",
+         "16:73580408-73580794",
+         "17:10898867-10899244",
+         "17:49908873-49909245",
+         "18:53253224-53253614",
+         "19:13318521-13318866",
+         "1:21502905-21503255",
+         "1:53793354-53793697",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:137929768-137930128",
+         "5:166406025-166406402",
+         "5:443175-443544",
+         "6:104467037-104467394",
+         "6:16327703-16328107",
+         "6:170870842-170871263",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "7:121928089-121928459",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246",
+         "X:21385178-21385539",
+         "X:24382204-24382718",
+         "X:66764998-66765411"
+      ]
+   }
+]
