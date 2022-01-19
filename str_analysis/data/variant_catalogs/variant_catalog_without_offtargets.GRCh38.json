@@ -1069,11 +1069,21 @@
    },
    {
       "LocusId": "PRNP",
-      "LocusStructure": "(GGTGGTGGCTGGGGGCAGCCTCAT)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr20:4699379-4699493",
+      "LocusStructure": "(CCTCAGGGCGGTGGTGGCTGGGGGCAG)*(CCTCATGGTGGTGGCTGGGGGCAG)*",
+      "VariantType": [
+         "Repeat",
+         "Repeat"
+      ],
+      "ReferenceRegion": [
+         "chr20:4699370-4699397",
+         "chr20:4699397-4699493"
+      ],
       "RepeatUnit": "GGTGGTGGCTGGGGGCAGCCTCAT",
       "InExpansionHunterVariantCatalog": false,
+      "VariantId": [
+         "PRNP_CCTCAGGGCGGTGGTGGCTGGGGGCAG",
+         "PRNP"
+      ],
       "Gene": "PRNP",
       "Inheritance": "AD",
       "GeneRegion": "exon - coding",
