@@ -2,7 +2,7 @@
    {
       "LocusId": "AFF2",
       "LocusStructure": "(GCC)*",
-      "ReferenceRegion": "chrX:147582151-147582211",
+      "ReferenceRegion": "chrX:148500631-148500691",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "AFF2",
@@ -24,12 +24,12 @@
    {
       "LocusId": "AR",
       "LocusStructure": "(GCA)*",
-      "ReferenceRegion": "chrX:66765158-66765227",
+      "ReferenceRegion": "chrX:67545316-67545385",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "AR",
       "Inheritance": "XR",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 1991,
       "Diseases": [
@@ -47,12 +47,12 @@
       "LocusId": "ARX_1",
       "LocusStructure": "(NGC)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "X:25031766-25031814",
+      "ReferenceRegion": "chrX:25013649-25013697",
       "RepeatUnit": "NGC",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "ARX",
       "Inheritance": "XR",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "Diseases": [
          {
             "Symbol": "DEE1",
@@ -76,12 +76,12 @@
       "LocusId": "ARX_2",
       "LocusStructure": "(NGC)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "X:25031646-25031682",
+      "ReferenceRegion": "chrX:25013529-25013565",
       "RepeatUnit": "NGC",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "ARX",
       "Inheritance": "XR",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "Diseases": [
          {
             "Symbol": "DEE1",
@@ -112,12 +112,12 @@
    {
       "LocusId": "ATN1",
       "LocusStructure": "(CAG)*",
-      "ReferenceRegion": "chr12:7045879-7045936",
+      "ReferenceRegion": "chr12:6936716-6936773",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "ATN1",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1994,
       "Diseases": [
@@ -134,12 +134,12 @@
    {
       "LocusId": "ATXN1",
       "LocusStructure": "(TGC)*",
-      "ReferenceRegion": "chr6:16327864-16327954",
+      "ReferenceRegion": "chr6:16327633-16327723",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "ATXN1",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1993,
       "Diseases": [
@@ -157,7 +157,7 @@
    {
       "LocusId": "ATXN10",
       "LocusStructure": "(ATTCT)*",
-      "ReferenceRegion": "chr22:46191234-46191304",
+      "ReferenceRegion": "chr22:45795354-45795424",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "ATXN10",
@@ -180,12 +180,12 @@
    {
       "LocusId": "ATXN2",
       "LocusStructure": "(GCT)*",
-      "ReferenceRegion": "chr12:112036753-112036822",
+      "ReferenceRegion": "chr12:111598949-111599018",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "ATXN2",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, cl",
       "DiscoveryYear": 1996,
       "Diseases": [
@@ -203,12 +203,12 @@
    {
       "LocusId": "ATXN3",
       "LocusStructure": "(GCT)*",
-      "ReferenceRegion": "chr14:92537353-92537386",
+      "ReferenceRegion": "chr14:92071009-92071042",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "ATXN3",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, cl",
       "DiscoveryYear": 1994,
       "Diseases": [
@@ -227,8 +227,8 @@
       "LocusId": "ATXN7",
       "LocusStructure": "(GCA)*(GCC)+",
       "ReferenceRegion": [
-         "chr3:63898360-63898390",
-         "chr3:63898390-63898402"
+         "chr3:63912684-63912714",
+         "chr3:63912714-63912726"
       ],
       "VariantId": [
          "ATXN7",
@@ -241,7 +241,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "ATXN7",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, cl",
       "DiscoveryYear": 1996,
       "Diseases": [
@@ -250,9 +250,9 @@
             "Name": "Spinocerebellar ataxia 7",
             "Inheritance": "AD",
             "OMIM": "164500",
-            "NormalMax": 35,
-            "PathogenicMin": 36,
-            "IntermediateRange": "28-35"
+            "NormalMax": 33,
+            "PathogenicMin": 37,
+            "IntermediateRange": "34-36"
          }
       ]
    },
@@ -260,8 +260,8 @@
       "LocusId": "ATXN8OS",
       "LocusStructure": "(CTA)*(CTG)*",
       "ReferenceRegion": [
-         "chr13:70713485-70713515",
-         "chr13:70713515-70713560"
+         "chr13:70139353-70139383",
+         "chr13:70139383-70139428"
       ],
       "VariantId": [
          "ATXN8OS_CTA",
@@ -293,7 +293,7 @@
       "LocusId": "BEAN1",
       "LocusStructure": "(TAAAA)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "16:66524301-66524356",
+      "ReferenceRegion": "chr16:66490398-66490453",
       "RepeatUnit": "TAAAA",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "BEAN1",
@@ -315,7 +315,7 @@
    {
       "LocusId": "C9ORF72",
       "LocusStructure": "(GGCCCC)*",
-      "ReferenceRegion": "chr9:27573526-27573544",
+      "ReferenceRegion": "chr9:27573528-27573546",
       "VariantType": "RareRepeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "C9orf72",
@@ -330,20 +330,19 @@
             "Inheritance": "AD",
             "OMIM": "105550",
             "NormalMax": 23,
-            "PathogenicMin": 31,
-            "IntermediateRange": "20-30"
+            "PathogenicMin": 31
          }
       ]
    },
    {
       "LocusId": "CACNA1A",
       "LocusStructure": "(CTG)*",
-      "ReferenceRegion": "chr19:13318672-13318711",
+      "ReferenceRegion": "chr19:13207858-13207897",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "CACNA1A",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1997,
       "Diseases": [
@@ -362,9 +361,9 @@
       "LocusId": "CNBP",
       "LocusStructure": "(CAGG)*(CAGA)*(CA)*",
       "ReferenceRegion": [
-         "chr3:128891419-128891499",
-         "chr3:128891499-128891539",
-         "chr3:128891539-128891575"
+         "chr3:129172576-129172656",
+         "chr3:129172656-129172696",
+         "chr3:129172696-129172732"
       ],
       "VariantId": [
          "CNBP",
@@ -388,9 +387,8 @@
             "Name": "Myotonic dystrophy 2",
             "Inheritance": "AD",
             "OMIM": "602668",
-            "NormalMax": 29,
-            "PathogenicMin": 55,
-            "IntermediateRange": "30-55"
+            "NormalMax": 54,
+            "PathogenicMin": 55
          }
       ]
    },
@@ -398,12 +396,12 @@
       "LocusId": "COMP",
       "LocusStructure": "(GTC)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "19:18896844-18896859",
+      "ReferenceRegion": "chr19:18786034-18786049",
       "RepeatUnit": "GTC",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "COMP",
       "Inheritance": "AD",
-      "GeneRegion": "exon - poly-aspartic-acid",
+      "GeneRegion": "coding: poly-aspartic-acid",
       "Diseases": [
          {
             "Symbol": "EDM1",
@@ -426,7 +424,7 @@
    {
       "LocusId": "CSTB",
       "LocusStructure": "(CGCGGGGCGGGG)*",
-      "ReferenceRegion": "chr21:45196324-45196360",
+      "ReferenceRegion": "chr21:43776443-43776479",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "CSTB",
@@ -448,7 +446,7 @@
       "LocusId": "DAB1",
       "LocusStructure": "(AAAAT)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "1:57832715-57832790",
+      "ReferenceRegion": "chr1:57367043-57367118",
       "RepeatUnit": "AAAAT",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "DAB1",
@@ -470,7 +468,7 @@
    {
       "LocusId": "DIP2B",
       "LocusStructure": "(GGC)*",
-      "ReferenceRegion": "chr12:50898784-50898805",
+      "ReferenceRegion": "chr12:50505001-50505022",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "DIP2B",
@@ -491,7 +489,7 @@
       "LocusId": "DMD",
       "LocusStructure": "(TTC)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "X:31302674-31302722",
+      "ReferenceRegion": "chrX:31284557-31284605",
       "RepeatUnit": "TTC",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "DMD",
@@ -511,7 +509,7 @@
    {
       "LocusId": "DMPK",
       "LocusStructure": "(CAG)*",
-      "ReferenceRegion": "chr19:46273462-46273522",
+      "ReferenceRegion": "chr19:45770204-45770264",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "DMPK",
@@ -535,7 +533,7 @@
       "LocusId": "EIF4A3",
       "LocusStructure": "(CCTCGCTGTGCCGCTGCCGA)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "17:78120858-78120938",
+      "ReferenceRegion": "chr17:80147059-80147139",
       "RepeatUnit": "CCTCGCTGTGCCGCTGCCGA",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "EIF4A3",
@@ -554,7 +552,7 @@
    {
       "LocusId": "FMR1",
       "LocusStructure": "(CGG)*",
-      "ReferenceRegion": "chrX:146993568-146993628",
+      "ReferenceRegion": "chrX:147912050-147912110",
       "VariantType": "RareRepeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "FMR1",
@@ -587,12 +585,12 @@
       "LocusId": "FOXL2",
       "LocusStructure": "(NGC)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "3:138664862-138664904",
+      "ReferenceRegion": "chr3:138946020-138946062",
       "RepeatUnit": "NGC",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "FOXL2",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2001,
       "Diseases": [
@@ -610,8 +608,8 @@
       "LocusId": "FXN",
       "LocusStructure": "(A)*(GAA)*",
       "ReferenceRegion": [
-         "chr9:71652177-71652202",
-         "chr9:71652202-71652220"
+         "chr9:69037261-69037286",
+         "chr9:69037286-69037304"
       ],
       "VariantId": [
          "FXN_A",
@@ -641,7 +639,7 @@
    {
       "LocusId": "GIPC1",
       "LocusStructure": "(CCG)*",
-      "ReferenceRegion": "chr19:14606853-14606886",
+      "ReferenceRegion": "chr19:14496041-14496074",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "GIPC1",
@@ -663,7 +661,7 @@
    {
       "LocusId": "GLS",
       "LocusStructure": "(GCA)*",
-      "ReferenceRegion": "chr2:191745598-191745646",
+      "ReferenceRegion": "chr2:190880872-190880920",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "GLS",
@@ -686,12 +684,12 @@
       "LocusId": "HOXA13_1",
       "LocusStructure": "(NGC)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "7:27239543-27239585",
+      "ReferenceRegion": "chr7:27199924-27199966",
       "RepeatUnit": "NGC",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "HOXA13",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2000,
       "Diseases": [
@@ -709,12 +707,12 @@
       "LocusId": "HOXA13_2",
       "LocusStructure": "(NGC)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "7:27239444-27239480",
+      "ReferenceRegion": "chr7:27199825-27199861",
       "RepeatUnit": "NGC",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "HOXA13",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2000,
       "Diseases": [
@@ -732,12 +730,12 @@
       "LocusId": "HOXA13_3",
       "LocusStructure": "(NGC)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "7:27239297-27239351",
+      "ReferenceRegion": "chr7:27199678-27199732",
       "RepeatUnit": "NGC",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "HOXA13",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2000,
       "Diseases": [
@@ -755,12 +753,12 @@
       "LocusId": "HOXD13",
       "LocusStructure": "(GCG)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "2:176957786-176957831",
+      "ReferenceRegion": "chr2:176093058-176093103",
       "RepeatUnit": "GCG",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "HOXD13",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 1996,
       "Diseases": [
@@ -778,8 +776,8 @@
       "LocusId": "HTT",
       "LocusStructure": "(CAG)*CAACAG(CCG)*",
       "ReferenceRegion": [
-         "chr4:3076603-3076660",
-         "chr4:3076666-3076693"
+         "chr4:3074876-3074933",
+         "chr4:3074939-3074966"
       ],
       "VariantId": [
          "HTT",
@@ -792,7 +790,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "HTT",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1993,
       "Diseases": [
@@ -810,12 +808,12 @@
    {
       "LocusId": "JPH3",
       "LocusStructure": "(CTG)*",
-      "ReferenceRegion": "chr16:87637893-87637935",
+      "ReferenceRegion": "chr16:87604287-87604329",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "JPH3",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, RED",
       "DiscoveryYear": 2001,
       "Diseases": [
@@ -833,7 +831,7 @@
       "LocusId": "NUTM2B-AS1",
       "LocusStructure": "(GGC)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "10:81586139-81586160",
+      "ReferenceRegion": "chr10:79826383-79826404",
       "RepeatUnit": "GGC",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "LOC642361",
@@ -856,7 +854,7 @@
       "LocusId": "LRP12",
       "LocusStructure": "(CGC)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "8:105601198-105601225",
+      "ReferenceRegion": "chr8:104588970-104588997",
       "RepeatUnit": "CGC",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "LRP12",
@@ -879,7 +877,7 @@
       "LocusId": "MARCHF6",
       "LocusStructure": "(ATTTT)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "5:10356458-10356523",
+      "ReferenceRegion": "chr5:10356346-10356411",
       "RepeatUnit": "ATTTT",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "MARCHF6",
@@ -900,13 +898,13 @@
    },
    {
       "LocusId": "NIPA1",
-      "LocusStructure": "(CGC)*",
-      "ReferenceRegion": "chr15:23086366-23086390",
+      "LocusStructure": "(GCG)*",
+      "ReferenceRegion": "chr15:22786677-22786701",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "NIPA1",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "Diseases": [
          {
             "Symbol": "ALS",
@@ -922,8 +920,8 @@
       "LocusId": "NOP56",
       "LocusStructure": "(GGCCTG)*(CGCCTG)*",
       "ReferenceRegion": [
-         "chr20:2633379-2633403",
-         "chr20:2633403-2633421"
+         "chr20:2652733-2652757",
+         "chr20:2652757-2652775"
       ],
       "VariantId": [
          "NOP56",
@@ -951,14 +949,44 @@
       ]
    },
    {
+      "LocusId": "NOTCH2NLC",
+      "LocusStructure": "(GGC)*",
+      "ReferenceRegion": "chr1:149390802-149390841",
+      "VariantType": "Repeat",
+      "InExpansionHunterVariantCatalog": true,
+      "Gene": "NOTCH2NLC",
+      "Inheritance": "AD",
+      "GeneRegion": "coding: polyglycine",
+      "DiscoveryMethod": "TRhist, L, WGS",
+      "DiscoveryYear": 2019,
+      "Diseases": [
+         {
+            "Symbol": "NIID",
+            "Name": "Neuronal intranuclear inclusion disease",
+            "Inheritance": "AD",
+            "OMIM": "603472",
+            "NormalMax": 39,
+            "PathogenicMin": 90
+         },
+         {
+            "Symbol": "ETM6",
+            "Name": "Hereditary essential tremor type 6",
+            "Inheritance": "AD",
+            "OMIM": "618866",
+            "NormalMax": 41,
+            "PathogenicMin": 60
+         }
+      ]
+   },
+   {
       "LocusId": "PABPN1",
       "LocusStructure": "(GCG)*",
-      "ReferenceRegion": "chr14:23790681-23790699",
+      "ReferenceRegion": "chr14:23321472-23321490",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "PABPN1",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1998,
       "Diseases": [
@@ -975,12 +1003,12 @@
    {
       "LocusId": "PHOX2B",
       "LocusStructure": "(GCN)*",
-      "ReferenceRegion": "chr4:41747989-41748049",
+      "ReferenceRegion": "chr4:41745972-41746032",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "PHOX2B",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2003,
       "Diseases": [
@@ -997,12 +1025,12 @@
    {
       "LocusId": "PPP2R2B",
       "LocusStructure": "(GCT)*",
-      "ReferenceRegion": "chr5:146258290-146258320",
+      "ReferenceRegion": "chr5:146878727-146878757",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "PPP2R2B",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyserine",
+      "GeneRegion": "coding: polyserine",
       "DiscoveryMethod": "L, RED",
       "DiscoveryYear": 1999,
       "Diseases": [
@@ -1020,12 +1048,12 @@
       "LocusId": "PRDM12",
       "LocusStructure": "(GCC)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "9:133556993-133557026",
+      "ReferenceRegion": "chr9:130681606-130681639",
       "RepeatUnit": "GCC",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "PRDM12",
       "Inheritance": "AR",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "Diseases": [
          {
             "Symbol": "HSAN8",
@@ -1039,14 +1067,24 @@
    },
    {
       "LocusId": "PRNP",
-      "LocusStructure": "(GGTGGTGGCTGGGGGCAGCCTCAT)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "20:4680025-4680139",
-      "RepeatUnit": "GGTGGTGGCTGGGGGCAGCCTCAT",
+      "LocusStructure": "(CCTCAGGGCGGTGGTGGCTGGGGGCAG)*(CCTCATGGTGGTGGCTGGGGGCAG)*",
+      "VariantType": [
+         "Repeat",
+         "Repeat"
+      ],
+      "ReferenceRegion": [
+         "chr20:4699370-4699397",
+         "chr20:4699397-4699493"
+      ],
+      "RepeatUnit": "CCTCATGGTGGTGGCTGGGGGCAG",
       "InExpansionHunterVariantCatalog": false,
+      "VariantId": [
+         "PRNP_CCTCAGGGCGGTGGTGGCTGGGGGCAG",
+         "PRNP"
+      ],
       "Gene": "PRNP",
       "Inheritance": "AD",
-      "GeneRegion": "exon - coding",
+      "GeneRegion": "coding: other",
       "Diseases": [
          {
             "Symbol": "CJD",
@@ -1062,7 +1100,7 @@
       "LocusId": "RAPGEF2",
       "LocusStructure": "(TTTTA)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "4:160263678-160263768",
+      "ReferenceRegion": "chr4:159342526-159342616",
       "RepeatUnit": "TTTTA",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "RAPGEF2",
@@ -1084,7 +1122,7 @@
    {
       "LocusId": "RFC1",
       "LocusStructure": "(AARRG)*",
-      "ReferenceRegion": "chr4:39350044-39350099",
+      "ReferenceRegion": "chr4:39348424-39348479",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "RFC1",
@@ -1107,12 +1145,12 @@
       "LocusId": "RUNX2",
       "LocusStructure": "(GCN)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "6:45390487-45390529",
+      "ReferenceRegion": "chr6:45422750-45422792",
       "RepeatUnit": "GCN",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "RUNX2",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 1997,
       "Diseases": [
@@ -1130,7 +1168,7 @@
       "LocusId": "SAMD12",
       "LocusStructure": "(TAAAA)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "8:119379054-119379119",
+      "ReferenceRegion": "chr8:118366815-118366880",
       "RepeatUnit": "TAAAA",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "SAMD12",
@@ -1153,12 +1191,12 @@
       "LocusId": "SOX3",
       "LocusStructure": "(NGC)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "X:139586481-139586526",
+      "ReferenceRegion": "chrX:140504316-140504361",
       "RepeatUnit": "NGC",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "SOX3",
       "Inheritance": "XR",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2002,
       "Diseases": [
@@ -1184,7 +1222,7 @@
       "LocusId": "STARD7",
       "LocusStructure": "(AAAAT)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "2:96862804-96862859",
+      "ReferenceRegion": "chr2:96197066-96197121",
       "RepeatUnit": "AAAAT",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "STARD7",
@@ -1206,12 +1244,12 @@
    {
       "LocusId": "TBP",
       "LocusStructure": "(GCA)*",
-      "ReferenceRegion": "chr6:170870994-170871105",
+      "ReferenceRegion": "chr6:170561906-170562017",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "TBP",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 1999,
       "Diseases": [
@@ -1229,12 +1267,12 @@
       "LocusId": "TBX1",
       "LocusStructure": "(GCN)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "22:19754285-19754330",
+      "ReferenceRegion": "chr22:19766762-19766807",
       "RepeatUnit": "GCN",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "TBX1",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "Diseases": [
          {
             "Symbol": "TOF",
@@ -1249,7 +1287,7 @@
    {
       "LocusId": "TCF4",
       "LocusStructure": "(CAG)*",
-      "ReferenceRegion": "chr18:53253386-53253458",
+      "ReferenceRegion": "chr18:55586155-55586227",
       "VariantType": "Repeat",
       "InExpansionHunterVariantCatalog": true,
       "Gene": "TCF4",
@@ -1272,7 +1310,7 @@
       "LocusId": "TNRC6A",
       "LocusStructure": "(TTTTA)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "16:24624760-24624850",
+      "ReferenceRegion": "chr16:24613439-24613529",
       "RepeatUnit": "TTTTA",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "TNRC6A",
@@ -1295,12 +1333,12 @@
       "LocusId": "VWA1",
       "LocusStructure": "(GGCGCGGAGC)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "1:1371178-1371198",
+      "ReferenceRegion": "chr1:1435798-1435818",
       "RepeatUnit": "GGCGCGGAGC",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "VWA1",
       "Inheritance": "AR",
-      "GeneRegion": "exon - coding",
+      "GeneRegion": "coding: other",
       "Diseases": [
          {
             "Symbol": "HMN",
@@ -1316,7 +1354,7 @@
       "LocusId": "XYLT1",
       "LocusStructure": "(GCC)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "16:17564764-17564779",
+      "ReferenceRegion": "chr16:17470907-17470922",
       "RepeatUnit": "GCC",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "XYLT1",
@@ -1339,7 +1377,7 @@
       "LocusId": "YEATS2",
       "LocusStructure": "(TTTTA)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "3:183429975-183430010",
+      "ReferenceRegion": "chr3:183712187-183712222",
       "RepeatUnit": "TTTTA",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "YEATS2",
@@ -1362,12 +1400,12 @@
       "LocusId": "ZIC2",
       "LocusStructure": "(GCN)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "13:100637702-100637747",
+      "ReferenceRegion": "chr13:99985448-99985493",
       "RepeatUnit": "GCN",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "ZIC2",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2001,
       "Diseases": [
@@ -1385,12 +1423,12 @@
       "LocusId": "ZIC3",
       "LocusStructure": "(GCN)*",
       "VariantType": "Repeat",
-      "ReferenceRegion": "X:136648985-136649015",
+      "ReferenceRegion": "chrX:137566826-137566856",
       "RepeatUnit": "GCN",
       "InExpansionHunterVariantCatalog": false,
       "Gene": "ZIC3",
       "Inheritance": "XR",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "Diseases": [
          {
             "Symbol": "VACTERLX",

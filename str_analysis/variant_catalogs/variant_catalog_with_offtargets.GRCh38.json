@@ -43,7 +43,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "AR",
       "Inheritance": "XR",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 1991,
       "Diseases": [
@@ -84,7 +84,7 @@
       "InExpansionHunterVariantCatalog": false,
       "Gene": "ARX",
       "Inheritance": "XR",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "Diseases": [
          {
             "Symbol": "DEE1",
@@ -144,7 +144,7 @@
       "InExpansionHunterVariantCatalog": false,
       "Gene": "ARX",
       "Inheritance": "XR",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "Diseases": [
          {
             "Symbol": "DEE1",
@@ -211,7 +211,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "ATN1",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1994,
       "Diseases": [
@@ -252,7 +252,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "ATXN1",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1993,
       "Diseases": [
@@ -320,7 +320,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "ATXN2",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, cl",
       "DiscoveryYear": 1996,
       "Diseases": [
@@ -362,7 +362,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "ATXN3",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, cl",
       "DiscoveryYear": 1994,
       "Diseases": [
@@ -414,7 +414,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "ATXN7",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, cl",
       "DiscoveryYear": 1996,
       "Diseases": [
@@ -423,9 +423,9 @@
             "Name": "Spinocerebellar ataxia 7",
             "Inheritance": "AD",
             "OMIM": "164500",
-            "NormalMax": 35,
-            "PathogenicMin": 36,
-            "IntermediateRange": "28-35"
+            "NormalMax": 33,
+            "PathogenicMin": 37,
+            "IntermediateRange": "34-36"
          }
       ],
       "OfftargetRegions": [
@@ -567,8 +567,7 @@
             "Inheritance": "AD",
             "OMIM": "105550",
             "NormalMax": 23,
-            "PathogenicMin": 31,
-            "IntermediateRange": "20-30"
+            "PathogenicMin": 31
          }
       ]
    },
@@ -580,7 +579,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "CACNA1A",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1997,
       "Diseases": [
@@ -643,9 +642,8 @@
             "Name": "Myotonic dystrophy 2",
             "Inheritance": "AD",
             "OMIM": "602668",
-            "NormalMax": 29,
-            "PathogenicMin": 55,
-            "IntermediateRange": "30-55"
+            "NormalMax": 54,
+            "PathogenicMin": 55
          }
       ],
       "OfftargetRegions": [
@@ -681,7 +679,7 @@
       "InExpansionHunterVariantCatalog": false,
       "Gene": "COMP",
       "Inheritance": "AD",
-      "GeneRegion": "exon - poly-aspartic-acid",
+      "GeneRegion": "coding: poly-aspartic-acid",
       "Diseases": [
          {
             "Symbol": "EDM1",
@@ -963,7 +961,7 @@
       "InExpansionHunterVariantCatalog": false,
       "Gene": "FOXL2",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2001,
       "Diseases": [
@@ -1144,7 +1142,7 @@
       "InExpansionHunterVariantCatalog": false,
       "Gene": "HOXA13",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2000,
       "Diseases": [
@@ -1198,7 +1196,7 @@
       "InExpansionHunterVariantCatalog": false,
       "Gene": "HOXA13",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2000,
       "Diseases": [
@@ -1252,7 +1250,7 @@
       "InExpansionHunterVariantCatalog": false,
       "Gene": "HOXA13",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2000,
       "Diseases": [
@@ -1306,7 +1304,7 @@
       "InExpansionHunterVariantCatalog": false,
       "Gene": "HOXD13",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 1996,
       "Diseases": [
@@ -1352,7 +1350,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "HTT",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1993,
       "Diseases": [
@@ -1394,7 +1392,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "JPH3",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, RED",
       "DiscoveryYear": 2001,
       "Diseases": [
@@ -1550,7 +1548,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "NIPA1",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "Diseases": [
          {
             "Symbol": "ALS",
@@ -1619,7 +1617,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "NOTCH2NLC",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglycine",
+      "GeneRegion": "coding: polyglycine",
       "DiscoveryMethod": "TRhist, L, WGS",
       "DiscoveryYear": 2019,
       "Diseases": [
@@ -1663,7 +1661,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "PABPN1",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1998,
       "Diseases": [
@@ -1699,7 +1697,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "PHOX2B",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2003,
       "Diseases": [
@@ -1752,7 +1750,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "PPP2R2B",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyserine",
+      "GeneRegion": "coding: polyserine",
       "DiscoveryMethod": "L, RED",
       "DiscoveryYear": 1999,
       "Diseases": [
@@ -1794,7 +1792,7 @@
       "InExpansionHunterVariantCatalog": false,
       "Gene": "PRDM12",
       "Inheritance": "AR",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "Diseases": [
          {
             "Symbol": "HSAN8",
@@ -1831,7 +1829,7 @@
          "chr20:4699370-4699397",
          "chr20:4699397-4699493"
       ],
-      "RepeatUnit": "GGTGGTGGCTGGGGGCAGCCTCAT",
+      "RepeatUnit": "CCTCATGGTGGTGGCTGGGGGCAG",
       "InExpansionHunterVariantCatalog": false,
       "VariantId": [
          "PRNP_CCTCAGGGCGGTGGTGGCTGGGGGCAG",
@@ -1839,7 +1837,7 @@
       ],
       "Gene": "PRNP",
       "Inheritance": "AD",
-      "GeneRegion": "exon - coding",
+      "GeneRegion": "coding: other",
       "Diseases": [
          {
             "Symbol": "CJD",
@@ -1940,7 +1938,7 @@
       "InExpansionHunterVariantCatalog": false,
       "Gene": "RUNX2",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 1997,
       "Diseases": [
@@ -2034,7 +2032,7 @@
       "InExpansionHunterVariantCatalog": false,
       "Gene": "SOX3",
       "Inheritance": "XR",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2002,
       "Diseases": [
@@ -2136,7 +2134,7 @@
       "InExpansionHunterVariantCatalog": true,
       "Gene": "TBP",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyglutamine",
+      "GeneRegion": "coding: polyglutamine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 1999,
       "Diseases": [
@@ -2177,7 +2175,7 @@
       "InExpansionHunterVariantCatalog": false,
       "Gene": "TBX1",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "Diseases": [
          {
             "Symbol": "TOF",
@@ -2310,7 +2308,7 @@
       "InExpansionHunterVariantCatalog": false,
       "Gene": "VWA1",
       "Inheritance": "AR",
-      "GeneRegion": "exon - coding",
+      "GeneRegion": "coding: other",
       "Diseases": [
          {
             "Symbol": "HMN",
@@ -2409,7 +2407,7 @@
       "InExpansionHunterVariantCatalog": false,
       "Gene": "ZIC2",
       "Inheritance": "AD",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2001,
       "Diseases": [
@@ -2463,7 +2461,7 @@
       "InExpansionHunterVariantCatalog": false,
       "Gene": "ZIC3",
       "Inheritance": "XR",
-      "GeneRegion": "exon - polyalanine",
+      "GeneRegion": "coding: polyalanine",
       "Diseases": [
          {
             "Symbol": "VACTERLX",
