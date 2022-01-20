@@ -7,6 +7,7 @@
       "Gene": "AFF2",
       "Inheritance": "XR",
       "GeneRegion": "5'-UTR",
+      "GeneId": "ENSG00000155966",
       "DiscoveryMethod": "K, L",
       "DiscoveryYear": 1993,
       "Diseases": [
@@ -42,6 +43,7 @@
       "Gene": "AR",
       "Inheritance": "XR",
       "GeneRegion": "coding: polyglutamine",
+      "GeneId": "ENSG00000169083",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 1991,
       "Diseases": [
@@ -82,6 +84,7 @@
       "Gene": "ARX",
       "Inheritance": "XR",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000004848",
       "Diseases": [
          {
             "Symbol": "DEE1",
@@ -141,6 +144,7 @@
       "Gene": "ARX",
       "Inheritance": "XR",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000004848",
       "Diseases": [
          {
             "Symbol": "DEE1",
@@ -207,6 +211,7 @@
       "Gene": "ATN1",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyglutamine",
+      "GeneId": "ENSG00000111676",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1994,
       "Diseases": [
@@ -247,6 +252,7 @@
       "Gene": "ATXN1",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyglutamine",
+      "GeneId": "ENSG00000124788",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1993,
       "Diseases": [
@@ -287,6 +293,7 @@
       "Gene": "ATXN10",
       "Inheritance": "AD",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000130638",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 2000,
       "Diseases": [
@@ -313,6 +320,7 @@
       "Gene": "ATXN2",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyglutamine",
+      "GeneId": "ENSG00000204842",
       "DiscoveryMethod": "L, cl",
       "DiscoveryYear": 1996,
       "Diseases": [
@@ -354,6 +362,7 @@
       "Gene": "ATXN3",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyglutamine",
+      "GeneId": "ENSG00000066427",
       "DiscoveryMethod": "L, cl",
       "DiscoveryYear": 1994,
       "Diseases": [
@@ -405,6 +414,7 @@
       "Gene": "ATXN7",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyglutamine",
+      "GeneId": "ENSG00000163635",
       "DiscoveryMethod": "L, cl",
       "DiscoveryYear": 1996,
       "Diseases": [
@@ -456,6 +466,7 @@
       "Gene": "ATXN8",
       "Inheritance": "AD",
       "GeneRegion": "3'-UTR",
+      "GeneId": "ENSG00000230223",
       "DiscoveryMethod": "L, cl",
       "DiscoveryYear": 1999,
       "Diseases": [
@@ -498,6 +509,7 @@
       "Gene": "BEAN1",
       "Inheritance": "AD",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000166546",
       "DiscoveryMethod": "L",
       "DiscoveryYear": 2009,
       "PathogenicMotif": "TGGAA  (+TAGAA)",
@@ -545,6 +557,7 @@
       "Gene": "C9orf72",
       "Inheritance": "AD",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000147894",
       "DiscoveryMethod": "L, WGS",
       "DiscoveryYear": 2011,
       "Diseases": [
@@ -566,6 +579,7 @@
       "Gene": "CACNA1A",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyglutamine",
+      "GeneId": "ENSG00000141837",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1997,
       "Diseases": [
@@ -619,6 +633,7 @@
       "Gene": "CNBP",
       "Inheritance": "AD",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000169714",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 2001,
       "Diseases": [
@@ -664,13 +679,13 @@
       "Gene": "COMP",
       "Inheritance": "AD",
       "GeneRegion": "coding: poly-aspartic-acid",
+      "GeneId": "ENSG00000105664",
       "Diseases": [
          {
             "Symbol": "EDM1",
             "Name": "Multiple epiphyseal dysplasia",
             "Inheritance": "AD",
             "OMIM": "132400",
-            "NormalMax": 5,
             "PathogenicMin": 6
          },
          {
@@ -678,7 +693,7 @@
             "Name": "Pseudoachondroplasia",
             "Inheritance": "AD",
             "OMIM": "177170",
-            "NormalMax": 5,
+            "Note": "5 repeats are normal. Contractions to 4 repeats are pathogenic.",
             "PathogenicMin": 7
          }
       ],
@@ -697,6 +712,7 @@
       "Gene": "CSTB",
       "Inheritance": "AR",
       "GeneRegion": "promoter",
+      "GeneId": "ENSG00000160213",
       "DiscoveryMethod": "L, cl, exp",
       "DiscoveryYear": 1997,
       "Diseases": [
@@ -723,6 +739,7 @@
       "Gene": "DAB1",
       "Inheritance": "AD",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000173406",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 2017,
       "PathogenicMotif": "ATTTC",
@@ -762,6 +779,7 @@
       "Gene": "DIP2B",
       "Inheritance": "AD",
       "GeneRegion": "5'-UTR",
+      "GeneId": "ENSG00000066084",
       "Diseases": [
          {
             "Symbol": "MRFRA12A",
@@ -796,6 +814,7 @@
       "Gene": "DMD",
       "Inheritance": "XR",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000198947",
       "Diseases": [
          {
             "Symbol": "DMD",
@@ -833,6 +852,7 @@
       "Gene": "DMPK",
       "Inheritance": "AD",
       "GeneRegion": "3'-UTR",
+      "GeneId": "ENSG00000104936",
       "DiscoveryMethod": "L, cl",
       "DiscoveryYear": 1992,
       "Diseases": [
@@ -875,6 +895,7 @@
       "Gene": "EIF4A3",
       "Inheritance": "AR",
       "GeneRegion": "5'-UTR",
+      "GeneId": "ENSG00000141543",
       "Diseases": [
          {
             "Symbol": "RCPS",
@@ -906,6 +927,7 @@
       "Gene": "FMR1",
       "Inheritance": "XD",
       "GeneRegion": "5'-UTR",
+      "GeneId": "ENSG00000102081",
       "DiscoveryMethod": "K, FS, L, Me, cl",
       "DiscoveryYear": 1991,
       "Diseases": [
@@ -938,6 +960,7 @@
       "Gene": "FOXL2",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000183770",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2001,
       "Diseases": [
@@ -1000,6 +1023,7 @@
       "Gene": "FXN",
       "Inheritance": "AR",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000165060",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1996,
       "Diseases": [
@@ -1039,6 +1063,7 @@
       "Gene": "GIPC1",
       "Inheritance": "AD",
       "GeneRegion": "5'-UTR",
+      "GeneId": "ENSG00000123159",
       "DiscoveryMethod": "L, WGS, LRS",
       "DiscoveryYear": 2020,
       "Diseases": [
@@ -1074,6 +1099,7 @@
       "Gene": "GLS",
       "Inheritance": "AR",
       "GeneRegion": "5'-UTR",
+      "GeneId": "ENSG00000115419",
       "DiscoveryMethod": "CGA",
       "DiscoveryYear": 2019,
       "Diseases": [
@@ -1115,6 +1141,7 @@
       "Gene": "HOXA13",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000106031",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2000,
       "Diseases": [
@@ -1168,6 +1195,7 @@
       "Gene": "HOXA13",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000106031",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2000,
       "Diseases": [
@@ -1221,6 +1249,7 @@
       "Gene": "HOXA13",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000106031",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2000,
       "Diseases": [
@@ -1274,6 +1303,7 @@
       "Gene": "HOXD13",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000128714",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 1996,
       "Diseases": [
@@ -1319,6 +1349,7 @@
       "Gene": "HTT",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyglutamine",
+      "GeneId": "ENSG00000197386",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1993,
       "Diseases": [
@@ -1360,6 +1391,7 @@
       "Gene": "JPH3",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyglutamine",
+      "GeneId": "ENSG00000154118",
       "DiscoveryMethod": "L, RED",
       "DiscoveryYear": 2001,
       "Diseases": [
@@ -1401,6 +1433,7 @@
       "Gene": "LOC642361",
       "Inheritance": "AD",
       "GeneRegion": "non-coding RNA",
+      "GeneId": "ENSG00000272447",
       "DiscoveryMethod": "TRhist",
       "DiscoveryYear": 2019,
       "Diseases": [
@@ -1437,6 +1470,7 @@
       "Gene": "LRP12",
       "Inheritance": "AD",
       "GeneRegion": "5'-UTR",
+      "GeneId": "ENSG00000147650",
       "DiscoveryMethod": "TRhist",
       "DiscoveryYear": 2019,
       "Diseases": [
@@ -1473,6 +1507,7 @@
       "Gene": "MARCHF6",
       "Inheritance": "AD",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000145495",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 2019,
       "PathogenicMotif": "ATTTC",
@@ -1512,6 +1547,7 @@
       "Gene": "NIPA1",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000170113",
       "Diseases": [
          {
             "Symbol": "ALS",
@@ -1555,6 +1591,7 @@
       "Gene": "NOP56",
       "Inheritance": "AD",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000101361",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 2011,
       "Diseases": [
@@ -1579,6 +1616,7 @@
       "Gene": "NOTCH2NLC",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyglycine",
+      "GeneId": "ENSG00000286219",
       "DiscoveryMethod": "TRhist, L, WGS",
       "DiscoveryYear": 2019,
       "Diseases": [
@@ -1622,6 +1660,7 @@
       "Gene": "PABPN1",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000100836",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 1998,
       "Diseases": [
@@ -1657,6 +1696,7 @@
       "Gene": "PHOX2B",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000109132",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2003,
       "Diseases": [
@@ -1709,6 +1749,7 @@
       "Gene": "PPP2R2B",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyserine",
+      "GeneId": "ENSG00000156475",
       "DiscoveryMethod": "L, RED",
       "DiscoveryYear": 1999,
       "Diseases": [
@@ -1750,6 +1791,7 @@
       "Gene": "PRDM12",
       "Inheritance": "AR",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000130711",
       "Diseases": [
          {
             "Symbol": "HSAN8",
@@ -1794,6 +1836,7 @@
       "Gene": "PRNP",
       "Inheritance": "AD",
       "GeneRegion": "coding: other",
+      "GeneId": "ENSG00000171867",
       "Diseases": [
          {
             "Symbol": "CJD",
@@ -1814,6 +1857,7 @@
       "Gene": "RAPGEF2",
       "Inheritance": "AD",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000109756",
       "DiscoveryMethod": "TRhist",
       "DiscoveryYear": 2018,
       "PathogenicMotif": "ATTTC",
@@ -1853,6 +1897,7 @@
       "Gene": "RFC1",
       "Inheritance": "AR",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000035928",
       "DiscoveryMethod": "L, WGS",
       "DiscoveryYear": 2019,
       "PathogenicMotif": "AAGGG",
@@ -1892,6 +1937,7 @@
       "Gene": "RUNX2",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000124813",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 1997,
       "Diseases": [
@@ -1944,6 +1990,7 @@
       "Gene": "SAMD12",
       "Inheritance": "AD",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000177570",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 2018,
       "PathogenicMotif": "ATTTC",
@@ -1984,6 +2031,7 @@
       "Gene": "SOX3",
       "Inheritance": "XR",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000134595",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2002,
       "Diseases": [
@@ -2045,6 +2093,7 @@
       "Gene": "STARD7",
       "Inheritance": "AD",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000084090",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 2019,
       "PathogenicMotif": "ATTTC",
@@ -2084,6 +2133,7 @@
       "Gene": "TBP",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyglutamine",
+      "GeneId": "ENSG00000112592",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 1999,
       "Diseases": [
@@ -2124,6 +2174,7 @@
       "Gene": "TBX1",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000184058",
       "Diseases": [
          {
             "Symbol": "TOF",
@@ -2174,6 +2225,7 @@
       "Gene": "TCF4",
       "Inheritance": "AD",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000196628",
       "DiscoveryMethod": "L, GWAS",
       "DiscoveryYear": 2015,
       "Diseases": [
@@ -2214,6 +2266,7 @@
       "Gene": "TNRC6A",
       "Inheritance": "AD",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000090905",
       "DiscoveryMethod": "TRhist",
       "DiscoveryYear": 2018,
       "PathogenicMotif": "ATTTC",
@@ -2254,6 +2307,7 @@
       "Gene": "VWA1",
       "Inheritance": "AR",
       "GeneRegion": "coding: other",
+      "GeneId": "ENSG00000179403",
       "Diseases": [
          {
             "Symbol": "HMN",
@@ -2274,6 +2328,7 @@
       "Gene": "XYLT1",
       "Inheritance": "AR",
       "GeneRegion": "5'-UTR",
+      "GeneId": "ENSG00000103489",
       "DiscoveryMethod": "ADO, Me",
       "DiscoveryYear": 2019,
       "Diseases": [
@@ -2310,6 +2365,7 @@
       "Gene": "YEATS2",
       "Inheritance": "AD",
       "GeneRegion": "intron",
+      "GeneId": "ENSG00000163872",
       "DiscoveryMethod": "L, ExScr",
       "DiscoveryYear": 2019,
       "PathogenicMotif": "ATTTC",
@@ -2350,6 +2406,7 @@
       "Gene": "ZIC2",
       "Inheritance": "AD",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000043355",
       "DiscoveryMethod": "L, CGA",
       "DiscoveryYear": 2001,
       "Diseases": [
@@ -2403,6 +2460,7 @@
       "Gene": "ZIC3",
       "Inheritance": "XR",
       "GeneRegion": "coding: polyalanine",
+      "GeneId": "ENSG00000156925",
       "Diseases": [
          {
             "Symbol": "VACTERLX",
