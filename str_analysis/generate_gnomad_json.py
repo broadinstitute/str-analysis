@@ -1050,9 +1050,10 @@ def main():
     local_output_dir = os.path.expanduser(os.path.dirname(args.expansion_hunter_tsv))
     output_filename_label = f"__{args.output_filename_suffix}" if args.output_filename_suffix else ""
 
+    # write out the full df for debugging and internal analyses that need sample ids
     export_to_tsv(df, f"{local_output_dir}/gnomAD_STR_calls_with_gnomAD_metadata_and_sample_ids{output_filename_label}__{date_stamp}.tsv")
 
-    # write out readviz_records to a .tsv
+    # write out readviz_records to a .tsv mostly for debugging
     readviz_metadata_df = pd.DataFrame([
         {**readviz_record, **{"LocusId": locus_id}}
         for locus_id, readviz_records in readviz_json.items() for readviz_record in readviz_records
@@ -1063,9 +1064,10 @@ def main():
     export_json(readviz_json, f"{local_output_dir}/gnomAD_STR_readviz_metadata{output_filename_label}__{date_stamp}.json.gz", args.output_dir)
     export_json(gnomad_json, f"{local_output_dir}/gnomAD_STR_distributions{output_filename_label}__{date_stamp}.json.gz", args.output_dir)
 
+    # write out a table of original readviz image filenames together with their encrypted filenames to use for renaming the files
     export_readviz_rename_list(readviz_paths_to_rename, f"{local_output_dir}/readviz_rename_list{output_filename_label}__{date_stamp}.tsv.gz")
 
-    # write out user_friendly_genotypes_json to a .tsv
+    # write out user_friendly_genotypes_json to a .tsv so it can be shared publicly on the gnomAD downloads page
     def user_friendly_genotypes_sort_key(record):
         # sort the output table by the locus coordinates, then by the size of the long and short alleles in desc. order
         return (
