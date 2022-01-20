@@ -6,6 +6,7 @@ import argparse
 import collections
 import gzip
 import json
+import os
 from pprint import pformat
 import re
 import tqdm
@@ -20,6 +21,9 @@ def main():
 
     if not args.output_file:
         args.output_file = re.sub(".bed(.gz)?$", "", args.gangstr_spec) + ".variant_catalog.json"
+
+    if not os.path.isfile(args.gangstr_spec):
+        p.error(f"{args.gangstr_spec} file not found")
 
     process_variant_catalog(args.gangstr_spec, args.output_file, verbose=args.verbose)
 
