@@ -5,7 +5,7 @@ This package contains scripts and utilities related to analyzing short tandem re
 
 ## Installation
 
-To install the scripts or utilities, run:
+To install the scripts and utilities, run:
 
 ```
 python3 -m pip install --upgrade str_analysis
@@ -19,9 +19,106 @@ docker run -it weisburd/str-analysis:latest
 
 
 ---
-## Scripts
 
 ### call_non_ref_pathogenic_motifs
+
+This script takes a bam or cram file and determines which motifs are present
+at known pathogenic STR loci (such as RFC1, BEAN1, DAB1, etc.) where several
+motifs are known to segregate in the population. It then optionally runs
+ExpansionHunterDenovo, ExpansionHunter, and/or STRling and gathers relevant
+fields from their outputs for comparison and further evidence. It can also
+then run REViewer to generate read visualization images based on the
+ExpansionHunter outputs. Finally it generates a json file per locus that
+contains all collected information as well as a "call" field indicating
+whether pathogenic motifs were detected.
+
+**Example command lines:**
+
+```
+# basic command 
+call_non_ref_pathogenic_motifs -R hg38.fasta -g 38 sample1.cram --locus RFC1
+
+# run ExpansionHunter and REViewer on all 9 loci with known non-ref pathogenic motifs
+call_non_ref_pathogenic_motifs -R hg38.fasta --run-expansion-hunter --run-reviewer -g 38 sample1.cram --all-loci
+
+# for 2 specific loci, run ExpansionHunter and REViewer + provide an existing ExpansionHunterDenovo profile
+call_non_ref_pathogenic_motifs -R hg38.fasta --run-expansion-hunter --run-reviewer --ehdn-profile sample1.str_profile.json -g 38 sample1.cram --locus RFC1 --locus BEAN1
+```
+
+**Command-line Arguments:**
+
+```
+positional arguments:
+  bam_or_cram_path      bam or cram path.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -g {GRCh37,hg19,hg37,37,GRCh38,hg38,38}, --genome-version {GRCh37,hg19,hg37,37,GRCh38,hg38,38}
+                        Reference genome version
+  -r REFERENCE_FASTA, --reference-fasta REFERENCE_FASTA
+                        Reference fasta path.
+  -o OUTPUT_PREFIX, --output-prefix OUTPUT_PREFIX
+                        Output filename prefix.
+  -s SAMPLE_ID, --sample-id SAMPLE_ID
+                        The sample id to put in the output json file. If not
+                        specified, it will be retrieved from the bam/cram
+                        header or filename prefix.
+  --strling-genotype-table STRLING_GENOTYPE_TABLE
+                        Optionally provide an existing STRling output file for
+                        this sample. If specified, the script will skip
+                        running STRling.
+  --run-strling         Optionally run STRling and copy information relevant
+                        to the locus from the STRling results to the json
+                        output file.
+  --strling-path STRLING_PATH
+                        The path of the STRling executable to use.
+  --strling-reference-index STRLING_REFERENCE_INDEX
+                        Optionally provide the path of a pre-computed STRling
+                        reference index file. If provided, it will save a step
+                        and allow STRling to complete faster.
+  --expansion-hunter-denovo-profile EXPANSION_HUNTER_DENOVO_PROFILE
+                        Optionally copy information relevant to the locus from
+                        this ExpansionHunterDenovo profile to the output json.
+                        This is instead of --run-expansion-hunter-denovo.
+  --run-expansion-hunter-denovo
+                        Optionally run ExpansionHunterDenovo and copy
+                        information relevant to the locus from
+                        ExpansionHunterDenovo results to the output json.
+  --expansion-hunter-denovo-path EXPANSION_HUNTER_DENOVO_PATH
+                        The path of the ExpansionHunterDenovo executable to
+                        use if --run-expansion-hunter-denovo is specified.
+  --run-expansion-hunter
+                        If this option is specified, this script will run
+                        ExpansionHunter once for each of the motif(s) it
+                        detects at the locus. ExpansionHunter doesn't
+                        currently support genotyping multiallelic repeats such
+                        as RFC1 where an individual may have 2 alleles with
+                        motifs that differ from each other (and from the
+                        reference motif). Running ExpansionHunter separately
+                        for each motif provides a work-around.
+  --expansion-hunter-path EXPANSION_HUNTER_PATH
+                        The path of the ExpansionHunter executable to use if
+                        --run-expansion-hunter is specified. This must be
+                        ExpansionHunter version 3 or greater.
+  --use-offtarget-regions
+                        Optionally use off-target regions when counting reads
+                        that support a motif, and when running
+                        ExpansionHunter.
+  --run-reviewer        Run the REViewer tool to visualize ExpansionHunter
+                        output. --run-expansion-hunter must also be specified.
+  --run-reviewer-for-pathogenic-calls
+                        Run the REViewer tool to visualize ExpansionHunter
+                        output only when this script calls a sample as having
+                        PATHOGENIC MOTIF / PATHOGENIC MOTIF. --run-expansion-
+                        hunter must also be specified.
+  --all-loci            Generate calls for all these loci: RFC1, BEAN1, DAB1,
+                        MARCHF6, RAPGEF2, SAMD12, STARD7, TNRC6A, YEATS2
+  -l {RFC1,BEAN1,DAB1,MARCHF6,RAPGEF2,SAMD12,STARD7,TNRC6A,YEATS2}, --locus {RFC1,BEAN1,DAB1,MARCHF6,RAPGEF2,SAMD12,STARD7,TNRC6A,YEATS2}
+                        Generate calls for this specific locus. This argument
+                        can be specified more than once to call multiple loci.
+  -v, --verbose         Print detailed log messages.
+```
+
 
 RFC1 STR expansions have recently been linked to [CANVAS](https://www.omim.org/entry/614575) [ [Cortese 2019](https://pubmed.ncbi.nlm.nih.gov/30926972/) ].
 This STR locus is unique in that it's both autosomal recessive and has a pathogenic repeat motif (AAGGG) 
@@ -61,20 +158,8 @@ the `--ehdn-profile` to pass in an existing ExpansionHunterDenovo output file so
 script, ExpansionHunter, and ExpansionHunterDenovo can be combined into a single output file.  
 
 
-**Example command lines:**
 
-```
-# basic command 
-call_non_ref_pathogenic_motifs -R hg38.fasta -g 38 sample1.cram --locus RFC1
-
-# run ExpansionHunter and REViewer on all 9 loci with known non-ref pathogenic motifs
-call_non_ref_pathogenic_motifs -R hg38.fasta --run-expansion-hunter --run-reviewer -g 38 sample1.cram --all-loci
-
-# for 2 specific loci, run ExpansionHunter and REViewer + provide an existing ExpansionHunterDenovo profile
-call_non_ref_pathogenic_motifs -R hg38.fasta --run-expansion-hunter --run-reviewer --ehdn-profile sample1.str_profile.json -g 38 sample1.cram --locus RFC1 --locus BEAN1
-```
-
-** Command line arguments:**
+**Command line arguments:**
 
 ```
 positional arguments:
@@ -137,8 +222,8 @@ optional arguments:
 **`*_motifs.json` output file:**
 
 The `call_non_ref_pathogenic_motifs` script outputs a .json file with many fields summarizing what it found, as well as
-ExpansionHunter, REViewer, and ExpansionHunterDenovo outputs when `--run-expansion-hunter`, `--run-reviewer`, and/or
-`--run-expansion-hunter-denovo` args are used.
+ExpansionHunter, REViewer, ExpansionHunterDenovo, and STRling outputs when `--run-expansion-hunter`, `--run-reviewer`, and/or
+`--run-expansion-hunter-denovo` or `--run-strling` args are used.
   
 The key fields are:
 
@@ -151,7 +236,7 @@ The key fields are:
 **expansion_hunter_call_reviewer_svg**: (ex. `sample1.RFC1_AAGGG.expansion_hunter_reviewer.svg`) The REViewer read visualization image path.   
 
 
-Output fields:
+#### Output fields:
 
 **sample_id**: *If this value is not specified as a command line arg, it is parsed from the input bam/cram file header or filename prefix.*    
 **call**: *describes the motifs detected at the RFC1/CANVAS locus. Its format is analogous to a VCF genotype. Possible values are:*
@@ -228,7 +313,7 @@ at the RFC1 locus and have a MAPQ > 2*
 **ehdn_motif1_n_anchored_regions**  
 
 
-**Example Scenario:**
+**Example Output:**
 
 Lets say the script detects that sample1 contains two sets of reads at the RFC1 locus - some with the AAGGG motif and 
 some with AAAAG. The script then runs ExpansionHunter for the AAGGG motif and then runs it again for the AAAAG motif. 
@@ -239,16 +324,5 @@ This script would then output:
 **expansion_hunter_call_repeat_unit**: (`AAAAG / AAGGG`)  
 **expansion_hunter_call_genotype**: (`15/73`) Selected from the two genotypes above.  
 **expansion_hunter_call_CI**: (`15-15/55-87`) Selected from two sets of confidence intervals.  
-**expansion_hunter_call_reviewer_svg** (`sample1.RFC1_AAGGG.expansion_hunter_reviewer.svg`) Merged from the two REViewer images for motifs 1 and 2.   
+**expansion_hunter_call_reviewer_svg** (`sample1.RFC1_AAGGG.expansion_hunter_reviewer.svg`)    
 
-
-### combine_json_to_tsv
-
-This script can combine the `call_non_ref_pathogenic_motifs` output json files for multiple samples into 
-a single .tsv. The script takes the paths of the .json files as input, or, if none are provided, it searches for .json 
-files in the current directory and subdirectories.
-
-Example command line:
-```
-combine_json_to_tsv  sample1.RFC1_motifs.json  sample2.RFC1_motifs.json
-```
