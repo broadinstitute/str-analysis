@@ -26,8 +26,8 @@ This script takes a bam or cram file and determines which motifs are present
 at known pathogenic STR loci (such as RFC1, BEAN1, DAB1, etc.) where several
 motifs are known to segregate in the population. It then optionally runs
 ExpansionHunterDenovo, ExpansionHunter, and/or STRling and gathers relevant
-fields from their outputs for comparison and further evidence. It can also
-then run REViewer to generate read visualization images based on the
+fields from their outputs that users can then compare or use for downstream analyses. It can also 
+run REViewer to generate read visualization images based on the
 ExpansionHunter outputs. Finally it generates a json file per locus that
 contains all collected information as well as a "call" field indicating
 whether pathogenic motifs were detected.
