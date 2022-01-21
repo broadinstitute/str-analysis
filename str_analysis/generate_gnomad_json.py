@@ -16,13 +16,16 @@ images are missing.
 
 Output documentation:
 
-gnomAD_STR_genotypes__[datestamp].tsv.gz - this data file is meant to be shared publicly on the gnomAD browser
-downloads page. This is a flat table that contains the ExpansionHunter genotypes from
-all samples at each of the 59 disease associated loci. Also, it contains Population, Sex,
-Age, and PcrProtocol metadata columns, so the data in this table can be used to generate any of the plots displayed
-in the gnomAD browser STR pages. It also contains additional results not currently available through the browser.
+======================================================
+==     gnomAD_STR_genotypes__[datestamp].tsv.gz     ==
+======================================================
+
+This is a flat table that contains the ExpansionHunter genotypes from
+all samples at each of the 59 disease-associated loci. Also, it contains Population, Sex, Age, and PcrProtocol
+metadata columns, so the data in this table can be used to generate any of the plots displayed in the gnomAD
+browser STR pages. It also contains results not currently available through the browser.
 These are in the GenotypeUsingOfftargetRegions and GenotypeConfidenceIntervalUsingOfftargetRegions columns
-which contain ExpansionHunter calls generated using off-target regions. Finally, the ReadvizFilename column
+which store ExpansionHunter calls generated using off-target regions. Finally, the ReadvizFilename column
 links each row to a REViewer read visualization image that is available through the browser. This should allow users
 to construct the full public url of the image and programmatically download specific images of interest.
 
@@ -50,13 +53,15 @@ Below is an example of column names and values from a typical row in this table:
  GenotypeConfidenceIntervalUsingOfftargetRegions : 6-6/11-30
                                  ReadvizFilename : c82034cf2aad813a07a8523898d64c81148.svg
 
-Id : This id is unique to each STR locus and repeat, meaning that it differs between repeats and their adjacent repeats
+Id : This id is unique to each STR locus and repeat, meaning that it differs between repeats and any adjacent repeats
     at a locus. For example the main GAA repeat at the FXN locus has id "FXN" while the adjacent poly-A repeat has id
-    "FXN_A". It corresponds to the "VariantId" field in the ExpansionHunter variant catalogs @ https://github.com/broadinstitute/str-analysis/tree/main/str_analysis/variant_catalogs
-LocusId: This id is unique to each STR locus. It corresponds to the "LocusId" field in the ExpansionHunter variant catalogs @ https://github.com/broadinstitute/str-analysis/tree/main/str_analysis/variant_catalogs
-    and can be used to look up reference information about each locus in the variant catalogs - including the
+    "FXN_A". This id corresponds to the "VariantId" field in the ExpansionHunter variant catalogs @
+    https://github.com/broadinstitute/str-analysis/tree/main/str_analysis/variant_catalogs
+LocusId: This id is unique to each STR locus. It corresponds to the "LocusId" field in the ExpansionHunter variant
+    catalogs @ https://github.com/broadinstitute/str-analysis/tree/main/str_analysis/variant_catalogs
+    and can be used to look up reference information about each locus there - including the
     gene name, disease associations, mode of inheritance, and pathogenic threshold. For most but not all loci, the
-    LocusId is identical to the gene name that contains the locus.
+    LocusId is identical to the name of the gene that contains the locus.
 ReferenceRegion: Genomic interval delineating the exact boundaries of the STR repeat in the reference genome.
     The start coordinate is 0-based.
 Chrom: The chromosome of the ReferenceRegion. This is provided as a separate column for convenience.
@@ -77,16 +82,19 @@ Genotype: The ExpansionHunter genotype for this individual at this locus, genera
     off-target regions (see https://github.com/broadinstitute/str-analysis/tree/main/str_analysis/variant_catalogs).
     These are the genotypes used to generate all plots in the gnomAD browser STR pages.
 Allele1: The shorter repeat size from the genotype. This is provided as a separate column for convenience.
-Allele2: The longer repeat size from the genotype; empty in the special case of hemizygous genotypes (e.g., in male samples at loci on chrX). This is provided as a separate column for convenience.
+Allele2: The longer repeat size from the genotype; empty in the special case of hemizygous genotypes (e.g., in male samples
+    at loci on chrX). This is provided as a separate column for convenience.
 GenotypeConfidenceInterval: The ExpansionHunter confidence intervals associated with the genotype in the "Genotype" column.
 
 GenotypeUsingOfftargetRegions: Same meaning as the "Genotype" column, but generated using the variant catalog with off-target regions.
 Allele1UsingOfftargetRegions: Same meaning as the "Allele1" column, but generated using the variant catalog with off-target regions.
 Allele2UsingOfftargetRegions: Same meaning as the "Allele2" column, but generated using the variant catalog with off-target regions.
-GenotypeConfidenceIntervalUsingOfftargetRegions: Same meaning as the "GenotypeConfidenceInterval" column, but generated using the variant catalog with off-target regions.
+GenotypeConfidenceIntervalUsingOfftargetRegions: Same meaning as the "GenotypeConfidenceInterval" column, but generated using the
+    variant catalog with off-target regions.
 
-ReadvizFilename: The filename of the SVG image generated by REViewer based on the ExpansionHunter call reported in the "Genotype" column.
-    This can be used to compute the public url and programatically retrieve this image from the gnomAD browser server.
+ReadvizFilename: The filename of the SVG image generated by REViewer based on the ExpansionHunter call reported in the "Genotype"
+    column. This can be used to compute the public url and programatically retrieve this image from the gnomAD browser server.
+
 """
 
 
