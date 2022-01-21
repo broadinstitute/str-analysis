@@ -120,45 +120,6 @@ optional arguments:
 ```
 
 
-RFC1 STR expansions have recently been linked to [CANVAS](https://www.omim.org/entry/614575) [ [Cortese 2019](https://pubmed.ncbi.nlm.nih.gov/30926972/) ].
-This STR locus is unique in that it's both autosomal recessive and has a pathogenic repeat motif (AAGGG) 
-that differs from the motif in the reference genome (AAAAG). Several other benign and pathogenic motifs have also been reported, such as  
-AAAGG and ACAGG, as well as motifs of uncertain significance such as AAGAG and AGAGG [ [Akcimen 2019](https://pubmed.ncbi.nlm.nih.gov/31824583/) ].
-It's not unusual for individuals to have one motif on one chromosome, and another motif on the other chromosome. 
-Due to this multi-allelic nature, current STR genotyping tools like 
-[ExpansionHunter](https://github.com/Illumina/ExpansionHunter) struggle to accurately genotype RFC1 since they require
-the repeat unit to be specified apriori as input, and then only look for reads supporting that repeat unit.  
-
-A more recent tool, [ExpansionHunter Denovo](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02017-z), 
-is better at detecting multi-allelic expanded RFC1 motif(s), but is unable to distinguish unaffected carriers 
-(such as those that have one benign AAAAG reference allele, and one pathogenic AAGGG allele) from 
-affected individuals (homozygous for the AAGGG allele). In both cases, ExpansionHunter Denovo might detect the 
-AAGGG allele, but would fail to detect the benign allele unless it is also highly expanded. 
-
-This script addresses some of the above limitations. It takes a whole genome (WGS) bam or cram file and detects
-which motif(s) are present at the RFC1/CANVAS STR locus. At a minimum, it then outputs a .json file with information on 
-the detected motifs. Optionally it also runs ExpansionHunter using a custom variant catalog for each detected motif, 
-and combines the results into a single diploid genotype and confidence interval. The custom variant catalog includes
-off-target regions, which allow ExpansionHunter to accurately genotype expansions longer than fragment length. 
-The script can also then run [REViewer](https://github.com/Illumina/REViewer) for each motif and combine the resulting 
-images into a single diploid image where, if multiple motifs were detected, the short and long alleles are based on 
-different motifs.  
-
-Testing this approach on simulated data shows that it restores ExpansionHunter's accurately for non-reference motif 
-expansions to the same level as for expansions with the reference (AAAAG) motif. The simulation results suggested that, 
-to combine ExpansionHunter results for two different motifs, it makes sense to report the longest of the two long 
-alleles, and then report the short allele from the other motif, so this is the rule this script uses.
-See the Example Scenario section below for a concrete example.  
-
-The script can also apply this approach to other known STR loci where the pathogenic motif differs from the reference 
-such as DAB1, BEAN1, SAMD12, and others. Unlike RFC1/CANVAS, these other loci are autosomal dominant, which simplifies 
-the task and makes it more ammenable to ExpansionHunterDenovo. To assist with this, the script also has a 
-`--run-expansion-hunter-denovo` option to run ExpansionHunterDenovo on the input bam, or alternatively 
-the `--ehdn-profile` to pass in an existing ExpansionHunterDenovo output file so that all relevant results from this 
-script, ExpansionHunter, and ExpansionHunterDenovo can be combined into a single output file.  
-
-
-
 **Command line arguments:**
 
 ```
@@ -219,7 +180,7 @@ optional arguments:
   -v, --verbose         Print detailed log messages
 ```
 
-**`*_motifs.json` output file:**
+**Summary of `*_motifs.json` output file:**
 
 The `call_non_ref_pathogenic_motifs` script outputs a .json file with many fields summarizing what it found, as well as
 ExpansionHunter, REViewer, ExpansionHunterDenovo, and STRling outputs when `--run-expansion-hunter`, `--run-reviewer`, and/or
@@ -236,7 +197,7 @@ The key fields are:
 **expansion_hunter_call_reviewer_svg**: (ex. `sample1.RFC1_AAGGG.expansion_hunter_reviewer.svg`) The REViewer read visualization image path.   
 
 
-#### Output fields:
+**Output fields:**
 
 **sample_id**: *If this value is not specified as a command line arg, it is parsed from the input bam/cram file header or filename prefix.*    
 **call**: *describes the motifs detected at the RFC1/CANVAS locus. Its format is analogous to a VCF genotype. Possible values are:*
