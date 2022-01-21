@@ -45,7 +45,7 @@ call_non_ref_pathogenic_motifs -R hg38.fasta --run-expansion-hunter --run-review
 call_non_ref_pathogenic_motifs -R hg38.fasta --run-expansion-hunter --run-reviewer --ehdn-profile sample1.str_profile.json -g 38 sample1.cram --locus RFC1 --locus BEAN1
 ```
 
-**Command-line Arguments:**
+**Command-line args:**
 
 ```
 positional arguments:
