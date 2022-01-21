@@ -20,9 +20,9 @@ gnomAD_STR_genotypes__[datestamp].tsv.gz - this data file is meant to be shared 
 downloads page. This is a flat table that contains the ExpansionHunter genotypes from
 all samples at each of the 59 disease associated loci. Also, it contains Population, Sex,
 Age, and PcrProtocol metadata columns, so the data in this table can be used to generate any of the plots displayed
-in the gnomAD browser STR pages. It also contains additional results not currently available through the browser
-interface. These are in the GenotypeUsingOfftargetRegions and GenotypeConfidenceIntervalUsingOfftargetRegions columns
-which store ExpansionHunter calls generating using off-target regions. Finally, the ReadvizFilename column
+in the gnomAD browser STR pages. It also contains additional results not currently available through the browser.
+These are in the GenotypeUsingOfftargetRegions and GenotypeConfidenceIntervalUsingOfftargetRegions columns
+which contain ExpansionHunter calls generated using off-target regions. Finally, the ReadvizFilename column
 links each row to a REViewer read visualization image that is available through the browser. This should allow users
 to construct the full public url of the image and programmatically download specific images of interest.
 
@@ -57,7 +57,7 @@ LocusId: This id is unique to each STR locus. It corresponds to the "LocusId" fi
     and can be used to look up reference information about each locus in the variant catalogs - including the
     gene name, disease associations, mode of inheritance, and pathogenic threshold. For most but not all loci, the
     LocusId is identical to the gene name that contains the locus.
-ReferenceRegion: Genomic interval deliniating the exact boundaries of the STR repeat in the reference genome.
+ReferenceRegion: Genomic interval delineating the exact boundaries of the STR repeat in the reference genome.
     The start coordinate is 0-based.
 Chrom: The chromosome of the ReferenceRegion. This is provided as a separate column for convenience.
 Start_0based: The 0-based start coordinate of the ReferenceRegion. This is provided as a separate column for convenience.
@@ -68,16 +68,16 @@ IsAdjacentRepeat: True or False depending on whether this row represents the mai
     due to research interest in the size of these adjacent repeats.
 Population: The gnomAD ancestry group of the individual. Possible values are: "afr", "ami", "amr", "asj", "eas", "fin",
     "mid", "nfe", "oth", "sas"
-Sex: Possible values are "XX" for females and "XY" for males
+Sex: The sex karyotype of the genotyped individual. Possible values are "XX" and "XY".
 Age: The age of the individual at the time when they enrolled in one of the research studies underlying gnomAD.
-    The values represent 5 year bins such as "20-25" as well as ">80" for individuals over 80 years old and "<20" for
+    The values represent 5 year bins such as "20-25", as well as ">80" for individuals over 80 years old and "<20" for
     individuals younger than 20. For individuals with unknown age, the value is "age_not_available"
 PcrProtocol: Possible values are "pcr_free", "pcr_plus" and "pcr_info_not_available"
 Genotype: The ExpansionHunter genotype for this individual at this locus, generated using the variant catalog without
     off-target regions (see https://github.com/broadinstitute/str-analysis/tree/main/str_analysis/variant_catalogs).
     These are the genotypes used to generate all plots in the gnomAD browser STR pages.
-Allele1: The shorter repeat size from the Genotype. This is provided as a separate column for convenience.
-Allele2: The longer repeat size from the Genotype, or empty for hemizygous genotypes (e.g. in male samples at loci on chrX). This is provided as a separate column for convenience.
+Allele1: The shorter repeat size from the genotype. This is provided as a separate column for convenience.
+Allele2: The longer repeat size from the genotype; empty in the special case of hemizygous genotypes (e.g., in male samples at loci on chrX). This is provided as a separate column for convenience.
 GenotypeConfidenceInterval: The ExpansionHunter confidence intervals associated with the genotype in the "Genotype" column.
 
 GenotypeUsingOfftargetRegions: Same meaning as the "Genotype" column, but generated using the variant catalog with off-target regions.
