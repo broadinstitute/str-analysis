@@ -7,10 +7,10 @@ These fields modify ExpansionHunter behavior for each locus.
 ExpansionHunter ignores fields not listed above, so we added extra reference information in the fields listed below:
 
 * `Gene` - the name of the gene that contains the STR locus  
-* `GeneId` - the Ensembl ESNG gene id of the gene that contains this STR locus
+* `GeneId` - the Ensembl ESNG gene id
 * `GeneRegion` - what part of the gene contains the STR locus 
-* `DiscoveryYear` - year when the disease association was first established for this locus [source: [Depienne 2021](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8205997/)]
-* `DiscoveryMethod` - how the disease association was originally discovered for this locus [source: [Depienne 2021](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8205997/)]. 
+* `DiscoveryYear` - year when the disease association was first established [source: [Depienne 2021](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8205997/)]
+* `DiscoveryMethod` - how the disease association was originally discovered [source: [Depienne 2021](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8205997/)]. 
     * `cl` is `cloning` 
     * `CGA` is `candidate gene analysis`
     * `ExScr` is `expansion screening`
