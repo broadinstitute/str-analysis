@@ -19,7 +19,7 @@ ExpansionHunter ignores fields not listed above, so we added extra reference inf
 * `Diseases` - list of 1 or more diseases associated with this locus
   * `Symbol` - disease symbol (ie. `DM1`)
   * `Name` - disease name (ie. `Myotonic dystrophy 1`)
-  * `Inheritance` - the inheritance mode(s) of the disease(s) associated with this locus. 
+  * `Inheritance` - the inheritance mode(s) of the disease(s) associated with this locus
     * `AR` is `autosomal recessive`
     * `AD` is `autosomal dominant`
     * `XR` is `x-linked recessive`
