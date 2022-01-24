@@ -34,4 +34,3 @@ ExpansionHunter ignores fields not listed above, so we added extra reference inf
 
 These variant catalogs were used to generate the [gnomAD STR callset](https://gnomad.broadinstitute.org/short-tandem-repeats?dataset=gnomad_r3)
 described in more detail in this [blog post](https://gnomad.broadinstitute.org/news/2022-01-the-addition-of-short-tandem-repeat-calls-to-gnomad/).
-We are also using them for diagnosing cases in rare disease cohorts.
