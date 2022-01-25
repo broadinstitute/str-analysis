@@ -1,5 +1,5 @@
-This folder contains variant catalog files that can be passed to [ExpansionHunter](https://github.com/Illumina/ExpansionHunter) in order to 
-genotype 59 disease-associated loci. Four files are provide: with and without off-target regions, for GRCh38 and GRCh37.
+This folder contains variant catalog files that can be passed to [ExpansionHunter](https://github.com/Illumina/ExpansionHunter) to 
+genotype 59 disease-associated loci. There are four variant catalogs - for GRCh38 with and without including off-target regions, and same thing for GRCh37.
 
 [ExpansionHunter docs](https://github.com/Illumina/ExpansionHunter/blob/master/docs/04_VariantCatalogFiles.md) describe the `LocusId`, `LocusStructure`, `ReferenceRegion`, `VariantType`, `VariantId` and `OfftargetRegions` fields in more detail. 
 These fields modify ExpansionHunter behavior for each locus. 
