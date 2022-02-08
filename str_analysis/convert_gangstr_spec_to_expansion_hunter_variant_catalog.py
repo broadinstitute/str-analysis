@@ -34,7 +34,7 @@ def process_variant_catalog(gangstr_spec_path, output_file_path, verbose=False):
     existing_locus_ids = set()
     counter = collections.defaultdict(int)
     with (gzip.open if gangstr_spec_path.endswith("gz") else open)(gangstr_spec_path, "rt") as f:
-        for row in tqdm.tqdm(f, unit=" records"):
+        for i, row in tqdm.tqdm(enumerate(f), unit=" records"):
             fields = row.strip("\n").split("\t")
             chrom = fields[0]
             start_0based = int(fields[1]) - 1
@@ -45,6 +45,10 @@ def process_variant_catalog(gangstr_spec_path, output_file_path, verbose=False):
                 if len(off_target_regions) > 1:
                     print(f"WARNING: found GangSTR spec with off-target regions. This script doesn't yet support "
                           f"transferring off-target regions to the variant catalog")
+
+            if not repeat_unit or (len(set(repeat_unit) - set("ACGTN")) > 0):
+                raise ValueError(f"Invalid repeat unit in row #{i + 1}: {repeat_unit}. Line: {row}")
+
             counter["total input loci"] += 1
             trim_bp = (end_1based - start_0based) % len(repeat_unit)
             if trim_bp != 0:
