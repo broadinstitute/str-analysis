@@ -698,7 +698,7 @@
             "Name": "Pseudoachondroplasia",
             "Inheritance": "AD",
             "OMIM": "177170",
-            "Note": "5 repeats are normal. Contractions to 4 repeats are pathogenic.",
+            "Note": "5 repeats are normal. Contractions to 4 repeats are also pathogenic.",
             "PathogenicMin": 7
          }
       ],
@@ -1605,6 +1605,50 @@
       ],
       "OfftargetRegions": [
          "5:145838390-145838909"
+      ]
+   },
+   {
+      "LocusId": "NOTCH2NLC",
+      "LocusStructure": "(GGC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "1:145209323-145209353",
+      "RepeatUnit": "GGC",
+      "Gene": "NOTCH2NLC",
+      "Inheritance": "AD",
+      "GeneRegion": "coding: polyglycine",
+      "GeneId": "ENSG00000286219",
+      "DiscoveryMethod": "TRhist, L, WGS",
+      "DiscoveryYear": 2019,
+      "Diseases": [
+         {
+            "Symbol": "NIID",
+            "Name": "Neuronal intranuclear inclusion disease",
+            "Inheritance": "AD",
+            "OMIM": "603472",
+            "NormalMax": 39,
+            "PathogenicMin": 90
+         },
+         {
+            "Symbol": "ETM6",
+            "Name": "Hereditary essential tremor type 6",
+            "Inheritance": "AD",
+            "OMIM": "618866",
+            "NormalMax": 41,
+            "PathogenicMin": 60
+         }
+      ],
+      "OfftargetRegions": [
+         "16:24740836-24741193",
+         "1:21502905-21503255",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:443175-443544",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246"
       ]
    },
    {
