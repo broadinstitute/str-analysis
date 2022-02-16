@@ -259,7 +259,7 @@ def parse_args():
     )
     p.add_argument(
         "--gnomad-metadata-tsv",
-        default="~/code/sample_metadata/metadata/gnomad_v3.1_metadata_v3.1.tsv.gz",
+        default="~/code/sample_metadata/metadata/gnomad_v3.1_metadata_v3.1_with_read_lengths.tsv.gz",
         help="gnomAD metadata table path.",
     )
     p.add_argument(
@@ -278,7 +278,12 @@ def parse_args():
         action="store_true",
         help="Use this flag to indicate that readviz was not generated for this dataset.",
     )
-
+    p.add_argument(
+        "--include-all-age-and-pcr-info",
+        action="store_true",
+        help="If this is specified, don't drop age and/or pcr info values from the user-friendly genotypes table in "
+             "the add_histograms_and_compute_readviz_paths(..) method."
+    )
     p.add_argument(
         "--output-dir",
         default="gs://gnomad-browser/STRs",
@@ -420,7 +425,7 @@ def load_data_df(args):
 
     gnomad_df = gnomad_df[[
         "s", "population_inference.pop", "sex_imputation.sex_karyotype",
-        "age", "pcr_protocol",
+        "age", "pcr_protocol", "read_length",
     ]]
     gnomad_df.loc[:, "s"] = gnomad_df.s.apply(process_sample_id)
 
@@ -641,6 +646,7 @@ def add_motif_classification_field(gnomad_json, most_common_motif_lookup):
 
 def add_histograms_and_compute_readviz_paths(
         df, gnomad_json, most_common_motif_lookup, existing_readviz_filename_list=None, no_readviz_images=False,
+        include_all_age_and_pcr_info=False,
 ):
     """Populate the AlleleCountHistogram, AlleleCountScatterPlot and AgeDistribution. Also, compute encrypted readviz
     paths and add these & other metadata to readviz_json.
@@ -655,6 +661,8 @@ def add_histograms_and_compute_readviz_paths(
             no_readviz_images=True
         no_readviz_images (bool): If True, this method will assume the REViewer images were not generated for this
             dataset.
+        include_all_age_and_pcr_info (bool): If True, add age and pcr info to the user-friendly genotypes table
+            for all samples for which age and pcr info is shown in the gnomAD browser.
     Return:
         (list, dict): 2-tuple containing (readviz_paths_to_rename, readviz_json) where
             readviz_paths_to_rename is a list of 2-tuples that matches the original readviz svg filename with the
@@ -702,6 +710,7 @@ def add_histograms_and_compute_readviz_paths(
         sex_karyotype = row["sex_imputation.sex_karyotype"]
         population = row["population_inference.pop"]
         pcr_protocol = row["pcr_protocol"]
+        read_length = int(row["read_length"])
 
         # Compute age_range
         if row["age"] == AGE_NOT_AVAILABLE:
@@ -723,6 +732,8 @@ def add_histograms_and_compute_readviz_paths(
                 and age_counter[locus_id, sex_karyotype] < MAX_AGES_PER_BUCKET_TO_DISPLAY_IN_THE_READVIZ_SECTION):
             age_counter[locus_id, sex_karyotype] += 1
             age_range_to_show_in_readviz_section = age_range
+
+        age_range_for_user_friendly_genotypes_file = age_range if include_all_age_and_pcr_info else age_range_to_show_in_readviz_section
 
         # Get num_repeats1, num_repeats2
         try:
@@ -803,8 +814,9 @@ def add_histograms_and_compute_readviz_paths(
             "IsAdjacentRepeat": is_adjacent_repeat,
             "Population": population,
             "Sex": sex_karyotype,
-            "Age": age_range_to_show_in_readviz_section,
+            "Age": age_range_for_user_friendly_genotypes_file,
             "PcrProtocol": pcr_protocol,
+            "ReadLength": read_length,
             "ReadvizFilename": encrypted_svg_filename,
         }
 
@@ -833,7 +845,7 @@ def add_histograms_and_compute_readviz_paths(
         user_friendly_genotypes_json.append(user_friendly_genotypes_record)
 
         user_friendly_genotypes_json_binned[
-            (variant_id, population, sex_karyotype, age_range_to_show_in_readviz_section, pcr_protocol)
+            (variant_id, population, sex_karyotype, age_range_for_user_friendly_genotypes_file, pcr_protocol)
         ].append(user_friendly_genotypes_record)
 
         if not is_adjacent_repeat:
@@ -851,6 +863,7 @@ def add_histograms_and_compute_readviz_paths(
                 "PcrProtocol": pcr_protocol,
                 "Genotype": row["Genotype"],
                 "GenotypeConfidenceInterval": row["GenotypeConfidenceInterval"],
+                "ReadLength": read_length,
                 "ReadvizFilename": encrypted_svg_filename,
             })
 
@@ -872,41 +885,42 @@ def add_histograms_and_compute_readviz_paths(
     # For added caution, and in-keeping with the principle of only sharing per-variant information, this loop discards
     # the Age and PCR-protocol values from the user_friendly_genotypes_json data structure. This should move these
     # samples into more common metadata bins that have other samples and prevent phasing of STR variants across loci.
-    modified_records = []
-    for bin_key, user_friendly_genotypes_records in user_friendly_genotypes_json_binned.items():
-        if len(user_friendly_genotypes_records) == 1:
-            user_friendly_genotypes_record = user_friendly_genotypes_records[0]
-            (variant_id, population, sex_karyotype, age, pcr_protocol) = bin_key
+    if not include_all_age_and_pcr_info:
+        modified_records = []
+        for bin_key, user_friendly_genotypes_records in user_friendly_genotypes_json_binned.items():
+            if len(user_friendly_genotypes_records) == 1:
+                user_friendly_genotypes_record = user_friendly_genotypes_records[0]
+                (variant_id, population, sex_karyotype, age, pcr_protocol) = bin_key
 
-            # move this sample to a more common metadata bin by dropping age
-            new_bin_key = (variant_id, population, sex_karyotype, AGE_NOT_AVAILABLE, pcr_protocol)
-            user_friendly_genotypes_record["Age"] = AGE_NOT_AVAILABLE
-            if len(user_friendly_genotypes_json_binned.get(new_bin_key, [])) < 2:
-                # dropping age didn't move this sample to a more common bin, so also drop PCR protocol info
-                new_bin_key = (variant_id, population, sex_karyotype, AGE_NOT_AVAILABLE, PCR_INFO_NOT_AVAILABLE)
-                user_friendly_genotypes_record["PcrProtocol"] = PCR_INFO_NOT_AVAILABLE
+                # move this sample to a more common metadata bin by dropping age
+                new_bin_key = (variant_id, population, sex_karyotype, AGE_NOT_AVAILABLE, pcr_protocol)
+                user_friendly_genotypes_record["Age"] = AGE_NOT_AVAILABLE
+                if len(user_friendly_genotypes_json_binned.get(new_bin_key, [])) < 2:
+                    # dropping age didn't move this sample to a more common bin, so also drop PCR protocol info
+                    new_bin_key = (variant_id, population, sex_karyotype, AGE_NOT_AVAILABLE, PCR_INFO_NOT_AVAILABLE)
+                    user_friendly_genotypes_record["PcrProtocol"] = PCR_INFO_NOT_AVAILABLE
 
-            modified_records.append((bin_key, new_bin_key, user_friendly_genotypes_record))
+                modified_records.append((bin_key, new_bin_key, user_friendly_genotypes_record))
 
-    visited_individual_metadata_bins = set()
-    for bin_key, new_bin_key, modified_user_friendly_genotypes_record in modified_records:
-        (_, population, sex_karyotype, age, pcr_protocol) = bin_key
-        individual_bin = (population, sex_karyotype, age, pcr_protocol)
-        if individual_bin not in visited_individual_metadata_bins:
-            print(f"Moving sample from unique metadata bin {bin_key} to {new_bin_key}")
-            visited_individual_metadata_bins.add(individual_bin)
+        visited_individual_metadata_bins = set()
+        for bin_key, new_bin_key, modified_user_friendly_genotypes_record in modified_records:
+            (_, population, sex_karyotype, age, pcr_protocol) = bin_key
+            individual_bin = (population, sex_karyotype, age, pcr_protocol)
+            if individual_bin not in visited_individual_metadata_bins:
+                print(f"Moving sample from unique metadata bin {bin_key} to {new_bin_key}")
+                visited_individual_metadata_bins.add(individual_bin)
 
-        del user_friendly_genotypes_json_binned[bin_key]
-        user_friendly_genotypes_json_binned[new_bin_key].append(modified_user_friendly_genotypes_record)
+            del user_friendly_genotypes_json_binned[bin_key]
+            user_friendly_genotypes_json_binned[new_bin_key].append(modified_user_friendly_genotypes_record)
 
-    unable_to_avoid_unique_metadata_bins = False
-    for bin_key, user_friendly_genotypes_records in user_friendly_genotypes_json_binned.items():
-        if len(user_friendly_genotypes_records) == 1:
-            print(f"Unable to avoid a metadata bin with only 1 sample. Bin key: {bin_key} ")
-            print(user_friendly_genotypes_records[0])
-            unable_to_avoid_unique_metadata_bins = True
-    if unable_to_avoid_unique_metadata_bins:
-        raise ValueError("Failed to avoid metadata bins wiht only 1 sample")
+        unable_to_avoid_unique_metadata_bins = False
+        for bin_key, user_friendly_genotypes_records in user_friendly_genotypes_json_binned.items():
+            if len(user_friendly_genotypes_records) == 1:
+                print(f"Unable to avoid a metadata bin with only 1 sample. Bin key: {bin_key} ")
+                print(user_friendly_genotypes_records[0])
+                unable_to_avoid_unique_metadata_bins = True
+        if unable_to_avoid_unique_metadata_bins:
+            raise ValueError("Failed to avoid metadata bins wiht only 1 sample")
 
     return list(readviz_paths_to_rename), readviz_json, user_friendly_genotypes_json
 
@@ -1122,6 +1136,7 @@ def main():
         df, gnomad_json, most_common_motif_lookup,
         existing_readviz_filename_list=args.existing_readviz_filename_list,
         no_readviz_images=args.no_readviz,
+        include_all_age_and_pcr_info=args.include_all_age_and_pcr_info,
     )
 
     sort_keys(gnomad_json)
@@ -1178,8 +1193,16 @@ def main():
         "Allele2UsingOfftargetRegions",
         "GenotypeConfidenceIntervalUsingOfftargetRegions",
         "ReadvizFilename",
+        "ReadLength",
     ]]
-    export_to_tsv(user_friendly_genotypes_df, f"{local_output_dir}/gnomAD_STR_genotypes{output_filename_label}__{date_stamp}.tsv")
+    output_path = f"{local_output_dir}/gnomAD_STR_genotypes{output_filename_label}__"
+    if args.include_all_age_and_pcr_info:
+        output_path += "including_all_age_and_pcr_info__"
+    output_path += f"{date_stamp}.tsv"
+    export_to_tsv(
+        user_friendly_genotypes_df,
+        output_path,
+    )
 
     print("Done")
 
