@@ -787,7 +787,7 @@
             "Inheritance": "AD",
             "OMIM": "136630",
             "NormalMax": 23,
-            "PathogenicMin": 150
+            "PathogenicMin": 350
          }
       ],
       "OfftargetRegions": [
