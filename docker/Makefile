@@ -8,4 +8,4 @@ build:
 
 push:
 	docker push $(TAG1)
-	docker push $(TAG2)
+	docker push $(TAG2) | tee /dev/tty | grep sha256 | grep latest | cut -d ' ' -f 3 > sha256.txt
