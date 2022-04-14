@@ -117,11 +117,11 @@ RUN wget -q https://github.com/Illumina/ExpansionHunterDenovo/releases/download/
 #    && mv /ExpansionHunter-${EH_VERSION}-linux_x86_64/bin/ExpansionHunter /usr/local/bin/ \
 #    && rm -r ExpansionHunter-${EH_VERSION}-linux_x86_64 ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz
 
-RUN wget https://github.com/bw2/ExpansionHunter/raw/optimized_binaries/bin/linux/ExpansionHunter -O /usr/local/bin/ExpansionHunter \
+RUN wget https://raw.githubusercontent.com/bw2/ExpansionHunter/master/bin/linux/ExpansionHunter -O /usr/local/bin/ExpansionHunter \
     && chmod 777 /usr/local/bin/ExpansionHunter
 
 # install REViewer
-ENV REVIEWER_VERSION="v0.2.4"
+ENV REVIEWER_VERSION="v0.2.7"
 RUN wget -q https://github.com/Illumina/REViewer/releases/download/${REVIEWER_VERSION}/REViewer-${REVIEWER_VERSION}-linux_x86_64.gz \
     && gunzip REViewer-${REVIEWER_VERSION}-linux_x86_64.gz \
     && mv /REViewer-${REVIEWER_VERSION}-linux_x86_64 /usr/local/bin/REViewer \
