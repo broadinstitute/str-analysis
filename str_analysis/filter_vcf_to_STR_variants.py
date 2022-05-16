@@ -4,6 +4,7 @@ This script takes a .vcf and filters it to variants where either the REF or ALT 
 
 import argparse
 import collections
+import gzip
 import logging
 import os
 import pyfaidx
@@ -12,6 +13,7 @@ import tqdm
 import vcf
 
 from str_analysis.utils.find_repeat_unit import find_repeat_unit
+from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
@@ -77,6 +79,12 @@ def get_flanking_reference_sequences(fasta_obj, chrom, pos, ref, alt, num_flanki
     return left_flanking_reference_sequence, variant_bases, right_flanking_reference_sequence
 
 
+CANONICAL_MOTIF_CACHE = {}
+def compute_canonical_motif_with_cache(motif):
+    if motif not in CANONICAL_MOTIF_CACHE:
+        CANONICAL_MOTIF_CACHE[motif] = compute_canonical_motif(motif, include_reverse_complement=True)
+    return CANONICAL_MOTIF_CACHE[motif]
+
 def check_if_variant_is_str(
         fasta_obj, chrom, pos, ref, alt,
         min_str_repeats, min_str_length,
@@ -113,15 +121,19 @@ def check_if_variant_is_str(
 
     i = len(left_flanking_reference_sequence)
     num_repeats_left_flank = 0
-    while left_flanking_reference_sequence[i-len(repeat_unit):i] == repeat_unit:
-        i -= len(repeat_unit)
-        num_repeats_left_flank += 1
+    left_flank_repeat_unit = left_flanking_reference_sequence[i-len(repeat_unit):i]
+    if compute_canonical_motif(left_flank_repeat_unit) == compute_canonical_motif_with_cache(repeat_unit):
+        while left_flanking_reference_sequence[i-len(repeat_unit):i] == left_flank_repeat_unit:
+            i -= len(repeat_unit)
+            num_repeats_left_flank += 1
 
     i = 0
     num_repeats_right_flank = 0
-    while right_flanking_reference_sequence[i:i+len(repeat_unit)] == repeat_unit:
-        i += len(repeat_unit)
-        num_repeats_right_flank += 1
+    right_flank_repeat_unit = right_flanking_reference_sequence[i:i+len(repeat_unit)]
+    if compute_canonical_motif_with_cache(right_flank_repeat_unit) == compute_canonical_motif_with_cache(repeat_unit):
+        while right_flanking_reference_sequence[i:i+len(repeat_unit)] == right_flank_repeat_unit:
+            i += len(repeat_unit)
+            num_repeats_right_flank += 1
 
     num_repeats_ref = num_repeats_alt = num_repeats_right_flank + num_repeats_left_flank
     if len(ref) < len(alt):
@@ -143,13 +155,29 @@ def check_if_variant_is_str(
     else:
         left_or_right = 'no'
 
+    if len(variant_bases) < 500:
+        num_base_pairs_within_variant_bases = f"{25*int(len(variant_bases)/25)}-{25*(1+int(len(variant_bases)/25))}bp"
+    else:
+        num_base_pairs_within_variant_bases = "500+bp"
+
     counters[f"STR TOTAL"] += 1
     counters[f"STR {ins_or_del}"] += 1
     counters[f"STR delta {num_repeats_within_variant_bases if num_repeats_within_variant_bases < 9 else '9+'} repeats"] += 1
     counters[f"STR motif size {len(repeat_unit) if len(repeat_unit) < 9 else '9+'} bp"] += 1
+    counters[f"STR size {num_base_pairs_within_variant_bases}"] += 1
     counters[f"STR with {left_or_right} matching ref. repeat"] += 1
 
     return repeat_unit, num_repeats_ref, num_repeats_alt, num_repeats_left_flank, num_repeats_right_flank
+
+
+def parse_num_alt_from_genotype(genotype):
+    GT = [int(gt) for gt in re.split(r"[/|\\]", genotype) if gt != "."]
+    if len(GT) > 0 and max(GT) > 1:
+        raise ValueError(f"Found multi-allelic genotype with GT elements > 1: {genotype}")
+
+    num_alt = sum(GT)
+
+    return num_alt
 
 
 def main():
@@ -160,7 +188,18 @@ def main():
 
     vcf_reader = vcf.VCFReader(filename=args.input_vcf_path, encoding="UTF-8")
     vcf_writer = vcf.VCFWriter(open(f"{args.output_prefix}.vcf", "w"), vcf_reader)
+    tsv_writer = open(f"{args.output_prefix}.tsv", "wt")
+    tsv_columns = [
+        "Chrom", "Pos", "Start", "End", "Locus",
+        "ExpansionContraction", "HETvsHOM", "IsFoundInReference",
+        "Motif", "MotifSize",
+        "NumRepeatsShortAllele",  "NumRepeatsLongAllele", "NumRepeatsInVariant",
+        "RepeatSizeShortAllele (bp)", "RepeatSizeLongAllele (bp)", "RepeatSizeVariantBases (bp)",
+        "Genotype", "Ref", "Alt", "SummaryField",
+        "NumRepeatsLeftFlank", "NumRepeatsRightFlank",
+    ]
 
+    tsv_writer.write("\t".join(tsv_columns) + "\n")
     counters = collections.defaultdict(int)
     fasta_obj = pyfaidx.Fasta(args.reference_fasta_path, one_based_attributes=False, as_raw=True)
     for i, row in tqdm.tqdm(enumerate(vcf_reader), unit=" rows"):
@@ -196,7 +235,7 @@ def main():
 
         new_INFO = dict(row.INFO)
         new_INFO.update({
-            'RU': repeat_unit,
+            "RU": repeat_unit,
             "NumRepeatsRef": num_repeats_ref,
             "NumRepeatsAlt": num_repeats_alt,
             "NumRepeatsLeftFlank": num_repeats_left_flank,
@@ -217,7 +256,53 @@ def main():
             samples=row.samples)
 
         vcf_writer.write_record(record)
-        #vcf_writer.flush()
+
+        genotype = row.genotype(row.samples[0].sample)
+        genotype = genotype.data[0]
+        num_alt = parse_num_alt_from_genotype(genotype)
+
+        tsv_record = dict(new_INFO)
+        start_1based = pos - num_repeats_left_flank * len(repeat_unit)
+        end = pos + num_repeats_right_flank * len(repeat_unit)
+        if len(ref) > len(alt):
+            short_allele_size = (end - start_1based - (len(ref) - 1))/len(repeat_unit)
+            if num_alt == 2:
+                long_allele_size = short_allele_size
+            else:
+                long_allele_size = (end - start_1based)/len(repeat_unit)
+        else:
+            long_allele_size = ((end - start_1based) + (len(alt) - 1))/len(repeat_unit)
+            if num_alt == 2:
+                short_allele_size = long_allele_size
+            else:
+                short_allele_size = (end - start_1based)/len(repeat_unit)
+
+        if len(row.samples) > 1:
+            raise ValueError(f"The input vcf contains more than 1 sample: {len(row.samples)}")
+
+        tsv_record.update({
+            "Chrom": chrom,
+            "Pos": pos,
+            "Start": start_1based,
+            "End": end,
+            "Locus": f"{chrom}:{start_1based}-{end}",
+            "ExpansionContraction": "Expansion" if len(ref) < len(alt) else "Contraction",
+            "HETvsHOM": "HOM" if num_alt == 2 else ("HET" if num_alt == 1 else num_alt),
+            "IsFoundInReference": "Reference" if num_repeats_left_flank + num_repeats_right_flank > 0 else "DeNovo",
+            "Motif": repeat_unit,
+            "MotifSize": len(repeat_unit),
+            "NumRepeatsInVariant": abs(len(ref) - len(alt))/len(repeat_unit),
+            "NumRepeatsShortAllele": short_allele_size,
+            "NumRepeatsLongAllele": long_allele_size,
+            "RepeatSizeShortAllele (bp)": short_allele_size * len(repeat_unit),
+            "RepeatSizeLongAllele (bp)": long_allele_size * len(repeat_unit),
+            "RepeatSizeVariantBases (bp)": abs(len(ref) - len(alt)),
+            "Genotype": genotype,
+            "Ref": row.REF,
+            "Alt": row.ALT[0],
+            "SummaryField": id_field,
+        })
+        tsv_writer.write("\t".join([str(tsv_record[c]) for c in tsv_columns]) + "\n")
 
     counter_sort_order = lambda x: (x[0].startswith("STR"), len(x[0]), x[0])
     str_keys = False
@@ -233,6 +318,9 @@ def main():
             percent = ""
 
         logger.info(f"{value:10d}  ({percent}) {key}")
+
+    vcf_writer.close()
+    tsv_writer.close()
 
 
 if __name__ == "__main__":
