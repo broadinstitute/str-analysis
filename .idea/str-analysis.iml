@@ -8,6 +8,7 @@
   <component name="NewModuleRootManager" inherit-compiler-output="true">
     <exclude-output />
     <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/str_analysis" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/str_analysis/str_analysis.egg-info" />
       <excludeFolder url="file://$MODULE_DIR$/str_analysis.egg-info" />
       <excludeFolder url="file://$MODULE_DIR$/build" />

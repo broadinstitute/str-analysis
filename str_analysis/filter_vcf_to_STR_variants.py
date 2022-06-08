@@ -4,7 +4,6 @@ This script takes a .vcf and filters it to variants where either the REF or ALT 
 
 import argparse
 import collections
-import gzip
 import logging
 import os
 import pyfaidx
@@ -12,7 +11,7 @@ import re
 import tqdm
 import vcf
 
-from str_analysis.utils.find_repeat_unit import find_repeat_unit
+from str_analysis.utils.find_repeat_unit import find_repeat_unit_using_trf
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
@@ -90,7 +89,7 @@ def check_if_variant_is_str(
         min_str_repeats, min_str_length,
         min_fraction_of_variant_covered_by_repeat,
         counters,
-        null_result=(None, 0, 0, 0, 0)
+        null_result=(None, 0, 0, 0, 0, False)
 ):
     counters["TOTAL"] += 1
     if len(ref) == len(alt):
@@ -105,9 +104,12 @@ def check_if_variant_is_str(
         counters["skipped: 1bp INDEL"] += 1
         return null_result
 
-    repeat_unit, num_repeats_within_variant_bases = find_repeat_unit(
+    repeat_unit, num_repeats_within_variant_bases, found_by_TRF = find_repeat_unit_using_trf(
         variant_bases,
-        min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat)
+        min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat,
+        min_sequence_length_for_running_trf=12,
+        trf_path="~/bin/trf409.macosx",
+    )
 
     if len(repeat_unit) == 1:
         counters["skipped: homopolymer"] += 1
@@ -162,12 +164,13 @@ def check_if_variant_is_str(
 
     counters[f"STR TOTAL"] += 1
     counters[f"STR {ins_or_del}"] += 1
+    counters[f"STR found by TRF"] += 1 if found_by_TRF else 0
     counters[f"STR delta {num_repeats_within_variant_bases if num_repeats_within_variant_bases < 9 else '9+'} repeats"] += 1
     counters[f"STR motif size {len(repeat_unit) if len(repeat_unit) < 9 else '9+'} bp"] += 1
     counters[f"STR size {num_base_pairs_within_variant_bases}"] += 1
     counters[f"STR with {left_or_right} matching ref. repeat"] += 1
 
-    return repeat_unit, num_repeats_ref, num_repeats_alt, num_repeats_left_flank, num_repeats_right_flank
+    return repeat_unit, num_repeats_ref, num_repeats_alt, num_repeats_left_flank, num_repeats_right_flank, found_by_TRF
 
 
 def parse_num_alt_from_genotype(genotype):
@@ -197,6 +200,7 @@ def main():
         "RepeatSizeShortAllele (bp)", "RepeatSizeLongAllele (bp)", "RepeatSizeVariantBases (bp)",
         "Genotype", "Ref", "Alt", "SummaryField",
         "NumRepeatsLeftFlank", "NumRepeatsRightFlank",
+        "FoundByTRF",
     ]
 
     tsv_writer.write("\t".join(tsv_columns) + "\n")
@@ -214,7 +218,7 @@ def main():
 
         chrom, pos, ref, alt = row.CHROM, row.POS, str(row.REF), str(row.ALT[0])
 
-        repeat_unit, num_repeats_ref, num_repeats_alt, num_repeats_left_flank, num_repeats_right_flank = check_if_variant_is_str(
+        repeat_unit, num_repeats_ref, num_repeats_alt, num_repeats_left_flank, num_repeats_right_flank, found_by_TRF = check_if_variant_is_str(
             fasta_obj, chrom, pos, ref, alt,
             min_str_repeats=args.min_str_repeats, min_str_length=args.min_str_length,
             min_fraction_of_variant_covered_by_repeat=args.min_fraction_of_variant_covered_by_repeat,
@@ -301,6 +305,7 @@ def main():
             "Ref": row.REF,
             "Alt": row.ALT[0],
             "SummaryField": id_field,
+            "FoundByTRF": found_by_TRF,
         })
         tsv_writer.write("\t".join([str(tsv_record[c]) for c in tsv_columns]) + "\n")
 
