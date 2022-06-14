@@ -189,7 +189,6 @@ def check_if_variant_is_str(
         raise ValueError(f"variant_bases: {variant_bases} != {variant_bases2} variant bases returned by "
                          f"get_flanking_reference_sequences for variant {chrom}-{pos}-{ref}-{alt} ")
 
-
     #num_repeats_left_flank, is_perfect_repeat_in_left_flank = extend_repeat_into_sequence(
     #   repeat_unit[::-1], left_flanking_reference_sequence[::-1], min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat)
     #num_repeats_right_flank, is_perfect_repeat_in_right_flank = extend_repeat_into_sequence(
@@ -209,9 +208,10 @@ def check_if_variant_is_str(
         i += len(repeat_unit)
         num_repeats_right_flank += 1
 
-    start_0based = pos - num_repeats_left_flank * len(repeat_unit) - 1
-    start_1based = start_0based + 1
-    end_1based = pos + (len(variant_bases) if len(ref) > len(alt) else 0) + num_repeats_right_flank * len(repeat_unit)
+    # even though the VCF position is 1-based, it represents the location of the base preceding the variant bases, so
+    # add 1 to get the 1-based position of the true base
+    start_1based = (pos + 1) - num_repeats_left_flank * len(repeat_unit)
+    end_1based = (pos + 1) + (len(variant_bases) if len(ref) > len(alt) else 0) + num_repeats_right_flank * len(repeat_unit)
 
     is_perfect_repeat = variant_bases == (repeat_unit * num_repeats_within_variant_bases)
     if not is_perfect_repeat:
@@ -249,6 +249,7 @@ def check_if_variant_is_str(
         "FoundBy": found_by,
         "IsPerfectRepeat": is_perfect_repeat,
     }
+
     # pprint(result)
 
     # update counters
@@ -290,9 +291,8 @@ def compute_summary_string(alt_STR_alleles):
             ins_or_del.append("INS")
 
     summary_string += ",".join(ins_or_del) + ":"
-    summary_string += ",".join([
-        "{}=>{}".format(alt_STR_alleles[i]["NumRepeatsRef"], alt_STR_alleles[i]["NumRepeatsAlt"])
-        for i in range(0, len(alt_STR_alleles))
+    summary_string += str(alt_STR_alleles[i]["NumRepeatsRef"]) + "=>" + ",".join([
+        str(alt_STR_alleles[i]["NumRepeatsAlt"]) for i in range(0, len(alt_STR_alleles))
     ])
 
     return ":".join(ins_or_del), summary_string
