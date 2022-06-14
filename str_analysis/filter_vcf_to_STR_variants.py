@@ -19,8 +19,34 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(mes
 
 logger = logging.getLogger()
 
-
+MIN_SEQUENCE_LENGTH_FOR_TRYING_REVERSE_SEQUENCE = 9
 MIN_SEQUENCE_LENGTH_FOR_RUNNING_TRF = 12
+
+OUTPUT_TSV_COLUMNS = [
+    "Chrom",
+    "Start1Based",
+    "End1Based",
+    "RepeatUnit",
+    "Locus",
+    "LocusId",
+    "InsDel",
+    "HETvsHOM",
+    "IsFoundInReference",
+    "Motif",
+    "MotifSize",
+    "NumRepeatsShortAllele",
+    "NumRepeatsLongAllele",
+    "RepeatSizeShortAllele (bp)",
+    "RepeatSizeLongAllele (bp)",
+    "VcfPos",
+    "VcfRef",
+    "VcfAlt",
+    "VcfGenotype",
+    "SummaryString",
+    "FoundBy",
+    "IsPerfectRepeat",
+    "IsMultiAllelic",
+]
 
 
 def parse_args():
@@ -98,13 +124,15 @@ def check_if_variant_is_str(
     counters,
     use_trf=False,
     trf_path=None,
-    null_result=(None, None, None, None, 0, 0, 0, 0, None, None)
 ):
     """Determine if the given chrom/pos/ref/alt variant represents an STR expansion or contraction or neither.
 
     Args:
 
     """
+    null_result = {
+        "RepeatUnit": None,
+    }
 
     counters["TOTAL"] += 1
     if len(ref) == len(alt):
@@ -114,25 +142,40 @@ def check_if_variant_is_str(
     ins_or_del = "INS" if len(ref) < len(alt) else "DEL"
     counters[ins_or_del] += 1
 
-    variant_bases = alt[1:] if len(ref) < len(alt) else ref[1:]
+    variant_bases = alt[len(ref):] if len(ref) < len(alt) else ref[len(alt):]
     if len(variant_bases) == 1:
         counters["skipped: 1bp INDEL"] += 1
         return null_result
 
+    found_by = None
     repeat_unit, num_repeats_within_variant_bases = find_repeat_unit(
         variant_bases,
         min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat,
         allow_indel_interruptions=False,
     )
+    if num_repeats_within_variant_bases > 1:
+        found_by = "BruteForce"
 
-    found_by_TRF = False
+    if num_repeats_within_variant_bases <= 1 and min_fraction_of_variant_covered_by_repeat < 1 and len(variant_bases) >= MIN_SEQUENCE_LENGTH_FOR_TRYING_REVERSE_SEQUENCE:
+        # see if we can find a repeat by reversing the sequence
+        repeat_unit, num_repeats_within_variant_bases = find_repeat_unit(
+            variant_bases[::-1],
+            min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat,
+            allow_indel_interruptions=False,
+        )
+        repeat_unit = repeat_unit[::-1]
+        if num_repeats_within_variant_bases > 1:
+            found_by = "BruteForceReverseSequence"
+
     if use_trf and num_repeats_within_variant_bases <= 1 and len(variant_bases) >= MIN_SEQUENCE_LENGTH_FOR_RUNNING_TRF:
+        # run TRF to find repeats
         repeat_unit, num_repeats_within_variant_bases = find_repeat_unit_using_trf(
             variant_bases,
             min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat,
             trf_path=trf_path,
         )
-        found_by_TRF = True
+        if num_repeats_within_variant_bases > 1:
+            found_by = "TRF"
 
     if len(repeat_unit) == 1:
         counters["skipped: homopolymer"] += 1
@@ -142,7 +185,15 @@ def check_if_variant_is_str(
         fasta_obj, chrom, pos, ref, alt,
         num_flanking_bases=len(repeat_unit) * 1000)
 
-    assert variant_bases2 == variant_bases
+    if variant_bases2 != variant_bases:
+        raise ValueError(f"variant_bases: {variant_bases} != {variant_bases2} variant bases returned by "
+                         f"get_flanking_reference_sequences for variant {chrom}-{pos}-{ref}-{alt} ")
+
+
+    #num_repeats_left_flank, is_perfect_repeat_in_left_flank = extend_repeat_into_sequence(
+    #   repeat_unit[::-1], left_flanking_reference_sequence[::-1], min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat)
+    #num_repeats_right_flank, is_perfect_repeat_in_right_flank = extend_repeat_into_sequence(
+    #   repeat_unit, right_flanking_reference_sequence, min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat)
 
     # check the left flanking sequence for additional repeats matching the repeat unit found in the variant
     i = len(left_flanking_reference_sequence)
@@ -158,17 +209,16 @@ def check_if_variant_is_str(
         i += len(repeat_unit)
         num_repeats_right_flank += 1
 
-    start_0based = pos - num_repeats_left_flank * len(repeat_unit)
+    start_0based = pos - num_repeats_left_flank * len(repeat_unit) - 1
     start_1based = start_0based + 1
     end_1based = pos + (len(variant_bases) if len(ref) > len(alt) else 0) + num_repeats_right_flank * len(repeat_unit)
 
-    is_perfect_repeat = variant_bases == repeat_unit * num_repeats_within_variant_bases
+    is_perfect_repeat = variant_bases == (repeat_unit * num_repeats_within_variant_bases)
     if not is_perfect_repeat:
         counters[f"STR imperfect repeats"] += 1
-        #print("TRF:" if found_by_TRF else "---", variant_bases, "is",
-        #       f"{num_repeats_within_variant_bases} x {repeat_unit} ... "
-        #       f"flanks: [{num_repeats_left_flank}, {num_repeats_right_flank}]")
         if num_repeats_left_flank == 0 and num_repeats_right_flank == 0:
+            # only accept imperfect repeats in the variant when there's also support for the same repeat unit in the
+            # flanking reference sequence
             return null_result
 
     num_repeats_ref = num_repeats_alt = num_repeats_right_flank + num_repeats_left_flank
@@ -179,27 +229,29 @@ def check_if_variant_is_str(
         # deletion
         num_repeats_ref += num_repeats_within_variant_bases
 
-
-    #pprint({
-    #    "ref": ref,
-    #    "alt": alt,
-    #    "repeat_unit": repeat_unit,
-    #    "left_flank": left_flanking_reference_sequence[-1*abs(num_repeats_left_flank)*len(repeat_unit):] if num_repeats_left_flank else "",
-    #    "right_flank": right_flanking_reference_sequence[:num_repeats_right_flank*len(repeat_unit)],
-    #    "num_repeats_within_variant_bases": num_repeats_within_variant_bases,
-    #    "num_repeats_ref": num_repeats_ref,
-    #    "num_repeats_alt": num_repeats_alt,
-    #    "num_repeats_left_flank": num_repeats_left_flank,
-    #    "num_repeats_right_flank": num_repeats_right_flank,
-    #    "found_by_TRF": found_by_TRF,
-    #    "is_perfect_repeat": is_perfect_repeat,
-    #})
-
     num_repeats_in_str = max(num_repeats_ref, num_repeats_alt)
     if num_repeats_in_str < min_str_repeats or num_repeats_in_str * len(repeat_unit) < min_str_length:
         counters["skipped: STR too short"] += 1
         return null_result
 
+    result = {
+        "Chrom": chrom,
+        "Pos": pos,
+        "Ref": ref,
+        "Alt": alt,
+        "Start1Based": start_1based,
+        "End1Based": end_1based,
+        "RepeatUnit": repeat_unit,
+        "NumRepeatsRef": num_repeats_ref,
+        "NumRepeatsAlt": num_repeats_alt,
+        "NumRepeatsLeftFlank": num_repeats_left_flank,
+        "NumRepeatsRightFlank": num_repeats_right_flank,
+        "FoundBy": found_by,
+        "IsPerfectRepeat": is_perfect_repeat,
+    }
+    # pprint(result)
+
+    # update counters
     if num_repeats_left_flank > 0 and num_repeats_right_flank > 0:
         left_or_right = 'both left and right'
     elif num_repeats_left_flank > 0:
@@ -216,55 +268,34 @@ def check_if_variant_is_str(
 
     counters[f"STR TOTAL"] += 1
     counters[f"STR {ins_or_del}"] += 1
-    counters[f"STR found by TRF"] += 1 if found_by_TRF else 0
+    if found_by:
+        counters[f"STR found by {found_by}"] += 1
     counters[f"STR delta {num_repeats_within_variant_bases if num_repeats_within_variant_bases < 9 else '9+'} repeats"] += 1
     counters[f"STR motif size {len(repeat_unit) if len(repeat_unit) < 9 else '9+'} bp"] += 1
     counters[f"STR size {num_base_pairs_within_variant_bases}"] += 1
     counters[f"STR with {left_or_right} matching ref. repeat"] += 1
     counters[f"STR perfect repeats"] += 1 if is_perfect_repeat else 0
 
-    return chrom, start_1based, end_1based, repeat_unit, num_repeats_ref, num_repeats_alt, \
-           num_repeats_left_flank, num_repeats_right_flank, found_by_TRF, is_perfect_repeat
+    return result
 
 
-def parse_num_alt_from_genotype(genotype):
-    GT = [int(gt) for gt in re.split(r"[/|\\]", genotype) if gt != "."]
-    if len(GT) > 0 and max(GT) > 1:
-        raise ValueError(f"Found multi-allelic genotype with GT elements > 1: {genotype}")
+def compute_summary_string(alt_STR_alleles):
+    summary_string = "RU{}:{}:".format(len(alt_STR_alleles[0]["RepeatUnit"]), alt_STR_alleles[0]["RepeatUnit"])
 
-    num_alt = sum(GT)
+    ins_or_del = []
+    for i in range(0, len(alt_STR_alleles)):
+        if len(alt_STR_alleles[i]["Ref"]) > len(alt_STR_alleles[i]["Alt"]):
+            ins_or_del.append("DEL")
+        elif len(alt_STR_alleles[i]["Ref"]) < len(alt_STR_alleles[i]["Alt"]):
+            ins_or_del.append("INS")
 
-    return num_alt
+    summary_string += ",".join(ins_or_del) + ":"
+    summary_string += ",".join([
+        "{}=>{}".format(alt_STR_alleles[i]["NumRepeatsRef"], alt_STR_alleles[i]["NumRepeatsAlt"])
+        for i in range(0, len(alt_STR_alleles))
+    ])
 
-
-def compute_short_and_long_allele_size(start_1based, end_1based, ref, alt, repeat_unit_length, genotype_num_alt):
-    start_0based = start_1based - 1
-    locus_size_in_base_pairs = (end_1based - start_0based)
-    if locus_size_in_base_pairs % repeat_unit_length != 0:
-        raise ValueError(f"Unexpected locus size (bp): {locus_size_in_base_pairs} for repeat unit length: {repeat_unit_length}")
-
-    if len(ref) < len(alt):
-        # insertion
-        alt_allele_size_in_base_pairs = (end_1based - start_0based) + (len(alt) - 1)
-        long_allele_size = int(alt_allele_size_in_base_pairs/repeat_unit_length)
-        if genotype_num_alt == 2:
-            short_allele_size = long_allele_size
-        else:
-            short_allele_size = int(locus_size_in_base_pairs/repeat_unit_length)
-
-    else:
-        # deletion
-        alt_allele_size_in_base_pairs = (end_1based - start_0based) - (len(ref) - 1)
-        short_allele_size = int(alt_allele_size_in_base_pairs/repeat_unit_length)
-        if genotype_num_alt == 2:
-            long_allele_size = short_allele_size
-        else:
-            long_allele_size = int(locus_size_in_base_pairs/repeat_unit_length)
-
-    if alt_allele_size_in_base_pairs % repeat_unit_length != 0:
-        raise ValueError(f"Unexpected alt allele size (bp): {alt_allele_size_in_base_pairs} for repeat unit length: {repeat_unit_length}")
-
-    return short_allele_size, long_allele_size
+    return ":".join(ins_or_del), summary_string
 
 
 def main():
@@ -275,19 +306,10 @@ def main():
 
     vcf_reader = vcf.VCFReader(filename=args.input_vcf_path, encoding="UTF-8")
     vcf_writer = vcf.VCFWriter(open(f"{args.output_prefix}.vcf", "w"), vcf_reader)
-    tsv_writer = open(f"{args.output_prefix}.tsv", "wt")
-    tsv_columns = [
-        "Chrom", "Pos", "Start1Based", "End1Based", "Locus",
-        "ExpansionContraction", "HETvsHOM", "IsFoundInReference",
-        "Motif", "MotifSize",
-        "NumRepeatsShortAllele",  "NumRepeatsLongAllele", "NumRepeatsInVariant",
-        "RepeatSizeShortAllele (bp)", "RepeatSizeLongAllele (bp)", "RepeatSizeVariantBases (bp)",
-        "Genotype", "Ref", "Alt", "SummaryField",
-        "NumRepeatsLeftFlank", "NumRepeatsRightFlank",
-        "FoundByTRF",
-    ]
 
-    tsv_writer.write("\t".join(tsv_columns) + "\n")
+    tsv_writer = open(f"{args.output_prefix}.tsv", "wt")
+    tsv_writer.write("\t".join(OUTPUT_TSV_COLUMNS) + "\n")
+
     counters = collections.defaultdict(int)
     fasta_obj = pyfaidx.Fasta(args.reference_fasta_path, one_based_attributes=False, as_raw=True)
     if args.interval:
@@ -297,65 +319,128 @@ def main():
     else:
         vcf_iterator = vcf_reader
 
-    for i, row in tqdm.tqdm(enumerate(vcf_iterator), unit=" rows"):
-        if args.n is not None and i >= args.n:
-            break
+    if len(vcf_reader.samples) != 1:
+        raise ValueError(f"{args.input_vcf_path} contains {len(vcf_reader.samples)} samples. "
+                         f"This script only supports single-sample VCFs.")
 
-        if len(row.ALT) > 1:
-            raise ValueError("Multi-allelic variant found. VCF should be split and normalized first.")
+    for row_i, row in tqdm.tqdm(enumerate(vcf_iterator), unit=" rows"):
+
+        if args.n is not None and row_i >= args.n:
+            break
 
         if row.ALT is None or row.ALT[0] is None:
             print(f"No ALT allele found in line {pformat(row.to_dict())}")
+            counters[f"ERROR: no alt allele in VCF row"] += 1
             continue
 
-        chrom, pos, ref, alt = row.CHROM, row.POS, str(row.REF), str(row.ALT[0])
-
-        (
-            locus_chrom,
-            locus_start_1based,
-            locus_end_1based,
-            repeat_unit,
-            num_repeats_ref,
-            num_repeats_alt,
-            num_repeats_left_flank,
-            num_repeats_right_flank,
-            found_by_TRF,
-            is_perfect_repeat,
-        ) = check_if_variant_is_str(
-            fasta_obj, chrom, pos, ref, alt,
-            min_str_repeats=args.min_str_repeats,
-            min_str_length=args.min_str_length,
-            min_fraction_of_variant_covered_by_repeat=args.min_fraction_of_variant_covered_by_repeat,
-            counters=counters,
-            use_trf=args.use_trf,
-            trf_path=args.trf_path,
-        )
-
-        if repeat_unit is None:
+        if len(row.ALT) > 2:
+            print(f"WARNING: Multi-allelic variant with {len(row.ALT)} alt alleles found. This script supports no more than 2. Skipping...")
+            counters[f"multi-allelic with {len(row.ALT)} alt alleles"] += 1
             continue
+
+        chrom = row.CHROM
+        ref = str(row.REF)
+        alt_alleles = list(map(str, row.ALT))
+
+        vcf_genotype = row.genotype(row.samples[0].sample)
+        vcf_genotype = vcf_genotype.data[0]
+        vcf_genotype_fields = re.split(r"[/|\\]", vcf_genotype)
+        if len(vcf_genotype_fields) != 2 or any(not s.isdigit() for s in vcf_genotype_fields):
+            raise ValueError(f"Unexpected genotype format in row #{row_i + 1}: {vcf_genotype}")
+
+        # if this variant has a * allele (which represents an overlapping deletion) discard it and recode the genotype to homozygous
+        if len(alt_alleles) == 2 and alt_alleles[1] == "*":
+            alt_alleles = [alt_alleles[0]]
+            vcf_genotype_fields[1] = vcf_genotype_fields[0]
+            vcf_genotype_separator = "|" if "|" in vcf_genotype else ("\\" if "\\" in vcf_genotype else "/")
+            vcf_genotype = vcf_genotype_separator.join(vcf_genotype_fields)
+
+        is_homozygous = vcf_genotype_fields[0] == vcf_genotype_fields[1]
+        het_or_hom = "HOM" if is_homozygous else "HET"
+
+        alt_STR_alleles = []
+        found_non_STR_allele = False
+        for current_alt in alt_alleles:
+            current_alt = str(current_alt)
+            if set(current_alt) - {"A", "C", "G", "T", "N"}:
+                raise ValueError(f"Invalid bases in ALT allele: {current_alt}")
+
+            str_spec = check_if_variant_is_str(
+                fasta_obj, chrom, row.POS, ref, current_alt,
+                min_str_repeats=args.min_str_repeats,
+                min_str_length=args.min_str_length,
+                min_fraction_of_variant_covered_by_repeat=args.min_fraction_of_variant_covered_by_repeat,
+                counters=counters,
+                use_trf=args.use_trf,
+                trf_path=args.trf_path,
+            )
+
+            if str_spec["RepeatUnit"] is not None:
+                alt_STR_alleles.append(str_spec)
+            else:
+                found_non_STR_allele = True
+
+        if found_non_STR_allele:
+            if len(alt_STR_alleles) == 2 and len(alt_STR_alleles) > 0:
+                counters[f"skipped: multi-allelic with 1 STR allele and 1 non-STR allele"] += 1
+            continue
+
+        # check fields that should be the same for both STR alleles in a multi-allelic variant
+        if len(alt_STR_alleles) == 2:
+            skip_this_variant = False
+            for field in "RepeatUnit", "Start1Based", "End1Based":
+                if alt_STR_alleles[0][field] != alt_STR_alleles[1][field]:
+                    #print(f"WARNING: Multi-allelic variant STR has alleles with different {field} values:",
+                    #      alt_STR_alleles[0][field],  alt_STR_alleles[1][field], ". Skipping...")
+                    counters[f"skipped: multi-allelic with different {field}"] += 1
+                    skip_this_variant = True
+            if skip_this_variant:
+                continue
+
+        repeat_unit = alt_STR_alleles[0]["RepeatUnit"]
+        locus_start_1based = alt_STR_alleles[0]["Start1Based"]
+        locus_end_1based = alt_STR_alleles[0]["End1Based"]
+
+        if len(alt_STR_alleles) == 2:
+            if is_homozygous:
+                raise ValueError(f"Multi-allelic variant is homozygous in row #{row_i + 1}: {vcf_genotype} ({ref} {alt_alleles})")
+
+            short_allele_size = min(alt_STR_alleles[0]["NumRepeatsAlt"], alt_STR_alleles[1]["NumRepeatsAlt"])
+            long_allele_size  = max(alt_STR_alleles[0]["NumRepeatsAlt"], alt_STR_alleles[1]["NumRepeatsAlt"])
+        else:
+            if is_homozygous:
+                short_allele_size = long_allele_size = alt_STR_alleles[0]["NumRepeatsAlt"]
+            else:
+                short_allele_size = min(alt_STR_alleles[0]["NumRepeatsRef"], alt_STR_alleles[0]["NumRepeatsAlt"])
+                long_allele_size  = max(alt_STR_alleles[0]["NumRepeatsRef"], alt_STR_alleles[0]["NumRepeatsAlt"])
+
+        # compute misc. other summary stats
+        if any(len(alt_STR_alleles[i]["Ref"]) > len(alt_STR_alleles[i]["Alt"]) for i in range(0, len(alt_STR_alleles))):
+            # if either allele is a deletion, it automatically means some of the repeats are found in the reference
+            is_found_in_reference = True
+        else:
+            # check if either allele had STRs in the left or right flanking sequence
+            is_found_in_reference = sum([
+                alt_STR_alleles[i][f"NumRepeats{s}Flank"]
+                for i in range(0, len(alt_STR_alleles))
+                for s in ("Left", "Right")
+            ]) > 0
+
+        ins_or_del, summary_string = compute_summary_string(alt_STR_alleles)
+        found_by = ",".join(sorted(set(map(str, [alt_STR_alleles[i]["FoundBy"] for i in range(0, len(alt_STR_alleles))]))))
+        is_perfect_repeat = all(alt_STR_alleles[i]["IsPerfectRepeat"] for i in range(0, len(alt_STR_alleles)))
+        is_multiallelic = len(alt_STR_alleles) > 1
+
+        if is_multiallelic:
+            counters[f"STR multiallelic"] += 1
 
         # add info about the repeat to both the ID and the INFO field for convenience & IGV
-        id_field = "RU{}:{}:".format(len(repeat_unit), repeat_unit)
-        if len(ref) > len(alt):
-            id_field += "DEL:"
-        elif len(ref) < len(alt):
-            id_field += "INS:"
-            
-        id_field += "{}=>{}".format(num_repeats_ref, num_repeats_alt)
-
         new_INFO = dict(row.INFO)
-        new_INFO.update({
-            "RU": repeat_unit,
-            "NumRepeatsRef": num_repeats_ref,
-            "NumRepeatsAlt": num_repeats_alt,
-            "NumRepeatsLeftFlank": num_repeats_left_flank,
-            "NumRepeatsRightFlank": num_repeats_right_flank,
-        })
-
+        new_INFO.update({"RU": repeat_unit, "NumRepeats1": short_allele_size, "NumRepeats2": long_allele_size})
         record = vcf.model._Record(
-            chrom,
-            pos,
-            id_field,
+            row.CHROM,
+            row.POS,
+            summary_string,
             row.REF,
             row.ALT,
             row.QUAL,
@@ -367,54 +452,41 @@ def main():
 
         vcf_writer.write_record(record)
 
-        genotype = row.genotype(row.samples[0].sample)
-        genotype = genotype.data[0]
-        num_alt = parse_num_alt_from_genotype(genotype)
-        if num_alt != 1 and num_alt != 2:
-            raise ValueError(f"Unexpected num_alt value: {num_alt}")
-
         tsv_record = dict(new_INFO)
-        short_allele_size, long_allele_size = compute_short_and_long_allele_size(
-            locus_start_1based, locus_end_1based, ref, alt, repeat_unit_length=len(repeat_unit), genotype_num_alt=num_alt,
-        )
+        #short_allele_size, long_allele_size = compute_short_and_long_allele_size(
+        #    locus_start_1based, locus_end_1based, ref, alt, repeat_unit_length=len(repeat_unit), genotype_num_alt=num_alt,
+        #)
 
-        if len(ref) > len(alt):
-            is_found_in_reference = True
-        else:
-            is_found_in_reference = num_repeats_left_flank + num_repeats_right_flank > 0
-
-        if len(row.samples) > 1:
-            raise ValueError(f"The input vcf contains more than 1 sample: {len(row.samples)}")
-
-        tsv_record.update({
+        tsv_record = {
             "Chrom": chrom,
-            "Pos": pos,
             "Start1Based": locus_start_1based,
             "End1Based": locus_end_1based,
+            "RepeatUnit": repeat_unit,
             "Locus": f"{chrom}:{locus_start_1based}-{locus_end_1based}",
-            "ExpansionContraction": "Expansion" if len(ref) < len(alt) else ("Contraction" if len(ref) > len(alt) else "Neither"),
-            "HETvsHOM": "HOM" if num_alt == 2 else ("HET" if num_alt == 1 else num_alt),
+            "LocusId": f"{chrom}:{locus_start_1based - 1}-{locus_end_1based}-{repeat_unit}",
+            "InsDel": ins_or_del,
+            "HETvsHOM": het_or_hom,
             "IsFoundInReference": "Reference" if is_found_in_reference else "DeNovo",
             "Motif": repeat_unit,
             "MotifSize": len(repeat_unit),
-            "NumRepeatsInVariant": int(abs(len(ref) - len(alt))/len(repeat_unit)),
-            "RepeatSizeVariantBases (bp)": abs(len(ref) - len(alt)),
             "NumRepeatsShortAllele": short_allele_size,
             "NumRepeatsLongAllele": long_allele_size,
             "RepeatSizeShortAllele (bp)": short_allele_size * len(repeat_unit),
             "RepeatSizeLongAllele (bp)": long_allele_size * len(repeat_unit),
-            "Genotype": genotype,
-            "Ref": ref,
-            "Alt": alt,
-            "SummaryField": id_field,
-            "FoundByTRF": found_by_TRF,
+            "VcfPos": row.POS,
+            "VcfRef": ref,
+            "VcfAlt": ",".join(alt_alleles),
+            "VcfGenotype": vcf_genotype,
+            "SummaryString": summary_string,
+            "FoundBy": found_by,
             "IsPerfectRepeat": is_perfect_repeat,
-        })
+            "IsMultiAllelic": is_multiallelic,
+        }
 
         if short_allele_size < 0 or long_allele_size < 0:
             raise ValueError(f"Short or long allele size is < 0: {short_allele_size}, {long_allele_size}  {pformat(tsv_record)}")
 
-        tsv_writer.write("\t".join([str(tsv_record[c]) for c in tsv_columns]) + "\n")
+        tsv_writer.write("\t".join([str(tsv_record[c]) for c in OUTPUT_TSV_COLUMNS]) + "\n")
 
     counter_sort_order = lambda x: (x[0].startswith("STR"), len(x[0]), x[0])
     str_keys = False

@@ -4,7 +4,6 @@ import pyfaidx
 import tempfile
 import unittest
 
-from filter_vcf_to_STR_variants import parse_num_alt_from_genotype, compute_short_and_long_allele_size
 from str_analysis.filter_vcf_to_STR_variants import get_flanking_reference_sequences, check_if_variant_is_str
 
 
@@ -169,20 +168,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(left_sequence, self.test3_seq1)
         self.assertEqual(variant_sequence, self.test3_seq2)
         self.assertEqual(right_sequence, self.test3_seq2 + self.test3_seq3)
-
-    def test_parse_num_alt_from_genotype(self):
-        self.assertEqual(parse_num_alt_from_genotype("1/1"), 2)
-        self.assertEqual(parse_num_alt_from_genotype("1|1"), 2)
-        self.assertEqual(parse_num_alt_from_genotype("1\\1"), 2)
-        self.assertEqual(parse_num_alt_from_genotype(".|1"), 1)
-        self.assertEqual(parse_num_alt_from_genotype("1|."), 1)
-        self.assertEqual(parse_num_alt_from_genotype("1/."), 1)
-        self.assertEqual(parse_num_alt_from_genotype("./1"), 1)
-        self.assertEqual(parse_num_alt_from_genotype("0/1"), 1)
-        self.assertEqual(parse_num_alt_from_genotype("1/0"), 1)
-        self.assertEqual(parse_num_alt_from_genotype("0/0"), 0)
-        self.assertEqual(parse_num_alt_from_genotype("0/."), 0)
-        self.assertEqual(parse_num_alt_from_genotype("./."), 0)
 
     def test_check_if_variant_is_str4_insertion(self):
         # insertion 2-STR
@@ -397,25 +382,6 @@ class Tests(unittest.TestCase):
     # Test8: delete entire repeat sequence
     #self.temp_fasta_file.write(">chrTest8\n")
     #self.temp_fasta_file.write("TTTTTCAGCAGCAGCCCCC\n")
-
-    def test_compute_short_and_long_allele_size_str4_insertion(self):
-        short_allele_size, long_allele_size = compute_short_and_long_allele_size(7, 15, "G", "GCAGCAGCAG", 3, 1)
-        self.assertEqual(short_allele_size, 3)
-        self.assertEqual(long_allele_size, 6)
-
-        short_allele_size, long_allele_size = compute_short_and_long_allele_size(7, 15, "G", "GCAGCAGCAG", 3, 2)
-        self.assertEqual(short_allele_size, 6)
-        self.assertEqual(long_allele_size, 6)
-
-    def test_compute_short_and_long_allele_size_str4_deletion(self):
-        short_allele_size, long_allele_size = compute_short_and_long_allele_size(7, 15, "GCAG", "G", 3, 1)
-        self.assertEqual(long_allele_size, 3)
-        self.assertEqual(short_allele_size, 2)
-
-        short_allele_size, long_allele_size = compute_short_and_long_allele_size(7, 15, "GCAG", "G", 3, 2)
-        self.assertEqual(long_allele_size, 2)
-        self.assertEqual(short_allele_size, 2)
-
 
     def tearDown(self):
         if os.path.isfile(self.temp_fasta_file.name):
