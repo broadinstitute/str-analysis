@@ -134,6 +134,14 @@ class Tests(unittest.TestCase):
         self.temp_fasta_file.write(">chrTest6\n")
         self.temp_fasta_file.write("TTTTTACAGCAGCAGCAGCAGCAGCAGCAGTTTTT\n")
 
+        # Test7: insert denovo repeat sequence
+        self.temp_fasta_file.write(">chrTest7\n")
+        self.temp_fasta_file.write("TTTTTCCCCC\n")
+
+        # Test8: delete entire repeat sequence
+        self.temp_fasta_file.write(">chrTest8\n")
+        self.temp_fasta_file.write("TTTTTCAGCAGCAGCCCCC\n")
+
         self.temp_fasta_file.close()
 
         self.fasta_obj = pyfaidx.Fasta(self.temp_fasta_file.name, one_based_attributes=False, as_raw=True)
@@ -279,6 +287,116 @@ class Tests(unittest.TestCase):
         self.assertEqual(num_repeats_right_flank, 8)
         self.assertFalse(found_by_TRF)
         self.assertTrue(is_perfect_repeat)
+
+    def test_check_if_variant_is_str7_insertion(self):
+        # insertion 2-STR
+        counters = collections.defaultdict(int)
+
+        (
+            chrom, start_1based, end_1based, repeat_unit, num_repeats_ref, num_repeats_alt,
+            num_repeats_left_flank, num_repeats_right_flank, found_by_TRF, is_perfect_repeat
+        ) = check_if_variant_is_str(
+            self.fasta_obj,
+            "chrTest6", 6, "A", "ACAG",
+            min_str_repeats=3, min_str_length=9,
+            min_fraction_of_variant_covered_by_repeat=0.8,
+            counters=counters,
+            use_trf=False)
+
+        self.assertEqual(chrom, "chrTest6")
+        self.assertEqual(start_1based, 7)
+        self.assertEqual(end_1based, 30)
+        self.assertEqual(repeat_unit, "CAG")
+        self.assertEqual(num_repeats_ref, 8)
+        self.assertEqual(num_repeats_alt, 9)
+        self.assertEqual(num_repeats_left_flank, 0)
+        self.assertEqual(num_repeats_right_flank, 8)
+        self.assertFalse(found_by_TRF)
+        self.assertTrue(is_perfect_repeat)
+
+    def test_check_if_variant_is_str8_insertion(self):
+        # insertion 2-STR
+        counters = collections.defaultdict(int)
+
+        (
+            chrom, start_1based, end_1based, repeat_unit, num_repeats_ref, num_repeats_alt,
+            num_repeats_left_flank, num_repeats_right_flank, found_by_TRF, is_perfect_repeat
+        ) = check_if_variant_is_str(
+            self.fasta_obj,
+            "chrTest6", 6, "A", "ACAG",
+            min_str_repeats=3, min_str_length=9,
+            min_fraction_of_variant_covered_by_repeat=0.8,
+            counters=counters,
+            use_trf=False)
+
+        self.assertEqual(chrom, "chrTest6")
+        self.assertEqual(start_1based, 7)
+        self.assertEqual(end_1based, 30)
+        self.assertEqual(repeat_unit, "CAG")
+        self.assertEqual(num_repeats_ref, 8)
+        self.assertEqual(num_repeats_alt, 9)
+        self.assertEqual(num_repeats_left_flank, 0)
+        self.assertEqual(num_repeats_right_flank, 8)
+        self.assertFalse(found_by_TRF)
+        self.assertTrue(is_perfect_repeat)
+
+    def test_check_if_variant_is_str9_insertion(self):
+        # insertion 2-STR
+        counters = collections.defaultdict(int)
+
+        # TTTTTCCCCC
+        (
+            chrom, start_1based, end_1based, repeat_unit, num_repeats_ref, num_repeats_alt,
+            num_repeats_left_flank, num_repeats_right_flank, found_by_TRF, is_perfect_repeat
+        ) = check_if_variant_is_str(
+            self.fasta_obj,
+            "chrTest7", 6, "C", "CCAGCAGCAG",
+            min_str_repeats=3, min_str_length=9,
+            min_fraction_of_variant_covered_by_repeat=0.8,
+            counters=counters,
+            use_trf=False)
+
+        self.assertEqual(chrom, "chrTest7")
+        self.assertEqual(start_1based, 7)
+        self.assertEqual(end_1based, 6)
+        self.assertEqual(repeat_unit, "CAG")
+        self.assertEqual(num_repeats_ref, 0)
+        self.assertEqual(num_repeats_alt, 3)
+        self.assertEqual(num_repeats_left_flank, 0)
+        self.assertEqual(num_repeats_right_flank, 0)
+        self.assertFalse(found_by_TRF)
+        self.assertTrue(is_perfect_repeat)
+
+    def test_check_if_variant_is_str10_insertion(self):
+        # insertion 2-STR
+        counters = collections.defaultdict(int)
+
+        # TTTTTCAGCAGCAGCCCCC
+        (
+            chrom, start_1based, end_1based, repeat_unit, num_repeats_ref, num_repeats_alt,
+            num_repeats_left_flank, num_repeats_right_flank, found_by_TRF, is_perfect_repeat
+        ) = check_if_variant_is_str(
+            self.fasta_obj,
+            "chrTest8", 5, "TCAGCAGCAG", "T",
+            min_str_repeats=3, min_str_length=9,
+            min_fraction_of_variant_covered_by_repeat=0.8,
+            counters=counters,
+            use_trf=False)
+
+        self.assertEqual(chrom, "chrTest8")
+        self.assertEqual(start_1based, 6)
+        self.assertEqual(end_1based, 14)
+        self.assertEqual(repeat_unit, "CAG")
+        self.assertEqual(num_repeats_ref, 3)
+        self.assertEqual(num_repeats_alt, 0)
+        self.assertEqual(num_repeats_left_flank, 0)
+        self.assertEqual(num_repeats_right_flank, 0)
+        self.assertFalse(found_by_TRF)
+        self.assertTrue(is_perfect_repeat)
+
+    # Test8: delete entire repeat sequence
+    #self.temp_fasta_file.write(">chrTest8\n")
+    #self.temp_fasta_file.write("TTTTTCAGCAGCAGCCCCC\n")
 
     def test_compute_short_and_long_allele_size_str4_insertion(self):
         short_allele_size, long_allele_size = compute_short_and_long_allele_size(7, 15, "G", "GCAGCAGCAG", 3, 1)

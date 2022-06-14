@@ -378,6 +378,11 @@ def main():
             locus_start_1based, locus_end_1based, ref, alt, repeat_unit_length=len(repeat_unit), genotype_num_alt=num_alt,
         )
 
+        if len(ref) > len(alt):
+            is_found_in_reference = True
+        else:
+            is_found_in_reference = num_repeats_left_flank + num_repeats_right_flank > 0
+
         if len(row.samples) > 1:
             raise ValueError(f"The input vcf contains more than 1 sample: {len(row.samples)}")
 
@@ -387,20 +392,20 @@ def main():
             "Start1Based": locus_start_1based,
             "End1Based": locus_end_1based,
             "Locus": f"{chrom}:{locus_start_1based}-{locus_end_1based}",
-            "ExpansionContraction": "Expansion" if len(ref) < len(alt) else "Contraction",
+            "ExpansionContraction": "Expansion" if len(ref) < len(alt) else ("Contraction" if len(ref) > len(alt) else "Neither"),
             "HETvsHOM": "HOM" if num_alt == 2 else ("HET" if num_alt == 1 else num_alt),
-            "IsFoundInReference": "Reference" if num_repeats_left_flank + num_repeats_right_flank > 0 else "DeNovo",
+            "IsFoundInReference": "Reference" if is_found_in_reference else "DeNovo",
             "Motif": repeat_unit,
             "MotifSize": len(repeat_unit),
-            "NumRepeatsInVariant": abs(len(ref) - len(alt))/len(repeat_unit),
+            "NumRepeatsInVariant": int(abs(len(ref) - len(alt))/len(repeat_unit)),
+            "RepeatSizeVariantBases (bp)": abs(len(ref) - len(alt)),
             "NumRepeatsShortAllele": short_allele_size,
             "NumRepeatsLongAllele": long_allele_size,
             "RepeatSizeShortAllele (bp)": short_allele_size * len(repeat_unit),
             "RepeatSizeLongAllele (bp)": long_allele_size * len(repeat_unit),
-            "RepeatSizeVariantBases (bp)": abs(len(ref) - len(alt)),
             "Genotype": genotype,
-            "Ref": row.REF,
-            "Alt": row.ALT[0],
+            "Ref": ref,
+            "Alt": alt,
             "SummaryField": id_field,
             "FoundByTRF": found_by_TRF,
             "IsPerfectRepeat": is_perfect_repeat,
