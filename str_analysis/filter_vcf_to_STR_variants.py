@@ -210,8 +210,8 @@ def check_if_variant_is_str(
 
     # even though the VCF position is 1-based, it represents the location of the base preceding the variant bases, so
     # add 1 to get the 1-based position of the true base
-    start_1based = (pos + 1) - num_repeats_left_flank * len(repeat_unit)
-    end_1based = (pos + 1) + (len(variant_bases) if len(ref) > len(alt) else 0) + num_repeats_right_flank * len(repeat_unit)
+    start_1based = pos + 1 - num_repeats_left_flank * len(repeat_unit)
+    end_1based = pos + (len(variant_bases) if len(ref) > len(alt) else 0) + num_repeats_right_flank * len(repeat_unit)
 
     is_perfect_repeat = variant_bases == (repeat_unit * num_repeats_within_variant_bases)
     if not is_perfect_repeat:
