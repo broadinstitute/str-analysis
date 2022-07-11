@@ -1148,14 +1148,14 @@
       "RepeatUnit": "GGC",
       "Gene": "RILPL1",
       "Inheritance": "AD",
-      "GeneRegion": "promoter",
+      "GeneRegion": "5'-UTR",
       "GeneId": "ENSG00000188026",
       "DiscoveryMethod": "L",
       "DiscoveryYear": 2022,
       "Diseases": [
          {
-            "Symbol": "OPMD",
-            "Name": "Oculopharyngeal muscular dystrophy",
+            "Symbol": "OPDM",
+            "Name": "Oculopharyngodistal myopathy type 4",
             "Inheritance": "AD",
             "OMIM": "",
             "NormalMax": 30,
