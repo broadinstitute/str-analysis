@@ -175,6 +175,7 @@ GENE_NAME_TO_GENE_ID = {
     'PRDM12': 'ENSG00000130711',
     'PRNP': 'ENSG00000171867',
     'RAPGEF2': 'ENSG00000109756',
+    'RILPL1': 'ENSG00000188026',
     'RFC1': 'ENSG00000035928',
     'RUNX2': 'ENSG00000124813',
     'SAMD12': 'ENSG00000177570',
@@ -190,6 +191,9 @@ GENE_NAME_TO_GENE_ID = {
     'ZIC2': 'ENSG00000043355',
     'ZIC3': 'ENSG00000156925',
 }
+
+# Discard samples with read length below the MIN_READ_LENGTH threshold (in base pairs)
+MIN_READ_LENGTH = 150
 
 # Round ages to the nearest N years so that they can be shared publicly without increasing identifiability
 AGE_RANGE_SIZE = 5
@@ -222,7 +226,7 @@ MISSING_AGE_THRESHOLD = 0.5
 MISSING_PCR_PROTOCOL_THRESHOLD = 0.25
 
 # Expected number of known pathogenic repeats
-EXPECTED_N_KNOWN_PATHOGENIC_REPEATS = 59
+EXPECTED_N_KNOWN_PATHOGENIC_REPEATS = 60
 
 # Add this "salt" value to the sha512 hash to prevent dictionary attacks on the encrypted sample ids
 salt = pwd.getpwuid(os.getuid()).pw_name
@@ -439,6 +443,9 @@ def load_data_df(args):
     df = pd.merge(left=df, right=gnomad_df, how="inner", left_on="SampleId", right_on="s").drop(columns="s")
 
     print(f"Found {len(set(df.SampleId))} gnomAD 'release' samples")
+    df = df[df.read_length >= MIN_READ_LENGTH]
+    print(f"Kept {len(set(df.SampleId))} gnomAD samples after filtering to ReadLength >= {MIN_READ_LENGTH}")
+
     locus_id_with_max_samples = None
     max_num_samples = 0
     for locus_id in sorted(set(df.LocusId)):
