@@ -693,7 +693,7 @@
             "Name": "Pseudoachondroplasia",
             "Inheritance": "AD",
             "OMIM": "177170",
-            "Note": "5 repeats are normal. Contractions to 4 repeats are pathogenic.",
+            "Note": "5 repeats are normal. Contractions to 4 repeats are also pathogenic.",
             "PathogenicMin": 7
          }
       ],
@@ -1926,6 +1926,43 @@
          "chr9:19473777-19474188",
          "chr9:99458784-99459128",
          "chrUn_JTFH01001554v1_decoy:487-852"
+      ]
+   },
+   {
+      "LocusId": "RILPL1",
+      "LocusStructure": "(GGC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "chr12:123533720-123533750",
+      "RepeatUnit": "GGC",
+      "Gene": "RILPL1",
+      "Inheritance": "AD",
+      "GeneRegion": "promoter",
+      "GeneId": "ENSG00000188026",
+      "DiscoveryMethod": "L",
+      "DiscoveryYear": 2022,
+      "Diseases": [
+         {
+            "Symbol": "OPMD",
+            "Name": "Oculopharyngeal muscular dystrophy",
+            "Inheritance": "AD",
+            "OMIM": "",
+            "NormalMax": 30,
+            "PathogenicMin": 139
+         }
+      ],
+      "OfftargetRegions": [
+         "chr16:24729510-24729868",
+         "chr1:21176412-21176763",
+         "chr2:224585004-224585351",
+         "chr2:86914126-86914735",
+         "chr5:443060-443432",
+         "chr6:117907024-117907372",
+         "chr6:45422595-45422950",
+         "chr7:100694148-100694545",
+         "chr7:105013999-105014347",
+         "chrX:147911890-147912265",
+         "chrX:150983240-150983612",
+         "chrX:19990766-19991128"
       ]
    },
    {

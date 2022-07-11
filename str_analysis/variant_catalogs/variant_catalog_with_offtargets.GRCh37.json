@@ -1914,6 +1914,42 @@
       ]
    },
    {
+      "LocusId": "RILPL1",
+      "LocusStructure": "(GGC)*",
+      "VariantType": "RareRepeat",
+      "ReferenceRegion": "12:124018267-124018297",
+      "RepeatUnit": "GGC",
+      "Gene": "RILPL1",
+      "Inheritance": "AD",
+      "GeneRegion": "promoter",
+      "GeneId": "ENSG00000188026",
+      "DiscoveryMethod": "L",
+      "DiscoveryYear": 2022,
+      "Diseases": [
+         {
+            "Symbol": "OPMD",
+            "Name": "Oculopharyngeal muscular dystrophy",
+            "Inheritance": "AD",
+            "OMIM": "",
+            "NormalMax": 30,
+            "PathogenicMin": 139
+         }
+      ],
+      "OfftargetRegions": [
+         "16:24740836-24741193",
+         "1:21502905-21503255",
+         "2:225449721-225450068",
+         "2:87141244-87141858",
+         "5:443175-443544",
+         "6:45390332-45390683",
+         "7:100291772-100292165",
+         "7:104654446-104654794",
+         "X:146993408-146993783",
+         "X:150151713-150152085",
+         "X:20008884-20009246"
+      ]
+   },
+   {
       "LocusId": "RUNX2",
       "LocusStructure": "(GCN)*",
       "VariantType": "RareRepeat",

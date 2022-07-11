@@ -415,7 +415,7 @@
             "Name": "Pseudoachondroplasia",
             "Inheritance": "AD",
             "OMIM": "177170",
-            "Note": "5 repeats are normal. Contractions to 4 repeats are pathogenic.",
+            "Note": "5 repeats are normal. Contractions to 4 repeats are also pathogenic.",
             "PathogenicMin": 7
          }
       ]
@@ -1137,6 +1137,29 @@
             "Inheritance": "AR",
             "OMIM": "614575",
             "PathogenicMin": 400
+         }
+      ]
+   },
+   {
+      "LocusId": "RILPL1",
+      "LocusStructure": "(GGC)*",
+      "VariantType": "Repeat",
+      "ReferenceRegion": "chr12:123533720-123533750",
+      "RepeatUnit": "GGC",
+      "Gene": "RILPL1",
+      "Inheritance": "AD",
+      "GeneRegion": "promoter",
+      "GeneId": "ENSG00000188026",
+      "DiscoveryMethod": "L",
+      "DiscoveryYear": 2022,
+      "Diseases": [
+         {
+            "Symbol": "OPMD",
+            "Name": "Oculopharyngeal muscular dystrophy",
+            "Inheritance": "AD",
+            "OMIM": "",
+            "NormalMax": 30,
+            "PathogenicMin": 139
          }
       ]
    },
