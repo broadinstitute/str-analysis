@@ -120,11 +120,7 @@ RUN wget -q https://github.com/Illumina/ExpansionHunterDenovo/releases/download/
 RUN wget https://raw.githubusercontent.com/bw2/ExpansionHunter/master/bin/linux/ExpansionHunter -O /usr/local/bin/ExpansionHunter \
     && chmod 777 /usr/local/bin/ExpansionHunter
 
-# install REViewer
-ENV REVIEWER_VERSION="v0.2.7"
-RUN wget -q https://github.com/Illumina/REViewer/releases/download/${REVIEWER_VERSION}/REViewer-${REVIEWER_VERSION}-linux_x86_64.gz \
-    && gunzip REViewer-${REVIEWER_VERSION}-linux_x86_64.gz \
-    && mv /REViewer-${REVIEWER_VERSION}-linux_x86_64 /usr/local/bin/REViewer \
+RUN wget https://raw.githubusercontent.com/bw2/REViewer/master/bin/linux/REViewer -O /usr/local/bin/REViewer \
     && chmod 777 /usr/local/bin/REViewer
 
 #RUN python3 -m pip install --no-cache-dir str-analysis==0.9.1 \
