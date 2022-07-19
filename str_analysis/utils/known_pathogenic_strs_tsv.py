@@ -56,26 +56,37 @@ def parse_known_pathogenic_strs_tsv(known_pathogenic_strs_tsv):
             "ReferenceRepeatUnit": row["RU"],
         }
 
-        disease_symbols = row["DiseaseSymbol"].split("; ")
-        disease_names = row["Disease"].split("; ")
-        normal_max_thresholds = row["NormalMax gnomAD"].split("; ")
-        pathogenic_min_thresholds = row["PathogenicMin gnomAD"].split("; ")
-        omim_disease_links = row["OMIM Disease Link"].split("; ")
+        disease_symbols = row["DiseaseSymbol"].split(";")
+        disease_names = row["Disease"].split(";")
+        disease_notes = row["DiseaseNotes"].split(";")
+        normal_max_thresholds = row["NormalMax gnomAD"].split(";")
+        pathogenic_min_thresholds = row["PathogenicMin gnomAD"].split(";")
+        omim_disease_links = row["OMIM Disease Link"].split(";")
+
+        field_content_lengths = list(map(len, [
+            disease_symbols, disease_names, disease_notes, normal_max_thresholds, pathogenic_min_thresholds,
+            omim_disease_links,
+        ]))
+
+        if len(set(field_content_lengths)) > 1:
+            raise ValueError(f"Different numbers of ';' separated entries found for {row['LocusId']}: {field_content_lengths}")
 
         intermediate_ranges = [row["IntermediateRange (STRipy)"]] * len(disease_symbols)
         inheritance_modes = [row["InheritanceMode"]] * len(disease_symbols)
 
         for (
-                disease_symbol,
-                disease_name,
-                normal_max,
-                pathogenic_min,
-                intermediate_range,
-                inheritance_mode,
-                omim_disease_link,
+            disease_symbol,
+            disease_name,
+            disease_note,
+            normal_max,
+            pathogenic_min,
+            intermediate_range,
+            inheritance_mode,
+            omim_disease_link,
         ) in zip(
             disease_symbols,
             disease_names,
+            disease_notes,
             normal_max_thresholds,
             pathogenic_min_thresholds,
             intermediate_ranges,
@@ -84,11 +95,17 @@ def parse_known_pathogenic_strs_tsv(known_pathogenic_strs_tsv):
         ):
 
             disease_info = {
-                "Symbol": disease_symbol,
-                "Name": disease_name,
-                "Inheritance": inheritance_mode,
-                "OMIM": omim_disease_link.split("/")[-1],  # OMIM disease id
+                "Symbol": disease_symbol.strip(),
+                "Name": disease_name.strip(),
+                "Inheritance": inheritance_mode.strip(),
+                "OMIM": omim_disease_link.strip().split("/")[-1],  # OMIM disease id
             }
+            disease_note = disease_note.strip()
+            normal_max = normal_max.strip()
+            pathogenic_min = pathogenic_min.strip()
+            intermediate_range = intermediate_range.strip()
+            if disease_note:
+                disease_info["Note"] = disease_note
             if normal_max:
                 disease_info["NormalMax"] = int(normal_max)
             if pathogenic_min:

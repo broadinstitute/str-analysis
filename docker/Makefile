@@ -1,4 +1,4 @@
-TAG1 = weisburd/str-analysis:v0.9.3
+TAG1 = weisburd/str-analysis:v0.9.4
 TAG2 = weisburd/str-analysis:latest
 
 all: build push
@@ -8,4 +8,4 @@ build:
 
 push:
 	docker push $(TAG1)
-	docker push $(TAG2)
+	docker push $(TAG2) | tee /dev/tty | grep sha256 | grep latest | cut -d ' ' -f 3 > sha256.txt

@@ -32,7 +32,7 @@ def parse_interval(interval_string):
         chrom = ":".join(tokens[:-1])  # some super-contig names have : in them
         start, end = map(int, tokens[-1].split("-"))
     except Exception as e:
-        raise ValueError(f"Unable to parse off_target_region: '{interval_string}': {e}")
+        raise ValueError(f"Unable to parse interval: '{interval_string}': {e}")
 
     return chrom, start, end
 

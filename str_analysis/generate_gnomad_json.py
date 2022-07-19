@@ -1,3 +1,103 @@
+"""
+This script takes ExpansionHunter calls and metadata files and reprocesses them into tables and .json files
+that can be loaded into the gnomAD browser, and also shared publicly through the gnomAD downloads page.
+
+The script is intended to be run twice:
+1. The 1st time, it is run without the --existing-readviz-filename-list arg so it can generate the
+readviz_rename_list__...tsv file which maps regular readviz image filenames like NA12878.ATXN1.svg to encrypted ones
+like  ffa0880117e0791d51b0ef85b56f3a54216.svg
+2. The readviz_rename_list__...tsv output file can then be used to rename readviz images to their encrypted filenames
+so that these image files can be made public without revealing sample ids in the filenames.
+3. To handle any missing readviz images (such as those where REViewer crashed) all renamed image files can then be
+listed in a text file - lets call it "all_renamed_readviz_files.txt"
+4. This script can then be run a 2nd time, with  --existing-readviz-filenames-list "all_renamed_readviz_files.txt"
+in order to exclude missing readviz image paths from output files, thereby letting the gnomAD browser know which
+images are missing.
+
+Output documentation:
+
+======================================================
+==     gnomAD_STR_genotypes__[datestamp].tsv.gz     ==
+======================================================
+
+This is a flat table that contains the ExpansionHunter genotypes from
+all samples at each of the 59 disease-associated loci. Also, it contains Population, Sex, Age, and PcrProtocol
+metadata columns, so the data in this table can be used to generate any of the plots displayed in the gnomAD
+browser STR pages. It also contains results not currently available through the browser.
+These are in the GenotypeUsingOfftargetRegions and GenotypeConfidenceIntervalUsingOfftargetRegions columns
+which store ExpansionHunter calls generated using off-target regions. Finally, the ReadvizFilename column
+links each row to a REViewer read visualization image that is available through the browser. This should allow users
+to construct the full public url of the image and programmatically download specific images of interest.
+
+Below is an example of column names and values from a typical row in this table:
+
+                                              Id : PABPN1
+                                         LocusId : PABPN1
+                                 ReferenceRegion : chr14:23321472-23321490
+                                           Chrom : chr14
+                                    Start_0based : 23321472
+                                             End : 23321490
+                                           Motif : GCG
+                                IsAdjacentRepeat : False
+                                      Population : nfe
+                                             Sex : XY
+                                             Age : 20-25
+                                     PcrProtocol : pcr_free
+                                        Genotype : 6/13
+                                         Allele1 : 6
+                                         Allele2 : 13
+                      GenotypeConfidenceInterval : 6-6/11-30
+                   GenotypeUsingOfftargetRegions : 6/13
+                    Allele1UsingOfftargetRegions : 6
+                    Allele2UsingOfftargetRegions : 13
+ GenotypeConfidenceIntervalUsingOfftargetRegions : 6-6/11-30
+                                 ReadvizFilename : c82034cf2aad813a07a8523898d64c81148.svg
+
+Id : This id is unique to each STR locus and repeat, meaning that it differs between repeats and any adjacent repeats
+    at a locus. For example the main GAA repeat at the FXN locus has id "FXN" while the adjacent poly-A repeat has id
+    "FXN_A". This id corresponds to the "VariantId" field in the ExpansionHunter variant catalogs @
+    https://github.com/broadinstitute/str-analysis/tree/main/str_analysis/variant_catalogs
+LocusId: This id is unique to each STR locus. It corresponds to the "LocusId" field in the ExpansionHunter variant
+    catalogs @ https://github.com/broadinstitute/str-analysis/tree/main/str_analysis/variant_catalogs
+    and can be used to look up reference information about each locus there - including the
+    gene name, disease associations, mode of inheritance, and pathogenic threshold. For most but not all loci, the
+    LocusId is identical to the name of the gene that contains the locus.
+ReferenceRegion: Genomic interval delineating the exact boundaries of the STR repeat in the reference genome.
+    The start coordinate is 0-based.
+Chrom: The chromosome of the ReferenceRegion. This is provided as a separate column for convenience.
+Start_0based: The 0-based start coordinate of the ReferenceRegion. This is provided as a separate column for convenience.
+End: The end coordinate of the ReferenceRegion. This is provided as a separate column for convenience.
+Motif: The repeat unit of the STR locus. For example this would be "GAA" at the FXN locus.
+IsAdjacentRepeat: True or False depending on whether this row represents the main repeat at a locus or an adjacent repeat.
+    Adjacent repeats are included for some loci either for technical reasons to improve ExpansionHunter accuracy, or
+    due to research interest in the size of these adjacent repeats.
+Population: The gnomAD ancestry group of the individual. Possible values are: "afr", "ami", "amr", "asj", "eas", "fin",
+    "mid", "nfe", "oth", "sas"
+Sex: The sex karyotype of the genotyped individual. Possible values are "XX" and "XY".
+Age: The age of the individual at the time when they enrolled in one of the research studies underlying gnomAD.
+    The values represent 5 year bins such as "20-25", as well as ">80" for individuals over 80 years old and "<20" for
+    individuals younger than 20. For individuals with unknown age, the value is "age_not_available"
+PcrProtocol: Possible values are "pcr_free", "pcr_plus" and "pcr_info_not_available"
+Genotype: The ExpansionHunter genotype for this individual at this locus, generated using the variant catalog without
+    off-target regions (see https://github.com/broadinstitute/str-analysis/tree/main/str_analysis/variant_catalogs).
+    These are the genotypes used to generate all plots in the gnomAD browser STR pages.
+Allele1: The shorter repeat size from the genotype. This is provided as a separate column for convenience.
+Allele2: The longer repeat size from the genotype; empty in the special case of hemizygous genotypes (e.g., in male samples
+    at loci on chrX). This is provided as a separate column for convenience.
+GenotypeConfidenceInterval: The ExpansionHunter confidence intervals associated with the genotype in the "Genotype" column.
+
+GenotypeUsingOfftargetRegions: Same meaning as the "Genotype" column, but generated using the variant catalog with off-target regions.
+Allele1UsingOfftargetRegions: Same meaning as the "Allele1" column, but generated using the variant catalog with off-target regions.
+Allele2UsingOfftargetRegions: Same meaning as the "Allele2" column, but generated using the variant catalog with off-target regions.
+GenotypeConfidenceIntervalUsingOfftargetRegions: Same meaning as the "GenotypeConfidenceInterval" column, but generated using the
+    variant catalog with off-target regions.
+
+ReadvizFilename: The filename of the SVG image generated by REViewer based on the ExpansionHunter call reported in the "Genotype"
+    column. This can be used to compute the public url and programatically retrieve this image from the gnomAD browser server.
+
+"""
+
+
 import argparse
 import collections
 from datetime import datetime
@@ -17,6 +117,7 @@ from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 # Map STR locus ids to readable names for STR loci that are adjacent to the main known pathogenic loci
 from str_analysis.utils.export_json import export_json
 from str_analysis.utils.known_pathogenic_strs_tsv import parse_known_pathogenic_strs_tsv
+from str_analysis.utils.misc_utils import parse_interval
 
 ADJACENT_REPEAT_LABELS = {
     "ATXN7_GCC": "Adjacent Right STR",
@@ -26,6 +127,7 @@ ADJACENT_REPEAT_LABELS = {
     "CNBP_CAGA": "Adjacent Right STR #1",
     "CNBP_CA": "Adjacent Right STR #2",
     "NOP56_CGCCTG": "Adjacent Right STR",
+    "PRNP_CCTCAGGGCGGTGGTGGCTGGGGGCAG": "Adjacent Left STR",
 }
 
 # Map gene name to Ensembl gene id for genes that contain known pathogenic STRs
@@ -73,6 +175,7 @@ GENE_NAME_TO_GENE_ID = {
     'PRDM12': 'ENSG00000130711',
     'PRNP': 'ENSG00000171867',
     'RAPGEF2': 'ENSG00000109756',
+    'RILPL1': 'ENSG00000188026',
     'RFC1': 'ENSG00000035928',
     'RUNX2': 'ENSG00000124813',
     'SAMD12': 'ENSG00000177570',
@@ -88,6 +191,9 @@ GENE_NAME_TO_GENE_ID = {
     'ZIC2': 'ENSG00000043355',
     'ZIC3': 'ENSG00000156925',
 }
+
+# Discard samples with read length below the MIN_READ_LENGTH threshold (in base pairs)
+MIN_READ_LENGTH = 150
 
 # Round ages to the nearest N years so that they can be shared publicly without increasing identifiability
 AGE_RANGE_SIZE = 5
@@ -120,7 +226,7 @@ MISSING_AGE_THRESHOLD = 0.5
 MISSING_PCR_PROTOCOL_THRESHOLD = 0.25
 
 # Expected number of known pathogenic repeats
-EXPECTED_N_KNOWN_PATHOGENIC_REPEATS = 59
+EXPECTED_N_KNOWN_PATHOGENIC_REPEATS = 60
 
 # Add this "salt" value to the sha512 hash to prevent dictionary attacks on the encrypted sample ids
 salt = pwd.getpwuid(os.getuid()).pw_name
@@ -143,13 +249,26 @@ def parse_args():
              "str_analysis.call_non_ref_pathogenic_motifs.",
     )
     p.add_argument(
+        "--expansion-hunter-tsv-using-offtargets",
+        default="~/code/str-analysis/local_files/gnomad_str_data/data/with_offtargets/combined_expansion_hunter.19243_json_files.variants.tsv",
+        help="Table generated by running python3 -m str_analysis.combine_expansionhunter_json_to_tsv on all samples "
+             "called by ExpansionHunter while using a variant catalog that includes off-target regions."
+    )
+    p.add_argument(
+        "--non-ref-motif-tsv-using-offtargets",
+        default="~/code/str-analysis/local_files/gnomad_str_data/data/with_offtargets/combined.173187_json_files.tsv",
+        help="Table generated by running python3 -m str_analysis.combine_json_to_tsv on all loci called by "
+             "str_analysis.call_non_ref_pathogenic_motifs with options set to use a variant catalog that "
+             "includes off-target regions.",
+    )
+    p.add_argument(
         "--gnomad-metadata-tsv",
-        default="~/code/sample_metadata/metadata/gnomad_v3.1_metadata_v3.1.tsv.gz",
+        default="~/code/sample_metadata/metadata/gnomad_v3.1_metadata_v3.1_with_read_lengths.tsv.gz",
         help="gnomAD metadata table path.",
     )
     p.add_argument(
         "--known-pathogenic-strs-tsv",
-        default="~/code/str-analysis/local_files/gnomad_str_data/known_pathogenic_strs.tsv",
+        default="./data/known_pathogenic_str_loci_metadata_hg38_hg19.tsv",
         help="Table of known pathogenic STRs.",
     )
     grp = p.add_mutually_exclusive_group()
@@ -163,7 +282,12 @@ def parse_args():
         action="store_true",
         help="Use this flag to indicate that readviz was not generated for this dataset.",
     )
-
+    p.add_argument(
+        "--include-all-age-and-pcr-info",
+        action="store_true",
+        help="If this is specified, don't drop age and/or pcr info values from the user-friendly genotypes table in "
+             "the add_histograms_and_compute_readviz_paths(..) method."
+    )
     p.add_argument(
         "--output-dir",
         default="gs://gnomad-browser/STRs",
@@ -187,45 +311,51 @@ def parse_args():
 
     return args
 
-
-def load_data_df(args):
-    """Load the tables specified by args.expansion_hunter_tsv, args.non_ref_motif_tsv, and args.gnomad_metadata_tsv.
-    Rename and select relevant columns, combine the tables, then return a single combined table.
+def process_sample_id(sample_id):
+    """Utility method for normalizing a gnomAD sample id
 
     Args:
-        args (argparse.Namespace): The argparse parsed arguments object.
-
+        sample_id (str): gnomAD sample id
     Return:
-        pandas.DataFrame: The result of combining the 3 tables.
+        str: normalized gnomAD sample id
     """
+    sample_id = sample_id.replace("RP-1400::", "").replace("v3.1::", "")
+    return sample_id.strip().replace(" ", "_").replace("-", "_").split(".")[0].split("_SM_")[0]
 
-    print(f"Loading {args.expansion_hunter_tsv}")
+
+def parse_expansion_hunter_tsv_and_non_ref_motif_tsv(expansion_hunter_tsv, non_ref_motif_tsv, no_readviz_images=False):
+    """Parses the expansion_hunter_tsv and non_ref_motif_tsv files and returns a combined table with records
+    from both.
+
+    Args:
+        expansion_hunter_tsv (str): path of either --expansion-hunter-tsv or --expansion-hunter-tsv-using-offtargets
+        non_ref_motif_tsv (str): path of either --non-ref-motif-tsv or --non-ref-motif-tsv-using-offtargets
+        no_readviz_images (bool): If True, this method will assume the REViewer images were not generated for this
+            dataset.
+    """
 
     def split_by_forward_slash(expansion_hunter_call_repeat_unit):
         repeat_units = expansion_hunter_call_repeat_unit.split("/")
         return repeat_units[0].strip(), repeat_units[-1].strip()
 
-    def process_sample_id(sample_id):
-        sample_id = sample_id.replace("RP-1400::", "").replace("v3.1::", "")
-        return sample_id.strip().replace(" ", "_").replace("-", "_").split(".")[0].split("_SM_")[0]
-
-    # Parse ExpansionHunter tsv
-    df = pd.read_table(args.expansion_hunter_tsv)
-    df.loc[:, "SampleId"] = df.SampleId.apply(process_sample_id)
-    df.loc[:, "Motif: Allele 1"] = df["RepeatUnit"]
-    df.loc[:, "Motif: Allele 2"] = df["RepeatUnit"]
-    df.loc[:, "ReadvizFilename"] = None if args.no_readviz else df["SampleId"] + "." + df["LocusId"] + ".svg"
-    df = df[[
+    combined_table_columns = [
         "SampleId", "LocusId", "VariantId", "ReferenceRegion",
         "Motif: Allele 1", "Motif: Allele 2",
         "Num Repeats: Allele 1", "Num Repeats: Allele 2",
         "Genotype", "GenotypeConfidenceInterval",
         "RepeatUnit", "ReadvizFilename",
-    ]]
+    ]
+
+    df = pd.read_table(expansion_hunter_tsv, low_memory=False)
+    df.loc[:, "SampleId"] = df.SampleId.apply(process_sample_id)
+    df.loc[:, "Motif: Allele 1"] = df["RepeatUnit"]
+    df.loc[:, "Motif: Allele 2"] = df["RepeatUnit"]
+    df.loc[:, "ReadvizFilename"] = None if no_readviz_images else df["SampleId"] + "." + df["LocusId"] + ".svg"
+    df = df[combined_table_columns]
 
     # Parse the args.non_ref_motif_tsv generated by call_non_ref_pathogenic_motifs
-    print(f"Loading {args.non_ref_motif_tsv}")
-    non_ref_motifs_df = pd.read_table(args.non_ref_motif_tsv)
+    print(f"Loading {non_ref_motif_tsv}")
+    non_ref_motifs_df = pd.read_table(non_ref_motif_tsv, low_memory=False)
     non_ref_motifs_df = non_ref_motifs_df[~non_ref_motifs_df["expansion_hunter_call_genotype"].isna()]
 
     non_ref_motifs_df["Motif: Allele 1"], non_ref_motifs_df["Motif: Allele 2"] = zip(
@@ -241,21 +371,52 @@ def load_data_df(args):
     non_ref_motifs_df.loc[:, "Genotype"] = non_ref_motifs_df["expansion_hunter_call_genotype"]
     non_ref_motifs_df.loc[:, "GenotypeConfidenceInterval"] = non_ref_motifs_df["expansion_hunter_call_CI"]
     non_ref_motifs_df.loc[:, "RepeatUnit"] = None   # will be set later
-    non_ref_motifs_df.loc[:, "ReadvizFilename"] = None if args.no_readviz else non_ref_motifs_df["expansion_hunter_call_reviewer_svg"]
-    non_ref_motifs_df = non_ref_motifs_df[[
-        "SampleId", "LocusId", "VariantId", "ReferenceRegion",
-        "Motif: Allele 1", "Motif: Allele 2",
-        "Num Repeats: Allele 1", "Num Repeats: Allele 2",
-        "Genotype", "GenotypeConfidenceInterval",
-        "RepeatUnit", "ReadvizFilename",
-    ]]
+    non_ref_motifs_df.loc[:, "ReadvizFilename"] = None if no_readviz_images else non_ref_motifs_df["expansion_hunter_call_reviewer_svg"]
+    non_ref_motifs_df = non_ref_motifs_df[combined_table_columns]
 
     df = df[~df["LocusId"].isin(set(non_ref_motifs_df["LocusId"]))]
     df = pd.concat([df, non_ref_motifs_df])
 
+    return df
+
+
+def load_data_df(args):
+    """Load the tables specified by args.expansion_hunter_tsv, args.non_ref_motif_tsv, and args.gnomad_metadata_tsv.
+    Rename and select relevant columns, combine the tables, then return a single combined table.
+
+    Args:
+        args (argparse.Namespace): The argparse parsed arguments object.
+
+    Return:
+        pandas.DataFrame: The result of combining the 3 tables.
+    """
+
+    print(f"Loading {args.expansion_hunter_tsv}")
+
+    # Parse ExpansionHunter tsv
+    df = parse_expansion_hunter_tsv_and_non_ref_motif_tsv(
+        args.expansion_hunter_tsv, args.non_ref_motif_tsv, no_readviz_images=args.no_readviz)
+
+    if args.expansion_hunter_tsv and args.non_ref_motif_tsv_using_offtargets:
+        df_using_offtargets = parse_expansion_hunter_tsv_and_non_ref_motif_tsv(
+            args.expansion_hunter_tsv_using_offtargets, args.non_ref_motif_tsv_using_offtargets, no_readviz_images=True)
+
+        join_on_columns = ["SampleId", "LocusId", "VariantId", "ReferenceRegion"]
+        df_using_offtargets = df_using_offtargets.set_index(join_on_columns)
+        df_using_offtargets = df_using_offtargets[
+            ["Genotype", "GenotypeConfidenceInterval", "Num Repeats: Allele 1", "Num Repeats: Allele 2"]
+        ]
+        df = df.set_index(join_on_columns).join(df_using_offtargets, how="left", rsuffix="__UsingOfftargetRegions")
+        df = df.reset_index()
+        num_missing_genotypes_using_offtargets = sum(pd.isna(df["Genotype__UsingOfftargetRegions"]))
+        if num_missing_genotypes_using_offtargets > 0:
+            raise ValueError(f"Could not find {num_missing_genotypes_using_offtargets} out of {len(df)} "
+                             f"({100*num_missing_genotypes_using_offtargets/len(df):0.1f}%) "
+                             f"genotypes in the off-targets table: {df[pd.isna(df['Genotype__UsingOfftargetRegions'])]}")
+
     # Parse gnomAD metadata tsv
     print(f"Loading {args.gnomad_metadata_tsv}")
-    gnomad_df = pd.read_table(args.gnomad_metadata_tsv)
+    gnomad_df = pd.read_table(args.gnomad_metadata_tsv, low_memory=False)
     gnomad_df = gnomad_df[gnomad_df.release]
     gnomad_df.loc[:, "age"] = gnomad_df["project_meta.age"].fillna(gnomad_df["project_meta.age_alt"])
     gnomad_df["age"].fillna(AGE_NOT_AVAILABLE, inplace=True)
@@ -268,7 +429,7 @@ def load_data_df(args):
 
     gnomad_df = gnomad_df[[
         "s", "population_inference.pop", "sex_imputation.sex_karyotype",
-        "age", "pcr_protocol",
+        "age", "pcr_protocol", "read_length",
     ]]
     gnomad_df.loc[:, "s"] = gnomad_df.s.apply(process_sample_id)
 
@@ -282,6 +443,9 @@ def load_data_df(args):
     df = pd.merge(left=df, right=gnomad_df, how="inner", left_on="SampleId", right_on="s").drop(columns="s")
 
     print(f"Found {len(set(df.SampleId))} gnomAD 'release' samples")
+    df = df[df.read_length >= MIN_READ_LENGTH]
+    print(f"Kept {len(set(df.SampleId))} gnomAD samples after filtering to ReadLength >= {MIN_READ_LENGTH}")
+
     locus_id_with_max_samples = None
     max_num_samples = 0
     for locus_id in sorted(set(df.LocusId)):
@@ -468,7 +632,7 @@ def add_motif_classification_field(gnomad_json, most_common_motif_lookup):
         most_common_motif_lookup (dict): The dictionary generated by compute_most_common_motif_lookup_dict(..)
     """
 
-    non_ref_pathogenic_motif_info = json.loads(pkgutil.get_data("str_analysis", "data/locus_info.json"))
+    non_ref_pathogenic_motif_info = json.loads(pkgutil.get_data("str_analysis", "data/non_ref_motif.locus_info.json"))
 
     for locus_id in gnomad_json:
         gene_name = gnomad_json[locus_id]["GeneName"]
@@ -487,7 +651,10 @@ def add_motif_classification_field(gnomad_json, most_common_motif_lookup):
                 gnomad_json[locus_id]["RepeatUnitClassification"][motif_key] = classification
 
 
-def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_lookup, no_readviz_images=False):
+def add_histograms_and_compute_readviz_paths(
+        df, gnomad_json, most_common_motif_lookup, existing_readviz_filename_list=None, no_readviz_images=False,
+        include_all_age_and_pcr_info=False,
+):
     """Populate the AlleleCountHistogram, AlleleCountScatterPlot and AgeDistribution. Also, compute encrypted readviz
     paths and add these & other metadata to readviz_json.
 
@@ -495,8 +662,14 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
         df (pandas.DataFrame): Combined DataFrame generated by load_data_df(..)
         gnomad_json (dict): The main .json structure being generated by this script.
         most_common_motif_lookup (dict): The dictionary generated by compute_most_common_motif_lookup_dict(..)
-        no_readviz_images (bool): If True, this method will assume the REViewer images were not generated for this dataset.
-
+        existing_readviz_filename_list (str): Path of a text file that lists all readviz .svg filenames that exist
+            (one per line). These are the encrypted public filenames that don't contain sample ids -
+            for example: ffa0880117e0791d51b0ef85b56f3a54216.svg. This argument is mutually-exclusive with
+            no_readviz_images=True
+        no_readviz_images (bool): If True, this method will assume the REViewer images were not generated for this
+            dataset.
+        include_all_age_and_pcr_info (bool): If True, add age and pcr info to the user-friendly genotypes table
+            for all samples for which age and pcr info is shown in the gnomAD browser.
     Return:
         (list, dict): 2-tuple containing (readviz_paths_to_rename, readviz_json) where
             readviz_paths_to_rename is a list of 2-tuples that matches the original readviz svg filename with the
@@ -504,11 +677,29 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
             readviz_json is the .json data structure that will be loaded into the gnomAD browser to generate the
                 readviz section of the STR pages. It contains the encrypted readviz filename and associated metadata
                 for each sample.
+            user_friendly_genotypes_json contains a flat list of records that will be shared on
+                the gnomAD Downloads page. It's main purpose is to provide a user-friendly view of the data
+                underlying the browser STR pages. IT contains the subset of columns that may be useful for downstream
+                analyses.
     """
 
     readviz_paths_to_rename = set()
-    readviz_json = {}
+    readviz_json = collections.defaultdict(list)
+    user_friendly_genotypes_json = []
+    user_friendly_genotypes_json_binned = collections.defaultdict(list)
     age_counter = collections.defaultdict(int)
+
+    total_readviz_counter = collections.defaultdict(int)
+    missing_readviz_counter = collections.defaultdict(int)
+
+    existing_readviz_filenames_set = None
+    if existing_readviz_filename_list:
+        existing_readviz_filenames_df = pd.read_table(existing_readviz_filename_list, names=["filenames"], low_memory=False)
+        existing_readviz_filenames_list = existing_readviz_filenames_df["filenames"]
+        existing_readviz_filenames_set = set(existing_readviz_filenames_list)
+
+        if len(existing_readviz_filenames_list) > len(existing_readviz_filenames_set):
+            raise ValueError(f"{existing_readviz_filename_list} contains duplicate entries")
 
     df = df.sort_values(["Num Repeats: Allele 2", "Num Repeats: Allele 1", "Motif: Allele 2", "Motif: Allele 1"], ascending=False)
     for _, row in tqdm.tqdm(df.iterrows(), unit=" rows", total=len(df)):
@@ -526,6 +717,7 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
         sex_karyotype = row["sex_imputation.sex_karyotype"]
         population = row["population_inference.pop"]
         pcr_protocol = row["pcr_protocol"]
+        read_length = int(row["read_length"])
 
         # Compute age_range
         if row["age"] == AGE_NOT_AVAILABLE:
@@ -547,6 +739,8 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
                 and age_counter[locus_id, sex_karyotype] < MAX_AGES_PER_BUCKET_TO_DISPLAY_IN_THE_READVIZ_SECTION):
             age_counter[locus_id, sex_karyotype] += 1
             age_range_to_show_in_readviz_section = age_range
+
+        age_range_for_user_friendly_genotypes_file = age_range if include_all_age_and_pcr_info else age_range_to_show_in_readviz_section
 
         # Get num_repeats1, num_repeats2
         try:
@@ -598,18 +792,70 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
                 data_dict["AgeDistribution"][age_distribution_key][f"{num_repeats}"] += 1
 
         # Update readviz metadata
+        encrypted_svg_prefix = hashlib.sha512(f"{locus_id}_{row['SampleId']}_{salt}".encode("UTF-8")).hexdigest()
+        # The sha digest is 128 letters long - which is too long for a filename. Use only the first 35 letters.
+        encrypted_svg_filename = f"{encrypted_svg_prefix[:35]}.svg"
+
+        # check whether this image was successfully generated by REViewer, and set to None if not
+        if no_readviz_images or (existing_readviz_filenames_set is not None
+                                 and encrypted_svg_filename not in existing_readviz_filenames_set):
+            encrypted_svg_filename = None
+        elif not is_adjacent_repeat:
+            original_svg_filename = row["ReadvizFilename"]
+            readviz_paths_to_rename.add((original_svg_filename, f"{locus_id}/{encrypted_svg_filename}"))
+
         if not is_adjacent_repeat:
-            encrypted_svg_prefix = hashlib.sha512(f"{locus_id}_{row['SampleId']}_{salt}".encode("UTF-8")).hexdigest()
-            # The sha digest is 128 letters long - which is too long for a filename. Use only the first 35 letters.
-            encrypted_svg_filename = f"{encrypted_svg_prefix[:35]}.svg"
+            total_readviz_counter[locus_id] += 1
+            if encrypted_svg_filename is None:
+                missing_readviz_counter[locus_id] += 1
 
-            if not no_readviz_images:
-                original_svg_filename = row["ReadvizFilename"]
-                readviz_paths_to_rename.add((original_svg_filename, f"{locus_id}/{encrypted_svg_filename}"))
+        combined_motif = motif1 if motif1 == motif2 else f"{motif1}/{motif2}"
+        reference_region_chrom, reference_region_start_0based, reference_region_end = parse_interval(row["ReferenceRegion"])
+        user_friendly_genotypes_record = {
+            "Id": variant_id,  # use variant_id instead of locus_id here because variant_id differs for main vs. adjacent repeats while locus_id is the same for both
+            "LocusId": locus_id,
+            "Chrom": reference_region_chrom,
+            "Start_0based": int(reference_region_start_0based),
+            "End": int(reference_region_end),
+            "Motif": combined_motif,
+            "IsAdjacentRepeat": is_adjacent_repeat,
+            "Population": population,
+            "Sex": sex_karyotype,
+            "Age": age_range_for_user_friendly_genotypes_file,
+            "PcrProtocol": pcr_protocol,
+            "ReadLength": read_length,
+            "ReadvizFilename": encrypted_svg_filename,
+        }
 
-            if locus_id not in readviz_json:
-                readviz_json[locus_id] = []
+        # transfer additional columns from the table row. The values are: (to_column, to_column_type, warn_if_missing)
+        extra_columns = {
+            "ReferenceRegion": ("ReferenceRegion", str, True),
+            "Genotype": ("Genotype", str, True),
+            "GenotypeConfidenceInterval": ("GenotypeConfidenceInterval", str, True),
+            "Num Repeats: Allele 1": ("Allele1", int, True),
+            "Num Repeats: Allele 2": ("Allele2", int, False),  # expected to be missing in hemizygous genotypes
+            "Genotype__UsingOfftargetRegions": ("GenotypeUsingOfftargetRegions", str, True),
+            "GenotypeConfidenceInterval__UsingOfftargetRegions": ("GenotypeConfidenceIntervalUsingOfftargetRegions", str, True),
+            "Num Repeats: Allele 1__UsingOfftargetRegions": ("Allele1UsingOfftargetRegions", int, True),
+            "Num Repeats: Allele 2__UsingOfftargetRegions": ("Allele2UsingOfftargetRegions", int, False), # expected to be missing in hemizygous genotypes
+        }
+        for from_column, (to_column, to_column_type, warn_if_missing) in extra_columns.items():
+            if from_column not in set(df.columns):
+                print(f"WARNING: data table is missing a '{from_column}' column")
+            elif row[from_column] is None or pd.isna(row[from_column]):
+                if warn_if_missing:
+                    print(f"WARNING: missing '{from_column}' value in row {row.to_dict()}")
+                user_friendly_genotypes_record[to_column] = ""
+            else:
+                user_friendly_genotypes_record[to_column] = to_column_type(row[from_column])
 
+        user_friendly_genotypes_json.append(user_friendly_genotypes_record)
+
+        user_friendly_genotypes_json_binned[
+            (variant_id, population, sex_karyotype, age_range_for_user_friendly_genotypes_file, pcr_protocol)
+        ].append(user_friendly_genotypes_record)
+
+        if not is_adjacent_repeat:
             readviz_json[locus_id].append({
                 "Allele1Motif": motif1,
                 "Allele2Motif": motif2,
@@ -624,10 +870,66 @@ def add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_
                 "PcrProtocol": pcr_protocol,
                 "Genotype": row["Genotype"],
                 "GenotypeConfidenceInterval": row["GenotypeConfidenceInterval"],
-                "ReadvizFilename": None if no_readviz_images else encrypted_svg_filename,
+                "ReadLength": read_length,
+                "ReadvizFilename": encrypted_svg_filename,
             })
 
-    return list(readviz_paths_to_rename), readviz_json
+    # check whether an unexpected number of readviz images are missing
+    for locus_id, missing_count in missing_readviz_counter.items():
+        total = total_readviz_counter[locus_id]
+        message = (f"{locus_id:20s}:  {missing_count} out of {total} ({100*missing_count/total:0.2f}%) readviz images removed "
+                   f"because they are missing from {existing_readviz_filename_list}")
+
+        if missing_count/total > MISSING_READVIZ_ERROR_THRESHOLD:
+            raise ValueError(message)
+
+        print(message)
+
+    # Check for samples that fall into a unique metadata bin - where they are the only samples with a particular
+    # combination of values for population, sex, age-bin, and pcr-protocol. Having only 1 individual in a bin like this
+    # could allow someone to get all STR genotypes for that single individual by looking up its metadata signature
+    # at each STR locus.
+    # For added caution, and in-keeping with the principle of only sharing per-variant information, this loop discards
+    # the Age and PCR-protocol values from the user_friendly_genotypes_json data structure. This should move these
+    # samples into more common metadata bins that have other samples and prevent phasing of STR variants across loci.
+    if not include_all_age_and_pcr_info:
+        modified_records = []
+        for bin_key, user_friendly_genotypes_records in user_friendly_genotypes_json_binned.items():
+            if len(user_friendly_genotypes_records) == 1:
+                user_friendly_genotypes_record = user_friendly_genotypes_records[0]
+                (variant_id, population, sex_karyotype, age, pcr_protocol) = bin_key
+
+                # move this sample to a more common metadata bin by dropping age
+                new_bin_key = (variant_id, population, sex_karyotype, AGE_NOT_AVAILABLE, pcr_protocol)
+                user_friendly_genotypes_record["Age"] = AGE_NOT_AVAILABLE
+                if len(user_friendly_genotypes_json_binned.get(new_bin_key, [])) < 2:
+                    # dropping age didn't move this sample to a more common bin, so also drop PCR protocol info
+                    new_bin_key = (variant_id, population, sex_karyotype, AGE_NOT_AVAILABLE, PCR_INFO_NOT_AVAILABLE)
+                    user_friendly_genotypes_record["PcrProtocol"] = PCR_INFO_NOT_AVAILABLE
+
+                modified_records.append((bin_key, new_bin_key, user_friendly_genotypes_record))
+
+        visited_individual_metadata_bins = set()
+        for bin_key, new_bin_key, modified_user_friendly_genotypes_record in modified_records:
+            (_, population, sex_karyotype, age, pcr_protocol) = bin_key
+            individual_bin = (population, sex_karyotype, age, pcr_protocol)
+            if individual_bin not in visited_individual_metadata_bins:
+                print(f"Moving sample from unique metadata bin {bin_key} to {new_bin_key}")
+                visited_individual_metadata_bins.add(individual_bin)
+
+            del user_friendly_genotypes_json_binned[bin_key]
+            user_friendly_genotypes_json_binned[new_bin_key].append(modified_user_friendly_genotypes_record)
+
+        unable_to_avoid_unique_metadata_bins = False
+        for bin_key, user_friendly_genotypes_records in user_friendly_genotypes_json_binned.items():
+            if len(user_friendly_genotypes_records) == 1:
+                print(f"Unable to avoid a metadata bin with only 1 sample. Bin key: {bin_key} ")
+                print(user_friendly_genotypes_records[0])
+                unable_to_avoid_unique_metadata_bins = True
+        if unable_to_avoid_unique_metadata_bins:
+            raise ValueError("Failed to avoid metadata bins wiht only 1 sample")
+
+    return list(readviz_paths_to_rename), readviz_json, user_friendly_genotypes_json
 
 
 def sort_keys(gnomad_json):
@@ -724,40 +1026,7 @@ def sort_keys(gnomad_json):
         }
 
 
-def remove_readviz_filenames_that_dont_exist(args, readviz_json):
-    """Remove ReadvizFilename entries that aren't listed in args.existing_readviz_filename_list.
-
-    Args:
-        args (argparse.Namespace): The argparse parsed arguments object.
-        readviz_json (dict): The .json data structure that will be loaded into the gnomAD browser to generate the
-                readviz section of the STR pages. It contains the encrypted readviz filename and associated
-                metadata for each sample.
-    """
-    readviz_filenames_df = pd.read_table(args.existing_readviz_filename_list, names=["filenames"])
-    readviz_filenames_list = readviz_filenames_df["filenames"]
-    readviz_filenames_set = set(readviz_filenames_list)
-
-    if len(readviz_filenames_list) > len(readviz_filenames_set):
-        raise ValueError(f"{args.existing_readviz_filename_list} contains duplicate entries")
-
-    for locus_id in readviz_json:
-        removed = total = 0
-        for record in readviz_json[locus_id]:
-            total += 1
-            if record["ReadvizFilename"] not in readviz_filenames_set:
-                record["ReadvizFilename"] = None
-                removed += 1
-
-        message = (f"{locus_id:20s}:  {removed} out of {total} ({100*removed/total:0.2f}%) readviz images removed "
-            f"because they are missing from {args.existing_readviz_filename_list}")
-
-        if removed/total > MISSING_READVIZ_ERROR_THRESHOLD:
-            raise ValueError(message)
-
-        print(message)
-
-
-def validate_json(df, gnomad_json, readviz_json, no_readviz_images=False):
+def validate_json(df, gnomad_json, readviz_json, user_friendly_genotypes_json, no_readviz_images=False):
     """Perform basic checks to validate the gnomad_json and readviz_json data structure.
 
     Args:
@@ -823,6 +1092,18 @@ def validate_json(df, gnomad_json, readviz_json, no_readviz_images=False):
                 raise ValueError(f"{locus_id}: found {total_readviz_samples_with_image} readviz images. Expected at "
                                  f"least {total_readviz_samples}.")
 
+    if len(user_friendly_genotypes_json) < sum(1 for locus_id in readviz_json for _ in readviz_json[locus_id]):
+        raise ValueError("user_friendly_genotypes_json contains fewer records than readviz_json")
+
+
+def export_to_tsv(df, output_tsv_filename):
+    """Write the given pandas DataFrame to the output_tsv_filename"""
+    if not output_tsv_filename.endswith(".tsv"):
+        raise ValueError(f"{output_tsv_filename} must end with '.tsv'")
+    print(f"Writing {len(df)} records to {output_tsv_filename}.gz")
+    df.to_csv(output_tsv_filename, sep="\t", index=False, header=True)
+    os.system(f"bgzip -f {output_tsv_filename}")
+
 
 def export_readviz_rename_list(readviz_paths_to_rename, readviz_rename_list_output_path):
     """Utility function for writing out the readviz_paths_to_rename data structure.
@@ -858,32 +1139,77 @@ def main():
     add_gene_ids(gnomad_json)
     most_common_motif_lookup = compute_most_common_motif_lookup_dict(df)
     add_motif_classification_field(gnomad_json, most_common_motif_lookup)
-    readviz_paths_to_rename, readviz_json = add_histograms_and_compute_readviz_paths(df, gnomad_json, most_common_motif_lookup, no_readviz_images=args.no_readviz)
-    if args.existing_readviz_filename_list:
-        remove_readviz_filenames_that_dont_exist(args, readviz_json)
+    readviz_paths_to_rename, readviz_json, user_friendly_genotypes_json = add_histograms_and_compute_readviz_paths(
+        df, gnomad_json, most_common_motif_lookup,
+        existing_readviz_filename_list=args.existing_readviz_filename_list,
+        no_readviz_images=args.no_readviz,
+        include_all_age_and_pcr_info=args.include_all_age_and_pcr_info,
+    )
+
     sort_keys(gnomad_json)
 
     # Perform validity checks
-    validate_json(df, gnomad_json, readviz_json, no_readviz_images=args.no_readviz)
+    validate_json(df, gnomad_json, readviz_json, user_friendly_genotypes_json, no_readviz_images=args.no_readviz)
 
     # Write out the data structures
     date_stamp = datetime.now().strftime("%Y_%m_%d")
     local_output_dir = os.path.expanduser(os.path.dirname(args.expansion_hunter_tsv))
     output_filename_label = f"__{args.output_filename_suffix}" if args.output_filename_suffix else ""
 
-    df.to_csv(f"{local_output_dir}/gnomAD_STR_calls_with_gnomAD_metadata_and_sample_ids{output_filename_label}__{date_stamp}.tsv.gz",
-              compression="gzip", sep="\t", index=False, header=True)
+    # write out the full df for debugging and internal analyses that need sample ids
+    export_to_tsv(df, f"{local_output_dir}/gnomAD_STR_calls_with_gnomAD_metadata_and_sample_ids{output_filename_label}__{date_stamp}.tsv")
 
+    # write out readviz_records to a .tsv mostly for debugging
     readviz_metadata_df = pd.DataFrame([
         {**readviz_record, **{"LocusId": locus_id}}
         for locus_id, readviz_records in readviz_json.items() for readviz_record in readviz_records
     ])
-    readviz_metadata_df.to_csv(f"{local_output_dir}/gnomAD_STR_readviz_metadata{output_filename_label}__{date_stamp}.tsv.gz",
-              compression="gzip", sep="\t", index=False, header=True)
+    export_to_tsv(readviz_metadata_df, f"{local_output_dir}/gnomAD_STR_readviz_metadata{output_filename_label}__{date_stamp}.tsv")
 
-    export_json(gnomad_json, f"{local_output_dir}/gnomAD_STR_distributions{output_filename_label}__{date_stamp}.json.gz", args.output_dir)
+    # write out JSON files for the gnomAD browser
     export_json(readviz_json, f"{local_output_dir}/gnomAD_STR_readviz_metadata{output_filename_label}__{date_stamp}.json.gz", args.output_dir)
+    export_json(gnomad_json, f"{local_output_dir}/gnomAD_STR_distributions{output_filename_label}__{date_stamp}.json.gz", args.output_dir)
+
+    # write out a table of original readviz image filenames together with their encrypted filenames to use for renaming the files
     export_readviz_rename_list(readviz_paths_to_rename, f"{local_output_dir}/readviz_rename_list{output_filename_label}__{date_stamp}.tsv.gz")
+
+    # write out user_friendly_genotypes_json to a .tsv so it can be shared publicly on the gnomAD downloads page
+    def user_friendly_genotypes_sort_key(record):
+        # sort the output table by the locus coordinates, then by the size of the long and short alleles in desc. order
+        return (
+            record["Id"],
+            -1*int(record["Allele2"]) if record["Allele2"] else 0,
+            -1*int(record["Allele1"]) if record["Allele1"] else 0,
+        )
+
+    user_friendly_genotypes_json.sort(key=user_friendly_genotypes_sort_key)
+    user_friendly_genotypes_df = pd.DataFrame(user_friendly_genotypes_json)
+    user_friendly_genotypes_df = user_friendly_genotypes_df[[
+        "Id", "LocusId",
+        "ReferenceRegion",
+        "Chrom", "Start_0based", "End",
+        "Motif",
+        "IsAdjacentRepeat",
+        "Population", "Sex", "Age", "PcrProtocol",
+        "Genotype",
+        "Allele1",
+        "Allele2",
+        "GenotypeConfidenceInterval",
+        "GenotypeUsingOfftargetRegions",
+        "Allele1UsingOfftargetRegions",
+        "Allele2UsingOfftargetRegions",
+        "GenotypeConfidenceIntervalUsingOfftargetRegions",
+        "ReadvizFilename",
+        "ReadLength",
+    ]]
+    output_path = f"{local_output_dir}/gnomAD_STR_genotypes{output_filename_label}__"
+    if args.include_all_age_and_pcr_info:
+        output_path += "including_all_age_and_pcr_info__"
+    output_path += f"{date_stamp}.tsv"
+    export_to_tsv(
+        user_friendly_genotypes_df,
+        output_path,
+    )
 
     print("Done")
 

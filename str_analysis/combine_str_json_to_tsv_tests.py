@@ -1,8 +1,7 @@
 import json
 import unittest
 
-from combine_expansion_hunter_json_to_tsv import (
-    convert_expansion_hunter_json_to_tsv_columns, parse_read_count_tuples)
+from combine_str_json_to_tsv import convert_expansion_hunter_json_to_tsv_columns, parse_read_count_tuples
 
 VARIANT_CATALOG_CONTENTS = json.loads("""[{
   "LocusId": "X-149631736-149631780-TMEM185A",
@@ -216,7 +215,7 @@ class Tests(unittest.TestCase):
             variant_catalog_contents=VARIANT_CATALOG_CONTENTS,
             json_file_path="",
             return_allele_records=False,
-            include_all_fields=True,
+            include_extra_expansion_hunter_fields=True,
         )
         self.assertEqual(len(variant_rows), 4)
         for row in variant_rows:

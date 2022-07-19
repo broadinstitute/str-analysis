@@ -43,20 +43,20 @@ RUN wget -q https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VE
 	&& make install \
 	&& make clean
 
-# install python3.7 (adds 800Mb)
+# install python3.9 (adds 800Mb)
 RUN install_packages python-smbus libncursesw5-dev libgdbm-dev libc6-dev zlib1g-dev libsqlite3-dev libssl-dev openssl libffi-dev
 
-ENV PYTHON_VERSION="3.7.1"
+ENV PYTHON_VERSION="3.9.13"
 RUN wget -q https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz \
 	&& tar xvf Python-${PYTHON_VERSION}.tar.xz \
 	&& rm Python-${PYTHON_VERSION}.tar.xz \
 	&& cd Python-${PYTHON_VERSION} \
-	&& ./configure --enable-optimizations \
+	&& ./configure --enable-optimizations --with-ssl \
 	&& make install \
 	&& make clean
 
 # install gcloud
-ENV GCLOUD_SDK_VERISON="365.0.0"
+ENV GCLOUD_SDK_VERISON="390.0.0"
 RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
     && tar xzf google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
     && /google-cloud-sdk/install.sh -q \
@@ -117,14 +117,10 @@ RUN wget -q https://github.com/Illumina/ExpansionHunterDenovo/releases/download/
 #    && mv /ExpansionHunter-${EH_VERSION}-linux_x86_64/bin/ExpansionHunter /usr/local/bin/ \
 #    && rm -r ExpansionHunter-${EH_VERSION}-linux_x86_64 ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz
 
-RUN wget https://github.com/bw2/ExpansionHunter/raw/optimized_binaries/bin/linux/ExpansionHunter -O /usr/local/bin/ExpansionHunter \
+RUN wget https://raw.githubusercontent.com/bw2/ExpansionHunter/master/bin/linux/ExpansionHunter -O /usr/local/bin/ExpansionHunter \
     && chmod 777 /usr/local/bin/ExpansionHunter
 
-# install REViewer
-ENV REVIEWER_VERSION="v0.2.4"
-RUN wget -q https://github.com/Illumina/REViewer/releases/download/${REVIEWER_VERSION}/REViewer-${REVIEWER_VERSION}-linux_x86_64.gz \
-    && gunzip REViewer-${REVIEWER_VERSION}-linux_x86_64.gz \
-    && mv /REViewer-${REVIEWER_VERSION}-linux_x86_64 /usr/local/bin/REViewer \
+RUN wget https://raw.githubusercontent.com/bw2/REViewer/master/bin/linux/REViewer -O /usr/local/bin/REViewer \
     && chmod 777 /usr/local/bin/REViewer
 
 #RUN python3 -m pip install --no-cache-dir str-analysis==0.9.1 \
