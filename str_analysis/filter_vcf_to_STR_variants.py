@@ -117,6 +117,46 @@ def get_flanking_reference_sequences(fasta_obj, chrom, pos, ref, alt, num_flanki
     return left_flanking_reference_sequence, variant_bases, right_flanking_reference_sequence
 
 
+def extend_repeat_into_sequence(repeat_unit, sequence, min_fraction_covered_by_repeat=1, max_number_of_mismatching_repeats_in_a_row=3):
+    """This method walks along the given sequence from left to right, one repeat unit length at a time
+    (defined by the given repeat unit), and checks for the longest stretch of repeats where at least
+    min_fraction_covered_by_repeat fraction of the repeats exactly matches the given repeat_unit.
+
+    Args:
+        repeat_unit (str): For example "CAG"
+        sequence (str): a longer sequence that may contain repeats of the given repeat unit starting at the left end,
+            before switching to random other sequence or repeats of a different repeat unit.
+            For example: "CAGCAGCAGCTAGTGCAGTGACAGT"
+        min_fraction_covered_by_repeat (float): Look for repeats that correspond to at least.
+        max_number_of_mismatching_repeats_in_a_row (int): If this many repeats in a row mismatch the repeat unit,
+            stop looking further to the right.
+
+    Returns the number of repeats, as well as whether it's a perfect repeat.
+    """
+    i = 0
+    num_repeats = 0
+    num_matching_repeats = 0
+    num_mismatching_repeats_in_a_row = 0
+    largest_number_of_repeats_above_threshold = 0
+    is_perfect_repeat = True
+    while num_mismatching_repeats_in_a_row < max_number_of_mismatching_repeats_in_a_row and i <= len(sequence) - len(repeat_unit):
+        current_repeat = sequence[i:i+len(repeat_unit)]
+        num_repeats += 1
+        if current_repeat == repeat_unit:
+            num_matching_repeats += 1
+            if num_matching_repeats / num_repeats >= min_fraction_covered_by_repeat:
+                largest_number_of_repeats_above_threshold = num_repeats
+                if num_mismatching_repeats_in_a_row > 0:
+                    is_perfect_repeat = False
+            num_mismatching_repeats_in_a_row = 0
+        else:
+            num_mismatching_repeats_in_a_row += 1
+
+        i += len(repeat_unit)
+
+    return largest_number_of_repeats_above_threshold, is_perfect_repeat
+
+
 def check_if_variant_is_str(
     fasta_obj, chrom, pos, ref, alt,
     min_str_repeats, min_str_length,
@@ -128,7 +168,20 @@ def check_if_variant_is_str(
     """Determine if the given chrom/pos/ref/alt variant represents an STR expansion or contraction or neither.
 
     Args:
-
+        fasta_obj (object): pyfasta object for accessing reference sequence.
+        chrom (str): chromosome
+        pos (int): 1-based position
+        ref (str): VCF ref sequence
+        alt (str): VCF alt sequence
+        min_str_repeats (int): The min number of repeats that must be found in the variant sequence + flanking
+            reference sequences for the variant to be considered an STR.
+        min_str_length (int): The repeats in the variant sequence + the flanking reference sequence must cover at least
+            this many base-pairs for the variant to be considered an STR.
+        min_fraction_of_variant_covered_by_repeat (float): To allow for imperfect repeats, not all repeats need to match
+            the given repeat unit. This is the minimum fraction of repeats that must exactly match the repeat unit.
+        counters (dict): Dictionary of counters to collect summary stats about the number of STR variants found, etc.
+        use_trf (bool): Whether to run TandemRepeatFinder on the variant sequence to check for repeats.
+        trf_path (str): Path of TandemRepeatFinder executable.
     """
     null_result = {
         "RepeatUnit": None,
@@ -189,24 +242,14 @@ def check_if_variant_is_str(
         raise ValueError(f"variant_bases: {variant_bases} != {variant_bases2} variant bases returned by "
                          f"get_flanking_reference_sequences for variant {chrom}-{pos}-{ref}-{alt} ")
 
-    #num_repeats_left_flank, is_perfect_repeat_in_left_flank = extend_repeat_into_sequence(
-    #   repeat_unit[::-1], left_flanking_reference_sequence[::-1], min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat)
-    #num_repeats_right_flank, is_perfect_repeat_in_right_flank = extend_repeat_into_sequence(
-    #   repeat_unit, right_flanking_reference_sequence, min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat)
-
-    # check the left flanking sequence for additional repeats matching the repeat unit found in the variant
-    i = len(left_flanking_reference_sequence)
-    num_repeats_left_flank = 0
-    while left_flanking_reference_sequence[i-len(repeat_unit):i] == repeat_unit:
-        i -= len(repeat_unit)
-        num_repeats_left_flank += 1
-
-    # check the right flanking sequence for additional repeats matching the repeat unit found in the variant
-    i = 0
-    num_repeats_right_flank = 0
-    while right_flanking_reference_sequence[i:i+len(repeat_unit)] == repeat_unit:
-        i += len(repeat_unit)
-        num_repeats_right_flank += 1
+    num_repeats_left_flank, is_perfect_repeat_in_left_flank = extend_repeat_into_sequence(
+        repeat_unit[::-1],
+        left_flanking_reference_sequence[::-1],
+        min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat)
+    num_repeats_right_flank, is_perfect_repeat_in_right_flank = extend_repeat_into_sequence(
+        repeat_unit,
+        right_flanking_reference_sequence,
+        min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat)
 
     # even though the VCF position is 1-based, it represents the location of the base preceding the variant bases, so
     # add 1 to get the 1-based position of the true base
@@ -246,6 +289,7 @@ def check_if_variant_is_str(
         "NumRepeatsAlt": num_repeats_alt,
         "NumRepeatsLeftFlank": num_repeats_left_flank,
         "NumRepeatsRightFlank": num_repeats_right_flank,
+        "NumRepeatsInVariant": num_repeats_within_variant_bases,
         "FoundBy": found_by,
         "IsPerfectRepeat": is_perfect_repeat,
     }
@@ -281,6 +325,8 @@ def check_if_variant_is_str(
 
 
 def compute_summary_string(alt_STR_alleles):
+    """Returns a short easy-to-read string summarizing the STR variant"""
+
     summary_string = "RU{}:{}:".format(len(alt_STR_alleles[0]["RepeatUnit"]), alt_STR_alleles[0]["RepeatUnit"])
 
     ins_or_del = []
