@@ -397,6 +397,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
                 allele_record[f"CI start{suffix}"] = int(confidence_interval_start)
                 allele_record[f"CI end{suffix}"] = int(confidence_interval_end)
                 allele_record[f"CI size{suffix}"] = int(confidence_interval_end) - int(confidence_interval_start)
+                allele_record[f"CI ratio{suffix}"] = allele_record[f"CI size{suffix}"]/(allele_record[f"Num Repeats{suffix}"] or 1)
 
                 if include_extra_expansion_hunter_fields:
                     is_homozygous = len(genotype_tuples) > 1 and genotype_tuples[0][0] == genotype_tuples[1][0]
