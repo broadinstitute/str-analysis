@@ -202,8 +202,8 @@
    },
    {
       "LocusId": "ATXN3",
-      "LocusStructure": "(GCT)*",
-      "ReferenceRegion": "chr14:92537353-92537386",
+      "LocusStructure": "(CTG)*",
+      "ReferenceRegion": "chr14:92537354-92537384",
       "VariantType": "Repeat",
       "Gene": "ATXN3",
       "Inheritance": "AD",
