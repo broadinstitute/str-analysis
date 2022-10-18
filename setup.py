@@ -40,7 +40,7 @@ def test_suite():
 
 setup(
     name='str_analysis',
-    version="0.9.7",
+    version="0.9.8",
     description="Utilities  short tandem repeats (STRs)",
     install_requires=requirements,
     cmdclass={
@@ -51,7 +51,7 @@ setup(
         'console_scripts': [
             'call_non_ref_pathogenic_motifs = str_analysis.call_non_ref_pathogenic_motifs:main',
             'combine_json_to_tsv = str_analysis.combine_json_to_tsv:main',
-            'combine_expansion_hunter_json_to_tsv = str_analysis.combine_expansion_hunter_json_to_tsv:main',
+            'combine_str_json_to_tsv = str_analysis.combine_str_json_to_tsv:main',
             'simulate_str_expansions = str_analysis.simulate_str_expansions:main',
         ],
     },
