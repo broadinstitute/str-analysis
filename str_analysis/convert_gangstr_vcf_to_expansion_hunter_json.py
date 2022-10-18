@@ -144,6 +144,21 @@ def process_gangstr_vcf(vcf_path, variant_catalog=None):
             if not fields[9] or fields[9] == ".":  # no genotype
                 continue
 
+            # example1: chr8	141029449	.	gtggtggtg	.	.	.
+            #    END=141029457;RU=gtg;PERIOD=3;REF=3;GRID=1,6;STUTTERUP=0.05;STUTTERDOWN=0.05;STUTTERP=0.9;EXPTHRESH=-1
+            #    GT:DP:Q:REPCN:REPCI:RC:ENCLREADS:FLNKREADS:ML:INS:STDERR:QEXP
+            #    0/0:47:1:3,3:3-3,3-3:38,9,0,0:3,38:NULL:232.623:342,114:0,0:-1,-1,-1
+            #
+            # example2: chr8	140697417	.	tgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtg	tgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtg	.	.
+            #   END=140697454;RU=tg;PERIOD=2;REF=19;GRID=13,23;STUTTERUP=0.05;STUTTERDOWN=0.05;STUTTERP=0.9;EXPTHRESH=-1
+            #   GT:DP:Q:REPCN:REPCI:RC:ENCLREADS:FLNKREADS:ML:INS:STDERR:QEXP
+            #   0/1:41:0.999999:19,20:19-19,19-20:24,7,0,9:19,14|20,10:6,1|8,1|9,2|11,1|13,1|14,1|15,1|17,1:247.512:342,114:0.29703,0.564617:-1,-1,-1
+            #
+            # example3: chr8	140594826	.	tgtgtgtgtgtgtgtgtgtgtgtgtgtg	tgtgtgtgtgtgtgtgtgtgtgtgtgtgtg,tgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtgtg	.	.
+            #   END=140594853;RU=tg;PERIOD=2;REF=14;GRID=12,26;STUTTERUP=0.05;STUTTERDOWN=0.05;STUTTERP=0.9;EXPTHRESH=-1
+            #   GT:DP:Q:REPCN:REPCI:RC:ENCLREADS:FLNKREADS:ML:INS:STDERR:QEXP
+            #   1/2:36:0.994974:15,23:15-15,20-23:21,7,0,8:15,19|23,2:5,1|8,1|9,1|10,1|11,1|14,1|20,2:227.086:342,114:0,1.56141:-1,-1,-1
+
             info_dict = dict([key_value.split("=") for key_value in info.split(";")])
             genotype_fields = fields[8].split(":")
             genotype_values = fields[9].split(":")
@@ -168,7 +183,7 @@ def process_gangstr_vcf(vcf_path, variant_catalog=None):
                     "ReadLength": None,
                     "FragmentLength": None,
                     "Variants": {
-                        locus_id: {
+                        locus_id: info_dict | genotype_dict | {
                             "Genotype": genotype_dict["REPCN"].replace(",", "/"), #"17/17",
                             "GenotypeConfidenceInterval": genotype_dict["REPCI"].replace(",", "/"), #"17-17/17-17",
                             "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
