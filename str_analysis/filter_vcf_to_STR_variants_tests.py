@@ -4,6 +4,7 @@ import pyfaidx
 import tempfile
 import unittest
 
+from filter_vcf_to_STR_variants import extend_repeat_into_sequence
 from str_analysis.filter_vcf_to_STR_variants import get_flanking_reference_sequences, check_if_variant_is_str
 
 
@@ -379,6 +380,35 @@ class Tests(unittest.TestCase):
         self.assertFalse(found_by_TRF)
         self.assertTrue(is_perfect_repeat)
 
+    def test_extend_repeat_into_sequence(self):
+        num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "CAGCAGCAGTTTTTTTTT", 1)
+        self.assertEqual(num_repeats, 3)
+        self.assertEqual(is_perfect_repeat, True)
+
+        num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "CAGCAGCAG", 1)
+        self.assertEqual(num_repeats, 3)
+        self.assertEqual(is_perfect_repeat, True)
+
+        num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "CAGTAGCAGTTTTTTTTT", 0.6)
+        self.assertEqual(num_repeats, 3)
+        self.assertEqual(is_perfect_repeat, False)
+
+        num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "CAGTAGCAGT", 0.6)
+        self.assertEqual(num_repeats, 3)
+        self.assertEqual(is_perfect_repeat, False)
+
+        num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "CAGTAGCAGTAGTAGTAGCAGCAGCAGCAGCAGCAG", 0.6)
+        self.assertEqual(num_repeats, 3)
+        self.assertEqual(is_perfect_repeat, False)
+
+        num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "CAGTAGCAGTTTTTTTTT", 0.8)
+        self.assertEqual(num_repeats, 1)
+        self.assertEqual(is_perfect_repeat, True)
+
+        num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "TTTTTTTTT", 0.8)
+        self.assertEqual(num_repeats, 0)
+        self.assertEqual(is_perfect_repeat, True)
+
     # Test8: delete entire repeat sequence
     #self.temp_fasta_file.write(">chrTest8\n")
     #self.temp_fasta_file.write("TTTTTCAGCAGCAGCCCCC\n")
@@ -386,3 +416,4 @@ class Tests(unittest.TestCase):
     def tearDown(self):
         if os.path.isfile(self.temp_fasta_file.name):
             os.remove(self.temp_fasta_file.name)
+
