@@ -174,10 +174,7 @@ class Tests(unittest.TestCase):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
-        (
-            chrom, start_1based, end_1based, repeat_unit, num_repeats_ref, num_repeats_alt,
-            num_repeats_left_flank, num_repeats_right_flank, found_by_TRF, is_perfect_repeat
-        ) = check_if_variant_is_str(
+        result = check_if_variant_is_str(
             self.fasta_obj,
             "chrTest4", 9, "G", "GCAGCAGCAG",
             min_str_repeats=3, min_str_length=9,
@@ -185,25 +182,22 @@ class Tests(unittest.TestCase):
             counters=counters,
             use_trf=False)
 
-        self.assertEqual(chrom, "chrTest4")
-        self.assertEqual(start_1based, 7)
-        self.assertEqual(end_1based, 15)
-        self.assertEqual(repeat_unit, "CAG")
-        self.assertEqual(num_repeats_ref, 3)
-        self.assertEqual(num_repeats_alt, 6)
-        self.assertEqual(num_repeats_left_flank, 1)
-        self.assertEqual(num_repeats_right_flank, 2)
-        self.assertFalse(found_by_TRF)
-        self.assertTrue(is_perfect_repeat)
+        self.assertEqual(result["Chrom"], "chrTest4")
+        self.assertEqual(result["Start1Based"], 7)
+        self.assertEqual(result["End1Based"], 15)
+        self.assertEqual(result["RepeatUnit"], "CAG")
+        self.assertEqual(result["NumRepeatsRef"], 3)
+        self.assertEqual(result["NumRepeatsAlt"], 6)
+        self.assertEqual(result["NumRepeatsLeftFlank"], 1)
+        self.assertEqual(result["NumRepeatsRightFlank"], 2)
+        self.assertEqual(result["FoundBy"], "BruteForce")
+        self.assertTrue(result["IsPerfectRepeat"])
 
     def test_check_if_variant_is_str4_deletion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
-        (
-            chrom, start_1based, end_1based, repeat_unit, num_repeats_ref, num_repeats_alt,
-            num_repeats_left_flank, num_repeats_right_flank, found_by_TRF, is_perfect_repeat
-        ) = check_if_variant_is_str(
+        result = check_if_variant_is_str(
             self.fasta_obj,
             "chrTest4", 9, "GCAG", "G",
             min_str_repeats=3, min_str_length=9,
@@ -211,25 +205,22 @@ class Tests(unittest.TestCase):
             counters=counters,
             use_trf=False)
 
-        self.assertEqual(chrom, "chrTest4")
-        self.assertEqual(start_1based, 7)
-        self.assertEqual(end_1based, 15)
-        self.assertEqual(repeat_unit, "CAG")
-        self.assertEqual(num_repeats_ref, 3)
-        self.assertEqual(num_repeats_alt, 2)
-        self.assertEqual(num_repeats_left_flank, 1)
-        self.assertEqual(num_repeats_right_flank, 1)
-        self.assertFalse(found_by_TRF)
-        self.assertTrue(is_perfect_repeat)
+        self.assertEqual(result["Chrom"], "chrTest4")
+        self.assertEqual(result["Start1Based"], 7)
+        self.assertEqual(result["End1Based"], 15)
+        self.assertEqual(result["RepeatUnit"], "CAG")
+        self.assertEqual(result["NumRepeatsRef"], 3)
+        self.assertEqual(result["NumRepeatsAlt"], 2)
+        self.assertEqual(result["NumRepeatsLeftFlank"], 1)
+        self.assertEqual(result["NumRepeatsRightFlank"], 1)
+        self.assertEqual(result["FoundBy"], "None:ShorterMotifNotFoundInVariantSequence")
+        self.assertTrue(result["IsPerfectRepeat"])
 
     def test_check_if_variant_is_str5_deletion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
-        (
-            chrom, start_1based, end_1based, repeat_unit, num_repeats_ref, num_repeats_alt,
-            num_repeats_left_flank, num_repeats_right_flank, found_by_TRF, is_perfect_repeat
-        ) = check_if_variant_is_str(
+        result = check_if_variant_is_str(
             self.fasta_obj,
             "chrTest5", 6, "ACGCCGACGCCGCCGCCGC", "A",
             min_str_repeats=3, min_str_length=9,
@@ -237,25 +228,22 @@ class Tests(unittest.TestCase):
             counters=counters,
             use_trf=False)
 
-        self.assertEqual(chrom, "chrTest5")
-        self.assertEqual(start_1based, 7)
-        self.assertEqual(end_1based, 39)
-        self.assertEqual(repeat_unit, "CGC")
-        self.assertEqual(num_repeats_ref, 11)
-        self.assertEqual(num_repeats_alt, 5)
-        self.assertEqual(num_repeats_left_flank, 0)
-        self.assertEqual(num_repeats_right_flank, 5)
-        self.assertFalse(found_by_TRF)
-        self.assertFalse(is_perfect_repeat)
+        self.assertEqual(result["Chrom"], "chrTest5")
+        self.assertEqual(result["Start1Based"], 7)
+        self.assertEqual(result["End1Based"], 39)
+        self.assertEqual(result["RepeatUnit"], "CGC")
+        self.assertEqual(result["NumRepeatsRef"], 11)
+        self.assertEqual(result["NumRepeatsAlt"], 5)
+        self.assertEqual(result["NumRepeatsLeftFlank"], 0)
+        self.assertEqual(result["NumRepeatsRightFlank"], 5)
+        self.assertEqual(result["FoundBy"], "BruteForce")
+        self.assertFalse(result["IsPerfectRepeat"])
 
     def test_check_if_variant_is_str6_insertion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
-        (
-            chrom, start_1based, end_1based, repeat_unit, num_repeats_ref, num_repeats_alt,
-            num_repeats_left_flank, num_repeats_right_flank, found_by_TRF, is_perfect_repeat
-        ) = check_if_variant_is_str(
+        result = check_if_variant_is_str(
             self.fasta_obj,
             "chrTest6", 6, "A", "ACAG",
             min_str_repeats=3, min_str_length=9,
@@ -263,25 +251,22 @@ class Tests(unittest.TestCase):
             counters=counters,
             use_trf=False)
 
-        self.assertEqual(chrom, "chrTest6")
-        self.assertEqual(start_1based, 7)
-        self.assertEqual(end_1based, 30)
-        self.assertEqual(repeat_unit, "CAG")
-        self.assertEqual(num_repeats_ref, 8)
-        self.assertEqual(num_repeats_alt, 9)
-        self.assertEqual(num_repeats_left_flank, 0)
-        self.assertEqual(num_repeats_right_flank, 8)
-        self.assertFalse(found_by_TRF)
-        self.assertTrue(is_perfect_repeat)
+        self.assertEqual(result["Chrom"], "chrTest6")
+        self.assertEqual(result["Start1Based"], 7)
+        self.assertEqual(result["End1Based"], 30)
+        self.assertEqual(result["RepeatUnit"], "CAG")
+        self.assertEqual(result["NumRepeatsRef"], 8)
+        self.assertEqual(result["NumRepeatsAlt"], 9)
+        self.assertEqual(result["NumRepeatsLeftFlank"], 0)
+        self.assertEqual(result["NumRepeatsRightFlank"], 8)
+        self.assertEqual(result["FoundBy"], "None:ShorterMotifNotFoundInVariantSequence")
+        self.assertTrue(result["IsPerfectRepeat"])
 
     def test_check_if_variant_is_str7_insertion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
-        (
-            chrom, start_1based, end_1based, repeat_unit, num_repeats_ref, num_repeats_alt,
-            num_repeats_left_flank, num_repeats_right_flank, found_by_TRF, is_perfect_repeat
-        ) = check_if_variant_is_str(
+        result = check_if_variant_is_str(
             self.fasta_obj,
             "chrTest6", 6, "A", "ACAG",
             min_str_repeats=3, min_str_length=9,
@@ -289,25 +274,22 @@ class Tests(unittest.TestCase):
             counters=counters,
             use_trf=False)
 
-        self.assertEqual(chrom, "chrTest6")
-        self.assertEqual(start_1based, 7)
-        self.assertEqual(end_1based, 30)
-        self.assertEqual(repeat_unit, "CAG")
-        self.assertEqual(num_repeats_ref, 8)
-        self.assertEqual(num_repeats_alt, 9)
-        self.assertEqual(num_repeats_left_flank, 0)
-        self.assertEqual(num_repeats_right_flank, 8)
-        self.assertFalse(found_by_TRF)
-        self.assertTrue(is_perfect_repeat)
+        self.assertEqual(result["Chrom"], "chrTest6")
+        self.assertEqual(result["Start1Based"], 7)
+        self.assertEqual(result["End1Based"], 30)
+        self.assertEqual(result["RepeatUnit"], "CAG")
+        self.assertEqual(result["NumRepeatsRef"], 8)
+        self.assertEqual(result["NumRepeatsAlt"], 9)
+        self.assertEqual(result["NumRepeatsLeftFlank"], 0)
+        self.assertEqual(result["NumRepeatsRightFlank"], 8)
+        self.assertEqual(result["FoundBy"], "None:ShorterMotifNotFoundInVariantSequence")
+        self.assertTrue(result["IsPerfectRepeat"])
 
     def test_check_if_variant_is_str8_insertion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
-        (
-            chrom, start_1based, end_1based, repeat_unit, num_repeats_ref, num_repeats_alt,
-            num_repeats_left_flank, num_repeats_right_flank, found_by_TRF, is_perfect_repeat
-        ) = check_if_variant_is_str(
+        result = check_if_variant_is_str(
             self.fasta_obj,
             "chrTest6", 6, "A", "ACAG",
             min_str_repeats=3, min_str_length=9,
@@ -315,26 +297,23 @@ class Tests(unittest.TestCase):
             counters=counters,
             use_trf=False)
 
-        self.assertEqual(chrom, "chrTest6")
-        self.assertEqual(start_1based, 7)
-        self.assertEqual(end_1based, 30)
-        self.assertEqual(repeat_unit, "CAG")
-        self.assertEqual(num_repeats_ref, 8)
-        self.assertEqual(num_repeats_alt, 9)
-        self.assertEqual(num_repeats_left_flank, 0)
-        self.assertEqual(num_repeats_right_flank, 8)
-        self.assertFalse(found_by_TRF)
-        self.assertTrue(is_perfect_repeat)
+        self.assertEqual(result["Chrom"], "chrTest6")
+        self.assertEqual(result["Start1Based"], 7)
+        self.assertEqual(result["End1Based"], 30)
+        self.assertEqual(result["RepeatUnit"], "CAG")
+        self.assertEqual(result["NumRepeatsRef"], 8)
+        self.assertEqual(result["NumRepeatsAlt"], 9)
+        self.assertEqual(result["NumRepeatsLeftFlank"], 0)
+        self.assertEqual(result["NumRepeatsRightFlank"], 8)
+        self.assertEqual(result["FoundBy"], "None:ShorterMotifNotFoundInVariantSequence")
+        self.assertTrue(result["IsPerfectRepeat"])
 
     def test_check_if_variant_is_str9_insertion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
         # TTTTTCCCCC
-        (
-            chrom, start_1based, end_1based, repeat_unit, num_repeats_ref, num_repeats_alt,
-            num_repeats_left_flank, num_repeats_right_flank, found_by_TRF, is_perfect_repeat
-        ) = check_if_variant_is_str(
+        result = check_if_variant_is_str(
             self.fasta_obj,
             "chrTest7", 6, "C", "CCAGCAGCAG",
             min_str_repeats=3, min_str_length=9,
@@ -342,26 +321,23 @@ class Tests(unittest.TestCase):
             counters=counters,
             use_trf=False)
 
-        self.assertEqual(chrom, "chrTest7")
-        self.assertEqual(start_1based, 7)
-        self.assertEqual(end_1based, 6)
-        self.assertEqual(repeat_unit, "CAG")
-        self.assertEqual(num_repeats_ref, 0)
-        self.assertEqual(num_repeats_alt, 3)
-        self.assertEqual(num_repeats_left_flank, 0)
-        self.assertEqual(num_repeats_right_flank, 0)
-        self.assertFalse(found_by_TRF)
-        self.assertTrue(is_perfect_repeat)
+        self.assertEqual(result["Chrom"], "chrTest7")
+        self.assertEqual(result["Start1Based"], 7)
+        self.assertEqual(result["End1Based"], 6)
+        self.assertEqual(result["RepeatUnit"], "CAG")
+        self.assertEqual(result["NumRepeatsRef"], 0)
+        self.assertEqual(result["NumRepeatsAlt"], 3)
+        self.assertEqual(result["NumRepeatsLeftFlank"], 0)
+        self.assertEqual(result["NumRepeatsRightFlank"], 0)
+        self.assertEqual(result["FoundBy"], "BruteForce")
+        self.assertTrue(result["IsPerfectRepeat"])
 
     def test_check_if_variant_is_str10_insertion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
         # TTTTTCAGCAGCAGCCCCC
-        (
-            chrom, start_1based, end_1based, repeat_unit, num_repeats_ref, num_repeats_alt,
-            num_repeats_left_flank, num_repeats_right_flank, found_by_TRF, is_perfect_repeat
-        ) = check_if_variant_is_str(
+        result = check_if_variant_is_str(
             self.fasta_obj,
             "chrTest8", 5, "TCAGCAGCAG", "T",
             min_str_repeats=3, min_str_length=9,
@@ -369,16 +345,16 @@ class Tests(unittest.TestCase):
             counters=counters,
             use_trf=False)
 
-        self.assertEqual(chrom, "chrTest8")
-        self.assertEqual(start_1based, 6)
-        self.assertEqual(end_1based, 14)
-        self.assertEqual(repeat_unit, "CAG")
-        self.assertEqual(num_repeats_ref, 3)
-        self.assertEqual(num_repeats_alt, 0)
-        self.assertEqual(num_repeats_left_flank, 0)
-        self.assertEqual(num_repeats_right_flank, 0)
-        self.assertFalse(found_by_TRF)
-        self.assertTrue(is_perfect_repeat)
+        self.assertEqual(result["Chrom"], "chrTest8")
+        self.assertEqual(result["Start1Based"], 6)
+        self.assertEqual(result["End1Based"], 14)
+        self.assertEqual(result["RepeatUnit"], "CAG")
+        self.assertEqual(result["NumRepeatsRef"], 3)
+        self.assertEqual(result["NumRepeatsAlt"], 0)
+        self.assertEqual(result["NumRepeatsLeftFlank"], 0)
+        self.assertEqual(result["NumRepeatsRightFlank"], 0)
+        self.assertEqual(result["FoundBy"], "BruteForce")
+        self.assertTrue(result["IsPerfectRepeat"])
 
     def test_extend_repeat_into_sequence(self):
         num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "CAGCAGCAGTTTTTTTTT", 1)

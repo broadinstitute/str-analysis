@@ -200,7 +200,7 @@ def check_if_variant_is_str(
         counters["skipped: 1bp INDEL"] += 1
         return null_result
 
-    found_by = None
+    found_by = "None:ShorterMotifNotFoundInVariantSequence"
     repeat_unit, num_repeats_within_variant_bases = find_repeat_unit(
         variant_bases,
         min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat,
