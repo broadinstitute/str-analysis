@@ -5,7 +5,7 @@ import tempfile
 import unittest
 
 from filter_vcf_to_STR_variants import extend_repeat_into_sequence
-from str_analysis.filter_vcf_to_STR_variants import get_flanking_reference_sequences, check_if_variant_is_str
+from str_analysis.filter_vcf_to_STR_variants import get_flanking_reference_sequences, check_if_allele_is_str
 
 
 class Tests(unittest.TestCase):
@@ -170,11 +170,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(variant_sequence, self.test3_seq2)
         self.assertEqual(right_sequence, self.test3_seq2 + self.test3_seq3)
 
-    def test_check_if_variant_is_str4_insertion(self):
+    def test_check_if_allele_is_str4_insertion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
-        result = check_if_variant_is_str(
+        result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest4", 9, "G", "GCAGCAGCAG",
             min_str_repeats=3, min_str_length=9,
@@ -191,13 +191,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsLeftFlank"], 1)
         self.assertEqual(result["NumRepeatsRightFlank"], 2)
         self.assertEqual(result["FoundBy"], "BruteForce")
-        self.assertTrue(result["IsPerfectRepeat"])
+        self.assertTrue(result["IsPureRepeat"])
 
-    def test_check_if_variant_is_str4_deletion(self):
+    def test_check_if_allele_is_str4_deletion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
-        result = check_if_variant_is_str(
+        result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest4", 9, "GCAG", "G",
             min_str_repeats=3, min_str_length=9,
@@ -213,14 +213,14 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsAlt"], 2)
         self.assertEqual(result["NumRepeatsLeftFlank"], 1)
         self.assertEqual(result["NumRepeatsRightFlank"], 1)
-        self.assertEqual(result["FoundBy"], "None:ShorterMotifNotFoundInVariantSequence")
-        self.assertTrue(result["IsPerfectRepeat"])
+        self.assertEqual(result["FoundBy"], "NoRepeatFoundInThisAllele")
+        self.assertTrue(result["IsPureRepeat"])
 
-    def test_check_if_variant_is_str5_deletion(self):
+    def test_check_if_allele_is_str5_deletion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
-        result = check_if_variant_is_str(
+        result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest5", 6, "ACGCCGACGCCGCCGCCGC", "A",
             min_str_repeats=3, min_str_length=9,
@@ -237,13 +237,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 5)
         self.assertEqual(result["FoundBy"], "BruteForce")
-        self.assertFalse(result["IsPerfectRepeat"])
+        self.assertFalse(result["IsPureRepeat"])
 
-    def test_check_if_variant_is_str6_insertion(self):
+    def test_check_if_allele_is_str6_insertion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
-        result = check_if_variant_is_str(
+        result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest6", 6, "A", "ACAG",
             min_str_repeats=3, min_str_length=9,
@@ -259,14 +259,14 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsAlt"], 9)
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 8)
-        self.assertEqual(result["FoundBy"], "None:ShorterMotifNotFoundInVariantSequence")
-        self.assertTrue(result["IsPerfectRepeat"])
+        self.assertEqual(result["FoundBy"], "NoRepeatFoundInThisAllele")
+        self.assertTrue(result["IsPureRepeat"])
 
-    def test_check_if_variant_is_str7_insertion(self):
+    def test_check_if_allele_is_str7_insertion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
-        result = check_if_variant_is_str(
+        result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest6", 6, "A", "ACAG",
             min_str_repeats=3, min_str_length=9,
@@ -282,14 +282,14 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsAlt"], 9)
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 8)
-        self.assertEqual(result["FoundBy"], "None:ShorterMotifNotFoundInVariantSequence")
-        self.assertTrue(result["IsPerfectRepeat"])
+        self.assertEqual(result["FoundBy"], "NoRepeatFoundInThisAllele")
+        self.assertTrue(result["IsPureRepeat"])
 
-    def test_check_if_variant_is_str8_insertion(self):
+    def test_check_if_allele_is_str8_insertion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
-        result = check_if_variant_is_str(
+        result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest6", 6, "A", "ACAG",
             min_str_repeats=3, min_str_length=9,
@@ -305,15 +305,15 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsAlt"], 9)
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 8)
-        self.assertEqual(result["FoundBy"], "None:ShorterMotifNotFoundInVariantSequence")
-        self.assertTrue(result["IsPerfectRepeat"])
+        self.assertEqual(result["FoundBy"], "NoRepeatFoundInThisAllele")
+        self.assertTrue(result["IsPureRepeat"])
 
-    def test_check_if_variant_is_str9_insertion(self):
+    def test_check_if_allele_is_str9_insertion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
         # TTTTTCCCCC
-        result = check_if_variant_is_str(
+        result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest7", 6, "C", "CCAGCAGCAG",
             min_str_repeats=3, min_str_length=9,
@@ -330,14 +330,14 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 0)
         self.assertEqual(result["FoundBy"], "BruteForce")
-        self.assertTrue(result["IsPerfectRepeat"])
+        self.assertTrue(result["IsPureRepeat"])
 
-    def test_check_if_variant_is_str10_insertion(self):
+    def test_check_if_allele_is_str10_insertion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
 
         # TTTTTCAGCAGCAGCCCCC
-        result = check_if_variant_is_str(
+        result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest8", 5, "TCAGCAGCAG", "T",
             min_str_repeats=3, min_str_length=9,
@@ -354,7 +354,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 0)
         self.assertEqual(result["FoundBy"], "BruteForce")
-        self.assertTrue(result["IsPerfectRepeat"])
+        self.assertTrue(result["IsPureRepeat"])
 
     def test_extend_repeat_into_sequence(self):
         num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "CAGCAGCAGTTTTTTTTT", 1)
