@@ -519,11 +519,11 @@ def main():
             else:
                 alt_STR_allele_specs.append(None)
 
-        if all(a is None for a in alt_STR_allele_specs):
+        if all(allele_spec is None for allele_spec in alt_STR_allele_specs):
             counters[f"skipped variant: no repeat units found in variant"] += 1
             continue
 
-        if any(a is None for a in alt_STR_allele_specs):
+        if any(allele_spec is None for allele_spec in alt_STR_allele_specs):
             counters[f"skipped variant: mixed STR/non-STR multi-allelic variant"] += 1
             continue
 
@@ -654,7 +654,9 @@ def main():
         tokens = key.split(":")
         key_prefixes.add(f"{tokens[0]}:")
 
-    for key_prefix in key_prefixes:
+    for key_prefix in sorted(key_prefixes):
+        if key_prefix in ("variant counts:", "allele counts:"):
+            continue
         current_counter = [(key, count) for key, count in counters.items() if key.startswith(key_prefix)]
         current_counter = sorted(current_counter, key=lambda x: (-x[1], x[0]))
         logger.info("--------------")
