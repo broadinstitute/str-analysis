@@ -41,7 +41,6 @@ COMMON_TSV_OUTPUT_COLUMNS = [
     "VcfAlt",
     "VcfGenotype",
     "SummaryString",
-    "FoundBy",
     "IsFoundInReference",
     "IsPureRepeat",
     "IsMultiallelic",
@@ -221,7 +220,7 @@ def check_if_allele_is_str(
         counters[f"non-STR allele: 1bp {ins_or_del}"] += 1
         return null_result
 
-    found_by = "NoRepeatFoundInThisAllele"
+    found_by = "NoRepeatFoundInVariantBases"
     repeat_unit, num_repeats_within_variant_bases = find_repeat_unit(
         variant_bases,
         min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat,
@@ -311,8 +310,7 @@ def check_if_allele_is_str(
         "NumRepeatsLeftFlank": num_repeats_left_flank,
         "NumRepeatsRightFlank": num_repeats_right_flank,
         "NumRepeatsInVariant": num_repeats_within_variant_bases,
-        "FoundBy": found_by,
-        "IsPureRepeat": is_perfect_repeat,
+        "IsPureRepeat": "Yes" if is_perfect_repeat else "No",
     }
 
     # pprint(result)
@@ -551,8 +549,6 @@ def main():
 
         variant_ins_or_del, variant_summary_string = compute_summary_string(alt_STR_allele_specs)
 
-        found_by = ",".join(sorted(set([spec["FoundBy"] for spec in alt_STR_allele_specs])))
-
         try:
             num_repeats_in_allele1 = get_num_repeats_in_allele(alt_STR_allele_specs, vcf_genotype_indices[0])
             num_repeats_in_allele2 = get_num_repeats_in_allele(alt_STR_allele_specs, vcf_genotype_indices[1])
@@ -598,10 +594,9 @@ def main():
             "VcfPos": row.POS,
             "VcfRef": ref,
             "VcfGenotype": vcf_genotype,
-            "FoundBy": found_by,
             "HET_or_HOM": het_or_hom,
-            "IsMultiallelic": len(alt_alleles) > 1,
-            "IsFoundInReference": "Reference" if any(found_in_reference(spec) for spec in alt_STR_allele_specs) else "DeNovo",
+            "IsMultiallelic": "Yes" if len(alt_alleles) > 1 else "No",
+            "IsFoundInReference": "Yes" if any(found_in_reference(spec) for spec in alt_STR_allele_specs) else "No",
         }
 
         if variant_short_allele_size < 0 or variant_long_allele_size < 0:
@@ -621,7 +616,7 @@ def main():
             "Start1Based": variant_locus_start_1based,
             "End1Based": variant_locus_end_1based,
             "Locus": f"{row.CHROM}:{variant_locus_start_1based}-{variant_locus_end_1based}",
-            "LocusId": f"{row.CHROM}:{variant_locus_start_1based - 1}-variant_{variant_locus_end_1based}-{repeat_unit}",
+            "LocusId": f"{row.CHROM}-{variant_locus_start_1based - 1}-{variant_locus_end_1based}-{repeat_unit}",
             "NumRepeatsInReference": (variant_locus_end_1based - variant_locus_start_1based + 1)/len(repeat_unit),
         })
         variants_tsv_writer.write("\t".join([str(variant_tsv_record[c]) for c in VARIANT_TSV_OUTPUT_COLUMNS]) + "\n")
@@ -643,7 +638,7 @@ def main():
                 "Start1Based": allele_locus_start_1based,
                 "End1Based": allele_locus_end_1based,
                 "Locus": f"{row.CHROM}:{allele_locus_start_1based}-{allele_locus_end_1based}",
-                "LocusId": f"{row.CHROM}:{allele_locus_start_1based - 1}-allele_{allele_locus_end_1based}-{repeat_unit}",
+                "LocusId": f"{row.CHROM}-{allele_locus_start_1based - 1}-{allele_locus_end_1based}-{repeat_unit}",
                 "NumRepeatsInReference": (allele_locus_end_1based - allele_locus_start_1based + 1)/len(repeat_unit),
             })
             alleles_tsv_writer.write("\t".join([str(allele_tsv_record[c]) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
@@ -682,7 +677,6 @@ def main():
 
     os.system(f"bgzip -f {args.output_prefix}.vcf")
     os.system(f"tabix -f {args.output_prefix}.vcf.gz")
-
 
     if args.write_bed_file:
         output_bed_path = f"{args.output_prefix}.variants.bed"
