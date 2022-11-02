@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import unittest
 
-from utils.dat_utils import parse_dat_file
+from str_analysis.utils.dat_utils import parse_dat_file
 
 
 class TRFRunner:
