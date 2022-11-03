@@ -1,5 +1,5 @@
 import os
-from utils.trf_runner import TRFRunner
+from str_analysis.utils.trf_runner import TRFRunner
 
 
 # TODO add docs
