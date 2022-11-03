@@ -515,17 +515,23 @@ def main():
             if str_spec["RepeatUnit"] is not None:
                 alt_STR_allele_specs.append(str_spec)
             else:
+                # append None to indicate this is not an STR allele
                 alt_STR_allele_specs.append(None)
 
         if all(allele_spec is None for allele_spec in alt_STR_allele_specs):
             counters[f"skipped variant: no repeat units found in variant"] += 1
             continue
 
-        if any(allele_spec is None for allele_spec in alt_STR_allele_specs):
+        if len(alt_STR_allele_specs) > 1 and any(allele_spec is None for allele_spec in alt_STR_allele_specs):
+            # this truth set is intended for benchmarking downstream tools that only call STR variants, so
+            # multiallelics with, for example, one SNV allele and one STR allele will cause problems downstream.
+            # There are very few of these, so just discard them.
             counters[f"skipped variant: mixed STR/non-STR multi-allelic variant"] += 1
             continue
 
         if len(alt_STR_allele_specs) > 1 and is_homozygous:
+            # since these variants are from a single diploid sample, a homozygous genotype and multiple alleles are
+            # an error of some sort.
             raise ValueError(f"Multi-allelic variant is homozygous in row #{row_i + 1}: {vcf_genotype} ({ref} {alt_alleles})")
 
         # check fields that should be the same for both STR alleles in a multi-allelic STR variant
@@ -543,7 +549,11 @@ def main():
             if skip_this_variant:
                 continue
 
+        # look up the repeat unit
         repeat_unit = alt_STR_allele_specs[0]["RepeatUnit"]
+
+        # multiallelic STRs will have different lengths, and so each allele may have its own start or end coordinate
+        # For the variant-level record, use the outer boundaries of the 2 alleles as the locus coordinates.
         variant_locus_start_1based = min(spec["Start1Based"] for spec in alt_STR_allele_specs)
         variant_locus_end_1based = max(spec["End1Based"] for spec in alt_STR_allele_specs)
 
