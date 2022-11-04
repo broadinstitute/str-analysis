@@ -624,12 +624,13 @@ def main():
             raise ValueError(f"Short or long allele size is < 0: "
                              f"{variant_short_allele_size}, {variant_long_allele_size}  {pformat(tsv_record)}")
 
+        is_pure_repeat_variant = all(spec["IsPureRepeat"] for spec in alt_STR_allele_specs)
         variant_tsv_record = dict(tsv_record)
         variant_tsv_record.update({
             "VcfAlt": ",".join(alt_alleles),
             "INS_or_DEL": variant_ins_or_del,
             "SummaryString": variant_summary_string,
-            "IsPureRepeat": all(spec["IsPureRepeat"] for spec in alt_STR_allele_specs),
+            "IsPureRepeat": "Yes" if is_pure_repeat_variant else "No",
             "NumRepeatsShortAllele": variant_short_allele_size,
             "NumRepeatsLongAllele": variant_long_allele_size,
             "RepeatSizeShortAllele (bp)": variant_short_allele_size * len(repeat_unit),
