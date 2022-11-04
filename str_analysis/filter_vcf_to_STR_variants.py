@@ -14,7 +14,6 @@ import re
 import tqdm
 
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
-from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.find_repeat_unit import find_repeat_unit_using_trf, find_repeat_unit
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
@@ -63,7 +62,7 @@ def parse_args():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     p.add_argument("-R", "--reference-fasta-path", help="Reference genome fasta path.", required=True)
-    p.add_argument("--min-fraction-of-variant-covered-by-repeat", type=float, default=0.90, help="Fraction of inserted "
+    p.add_argument("--min-fraction-of-variant-covered-by-repeat", type=float, default=1, help="Fraction of inserted "
                    "or deleted bases that must be covered by repeats. Setting this to 1 will require perfect repeats.")
     p.add_argument("--min-str-length", type=int, default=9, help="Minimum STR length in base pairs. This threshold "
                    "applies to the total repeat length comprising any repeats in the flanking sequence to the left "
@@ -233,7 +232,7 @@ def check_if_allele_is_str(
         # see if we can find a repeat by reversing the sequence
         repeat_unit, num_repeats_within_variant_bases = find_repeat_unit(
             variant_bases[::-1],
-            min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat,
+            min_fraction_covered_by_repeat=1,
             allow_indel_interruptions=False,
         )
         repeat_unit = repeat_unit[::-1]
@@ -244,7 +243,7 @@ def check_if_allele_is_str(
         # run TRF to find repeats
         repeat_unit, num_repeats_within_variant_bases = find_repeat_unit_using_trf(
             variant_bases,
-            min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat,
+            min_fraction_covered_by_repeat=1,
             trf_path=trf_path,
         )
         if num_repeats_within_variant_bases > 1:
