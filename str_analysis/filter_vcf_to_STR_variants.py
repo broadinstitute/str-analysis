@@ -5,13 +5,13 @@ is a short tandem repeat (STR).
 
 import argparse
 import collections
+import gzip
 import logging
 import os
 from pprint import pformat
 import pyfaidx
 import re
 import tqdm
-import vcf
 
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from str_analysis.utils.misc_utils import parse_interval
@@ -383,8 +383,15 @@ def get_num_repeats_in_allele(alt_STR_allele_specs, genotype_index):
     return alt_STR_allele_specs[genotype_index - 1]["NumRepeatsAlt"]
 
 
-def compute_summary_string(alt_STR_allele_specs):
-    """Returns a short easy-to-read string summarizing the STR variant"""
+def compute_variant_summary_string(alt_STR_allele_specs, het_or_hom):
+    """Returns a short easy-to-read string summarizing the STR variant.
+
+    Args:
+        alt_STR_allele_specs (list): list of 1 or more allele spec dictionaries
+        het_or_hom (str): describes the genotype as "HET" or "HOM"
+    Return:
+        str: short summary of the variant
+    """
 
     repeat_unit = alt_STR_allele_specs[0]["RepeatUnit"]
     summary_string = "RU{}:{}:".format(len(repeat_unit), repeat_unit)
@@ -411,8 +418,9 @@ def main():
         args.output_prefix = re.sub(".vcf(.gz)?", "", os.path.basename(args.input_vcf_path)) + ".STRs"
 
     # create the input VCF reader and open output files for writing
-    vcf_reader = vcf.VCFReader(filename=args.input_vcf_path, encoding="UTF-8")
-    vcf_writer = vcf.VCFWriter(open(f"{args.output_prefix}.vcf", "w"), vcf_reader)
+    fopen = gzip.open if args.input_vcf_path.endswith("gz") else open
+    vcf_reader = fopen(args.input_vcf_path, "rt")
+    vcf_writer = open(f"{args.output_prefix}.vcf", "wt")
 
     variants_bed_records = set()
     variants_tsv_writer = open(f"{args.output_prefix}.variants.tsv", "wt")
@@ -420,16 +428,7 @@ def main():
     alleles_tsv_writer = open(f"{args.output_prefix}.alleles.tsv", "wt")
     alleles_tsv_writer.write("\t".join(ALLELE_TSV_OUTPUT_COLUMNS) + "\n")
 
-    if args.interval:
-        vcf_iterator = []
-        for interval in args.interval:
-            vcf_iterator.extend(vcf_reader.fetch(*parse_interval(interval)))
-    else:
-        vcf_iterator = vcf_reader
-
-    if len(vcf_reader.samples) != 1:
-        raise ValueError(f"{args.input_vcf_path} contains {len(vcf_reader.samples)} samples. This script only supports single-sample VCFs.")
-
+    vcf_iterator = vcf_reader
     if args.show_progress_bar:
         vcf_iterator = tqdm.tqdm(vcf_iterator, unit=" rows")
 
@@ -438,33 +437,54 @@ def main():
 
     # iterate over all VCF rows
     counters = collections.defaultdict(int)
-    for row_i, row in enumerate(vcf_iterator):
+    row_i = 0
+    for line in vcf_iterator:
+        if line.startswith("##"):
+            # copy the VCF header to the output
+            vcf_writer.write(line)
+            continue
+
+        vcf_fields = line.strip().split("\t")
+
+        if line.startswith("#"):
+            # process the last line of the VCF header
+            vcf_writer.write(line)
+            sample_ids = vcf_fields[9:]
+            if len(sample_ids) != 1:
+                raise ValueError(f"{args.input_vcf_path} contains {len(sample_ids)} samples, but this script only supports single-sample VCFs.")
+            continue
 
         if args.n is not None and row_i >= args.n:
             break
+        row_i += 1
 
         # parse the ALT allele(s)
-        if row.ALT is None or row.ALT[0] is None:
-            print(f"No ALT allele found in line {pformat(row.to_dict())}")
+        vcf_chrom = vcf_fields[0]
+        vcf_pos = int(vcf_fields[1])
+        vcf_ref = vcf_fields[3]
+        vcf_alt = vcf_fields[4]
+        if not vcf_alt:
+            print(f"No ALT allele found in line {vcf_fields}")
             counters[f"ERROR: no alt allele in VCF row"] += 1
             continue
 
-        ref = str(row.REF)
-        alt_alleles = [str(a) for a in row.ALT]
-        variant_id = f"{row.CHROM}-{row.POS}-{ref}-" + ",".join(alt_alleles)
+        variant_id = f"{vcf_chrom}-{vcf_pos}-{vcf_ref}-{vcf_alt}"
 
+        alt_alleles = vcf_alt.split(",")
         if len(alt_alleles) > 2:
-            print(f"WARNING: Multi-allelic variant with {len(row.ALT)} alt alleles found: row #{row_i + 1}: {variant_id}. " 
+            print(f"WARNING: Multi-allelic variant with {len(alt_alleles)} alt alleles found: row #{row_i + 1}: {variant_id}. " 
                   "This script doesn't support more than 2 alt alleles. Skipping...")
-            counters[f"WARNING: multi-allelic variant with {len(row.ALT)} alt alleles"] += 1
+            counters[f"WARNING: multi-allelic variant with {len(alt_alleles)} alt alleles"] += 1
             continue
 
         # parse the genotype
-        vcf_genotype = row.genotype(row.samples[0].sample)
-        vcf_genotype = vcf_genotype.data[0]
+        vcf_genotype_format = vcf_fields[8].split(":")
+        if vcf_genotype_format[0] != "GT":
+            raise ValueError(f"Unexpected genotype field in row #{row_i + 1}: {vcf_fields[8]}  (variant: {variant_id})")
+        vcf_genotype = next(iter(vcf_fields[9].split(":")))
         vcf_genotype_indices = re.split(r"[/|\\]", vcf_genotype)
         if len(vcf_genotype_indices) != 2 or any(not gi.isdigit() for gi in vcf_genotype_indices):
-            raise ValueError(f"Unexpected genotype format in row #{row_i + 1}: {variant_id} {vcf_genotype}")
+            raise ValueError(f"Unexpected genotype GT format in row #{row_i + 1}: {vcf_genotype}  (variant: {variant_id})")
 
         vcf_genotype_indices = [int(gi) for gi in vcf_genotype_indices]
 
@@ -498,13 +518,13 @@ def main():
         # check whether the allele(s) are STRs
         alt_STR_allele_specs = []
         for current_alt in alt_alleles:
-            if set(current_alt) - {"A", "C", "G", "T", "N"}:
+            if set(current_alt) - set("ACGTN"):
                 raise ValueError(f"Invalid bases in ALT allele: {current_alt}  in row #{row_i + 1}: {variant_id}")
 
             counters["allele counts: TOTAL alleles"] += 1
 
             str_spec = check_if_allele_is_str(
-                fasta_obj, row.CHROM, row.POS, ref, current_alt,
+                fasta_obj, vcf_chrom, vcf_pos, vcf_ref, current_alt,
                 min_str_repeats=args.min_str_repeats,
                 min_str_length=args.min_str_length,
                 min_fraction_of_variant_covered_by_repeat=args.min_fraction_of_variant_covered_by_repeat,
@@ -542,7 +562,7 @@ def main():
                 if alt_STR_allele_specs[0][field] != alt_STR_allele_specs[1][field]:
                     print(f"WARNING: Multi-allelic STR {variant_ins_or_del} {variant_summary_string} has "
                           f"alleles with different " + re.sub(r'(?<!^)(?=[A-Z])', '_', field).lower() + "s:",
-                          alt_STR_allele_specs[0][field], ",", alt_STR_allele_specs[1][field], ". Skipping...")
+                          alt_STR_allele_specs[0][field] + ", " + alt_STR_allele_specs[1][field] + "   Skipping...")
                     counters[f"skipped variant: multi-allelic with different {field}s"] += 1
                     skip_this_variant = True
                     break
@@ -558,52 +578,42 @@ def main():
         variant_locus_start_1based = min(spec["Start1Based"] for spec in alt_STR_allele_specs)
         variant_locus_end_1based = max(spec["End1Based"] for spec in alt_STR_allele_specs)
 
-        variant_ins_or_del, variant_summary_string = compute_summary_string(alt_STR_allele_specs)
+        variant_ins_or_del, variant_summary_string = compute_variant_summary_string(alt_STR_allele_specs, het_or_hom)
 
         try:
             num_repeats_in_allele1 = get_num_repeats_in_allele(alt_STR_allele_specs, vcf_genotype_indices[0])
             num_repeats_in_allele2 = get_num_repeats_in_allele(alt_STR_allele_specs, vcf_genotype_indices[1])
         except Exception as e:
-            raise ValueError(f"{e} {ref} {alt_alleles} {vcf_genotype}")
+            raise ValueError(f"{e} {vcf_ref} {alt_alleles} {vcf_genotype}")
 
         variant_short_allele_size = min(num_repeats_in_allele1, num_repeats_in_allele2)
         variant_long_allele_size  = max(num_repeats_in_allele1, num_repeats_in_allele2)
 
         counters["STR variant counts: TOTAL"] += 1
 
-        # add info about the repeat to both the ID and the INFO field for convenience & IGV
-        new_INFO = dict(row.INFO)
-        new_INFO.update({
-            "Motif": repeat_unit,
-            "NumRepeats1": num_repeats_in_allele1,
-            "NumRepeats2": num_repeats_in_allele2,
-        })
-        record = vcf.model._Record(
-            row.CHROM,
-            row.POS,
-            variant_summary_string,
-            row.REF,
-            row.ALT,
-            row.QUAL,
-            row.FILTER,
-            new_INFO,
-            row.FORMAT,
-            sample_indexes={c.sample: c for c in row.samples},
-            samples=row.samples)
-
-        vcf_writer.write_record(record)
+        # output the vcf record
+        INFO_field = ";".join([
+            f"Motif={repeat_unit}",
+            f"NumRepeats1={num_repeats_in_allele1}",
+            f"NumRepeats2={num_repeats_in_allele2}",
+        ])
+        vcf_fields[2] = variant_summary_string
+        vcf_fields[4] = ",".join(alt_alleles)
+        vcf_fields[7] = INFO_field
+        vcf_fields[9] = vcf_genotype
+        vcf_writer.write("\t".join(vcf_fields) + "\n")
 
         # write results to TSVs
         if len(alt_alleles) > 1:
             counters[f"STR variant counts: multi-allelic"] += 1
 
         tsv_record = {
-            "Chrom": row.CHROM,
+            "Chrom": vcf_chrom,
             "Motif": repeat_unit,
             "CanonicalMotif": compute_canonical_motif(repeat_unit, include_reverse_complement=True),
             "MotifSize": len(repeat_unit),
-            "VcfPos": row.POS,
-            "VcfRef": ref,
+            "VcfPos": vcf_pos,
+            "VcfRef": vcf_ref,
             "VcfGenotype": vcf_genotype,
             "HET_or_HOM": het_or_hom,
             "IsMultiallelic": "Yes" if len(alt_alleles) > 1 else "No",
@@ -626,17 +636,17 @@ def main():
             "RepeatSizeLongAllele (bp)": variant_long_allele_size * len(repeat_unit),
             "Start1Based": variant_locus_start_1based,
             "End1Based": variant_locus_end_1based,
-            "Locus": f"{row.CHROM}:{variant_locus_start_1based}-{variant_locus_end_1based}",
-            "LocusId": f"{row.CHROM}-{variant_locus_start_1based - 1}-{variant_locus_end_1based}-{repeat_unit}",
+            "Locus": f"{vcf_chrom}:{variant_locus_start_1based}-{variant_locus_end_1based}",
+            "LocusId": f"{vcf_chrom}-{variant_locus_start_1based - 1}-{variant_locus_end_1based}-{repeat_unit}",
             "NumRepeatsInReference": (variant_locus_end_1based - variant_locus_start_1based + 1)/len(repeat_unit),
         })
         variants_tsv_writer.write("\t".join([str(variant_tsv_record[c]) for c in VARIANT_TSV_OUTPUT_COLUMNS]) + "\n")
         variants_bed_records.add(
-            (row.CHROM, variant_locus_start_1based - 1, variant_locus_end_1based, variant_summary_string))
+            (vcf_chrom, variant_locus_start_1based - 1, variant_locus_end_1based, variant_summary_string))
 
         for alt_allele, alt_STR_allele_spec in zip(alt_alleles, alt_STR_allele_specs):
             allele_tsv_record = dict(tsv_record)
-            ins_or_del, summary_string = compute_summary_string([alt_STR_allele_spec])
+            ins_or_del, summary_string = compute_variant_summary_string([alt_STR_allele_spec], het_or_hom)
             allele_locus_start_1based = alt_STR_allele_spec['Start1Based']
             allele_locus_end_1based = alt_STR_allele_spec['End1Based']
             allele_tsv_record.update({
@@ -648,8 +658,8 @@ def main():
                 "RepeatSize (bp)": alt_STR_allele_spec["NumRepeatsAlt"] * len(repeat_unit),
                 "Start1Based": allele_locus_start_1based,
                 "End1Based": allele_locus_end_1based,
-                "Locus": f"{row.CHROM}:{allele_locus_start_1based}-{allele_locus_end_1based}",
-                "LocusId": f"{row.CHROM}-{allele_locus_start_1based - 1}-{allele_locus_end_1based}-{repeat_unit}",
+                "Locus": f"{vcf_chrom}:{allele_locus_start_1based}-{allele_locus_end_1based}",
+                "LocusId": f"{vcf_chrom}-{allele_locus_start_1based - 1}-{allele_locus_end_1based}-{repeat_unit}",
                 "NumRepeatsInReference": (allele_locus_end_1based - allele_locus_start_1based + 1)/len(repeat_unit),
             })
             alleles_tsv_writer.write("\t".join([str(allele_tsv_record[c]) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
