@@ -124,8 +124,8 @@ def get_flanking_reference_sequences(fasta_obj, chrom, pos, ref, alt, num_flanki
         right_flank_start_1based += len(variant_bases)
         right_flank_end = min(right_flank_end + len(variant_bases), len(fasta_obj[chrom]))
 
-    left_flanking_reference_sequence = fasta_obj[chrom][left_flank_start_1based : left_flank_end]
-    right_flanking_reference_sequence = fasta_obj[chrom][right_flank_start_1based : right_flank_end]
+    left_flanking_reference_sequence = str(fasta_obj[chrom][left_flank_start_1based : left_flank_end]).upper()
+    right_flanking_reference_sequence = str(fasta_obj[chrom][right_flank_start_1based : right_flank_end]).upper()
 
     return left_flanking_reference_sequence, variant_bases, right_flanking_reference_sequence
 
@@ -481,6 +481,7 @@ def main():
         # if this variant has 1 regular allele and 1 "*" allele (which represents an overlapping deletion), discard the
         # "*" allele and recode the genotype as homozygous
         if len(alt_alleles) == 2 and alt_alleles[1] == "*":
+            #counters["variant counts: removed * allele and converted to homozygous genotype"] += 1
             alt_alleles = [alt_alleles[0]]
             vcf_genotype_indices = [1,1]
             vcf_genotype_separator = "|" if "|" in vcf_genotype else ("\\" if "\\" in vcf_genotype else "/")
