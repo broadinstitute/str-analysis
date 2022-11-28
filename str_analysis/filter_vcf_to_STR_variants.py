@@ -406,6 +406,7 @@ def compute_variant_summary_string(alt_STR_allele_specs, het_or_hom):
     summary_string += str(alt_STR_allele_specs[i]["NumRepeatsRef"]) + "=>" + ",".join([
         str(alt_STR_allele_specs[i]["NumRepeatsAlt"]) for i in range(0, len(alt_STR_allele_specs))
     ])
+    summary_string += ":" + het_or_hom
 
     return ":".join(ins_or_del), summary_string
 
@@ -552,7 +553,7 @@ def main():
         if len(alt_STR_allele_specs) > 1 and is_homozygous:
             # since these variants are from a single diploid sample, a homozygous genotype and multiple alleles are
             # an error of some sort.
-            raise ValueError(f"Multi-allelic variant is homozygous in row #{row_i + 1}: {vcf_genotype} ({ref} {alt_alleles})")
+            raise ValueError(f"Multi-allelic variant is homozygous in row #{row_i + 1}: {vcf_genotype} ({vcf_ref} {alt_alleles})")
 
         # check fields that should be the same for both STR alleles in a multi-allelic STR variant
         if len(alt_STR_allele_specs) > 1:
@@ -577,7 +578,9 @@ def main():
         variant_locus_start_1based = min(spec["Start1Based"] for spec in alt_STR_allele_specs)
         variant_locus_end_1based = max(spec["End1Based"] for spec in alt_STR_allele_specs)
 
-        variant_ins_or_del, variant_summary_string = compute_variant_summary_string(alt_STR_allele_specs, het_or_hom)
+        is_multiallelic = len(alt_STR_allele_specs) > 1
+        variant_ins_or_del, variant_summary_string = compute_variant_summary_string(
+            alt_STR_allele_specs, "MULTI" if is_multiallelic else het_or_hom)
 
         try:
             num_repeats_in_allele1 = get_num_repeats_in_allele(alt_STR_allele_specs, vcf_genotype_indices[0])
