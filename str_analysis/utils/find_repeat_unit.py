@@ -5,6 +5,7 @@ from str_analysis.utils.trf_runner import TRFRunner
 ALL_ALLOWED_BASES = {"A", "C", "G", "T"}
 COMPILED_REGEX_CACHE = {}
 
+DEFAULT_MIN_INTERRUPTED_REPEAT_UNIT_LENGTH = 3
 DEFAULT_MAX_INTERRUPTED_REPEAT_UNIT_LENGTH = 24
 
 
@@ -42,6 +43,7 @@ def get_repeat_unit_regex_with_N_base(repeat_unit, i, allow_homopolymer=True):
 def find_repeat_unit(
     sequence,
     allow_interruptions=False,
+    min_interrupted_repeat_unit_length=DEFAULT_MIN_INTERRUPTED_REPEAT_UNIT_LENGTH,
     max_interrupted_repeat_unit_length=DEFAULT_MAX_INTERRUPTED_REPEAT_UNIT_LENGTH,
     allow_partial_repeats=False,
 ):
@@ -55,6 +57,8 @@ def find_repeat_unit(
     Args:
         sequence (str): nucleotide sequence
         allow_interruptions (bool): Whether to allow interruptions in the repeat sequence.
+        min_interrupted_repeat_unit_length (int): Interruptions will not be allowed in motifs shorter than this threshold.
+            This avoids degenerate repeat sequences with messy interrupted  homopolymer or dinucleotide motifs.
         max_interrupted_repeat_unit_length (int): Interruptions will not be allowed in motifs longer than this threshold.
             Allowing for interruptions increases compute time proportional to motif length, so this threshold is
             necessary to prevent the method from running too slowly.
@@ -86,7 +90,7 @@ def find_repeat_unit(
 
     # pure repeat not found, so check for repeats with interruptions
     if allow_interruptions:
-        repeat_unit_length = 3
+        repeat_unit_length = min_interrupted_repeat_unit_length
         while repeat_unit_length <= len(sequence)/2:
             repeat_unit = sequence[:repeat_unit_length]
 
@@ -126,6 +130,7 @@ def extend_repeat_into_sequence(
         repeat_unit, 
         sequence,
         allow_interruptions=False,
+        min_interrupted_repeat_unit_length=DEFAULT_MIN_INTERRUPTED_REPEAT_UNIT_LENGTH,
         max_interrupted_repeat_unit_length=DEFAULT_MAX_INTERRUPTED_REPEAT_UNIT_LENGTH,
         repeat_unit_interruption_index=None,
 ):
@@ -139,6 +144,8 @@ def extend_repeat_into_sequence(
             before switching to random other sequence or repeats of a different repeat unit.
             For example: "CAGCAGCAGCTAGTGCAGTGACAGT"
         allow_interruptions (bool): Whether to allow interruptions in the repeat sequence.
+        min_interrupted_repeat_unit_length (int): Interruptions will not be allowed in motifs shorter than this threshold.
+            This avoids degenerate repeat sequences with messy interrupted  homopolymer or dinucleotide motifs.
         max_interrupted_repeat_unit_length (int): Interruptions will not be allowed in motifs longer than this threshold.
             Allowing for interruptions increases compute time proportional to motif length, so this threshold is
             necessary to avoid very slow compute times.
@@ -167,7 +174,7 @@ def extend_repeat_into_sequence(
     # extend allowing for interruptions
     if allow_interruptions:
         if repeat_unit_interruption_index is None:
-            if len(repeat_unit) < 3 or len(repeat_unit) > max_interrupted_repeat_unit_length:
+            if len(repeat_unit) < min_interrupted_repeat_unit_length or len(repeat_unit) > max_interrupted_repeat_unit_length:
                 return num_pure_repeats, num_pure_repeats, repeat_unit_interruption_index
     
             repeat_unit_interruption_indices_list = range(len(repeat_unit))
