@@ -8,13 +8,13 @@ import collections
 import gzip
 import logging
 import os
-from pprint import pformat
+from pprint import pformat, pprint
 import pyfaidx
 import re
 import tqdm
 
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
-from str_analysis.utils.find_repeat_unit import find_repeat_unit_using_trf, find_repeat_unit
+from str_analysis.utils.find_repeat_unit import find_repeat_unit, extend_repeat_into_sequence
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
@@ -55,6 +55,8 @@ VARIANT_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
 ALLELE_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
     "NumRepeats",
     "RepeatSize (bp)",
+    "FractionPureRepeats",
+    "RepeatUnitInterruptionIndex",
 ]
 
 
@@ -62,16 +64,13 @@ def parse_args():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     p.add_argument("-R", "--reference-fasta-path", help="Reference genome fasta path.", required=True)
-    p.add_argument("--min-fraction-of-variant-covered-by-repeat", type=float, default=1, help="Fraction of inserted "
-                   "or deleted bases that must be covered by repeats. Setting this to 1 will require perfect repeats.")
     p.add_argument("--min-str-length", type=int, default=9, help="Minimum STR length in base pairs. This threshold "
                    "applies to the total repeat length comprising any repeats in the flanking sequence to the left "
                    "and right of the variant + in the inserted or deleted bases themselves")
     p.add_argument("--min-str-repeats", type=int, default=3, help="Minimum STR size in number of repeats. This "
                    "threshold applies to the total repeat length comprising any repeats in the flanking sequence to "
                    "the left and right of the variant + in the inserted or deleted bases themselves")
-    p.add_argument("--use-trf", action="store_true", help="Use TandemRepeatFinder to look for repeats in the variant sequence")
-    p.add_argument("--trf-path", help="TandemRepeatFinder executable path", default="~/bin/trf409.macosx")
+    p.add_argument("--allow-interruptions", help="Whether to allow interruptions in the repeat sequence.", action="store_true")
     p.add_argument("--show-progress-bar", help="Show a progress bar in the terminal when processing variants.", action="store_true")
     p.add_argument("-n", type=int, help="Only process the first N rows of the VCF. Useful for testing.")
     p.add_argument("-o", "--output-prefix", help="Output vcf prefix. If not specified, it will be computed based on "
@@ -81,7 +80,16 @@ def parse_args():
     p.add_argument("-L", "--interval", help="Only process variants in this genomic interval (format: chrN:start-end)", action="append")
     p.add_argument("input_vcf_path")
 
-    return p.parse_args()
+    args = p.parse_args()
+
+    if not args.allow_interruptions:
+        # drop some output columns
+        for column in "FractionPureRepeats", "RepeatUnitInterruptionIndex", "IsPureRepeat":
+            for header in VARIANT_TSV_OUTPUT_COLUMNS, ALLELE_TSV_OUTPUT_COLUMNS:
+                if column in header:
+                    header.remove(column)
+
+    return args
 
 
 def get_flanking_reference_sequences(fasta_obj, chrom, pos, ref, alt, num_flanking_bases=None):
@@ -129,58 +137,11 @@ def get_flanking_reference_sequences(fasta_obj, chrom, pos, ref, alt, num_flanki
     return left_flanking_reference_sequence, variant_bases, right_flanking_reference_sequence
 
 
-def extend_repeat_into_sequence(
-    repeat_unit,
-    sequence,
-    min_fraction_covered_by_repeat=1,
-    max_number_of_mismatching_repeats_in_a_row=3,
-):
-    """This method walks along the given sequence from left to right, one repeat unit length at a time
-    (defined by the given repeat unit), and checks for the longest stretch of repeats where at least
-    min_fraction_covered_by_repeat fraction of the repeats exactly matches the given repeat_unit.
-
-    Args:
-        repeat_unit (str): For example "CAG"
-        sequence (str): a longer sequence that may contain repeats of the given repeat unit starting at the left end,
-            before switching to random other sequence or repeats of a different repeat unit.
-            For example: "CAGCAGCAGCTAGTGCAGTGACAGT"
-        min_fraction_covered_by_repeat (float): Look for repeats that correspond to at least.
-        max_number_of_mismatching_repeats_in_a_row (int): If this many repeats in a row mismatch the repeat unit,
-            stop looking further to the right.
-
-    Returns the number of repeats, as well as whether it's a perfect repeat.
-    """
-    i = 0
-    num_repeats = 0
-    num_matching_repeats = 0
-    num_mismatching_repeats_in_a_row = 0
-    largest_number_of_repeats_above_threshold = 0
-    is_perfect_repeat = True
-    while num_mismatching_repeats_in_a_row < max_number_of_mismatching_repeats_in_a_row and i <= len(sequence) - len(repeat_unit):
-        current_repeat = sequence[i:i+len(repeat_unit)]
-        num_repeats += 1
-        if current_repeat == repeat_unit:
-            num_matching_repeats += 1
-            if num_matching_repeats / num_repeats >= min_fraction_covered_by_repeat:
-                largest_number_of_repeats_above_threshold = num_repeats
-                if num_mismatching_repeats_in_a_row > 0:
-                    is_perfect_repeat = False
-            num_mismatching_repeats_in_a_row = 0
-        else:
-            num_mismatching_repeats_in_a_row += 1
-
-        i += len(repeat_unit)
-
-    return largest_number_of_repeats_above_threshold, is_perfect_repeat
-
-
 def check_if_allele_is_str(
     fasta_obj, chrom, pos, ref, alt,
     min_str_repeats, min_str_length,
-    min_fraction_of_variant_covered_by_repeat,
     counters,
-    use_trf=False,
-    trf_path=None,
+    allow_interruptions=False,
 ):
     """Determine if the given allele (represented by chrom/pos/ref/alt) is an STR expansion or contraction or neither.
 
@@ -194,11 +155,8 @@ def check_if_allele_is_str(
             reference sequences for the variant to be considered an STR.
         min_str_length (int): The repeats in the variant sequence + the flanking reference sequence must cover at least
             this many base-pairs for the variant to be considered an STR.
-        min_fraction_of_variant_covered_by_repeat (float): To allow for imperfect repeats, not all repeats need to match
-            the given repeat unit. This is the minimum fraction of repeats that must exactly match the repeat unit.
         counters (dict): Dictionary of counters to collect summary stats about the number of STR variants found, etc.
-        use_trf (bool): Whether to run TandemRepeatFinder on the variant sequence to check for repeats.
-        trf_path (str): Path of TandemRepeatFinder executable.
+        allow_interruptions (bool): Whether to allow interruptions in the repeat sequence
 
     Return:
         dict: Fields describing the results of checking whether this variant is an STR
@@ -207,50 +165,28 @@ def check_if_allele_is_str(
         "RepeatUnit": None,
     }
 
+    counter_key_suffix = " (interruptions allowed)" if allow_interruptions else ""
+
     if len(ref) == len(alt):
-        counters["non-STR allele: SNV" if len(ref) == 1 else "non-STR allele: MNV"] += 1
+        counters[f"non-STR allele: SNV{counter_key_suffix}" if len(ref) == 1 else "non-STR allele: MNV"] += 1
         return null_result
 
     ins_or_del = "INS" if len(ref) < len(alt) else "DEL"
-    counters[f"allele counts: {ins_or_del} alleles"] += 1
+    counters[f"allele counts: {ins_or_del} alleles{counter_key_suffix}"] += 1
 
     variant_bases = alt[len(ref):] if len(ref) < len(alt) else ref[len(alt):]
     if len(variant_bases) == 1:
-        counters[f"non-STR allele: 1bp {ins_or_del}"] += 1
+        counters[f"non-STR allele: 1bp {ins_or_del}{counter_key_suffix}"] += 1
         return null_result
 
-    found_by = "NoRepeatFoundInVariantBases"
-    repeat_unit, num_repeats_within_variant_bases = find_repeat_unit(
+    repeat_unit, num_pure_repeats_within_variant_bases, num_total_repeats_within_variant_bases, repeat_unit_interruption_index = find_repeat_unit(
         variant_bases,
-        min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat,
-        allow_indel_interruptions=False,
+        allow_interruptions=allow_interruptions,
+        allow_partial_repeats=False,
     )
-    if num_repeats_within_variant_bases > 1:
-        found_by = "BruteForce"
-
-    if num_repeats_within_variant_bases <= 1 and min_fraction_of_variant_covered_by_repeat < 1 and len(variant_bases) >= MIN_SEQUENCE_LENGTH_FOR_TRYING_REVERSE_SEQUENCE:
-        # see if we can find a repeat by reversing the sequence
-        repeat_unit, num_repeats_within_variant_bases = find_repeat_unit(
-            variant_bases[::-1],
-            min_fraction_covered_by_repeat=1,
-            allow_indel_interruptions=False,
-        )
-        repeat_unit = repeat_unit[::-1]
-        if num_repeats_within_variant_bases > 1:
-            found_by = "BruteForceReverseSequence"
-
-    if use_trf and num_repeats_within_variant_bases <= 1 and len(variant_bases) >= MIN_SEQUENCE_LENGTH_FOR_RUNNING_TRF:
-        # run TRF to find repeats
-        repeat_unit, num_repeats_within_variant_bases = find_repeat_unit_using_trf(
-            variant_bases,
-            min_fraction_covered_by_repeat=1,
-            trf_path=trf_path,
-        )
-        if num_repeats_within_variant_bases > 1:
-            found_by = "TRF"
 
     if len(repeat_unit) == 1:
-        counters["non-STR allele: homopolymer"] += 1
+        counters[f"non-STR allele: homopolymer{counter_key_suffix}"] += 1
         return null_result
 
     left_flanking_reference_sequence, variant_bases2, right_flanking_reference_sequence = get_flanking_reference_sequences(
@@ -261,41 +197,54 @@ def check_if_allele_is_str(
         raise ValueError(f"variant_bases: {variant_bases} != {variant_bases2} variant bases returned by "
                          f"get_flanking_reference_sequences for variant {chrom}-{pos}-{ref}-{alt} ")
 
-    num_repeats_left_flank, is_perfect_repeat_in_left_flank = extend_repeat_into_sequence(
+    reversed_repeat_unit_interruption_index = None
+    if repeat_unit_interruption_index is not None:
+        reversed_repeat_unit_interruption_index = len(repeat_unit) - 1 - repeat_unit_interruption_index
+    num_pure_repeats_left_flank, num_total_repeats_left_flank, reversed_repeat_unit_interruption_index = extend_repeat_into_sequence(
         repeat_unit[::-1],
         left_flanking_reference_sequence[::-1],
-        min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat)
-    num_repeats_right_flank, is_perfect_repeat_in_right_flank = extend_repeat_into_sequence(
+        allow_interruptions=allow_interruptions,
+        repeat_unit_interruption_index=reversed_repeat_unit_interruption_index)
+    if reversed_repeat_unit_interruption_index is not None:
+        # reverse the repeat_unit_interruption_index
+        repeat_unit_interruption_index = len(repeat_unit) - 1 - reversed_repeat_unit_interruption_index
+
+    num_pure_repeats_right_flank, num_total_repeats_right_flank, repeat_unit_interruption_index = extend_repeat_into_sequence(
         repeat_unit,
         right_flanking_reference_sequence,
-        min_fraction_covered_by_repeat=min_fraction_of_variant_covered_by_repeat)
+        allow_interruptions=allow_interruptions,
+        repeat_unit_interruption_index=repeat_unit_interruption_index)
 
     # even though the VCF position is 1-based, it represents the location of the base preceding the variant bases, so
     # add 1 to get the 1-based position of the true base
-    start_1based = pos + 1 - num_repeats_left_flank * len(repeat_unit)
-    end_1based = pos + (len(variant_bases) if len(ref) > len(alt) else 0) + num_repeats_right_flank * len(repeat_unit)
+    start_1based = pos + 1 - num_total_repeats_left_flank * len(repeat_unit)
+    end_1based = pos + (len(variant_bases) if len(ref) > len(alt) else 0) + num_total_repeats_right_flank * len(repeat_unit)
 
-    is_perfect_repeat = variant_bases == (repeat_unit * num_repeats_within_variant_bases)
-    if not is_perfect_repeat:
-        counters[f"STR allele purity: interrupted repeats"] += 1
-        if num_repeats_left_flank == 0 and num_repeats_right_flank == 0:
-            # only accept imperfect repeats in the variant when there's also support for the same repeat unit in the
-            # flanking reference sequence
-            return null_result
+    pure_start_1based = pos + 1 - num_pure_repeats_left_flank * len(repeat_unit)
+    pure_end_1based = pos + (len(variant_bases) if len(ref) > len(alt) else 0) + num_pure_repeats_right_flank * len(repeat_unit)
 
-    num_repeats_ref = num_repeats_alt = num_repeats_right_flank + num_repeats_left_flank
+    num_pure_repeats_ref = num_pure_repeats_alt = num_pure_repeats_left_flank + num_pure_repeats_right_flank
+    num_total_repeats_ref = num_total_repeats_alt = num_total_repeats_left_flank + num_total_repeats_right_flank
     if len(ref) < len(alt):
         # insertion
-        num_repeats_alt += num_repeats_within_variant_bases
+        num_pure_repeats_alt += num_pure_repeats_within_variant_bases
+        num_total_repeats_alt += num_total_repeats_within_variant_bases
     else:
         # deletion
-        num_repeats_ref += num_repeats_within_variant_bases
+        num_pure_repeats_ref += num_pure_repeats_within_variant_bases
+        num_total_repeats_ref += num_total_repeats_within_variant_bases
 
-    num_repeats_in_str = max(num_repeats_ref, num_repeats_alt)
-    if num_repeats_in_str < min_str_repeats or num_repeats_in_str * len(repeat_unit) < min_str_length:
-        counters["non-STR allele: allele repeat sequence is too short"] += 1
+    num_pure_repeats_in_str = num_pure_repeats_left_flank + num_pure_repeats_within_variant_bases + num_pure_repeats_right_flank
+    num_total_repeats_in_str = max(num_total_repeats_ref, num_total_repeats_alt)
+    if not allow_interruptions and num_pure_repeats_in_str != num_total_repeats_in_str:
+        # sanity check
+        raise Exception("Repeat has interruptions even though allow_interruptions is False")
+
+    if num_total_repeats_in_str < min_str_repeats or num_total_repeats_in_str * len(repeat_unit) < min_str_length:
+        counters[f"non-STR allele: allele repeat sequence is too short{counter_key_suffix}"] += 1
         return null_result
 
+    is_pure_repeat = num_pure_repeats_in_str == num_total_repeats_in_str
     result = {
         "Chrom": chrom,
         "Pos": pos,
@@ -304,22 +253,29 @@ def check_if_allele_is_str(
         "Start1Based": start_1based,
         "End1Based": end_1based,
         "RepeatUnit": repeat_unit,
-        "NumRepeatsRef": num_repeats_ref,
-        "NumRepeatsAlt": num_repeats_alt,
-        "NumRepeatsLeftFlank": num_repeats_left_flank,
-        "NumRepeatsRightFlank": num_repeats_right_flank,
-        "NumRepeatsInVariant": num_repeats_within_variant_bases,
-        "IsPureRepeat": "Yes" if is_perfect_repeat else "No",
+        "NumRepeatsRef": num_total_repeats_ref,
+        "NumRepeatsAlt": num_total_repeats_alt,
+        "NumRepeatsLeftFlank": num_total_repeats_left_flank,
+        "NumRepeatsRightFlank": num_total_repeats_right_flank,
+        "NumRepeatsInVariant": num_total_repeats_within_variant_bases,
+        "IsPureRepeat": "Yes" if is_pure_repeat else "No",
+        "FractionPureRepeats": num_pure_repeats_in_str / num_total_repeats_in_str,
+        "RepeatUnitInterruptionIndex": repeat_unit_interruption_index,
+        "PureStart1Based": pure_start_1based,
+        "PureEnd1Based": pure_end_1based,
+        "NumPureRepeatsInStr": num_pure_repeats_in_str,
+        "NumPureRepeatsLeftFlank": num_pure_repeats_left_flank,
+        "NumPureRepeatsRightFlank": num_pure_repeats_right_flank,
+        "NumPureRepeatsInVariant": num_pure_repeats_within_variant_bases,
+        "NumRepeatsInStr": num_total_repeats_in_str,
     }
 
-    # pprint(result)
-
     # update counters
-    if num_repeats_left_flank > 0 and num_repeats_right_flank > 0:
+    if num_total_repeats_left_flank > 0 and num_total_repeats_right_flank > 0:
         left_or_right = 'both left and right'
-    elif num_repeats_left_flank > 0:
+    elif num_total_repeats_left_flank > 0:
         left_or_right = 'left'
-    elif num_repeats_right_flank > 0:
+    elif num_total_repeats_right_flank > 0:
         left_or_right = 'right'
     else:
         left_or_right = 'no'
@@ -329,16 +285,13 @@ def check_if_allele_is_str(
     else:
         num_base_pairs_within_variant_bases = "500+bp"
 
-    counters[f"STR allele counts: TOTAL"] += 1
-    counters[f"STR allele counts: {ins_or_del}"] += 1
-    if found_by:
-        counters[f"STR allele source: found by {found_by}"] += 1
-    counters[f"STR allele delta: {num_repeats_within_variant_bases if num_repeats_within_variant_bases < 9 else '9+'} repeats"] += 1
-    counters[f"STR allele motif size: {len(repeat_unit) if len(repeat_unit) < 9 else '9+'} bp"] += 1
-    counters[f"STR allele size: {num_base_pairs_within_variant_bases}"] += 1
-    counters[f"STR allele reference repeats: with {left_or_right} matching ref. repeat"] += 1
-    counters[f"STR allele purity: perfect repeats"] += 1 if is_perfect_repeat else 0
-
+    counters[f"STR allele counts{counter_key_suffix}: TOTAL"] += 1
+    counters[f"STR allele counts{counter_key_suffix}: {ins_or_del}"] += 1
+    counters[f"STR allele delta{counter_key_suffix}: {num_total_repeats_within_variant_bases if num_total_repeats_within_variant_bases < 9 else '9+'} repeats"] += 1
+    counters[f"STR allele motif size{counter_key_suffix}: {len(repeat_unit) if len(repeat_unit) < 9 else '9+'} bp"] += 1
+    counters[f"STR allele size{counter_key_suffix}: {num_base_pairs_within_variant_bases}"] += 1
+    counters[f"STR allele reference repeats{counter_key_suffix}: with {left_or_right} matching ref. repeat"] += 1
+    counters[f"STR allele counts: pure repeats{counter_key_suffix}"] += 1 if result["IsPureRepeat"] == "Yes" else 0
     return result
 
 
@@ -393,7 +346,7 @@ def compute_variant_summary_string(alt_STR_allele_specs, het_or_hom):
     """
 
     repeat_unit = alt_STR_allele_specs[0]["RepeatUnit"]
-    summary_string = "RU{}:{}:".format(len(repeat_unit), repeat_unit)
+    summary_string = "{}bp:{}:".format(len(repeat_unit), repeat_unit)
 
     ins_or_del = []
     for i in range(0, len(alt_STR_allele_specs)):
@@ -527,11 +480,17 @@ def main():
                 fasta_obj, vcf_chrom, vcf_pos, vcf_ref, current_alt,
                 min_str_repeats=args.min_str_repeats,
                 min_str_length=args.min_str_length,
-                min_fraction_of_variant_covered_by_repeat=args.min_fraction_of_variant_covered_by_repeat,
                 counters=counters,
-                use_trf=args.use_trf,
-                trf_path=args.trf_path,
+                allow_interruptions=False,
             )
+            if args.allow_interruptions and str_spec["RepeatUnit"] is None:
+                str_spec = check_if_allele_is_str(
+                    fasta_obj, vcf_chrom, vcf_pos, vcf_ref, current_alt,
+                    min_str_repeats=args.min_str_repeats,
+                    min_str_length=args.min_str_length,
+                    counters=counters,
+                    allow_interruptions=True,
+                )
 
             if str_spec["RepeatUnit"] is not None:
                 alt_STR_allele_specs.append(str_spec)
@@ -555,19 +514,20 @@ def main():
             # an error of some sort.
             raise ValueError(f"Multi-allelic variant is homozygous in row #{row_i + 1}: {vcf_genotype} ({vcf_ref} {alt_alleles})")
 
+        is_multiallelic = len(alt_STR_allele_specs) > 1
+        variant_ins_or_del, variant_summary_string = compute_variant_summary_string(
+            alt_STR_allele_specs, "MULTI" if is_multiallelic else het_or_hom)
+
         # check fields that should be the same for both STR alleles in a multi-allelic STR variant
         if len(alt_STR_allele_specs) > 1:
-            skip_this_variant = False
-            for field in "Chrom", "RepeatUnit":
-                if alt_STR_allele_specs[0][field] != alt_STR_allele_specs[1][field]:
-                    print(f"WARNING: Multi-allelic STR {variant_ins_or_del} {variant_summary_string} has "
-                          f"alleles with different " + re.sub(r'(?<!^)(?=[A-Z])', '_', field).lower() + "s:",
-                          alt_STR_allele_specs[0][field] + ", " + alt_STR_allele_specs[1][field] + "   Skipping...")
-                    counters[f"skipped variant: multi-allelic with different {field}s"] += 1
-                    skip_this_variant = True
-                    break
+            if alt_STR_allele_specs[0]["Chrom"] != alt_STR_allele_specs[1]["Chrom"]:
+                # sanity check
+                raise Exception("Alleles in a multiallelic STR have different chromosomes")
 
-            if skip_this_variant:
+            if alt_STR_allele_specs[0]["RepeatUnit"] != alt_STR_allele_specs[1]["RepeatUnit"]:
+                print(f"WARNING: Multi-allelic STR {variant_ins_or_del} {variant_summary_string} has alleles with different RepeatUnits:",
+                      alt_STR_allele_specs[0]["RepeatUnit"] + ", " + alt_STR_allele_specs[1]["RepeatUnit"] + "   Skipping...")
+                counters[f"skipped variant: multi-allelic with different RepeatUnits"] += 1
                 continue
 
         # look up the repeat unit
@@ -577,10 +537,6 @@ def main():
         # For the variant-level record, use the outer boundaries of the 2 alleles as the locus coordinates.
         variant_locus_start_1based = min(spec["Start1Based"] for spec in alt_STR_allele_specs)
         variant_locus_end_1based = max(spec["End1Based"] for spec in alt_STR_allele_specs)
-
-        is_multiallelic = len(alt_STR_allele_specs) > 1
-        variant_ins_or_del, variant_summary_string = compute_variant_summary_string(
-            alt_STR_allele_specs, "MULTI" if is_multiallelic else het_or_hom)
 
         try:
             num_repeats_in_allele1 = get_num_repeats_in_allele(alt_STR_allele_specs, vcf_genotype_indices[0])
@@ -626,7 +582,9 @@ def main():
             raise ValueError(f"Short or long allele size is < 0: "
                              f"{variant_short_allele_size}, {variant_long_allele_size}  {pformat(tsv_record)}")
 
-        is_pure_repeat_variant = all(spec["IsPureRepeat"] for spec in alt_STR_allele_specs)
+        is_pure_repeat_variant = all(spec["IsPureRepeat"] == "Yes" for spec in alt_STR_allele_specs)
+        counters[f"STR variant counts: pure repeats"] += 1 if is_pure_repeat_variant else 0
+
         variant_tsv_record = dict(tsv_record)
         variant_tsv_record.update({
             "VcfAlt": ",".join(alt_alleles),
@@ -659,12 +617,15 @@ def main():
                 "IsPureRepeat": alt_STR_allele_spec["IsPureRepeat"],
                 "NumRepeats": alt_STR_allele_spec["NumRepeatsAlt"],
                 "RepeatSize (bp)": alt_STR_allele_spec["NumRepeatsAlt"] * len(repeat_unit),
+                "FractionPureRepeats": alt_STR_allele_spec["FractionPureRepeats"],
+                "RepeatUnitInterruptionIndex": alt_STR_allele_spec["RepeatUnitInterruptionIndex"],
                 "Start1Based": allele_locus_start_1based,
                 "End1Based": allele_locus_end_1based,
                 "Locus": f"{vcf_chrom}:{allele_locus_start_1based}-{allele_locus_end_1based}",
                 "LocusId": f"{vcf_chrom}-{allele_locus_start_1based - 1}-{allele_locus_end_1based}-{repeat_unit}",
                 "NumRepeatsInReference": (allele_locus_end_1based - allele_locus_start_1based + 1)/len(repeat_unit),
             })
+
             alleles_tsv_writer.write("\t".join([str(allele_tsv_record[c]) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
 
     # print stats

@@ -1,10 +1,10 @@
 import collections
 import os
+from pprint import pprint, pformat
 import pyfaidx
 import tempfile
 import unittest
 
-from filter_vcf_to_STR_variants import extend_repeat_into_sequence
 from str_analysis.filter_vcf_to_STR_variants import get_flanking_reference_sequences, check_if_allele_is_str
 
 
@@ -146,6 +146,12 @@ class Tests(unittest.TestCase):
 
         self.fasta_obj = pyfaidx.Fasta(self.temp_fasta_file.name, one_based_attributes=False, as_raw=True)
 
+    def check_results_for_pure_repeats(self, results):
+        for key in results:
+            key2 = key.replace("Pure", "")
+            if key2 in results and "Pure" in key:
+                self.assertEqual(results[key], results[key2], f"{key} != {key2} in " + pformat(results))
+
     def test_get_flanking_reference_sequences1(self):
         # insertion 2-STR
         left_sequence, variant_sequence, right_sequence = get_flanking_reference_sequences(self.fasta_obj, "chrTest1", 10, "T", "TAC")
@@ -178,9 +184,8 @@ class Tests(unittest.TestCase):
             self.fasta_obj,
             "chrTest4", 9, "G", "GCAGCAGCAG",
             min_str_repeats=3, min_str_length=9,
-            min_fraction_of_variant_covered_by_repeat=0.9,
             counters=counters,
-            use_trf=False)
+            allow_interruptions=True)
 
         self.assertEqual(result["Chrom"], "chrTest4")
         self.assertEqual(result["Start1Based"], 7)
@@ -191,6 +196,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsLeftFlank"], 1)
         self.assertEqual(result["NumRepeatsRightFlank"], 2)
         self.assertEqual(result["IsPureRepeat"], "Yes")
+        self.check_results_for_pure_repeats(result)
 
     def test_check_if_allele_is_str4_deletion(self):
         # insertion 2-STR
@@ -200,9 +206,8 @@ class Tests(unittest.TestCase):
             self.fasta_obj,
             "chrTest4", 9, "GCAG", "G",
             min_str_repeats=3, min_str_length=9,
-            min_fraction_of_variant_covered_by_repeat=0.9,
             counters=counters,
-            use_trf=False)
+            allow_interruptions=True)
 
         self.assertEqual(result["Chrom"], "chrTest4")
         self.assertEqual(result["Start1Based"], 7)
@@ -213,6 +218,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsLeftFlank"], 1)
         self.assertEqual(result["NumRepeatsRightFlank"], 1)
         self.assertEqual(result["IsPureRepeat"], "Yes")
+        self.check_results_for_pure_repeats(result)
 
     def test_check_if_allele_is_str5_deletion(self):
         # insertion 2-STR
@@ -222,9 +228,8 @@ class Tests(unittest.TestCase):
             self.fasta_obj,
             "chrTest5", 6, "ACGCCGACGCCGCCGCCGC", "A",
             min_str_repeats=3, min_str_length=9,
-            min_fraction_of_variant_covered_by_repeat=0.8,
             counters=counters,
-            use_trf=False)
+            allow_interruptions=True)
 
         self.assertEqual(result["Chrom"], "chrTest5")
         self.assertEqual(result["Start1Based"], 7)
@@ -236,6 +241,16 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsRightFlank"], 5)
         self.assertEqual(result["IsPureRepeat"], "No")
 
+        self.assertEqual(result["RepeatUnitInterruptionIndex"], 2)
+        self.assertEqual(result["FractionPureRepeats"], 10/11)
+
+        self.assertEqual(result["PureStart1Based"], 7)
+        self.assertEqual(result["PureEnd1Based"], 39)
+        self.assertEqual(result["NumPureRepeatsInStr"], 10)
+        self.assertEqual(result["NumPureRepeatsInVariant"], 5)
+        self.assertEqual(result["NumPureRepeatsLeftFlank"], 0)
+        self.assertEqual(result["NumPureRepeatsRightFlank"], 5)
+
     def test_check_if_allele_is_str6_insertion(self):
         # insertion 2-STR
         counters = collections.defaultdict(int)
@@ -244,9 +259,8 @@ class Tests(unittest.TestCase):
             self.fasta_obj,
             "chrTest6", 6, "A", "ACAG",
             min_str_repeats=3, min_str_length=9,
-            min_fraction_of_variant_covered_by_repeat=0.8,
             counters=counters,
-            use_trf=False)
+            allow_interruptions=True)
 
         self.assertEqual(result["Chrom"], "chrTest6")
         self.assertEqual(result["Start1Based"], 7)
@@ -257,6 +271,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 8)
         self.assertEqual(result["IsPureRepeat"], "Yes")
+        self.check_results_for_pure_repeats(result)
 
     def test_check_if_allele_is_str7_insertion(self):
         # insertion 2-STR
@@ -266,9 +281,8 @@ class Tests(unittest.TestCase):
             self.fasta_obj,
             "chrTest6", 6, "A", "ACAG",
             min_str_repeats=3, min_str_length=9,
-            min_fraction_of_variant_covered_by_repeat=0.8,
             counters=counters,
-            use_trf=False)
+            allow_interruptions=True)
 
         self.assertEqual(result["Chrom"], "chrTest6")
         self.assertEqual(result["Start1Based"], 7)
@@ -279,6 +293,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 8)
         self.assertEqual(result["IsPureRepeat"], "Yes")
+        self.check_results_for_pure_repeats(result)
 
     def test_check_if_allele_is_str8_insertion(self):
         # insertion 2-STR
@@ -288,9 +303,8 @@ class Tests(unittest.TestCase):
             self.fasta_obj,
             "chrTest6", 6, "A", "ACAG",
             min_str_repeats=3, min_str_length=9,
-            min_fraction_of_variant_covered_by_repeat=0.8,
             counters=counters,
-            use_trf=False)
+            allow_interruptions=True)
 
         self.assertEqual(result["Chrom"], "chrTest6")
         self.assertEqual(result["Start1Based"], 7)
@@ -301,6 +315,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 8)
         self.assertEqual(result["IsPureRepeat"], "Yes")
+        self.check_results_for_pure_repeats(result)
 
     def test_check_if_allele_is_str9_insertion(self):
         # insertion 2-STR
@@ -311,9 +326,8 @@ class Tests(unittest.TestCase):
             self.fasta_obj,
             "chrTest7", 6, "C", "CCAGCAGCAG",
             min_str_repeats=3, min_str_length=9,
-            min_fraction_of_variant_covered_by_repeat=0.8,
             counters=counters,
-            use_trf=False)
+            allow_interruptions=True)
 
         self.assertEqual(result["Chrom"], "chrTest7")
         self.assertEqual(result["Start1Based"], 7)
@@ -324,6 +338,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 0)
         self.assertEqual(result["IsPureRepeat"], "Yes")
+        self.check_results_for_pure_repeats(result)
+
 
     def test_check_if_allele_is_str10_insertion(self):
         # insertion 2-STR
@@ -334,9 +350,8 @@ class Tests(unittest.TestCase):
             self.fasta_obj,
             "chrTest8", 5, "TCAGCAGCAG", "T",
             min_str_repeats=3, min_str_length=9,
-            min_fraction_of_variant_covered_by_repeat=0.8,
             counters=counters,
-            use_trf=False)
+            allow_interruptions=True)
 
         self.assertEqual(result["Chrom"], "chrTest8")
         self.assertEqual(result["Start1Based"], 6)
@@ -347,39 +362,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 0)
         self.assertEqual(result["IsPureRepeat"], "Yes")
-
-    def test_extend_repeat_into_sequence(self):
-        num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "CAGCAGCAGTTTTTTTTT", 1)
-        self.assertEqual(num_repeats, 3)
-        self.assertEqual(is_perfect_repeat, True)
-
-        num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "CAGCAGCAG", 1)
-        self.assertEqual(num_repeats, 3)
-        self.assertEqual(is_perfect_repeat, True)
-
-        num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "CAGTAGCAGTTTTTTTTT", 0.6)
-        self.assertEqual(num_repeats, 3)
-        self.assertEqual(is_perfect_repeat, False)
-
-        num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "CAGTAGCAGT", 0.6)
-        self.assertEqual(num_repeats, 3)
-        self.assertEqual(is_perfect_repeat, False)
-
-        num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "CAGTAGCAGTAGTAGTAGCAGCAGCAGCAGCAGCAG", 0.6)
-        self.assertEqual(num_repeats, 3)
-        self.assertEqual(is_perfect_repeat, False)
-
-        num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "CAGTAGCAGTTTTTTTTT", 0.8)
-        self.assertEqual(num_repeats, 1)
-        self.assertEqual(is_perfect_repeat, True)
-
-        num_repeats, is_perfect_repeat = extend_repeat_into_sequence("CAG", "TTTTTTTTT", 0.8)
-        self.assertEqual(num_repeats, 0)
-        self.assertEqual(is_perfect_repeat, True)
-
-    # Test8: delete entire repeat sequence
-    #self.temp_fasta_file.write(">chrTest8\n")
-    #self.temp_fasta_file.write("TTTTTCAGCAGCAGCCCCC\n")
+        self.check_results_for_pure_repeats(result)
 
     def tearDown(self):
         if os.path.isfile(self.temp_fasta_file.name):
