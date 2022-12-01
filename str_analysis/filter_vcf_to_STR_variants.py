@@ -236,6 +236,7 @@ def check_if_allele_is_str(
 
     num_pure_repeats_in_str = num_pure_repeats_left_flank + num_pure_repeats_within_variant_bases + num_pure_repeats_right_flank
     num_total_repeats_in_str = max(num_total_repeats_ref, num_total_repeats_alt)
+    
     if not allow_interruptions and num_pure_repeats_in_str != num_total_repeats_in_str:
         # sanity check
         raise Exception("Repeat has interruptions even though allow_interruptions is False")
@@ -291,7 +292,7 @@ def check_if_allele_is_str(
     counters[f"STR allele motif size{counter_key_suffix}: {len(repeat_unit) if len(repeat_unit) < 9 else '9+'} bp"] += 1
     counters[f"STR allele size{counter_key_suffix}: {num_base_pairs_within_variant_bases}"] += 1
     counters[f"STR allele reference repeats{counter_key_suffix}: with {left_or_right} matching ref. repeat"] += 1
-    counters[f"STR allele counts: pure repeats{counter_key_suffix}"] += 1 if result["IsPureRepeat"] == "Yes" else 0
+    counters[f"STR allele counts: pure repeats{counter_key_suffix}"] += 1 if is_pure_repeat else 0
     return result
 
 
