@@ -55,6 +55,8 @@ VARIANT_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
 ALLELE_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
     "NumRepeats",
     "RepeatSize (bp)",
+    "NumPureRepeats",
+    "PureRepeatSize (bp)",
     "FractionPureRepeats",
     "RepeatUnitInterruptionIndex",
 ]
@@ -84,7 +86,7 @@ def parse_args():
 
     if not args.allow_interruptions:
         # drop some output columns
-        for column in "FractionPureRepeats", "RepeatUnitInterruptionIndex", "IsPureRepeat":
+        for column in "NumPureRepeats", "PureRepeatSize (bp)", "FractionPureRepeats", "RepeatUnitInterruptionIndex", "IsPureRepeat":
             for header in VARIANT_TSV_OUTPUT_COLUMNS, ALLELE_TSV_OUTPUT_COLUMNS:
                 if column in header:
                     header.remove(column)
@@ -236,7 +238,7 @@ def check_if_allele_is_str(
 
     num_pure_repeats_in_str = num_pure_repeats_left_flank + num_pure_repeats_within_variant_bases + num_pure_repeats_right_flank
     num_total_repeats_in_str = max(num_total_repeats_ref, num_total_repeats_alt)
-    
+
     if not allow_interruptions and num_pure_repeats_in_str != num_total_repeats_in_str:
         # sanity check
         raise Exception("Repeat has interruptions even though allow_interruptions is False")
@@ -264,6 +266,8 @@ def check_if_allele_is_str(
         "RepeatUnitInterruptionIndex": repeat_unit_interruption_index,
         "PureStart1Based": pure_start_1based,
         "PureEnd1Based": pure_end_1based,
+        "NumPureRepeatsRef": num_pure_repeats_ref,
+        "NumPureRepeatsAlt": num_pure_repeats_alt,
         "NumPureRepeatsInStr": num_pure_repeats_in_str,
         "NumPureRepeatsLeftFlank": num_pure_repeats_left_flank,
         "NumPureRepeatsRightFlank": num_pure_repeats_right_flank,
@@ -292,7 +296,6 @@ def check_if_allele_is_str(
     counters[f"STR allele motif size{counter_key_suffix}: {len(repeat_unit) if len(repeat_unit) < 9 else '9+'} bp"] += 1
     counters[f"STR allele size{counter_key_suffix}: {num_base_pairs_within_variant_bases}"] += 1
     counters[f"STR allele reference repeats{counter_key_suffix}: with {left_or_right} matching ref. repeat"] += 1
-    counters[f"STR allele counts: pure repeats{counter_key_suffix}"] += 1 if is_pure_repeat else 0
     return result
 
 
@@ -584,7 +587,9 @@ def process_truth_set_vcf_line(
             "IsPureRepeat": alt_STR_allele_spec["IsPureRepeat"],
             "NumRepeats": alt_STR_allele_spec["NumRepeatsAlt"],
             "RepeatSize (bp)": alt_STR_allele_spec["NumRepeatsAlt"] * len(repeat_unit),
-            "FractionPureRepeats": alt_STR_allele_spec["FractionPureRepeats"],
+            "NumPureRepeats": alt_STR_allele_spec["NumPureRepeatsAlt"],
+            "PureRepeatSize (bp)": alt_STR_allele_spec["NumPureRepeatsAlt"] * len(repeat_unit),
+            "FractionPureRepeats": "%0.3f" % alt_STR_allele_spec["FractionPureRepeats"],
             "RepeatUnitInterruptionIndex": alt_STR_allele_spec["RepeatUnitInterruptionIndex"],
             "Start1Based": allele_locus_start_1based,
             "End1Based": allele_locus_end_1based,
