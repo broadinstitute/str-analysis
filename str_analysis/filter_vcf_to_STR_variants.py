@@ -358,6 +358,8 @@ def compute_variant_summary_string(alt_STR_allele_specs, het_or_hom):
             ins_or_del.append("DEL")
         elif len(alt_STR_allele_specs[i]["Ref"]) < len(alt_STR_allele_specs[i]["Alt"]):
             ins_or_del.append("INS")
+        elif len(alt_STR_allele_specs[i]["Ref"]) == len(alt_STR_allele_specs[i]["Alt"]):
+            ins_or_del.append("REF")
 
     summary_string += ",".join(ins_or_del) + ":"
     summary_string += str(alt_STR_allele_specs[i]["NumRepeatsRef"]) + "=>" + ",".join([
