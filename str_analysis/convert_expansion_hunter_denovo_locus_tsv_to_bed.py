@@ -27,7 +27,7 @@ def main():
             row.contig,
             row.start,
             row.end,
-            f"{len(row.motif)}bp:{row.motif}:{row.end-row.start}bp-locus-size:{row.num_anc_irrs}-irrs:{row.het_str_size}x-het-str-size",
+            f"{len(row.motif)}bp:{row.motif}:{row.end-row.start}bp-ref-locus-size:{row.num_anc_irrs}-irrs:{row.het_str_size}x-het-str-size",
             ".",
         ]
         f.write("\t".join(map(str, fields)) + "\n")
