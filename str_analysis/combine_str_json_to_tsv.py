@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from str_analysis.combine_json_to_tsv import get_sample_id_column_index
+from str_analysis.utils.misc_utils import parse_interval
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 ALREADY_WARNED_ABOUT = set()  # used for logging
@@ -84,6 +85,12 @@ def parse_args(args_list=None):
     return args
 
 
+def compute_bed_file_record(variant_record):
+    chrom, start_0based, end_1based = parse_interval(variant_record["ReferenceRegion"])
+
+    return [chrom, start_0based, end_1based, variant_record["SummaryString"], "."]
+
+
 def main():
     """Main"""
 
@@ -120,6 +127,7 @@ def main():
     variant_records_counter = allele_records_counter = 0
     variant_output_file = open(f"{output_prefix}.variants.tsv", "wt")
     allele_output_file = open(f"{output_prefix}.alleles.tsv", "wt")
+    bed_file_records = []
     sample_metadata_lookup_counters = {}
 
     for just_get_header in True, False:
@@ -139,42 +147,46 @@ def main():
                 logging.info(f"Skipping {json_path}... Expected key 'SampleParameters' not found.")
                 continue
 
-            for record in convert_expansion_hunter_json_to_tsv_columns(
+            for variant_record in convert_expansion_hunter_json_to_tsv_columns(
                 json_contents,
                 variant_catalog_contents=combined_variant_catalog_contents,
                 sample_metadata_lookup=sample_metadata_lookup,
                 sample_metadata_lookup_counters=sample_metadata_lookup_counters,
                 json_file_path=json_path,
-                return_allele_records=False,
+                yield_allele_records=False,
                 include_extra_expansion_hunter_fields=args.include_extra_expansion_hunter_fields,
                 include_extra_gangstr_fields=args.include_extra_gangstr_fields,
             ):
                 if just_get_header:
-                    variant_table_columns.extend([k for k in record.keys() if k not in variant_table_columns])
+                    variant_table_columns.extend([k for k in variant_record.keys() if k not in variant_table_columns])
                 else:
                     if not wrote_variant_table_header:
                         variant_output_file.write("\t".join(variant_table_columns) + "\n")
                         wrote_variant_table_header = True
                     variant_records_counter += 1
-                    variant_output_file.write("\t".join([str(record[c] if c in record else "") for c in variant_table_columns]) + "\n")
+                    variant_output_file.write(
+                        "\t".join([str(variant_record.get(c, "")) for c in variant_table_columns]) + "\n")
 
-            for record in convert_expansion_hunter_json_to_tsv_columns(
+                    bed_file_records.append(compute_bed_file_record(variant_record))
+
+            for allele_record in convert_expansion_hunter_json_to_tsv_columns(
                 json_contents,
                 variant_catalog_contents=combined_variant_catalog_contents,
                 sample_metadata_lookup=sample_metadata_lookup,
                 json_file_path=json_path,
-                return_allele_records=True,
+                yield_allele_records=True,
                 include_extra_expansion_hunter_fields=args.include_extra_expansion_hunter_fields,
                 include_extra_gangstr_fields=args.include_extra_gangstr_fields,
             ):
                 if just_get_header:
-                    allele_table_columns.extend([k for k in record.keys() if k not in allele_table_columns])
+                    allele_table_columns.extend([k for k in allele_record.keys() if k not in allele_table_columns])
                 else:
                     if not wrote_allele_table_header:
                         allele_output_file.write("\t".join(allele_table_columns) + "\n")
                         wrote_allele_table_header = True
                     allele_records_counter += 1
-                    allele_output_file.write("\t".join([str(record[c] if c in record else "") for c in allele_table_columns]) + "\n")
+                    allele_output_file.write(
+                        "\t".join([str(allele_record.get(c, "")) for c in allele_table_columns]) + "\n")
 
     if sample_metadata_lookup_counters:
         logging.info(f"Found matches for {sample_metadata_lookup_counters['sample_ids_found']} out of "
@@ -184,8 +196,15 @@ def main():
 
         if len(sample_metadata_lookup) != len(sample_metadata_df):
             logging.info(f"{len(sample_metadata_df) - len(sample_metadata_lookup)} duplicate sample ids in {args.sample_metadata}")
+
     logging.info(f"Wrote {variant_records_counter} records to {output_prefix}.variants.tsv")
     logging.info(f"Wrote {allele_records_counter} records to {output_prefix}.alleles.tsv")
+
+    with open(f"{output_prefix}.bed", "wt") as f:
+        for bed_record in sorted(bed_file_records, key=lambda r: tuple(r[0:2])):
+            f.write("\t".join(map(str, bed_record)) + "\n")
+
+    logging.info(f"Wrote {len(bed_file_records)} records to {output_prefix}.bed")
 
 
 class ParseError(Exception):
@@ -229,6 +248,47 @@ def weighted_avg_and_std(values, weights):
     return average, np.sqrt(variance)
 
 
+def compute_variant_summary_string(variant_record):
+    """Returns a short easy-to-read string summarizing the tool's STR genotype.
+
+    Args:
+        variant_record (dict): list of 1 or more allele spec dictionaries
+        het_or_hom (str): describes the genotype as "HET" or "HOM"
+    Return:
+        str: short summary of the variant
+    """
+
+    repeat_unit = variant_record["RepeatUnit"]
+    chrom, start_0based, end_1based = parse_interval(variant_record["ReferenceRegion"])
+    reference_locus_size = end_1based - start_0based
+    num_repeats_ref = int(reference_locus_size/len(repeat_unit))
+
+    if variant_record[f"Repeat Size (bp): Allele 1"] == variant_record[f"Repeat Size (bp): Allele 2"]:
+        het_or_hom = "HOM"
+        allele_numbers = [1]
+    else:
+        het_or_hom = "HET"
+        allele_numbers = [1, 2]
+
+    ins_or_del = []
+    for i in allele_numbers:
+        allele_size = int(variant_record[f"Repeat Size (bp): Allele {i}"])
+        if allele_size == reference_locus_size:
+            ins_or_del.append("REF")
+        elif allele_size > reference_locus_size:
+            ins_or_del.append("INS")
+        elif allele_size < reference_locus_size:
+            ins_or_del.append("DEL")
+
+    summary_string = str(num_repeats_ref) + "=>" + variant_record["Genotype"]
+    summary_string += "[" + variant_record["GenotypeConfidenceInterval"] + "]"
+    summary_string += ":" + f"{repeat_unit}[{len(repeat_unit)}bp]"
+    summary_string += ":" + het_or_hom
+    summary_string += ":" + ",".join(ins_or_del)
+
+    return summary_string
+
+
 def convert_expansion_hunter_json_to_tsv_columns(
     json_contents,
     variant_catalog_contents=None,
@@ -236,7 +296,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
     sample_metadata_lookup_counters=None,
     variant_info=None,
     json_file_path="",
-    return_allele_records=True,
+    yield_allele_records=True,
     include_extra_expansion_hunter_fields=False,
     include_extra_gangstr_fields=False,
 ):
@@ -252,12 +312,12 @@ def convert_expansion_hunter_json_to_tsv_columns(
             ability to find samples in sample_metadata_lookup
         variant_info (dict): if provided, results will be added to this dict. Otherwise, a new dict will be created.
         json_file_path (str): if provided, it will be added as a field to the output table, and also used for logging
-        return_allele_records (bool): if True, the returned list will have one record per allele rather than per variant
+        yield_allele_records (bool): if True, the returned list will have one record per allele rather than per variant
         include_extra_expansion_hunter_fields (bool): if True, include additional fields provided by ExpansionHunter.
         include_extra_gangstr_fields (bool): if True, include additional fields provided by GangSTR.
 
-    Returns:
-        list: a list of tsv rows
+    Yields:
+        dict: dictionary representing the output tsv row
     """
 
     if variant_info is None:
@@ -311,7 +371,6 @@ def convert_expansion_hunter_json_to_tsv_columns(
                     else:
                         variant_info[key] += f"; {output_value}"
 
-    records_to_return = []
     for locus_json in locus_results_list:
         locus_record = collections.OrderedDict(variant_info)
         for key in "LocusId", "ReadLength", "Coverage", "AlleleCount":
@@ -383,35 +442,35 @@ def convert_expansion_hunter_json_to_tsv_columns(
             ))
 
             for i, (genotype, genotypeCI) in enumerate(genotype_tuples):
-                if return_allele_records:
+                if yield_allele_records:
                     suffix = ""
-                    allele_record = collections.OrderedDict(variant_record)
+                    output_record = collections.OrderedDict(variant_record)
                 else:
                     suffix = f": Allele {i+1}"
-                    allele_record = variant_record
+                    output_record = variant_record
 
                 confidence_interval_start, confidence_interval_end = genotypeCI.split("-")
-                allele_record[f"Allele Number{suffix}"] = i + 1
-                allele_record[f"Num Repeats{suffix}"] = int(genotype)
-                allele_record[f"Repeat Size (bp){suffix}"] = int(genotype) * len(variant_json.get("RepeatUnit", ""))
-                allele_record[f"CI start{suffix}"] = int(confidence_interval_start)
-                allele_record[f"CI end{suffix}"] = int(confidence_interval_end)
-                allele_record[f"CI size{suffix}"] = int(confidence_interval_end) - int(confidence_interval_start)
-                allele_record[f"CI ratio{suffix}"] = allele_record[f"CI size{suffix}"]/(allele_record[f"Num Repeats{suffix}"] or 1)
+                output_record[f"Allele Number{suffix}"] = i + 1
+                output_record[f"Num Repeats{suffix}"] = int(genotype)
+                output_record[f"Repeat Size (bp){suffix}"] = int(genotype) * len(variant_json.get("RepeatUnit", ""))
+                output_record[f"CI start{suffix}"] = int(confidence_interval_start)
+                output_record[f"CI end{suffix}"] = int(confidence_interval_end)
+                output_record[f"CI size{suffix}"] = int(confidence_interval_end) - int(confidence_interval_start)
+                output_record[f"CI ratio{suffix}"] = output_record[f"CI size{suffix}"]/(output_record[f"Num Repeats{suffix}"] or 1)
 
                 if include_extra_expansion_hunter_fields:
                     is_homozygous = len(genotype_tuples) > 1 and genotype_tuples[0][0] == genotype_tuples[1][0]
                     divisor = 2 if is_homozygous else 1
-                    allele_record[f"NumSpanningReadsThatSupportGenotype{suffix}"] = sum(t[1] for t in spanning_read_tuples if t[0] == int(genotype)) / divisor
-                    allele_record[f"NumFlankingReadsThatSupportGenotype{suffix}"] = sum(t[1] for t in flanking_read_tuples if t[0] == int(genotype)) / divisor
-                    allele_record[f"NumInrepeatReadsThatSupportGenotype{suffix}"] = sum(t[1] for t in inrepeat_read_tuples if t[0] == int(genotype)) / divisor
-                    allele_record[f"NumReadsTotalThatSupportGenotype{suffix}"] = (
-                        allele_record[f"NumSpanningReadsThatSupportGenotype{suffix}"] +
-                        allele_record[f"NumFlankingReadsThatSupportGenotype{suffix}"] +
-                        allele_record[f"NumInrepeatReadsThatSupportGenotype{suffix}"]
+                    output_record[f"NumSpanningReadsThatSupportGenotype{suffix}"] = sum(t[1] for t in spanning_read_tuples if t[0] == int(genotype)) / divisor
+                    output_record[f"NumFlankingReadsThatSupportGenotype{suffix}"] = sum(t[1] for t in flanking_read_tuples if t[0] == int(genotype)) / divisor
+                    output_record[f"NumInrepeatReadsThatSupportGenotype{suffix}"] = sum(t[1] for t in inrepeat_read_tuples if t[0] == int(genotype)) / divisor
+                    output_record[f"NumReadsTotalThatSupportGenotype{suffix}"] = (
+                        output_record[f"NumSpanningReadsThatSupportGenotype{suffix}"] +
+                        output_record[f"NumFlankingReadsThatSupportGenotype{suffix}"] +
+                        output_record[f"NumInrepeatReadsThatSupportGenotype{suffix}"]
                     )
-                    allele_record[f"FractionOfReadsThatSupportsGenotype{suffix}"] = (
-                        allele_record[f"NumReadsTotalThatSupportGenotype{suffix}"] / float(allele_record["NumReadsTotal"]) if int(allele_record["NumReadsTotal"]) > 0 else 0
+                    output_record[f"FractionOfReadsThatSupportsGenotype{suffix}"] = (
+                        output_record[f"NumReadsTotalThatSupportGenotype{suffix}"] / float(output_record["NumReadsTotal"]) if int(output_record["NumReadsTotal"]) > 0 else 0
                     )
                 if include_extra_gangstr_fields:
                     # ex. "2,10|3,7|4,14"
@@ -419,24 +478,23 @@ def convert_expansion_hunter_json_to_tsv_columns(
                                                      ("FLNKREADS", f"NumFlankingReadsThatSupportGenotype{suffix}")]:
                         if variant_json[source_field] != "NULL":
                             read_support = dict([key_value.split(",") for key_value in variant_json[source_field].split("|")])
-                            allele_record[dest_field] = int(read_support.get(genotype, 0))
+                            output_record[dest_field] = int(read_support.get(genotype, 0))
                         else:
-                            allele_record[dest_field] = 0
+                            output_record[dest_field] = 0
 
-                    allele_record[f"NumReadsTotalThatSupportGenotype{suffix}"] = (
-                            allele_record.get(f"NumSpanningReadsThatSupportGenotype{suffix}", 0) +
-                            allele_record.get(f"NumFlankingReadsThatSupportGenotype{suffix}", 0)
+                    output_record[f"NumReadsTotalThatSupportGenotype{suffix}"] = (
+                            output_record.get(f"NumSpanningReadsThatSupportGenotype{suffix}", 0) +
+                            output_record.get(f"NumFlankingReadsThatSupportGenotype{suffix}", 0)
                     )
-                    allele_record[f"FractionOfReadsThatSupportsGenotype{suffix}"] = (
-                        allele_record[f"NumReadsTotalThatSupportGenotype{suffix}"] / float(allele_record["NumReadsTotal"]) if int(allele_record["NumReadsTotal"]) > 0 else 0
+                    output_record[f"FractionOfReadsThatSupportsGenotype{suffix}"] = (
+                        output_record[f"NumReadsTotalThatSupportGenotype{suffix}"] / float(output_record["NumReadsTotal"]) if int(output_record["NumReadsTotal"]) > 0 else 0
                     )
-                if return_allele_records:
-                    records_to_return.append(allele_record)
+                if yield_allele_records:
+                    yield output_record
 
-            if not return_allele_records:
-                records_to_return.append(allele_record)
-
-    return records_to_return
+            if not yield_allele_records:
+                output_record["SummaryString"] = compute_variant_summary_string(output_record)
+                yield output_record
 
 
 if __name__ == "__main__":

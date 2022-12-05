@@ -168,23 +168,28 @@ def get_expected_columns(row, with_allele_records=False, with_json_file_path=Fal
         'CI start: Allele 1',
         'CI end: Allele 1',
         'CI size: Allele 1',
+        'CI ratio: Allele 1',
         'NumSpanningReadsThatSupportGenotype: Allele 1',
         'NumFlankingReadsThatSupportGenotype: Allele 1',
         'NumInrepeatReadsThatSupportGenotype: Allele 1',
         'NumReadsTotalThatSupportGenotype: Allele 1',
         'FractionOfReadsThatSupportsGenotype: Allele 1',
-    ] + ([] if row['AlleleCount'] == 1 else [
+    ] + ([
+        'SummaryString',
+    ] if row['AlleleCount'] == 1 else [
         'Allele Number: Allele 2',
         'Num Repeats: Allele 2',
         'Repeat Size (bp): Allele 2',
         'CI start: Allele 2',
         'CI end: Allele 2',
         'CI size: Allele 2',
+        'CI ratio: Allele 2',
         'NumSpanningReadsThatSupportGenotype: Allele 2',
         'NumFlankingReadsThatSupportGenotype: Allele 2',
         'NumInrepeatReadsThatSupportGenotype: Allele 2',
         'NumReadsTotalThatSupportGenotype: Allele 2',
         'FractionOfReadsThatSupportsGenotype: Allele 2',
+        'SummaryString',
     ]) if not with_allele_records else [
         'Allele Number',
         'Num Repeats',
@@ -192,6 +197,7 @@ def get_expected_columns(row, with_allele_records=False, with_json_file_path=Fal
         'CI start',
         'CI end',
         'CI size',
+        "CI ratio",
         'NumSpanningReadsThatSupportGenotype',
         'NumFlankingReadsThatSupportGenotype',
         'NumInrepeatReadsThatSupportGenotype',
@@ -210,18 +216,18 @@ class Tests(unittest.TestCase):
         self.assertListEqual(result, [])
 
     def test_convert_expansion_hunter_json_to_tsv_columns_for_variants(self):
-        variant_rows = convert_expansion_hunter_json_to_tsv_columns(
+        variant_rows = list(convert_expansion_hunter_json_to_tsv_columns(
             EHv4_JSON,
             variant_catalog_contents=VARIANT_CATALOG_CONTENTS,
             json_file_path="",
-            return_allele_records=False,
+            yield_allele_records=False,
             include_extra_expansion_hunter_fields=True,
-        )
+        ))
         self.assertEqual(len(variant_rows), 4)
         for row in variant_rows:
             self.assertIn('InVariantCatalog', row)
             self.assertIn('AlleleCount', row)
-            self.assertListEqual(list(row.keys()), get_expected_columns(row, with_allele_records=False, with_json_file_path=False))
+            self.assertSetEqual(set(list(row.keys())), set(get_expected_columns(row, with_allele_records=False, with_json_file_path=False)))
 
             self.assertIn(row["LocusId"], {"1-146228800-146228820-NOTCH2NLC", "ATXN7", "X-25013650-25013697-ARX"})
             self.assertIn(row["VariantId"], {"1-146228800-146228820-NOTCH2NLC", "ATXN7", "ATXN7_GCC_ADJACENT", "X-25013650-25013697-ARX"})
@@ -250,13 +256,13 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(variant_rows[0][f"FractionOfReadsThatSupportsGenotype: Allele {allele_num}"], 30.5/76)
 
     def test_convert_expansion_hunter_json_to_tsv_columns_for_alleles(self):
-        allele_rows = convert_expansion_hunter_json_to_tsv_columns(
+        allele_rows = list(convert_expansion_hunter_json_to_tsv_columns(
             EHv4_JSON,
             variant_catalog_contents=VARIANT_CATALOG_CONTENTS,
             json_file_path="/temp/file.json",
-            return_allele_records=True,
-            include_all_fields=True,
-        )
+            yield_allele_records=True,
+            include_extra_expansion_hunter_fields=True,
+        ))
         self.assertEqual(len(allele_rows), 7)
         for row in allele_rows:
             self.assertIn('InVariantCatalog', row)
