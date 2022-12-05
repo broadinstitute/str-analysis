@@ -263,7 +263,10 @@ def compute_variant_summary_string(variant_record):
     reference_locus_size = end_1based - start_0based
     num_repeats_ref = int(reference_locus_size/len(repeat_unit))
 
-    if variant_record[f"Repeat Size (bp): Allele 1"] == variant_record[f"Repeat Size (bp): Allele 2"]:
+    if f"Repeat Size (bp): Allele 2" not in variant_record:
+        het_or_hom = "HEMI"
+        allele_numbers = [1]
+    elif variant_record[f"Repeat Size (bp): Allele 1"] == variant_record[f"Repeat Size (bp): Allele 2"]:
         het_or_hom = "HOM"
         allele_numbers = [1]
     else:
