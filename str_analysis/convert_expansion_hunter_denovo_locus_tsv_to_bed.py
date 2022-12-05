@@ -22,6 +22,7 @@ def main():
     print(f"Reading from {args.input_path}")
     f = open(args.output_path, "wt")
     df = pd.read_table(args.input_path)
+    df = df.sort_values(["contig", "start", "end"])
     for _, row in df.iterrows():
         fields = [
             row.contig,
@@ -34,10 +35,7 @@ def main():
 
     f.close()
 
-    os.system(f"cat {args.output_path} | bedtools sort -i - | bgzip > {args.output_path}.gz")
-    os.system(f"tabix -f {args.output_path}.gz")
-    os.system(f"rm {args.output_path}")
-    print(f"Wrote {len(df)} rows to {args.output_path}.gz")
+    print(f"Wrote {len(df)} rows to {args.output_path}")
 
 
 if __name__ == "__main__":
