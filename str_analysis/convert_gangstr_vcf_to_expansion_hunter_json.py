@@ -1,7 +1,6 @@
 """This script converts a GangSTR output VCF to the .json format ExpansionHunter uses to output results.
 This makes it easier to pass GangSTR results to downstream scripts.
 """
-from pprint import pprint
 
 """
 GangSTR output vcf format:
@@ -52,8 +51,10 @@ ExpansionHunter output format:
 
 
 import argparse
+import gzip
 import json
 import os
+from pprint import pprint
 import re
 
 
@@ -98,12 +99,11 @@ def create_variant_catalog_lookup(variant_catalog):
             variant_catalog_lookup[reference_region]["VariantType"] = variant_type
             variant_catalog_lookup[reference_region]["VariantId"] = variant_id
 
-    #pprint(variant_catalog_lookup)
     return variant_catalog_lookup
 
 
 def process_gangstr_vcf(vcf_path, variant_catalog=None):
-    sample_id = os.path.basename(vcf_path).replace("gangstr.", "").strip(".")
+    sample_id = os.path.basename(vcf_path).replace(".vcf", "").replace(".gz", "").replace("gangstr", "").strip(".")
     locus_results = {
         "LocusResults": {},
         "SampleParameters": {
@@ -114,7 +114,8 @@ def process_gangstr_vcf(vcf_path, variant_catalog=None):
 
     variant_catalog_lookup = create_variant_catalog_lookup(variant_catalog or [])
 
-    with open(vcf_path, "rt") as vcf:
+    fopen = gzip.open if vcf_path.endswith("gz") else open
+    with fopen(vcf_path, "rt") as vcf:
         line_counter = 0
         for line in vcf:
             if line.startswith("#"):

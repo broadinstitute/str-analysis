@@ -1,7 +1,6 @@
 """This script converts a HipSTR output VCF to the .json format ExpansionHunter uses to output results.
 This makes it easier to pass HipSTR results to downstream scripts.
 """
-from pprint import pprint
 
 """
 HipSTR output vcf format:
@@ -52,9 +51,9 @@ ExpansionHunter output format:
 
 
 import argparse
+import gzip
 import json
 import os
-import re
 
 
 def main():
@@ -73,7 +72,7 @@ def main():
 
 
 def process_hipstr_vcf(vcf_path):
-    sample_id = os.path.basename(vcf_path).replace("gangstr.", "").strip(".")
+    sample_id = os.path.basename(vcf_path).replace(".vcf", "").replace(".gz", "")
     locus_results = {
         "LocusResults": {},
         "SampleParameters": {
@@ -82,7 +81,8 @@ def process_hipstr_vcf(vcf_path):
         },
     }
 
-    with open(vcf_path, "rt") as vcf:
+    fopen = gzip.open if vcf_path.endswith("gz") else open
+    with fopen(vcf_path, "rt") as vcf:
         line_counter = 0
         for line in vcf:
             if line.startswith("#"):

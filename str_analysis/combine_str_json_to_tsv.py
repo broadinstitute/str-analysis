@@ -52,6 +52,12 @@ def parse_args(args_list=None):
         help="If specified, additional fields from GangSTR will be added. The input json files are expected to be the "
              "result of running convert_gangstr_vcf_to_expansion_hunter_json."
     )
+    p.add_argument(
+        "--include-extra-hipstr-fields",
+        action="store_true",
+        help="If specified, additional fields from HipSTR will be added. The input json files are expected to be the "
+             "result of running convert_hipstr_vcf_to_expansion_hunter_json."
+    )
 
     p.add_argument(
         "-o",
@@ -156,6 +162,7 @@ def main():
                 yield_allele_records=False,
                 include_extra_expansion_hunter_fields=args.include_extra_expansion_hunter_fields,
                 include_extra_gangstr_fields=args.include_extra_gangstr_fields,
+                include_extra_hipstr_fields=args.include_extra_hipstr_fields,
             ):
                 if just_get_header:
                     variant_table_columns.extend([k for k in variant_record.keys() if k not in variant_table_columns])
@@ -177,6 +184,7 @@ def main():
                 yield_allele_records=True,
                 include_extra_expansion_hunter_fields=args.include_extra_expansion_hunter_fields,
                 include_extra_gangstr_fields=args.include_extra_gangstr_fields,
+                include_extra_hipstr_fields=args.include_extra_hipstr_fields,
             ):
                 if just_get_header:
                     allele_table_columns.extend([k for k in allele_record.keys() if k not in allele_table_columns])
@@ -302,6 +310,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
     yield_allele_records=True,
     include_extra_expansion_hunter_fields=False,
     include_extra_gangstr_fields=False,
+    include_extra_hipstr_fields=False,
 ):
     """Converts a dictionary that represents the contents of an ExpansionHunter v3 or v4 json output file to
     a dictionary of tsv column values.
@@ -318,7 +327,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
         yield_allele_records (bool): if True, the returned list will have one record per allele rather than per variant
         include_extra_expansion_hunter_fields (bool): if True, include additional fields provided by ExpansionHunter.
         include_extra_gangstr_fields (bool): if True, include additional fields provided by GangSTR.
-
+        include_extra_hipstr_fields (bool): if True, include additional fields provided by HipSTR.
     Yields:
         dict: dictionary representing the output tsv row
     """
@@ -436,6 +445,14 @@ def convert_expansion_hunter_json_to_tsv_columns(
                 variant_record["NumReadsTotal"] = sum([variant_record[k] for k in (
                     "NumSpanningReads", "NumFlankingReads", "NumInrepeatReads")])
                 variant_record["Q"] = float(variant_json["Q"])
+
+            if include_extra_hipstr_fields:
+                variant_record["Q"] = float(variant_json["Q"])
+                variant_record["DP"] = float(variant_json["DP"])
+                variant_record["AB"] = float(variant_json["AB"])
+                variant_record["FS"] = float(variant_json["FS"])
+                variant_record["DFLANKINDEL"] = float(variant_json["DFLANKINDEL"])
+                variant_record["DSTUTTER"] = float(variant_json["DSTUTTER"])
 
             variant_record["Genotype"] = variant_json["Genotype"]
             variant_record["GenotypeConfidenceInterval"] = variant_json["GenotypeConfidenceInterval"]
