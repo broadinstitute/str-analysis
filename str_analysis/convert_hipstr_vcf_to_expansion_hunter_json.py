@@ -155,6 +155,8 @@ def process_hipstr_vcf(vcf_path):
                             "VariantId": locus_id,
                             "VariantSubtype": "Repeat",
                             "VariantType": "Repeat",
+                            "Ref": fields[3],
+                            "Alt": fields[4],
                             #"CountsOfFlankingReads": "()",
                             #"CountsOfInrepeatReads": "()",
                             #"CountsOfSpanningReads": "()",
