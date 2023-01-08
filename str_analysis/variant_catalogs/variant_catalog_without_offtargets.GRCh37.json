@@ -549,6 +549,27 @@
       ]
    },
    {
+        "LocusId": "FGF14",
+        "LocusStructure": "(AAG)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr13:102813924-102814074",
+        "Gene": "FGF14",
+        "Inheritance": "AD",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000102466",
+        "Diseases": [
+            {
+               "Symbol": "SCA50",
+               "Name": "Spinocerebellar ataxia 50",
+               "Inheritance": "AD",
+               "OMIM": "620158",
+               "PathogenicMin": 335,
+               "IntermediateRange": "250-335",
+               "NormalMax": 250
+            }
+         ]
+   },
+   {
       "LocusId": "FMR1",
       "LocusStructure": "(CGG)*",
       "ReferenceRegion": "chrX:146993568-146993628",
