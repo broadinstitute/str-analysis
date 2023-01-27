@@ -59,6 +59,7 @@ ALLELE_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
     "PureRepeatSize (bp)",
     "FractionPureRepeats",
     "RepeatUnitInterruptionIndex",
+    "IsPureRepeatLocus",
 ]
 
 
@@ -553,8 +554,8 @@ def process_truth_set_vcf_line(
         raise ValueError(f"Short or long allele size is < 0: "
                          f"{variant_short_allele_size}, {variant_long_allele_size}  {pformat(tsv_record)}")
 
-    is_pure_repeat_variant = all(spec["IsPureRepeat"] == "Yes" for spec in alt_STR_allele_specs)
-    counters[f"STR variant counts: pure repeats"] += 1 if is_pure_repeat_variant else 0
+    is_pure_repeat_locus = "Yes" if all(spec["IsPureRepeat"] == "Yes" for spec in alt_STR_allele_specs) else "No"
+    counters[f"STR variant counts: pure repeats"] += 1 if is_pure_repeat_locus else 0
 
     variant_locus_id = f"{vcf_chrom}-{variant_locus_start_1based - 1}-{variant_locus_end_1based}-{repeat_unit}"
 
@@ -563,7 +564,7 @@ def process_truth_set_vcf_line(
         "VcfAlt": ",".join(alt_alleles),
         "INS_or_DEL": variant_ins_or_del,
         "SummaryString": variant_summary_string,
-        "IsPureRepeat": "Yes" if is_pure_repeat_variant else "No",
+        "IsPureRepeat": is_pure_repeat_locus,
         "NumRepeatsShortAllele": variant_short_allele_size,
         "NumRepeatsLongAllele": variant_long_allele_size,
         "RepeatSizeShortAllele (bp)": variant_short_allele_size * len(repeat_unit),
@@ -589,6 +590,7 @@ def process_truth_set_vcf_line(
             "INS_or_DEL": ins_or_del,
             "SummaryString": summary_string,
             "IsPureRepeat": alt_STR_allele_spec["IsPureRepeat"],
+            "IsPureRepeatLocus": is_pure_repeat_locus,
             "NumRepeats": alt_STR_allele_spec["NumRepeatsAlt"],
             "RepeatSize (bp)": alt_STR_allele_spec["NumRepeatsAlt"] * len(repeat_unit),
             "NumPureRepeats": alt_STR_allele_spec["NumPureRepeatsAlt"],
