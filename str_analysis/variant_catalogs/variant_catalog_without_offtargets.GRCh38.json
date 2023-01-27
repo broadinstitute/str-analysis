@@ -1175,11 +1175,11 @@
       "DiscoveryYear": 2022,
       "Diseases": [
          {
-            "Symbol": "OPDM",
+            "Symbol": "OPDM4",
             "Name": "Oculopharyngodistal myopathy type 4",
             "Inheritance": "AD",
-            "OMIM": "",
-            "NormalMax": 30,
+            "OMIM": "619790",
+            "NormalMax": 20,
             "PathogenicMin": 139
          }
       ]
