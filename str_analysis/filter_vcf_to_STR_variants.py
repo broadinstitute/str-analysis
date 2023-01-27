@@ -556,6 +556,8 @@ def process_truth_set_vcf_line(
     is_pure_repeat_variant = all(spec["IsPureRepeat"] == "Yes" for spec in alt_STR_allele_specs)
     counters[f"STR variant counts: pure repeats"] += 1 if is_pure_repeat_variant else 0
 
+    variant_locus_id = f"{vcf_chrom}-{variant_locus_start_1based - 1}-{variant_locus_end_1based}-{repeat_unit}"
+
     variant_tsv_record = dict(tsv_record)
     variant_tsv_record.update({
         "VcfAlt": ",".join(alt_alleles),
@@ -569,7 +571,7 @@ def process_truth_set_vcf_line(
         "Start1Based": variant_locus_start_1based,
         "End1Based": variant_locus_end_1based,
         "Locus": f"{vcf_chrom}:{variant_locus_start_1based}-{variant_locus_end_1based}",
-        "LocusId": f"{vcf_chrom}-{variant_locus_start_1based - 1}-{variant_locus_end_1based}-{repeat_unit}",
+        "LocusId": variant_locus_id,
         "NumRepeatsInReference": (variant_locus_end_1based - variant_locus_start_1based + 1)/len(repeat_unit),
     })
     variants_tsv_writer.write("\t".join([str(variant_tsv_record[c]) for c in VARIANT_TSV_OUTPUT_COLUMNS]) + "\n")
@@ -596,7 +598,7 @@ def process_truth_set_vcf_line(
             "Start1Based": allele_locus_start_1based,
             "End1Based": allele_locus_end_1based,
             "Locus": f"{vcf_chrom}:{allele_locus_start_1based}-{allele_locus_end_1based}",
-            "LocusId": f"{vcf_chrom}-{allele_locus_start_1based - 1}-{allele_locus_end_1based}-{repeat_unit}",
+            "LocusId": variant_locus_id,
             "NumRepeatsInReference": (allele_locus_end_1based - allele_locus_start_1based + 1)/len(repeat_unit),
         })
 
