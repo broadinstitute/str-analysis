@@ -555,7 +555,7 @@ def process_truth_set_vcf_line(
                          f"{variant_short_allele_size}, {variant_long_allele_size}  {pformat(tsv_record)}")
 
     is_pure_repeat_locus = "Yes" if all(spec["IsPureRepeat"] == "Yes" for spec in alt_STR_allele_specs) else "No"
-    counters[f"STR variant counts: pure repeats"] += 1 if is_pure_repeat_locus else 0
+    counters[f"STR variant counts: pure repeats"] += 1 if is_pure_repeat_locus == "Yes" else 0
 
     variant_locus_id = f"{vcf_chrom}-{variant_locus_start_1based - 1}-{variant_locus_end_1based}-{repeat_unit}"
 
