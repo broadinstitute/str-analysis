@@ -59,7 +59,6 @@ ALLELE_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
     "PureRepeatSize (bp)",
     "FractionPureRepeats",
     "RepeatUnitInterruptionIndex",
-    "IsPureRepeatLocus",
 ]
 
 
@@ -87,7 +86,7 @@ def parse_args():
 
     if not args.allow_interruptions:
         # drop some output columns
-        for column in "NumPureRepeats", "PureRepeatSize (bp)", "FractionPureRepeats", "RepeatUnitInterruptionIndex", "IsPureRepeat":
+        for column in "NumPureRepeats", "PureRepeatSize (bp)", "FractionPureRepeats", "RepeatUnitInterruptionIndex":
             for header in VARIANT_TSV_OUTPUT_COLUMNS, ALLELE_TSV_OUTPUT_COLUMNS:
                 if column in header:
                     header.remove(column)
@@ -368,6 +367,9 @@ def compute_variant_summary_string(alt_STR_allele_specs, het_or_hom):
     ])
     summary_string += ":" + het_or_hom
 
+    if alt_STR_allele_specs[0]["IsPureRepeat"] != "Yes":
+        summary_string += ":not-pure"
+
     return ":".join(ins_or_del), summary_string
 
 
@@ -440,35 +442,33 @@ def process_truth_set_vcf_line(
     het_or_hom = "HOM" if is_homozygous else "HET"
 
     counters["variant counts: TOTAL variants"] += 1
-    # check whether the allele(s) are STRs
-    alt_STR_allele_specs = []
-    for current_alt in alt_alleles:
-        if set(current_alt) - set("ACGTN"):
-            raise ValueError(f"Invalid bases in ALT allele: {current_alt}  in row #{vcf_line_i}: {variant_id}")
 
-        counters["allele counts: TOTAL alleles"] += 1
+    for allow_interruptions in ([False, True] if args.allow_interruptions else [False]):
+        # check whether the allele(s) are STRs
+        alt_STR_allele_specs = []
+        for current_alt in alt_alleles:
+            if set(current_alt) - set("ACGTN"):
+                raise ValueError(f"Invalid bases in ALT allele: {current_alt}  in row #{vcf_line_i}: {variant_id}")
 
-        str_spec = check_if_allele_is_str(
-            fasta_obj, vcf_chrom, vcf_pos, vcf_ref, current_alt,
-            min_str_repeats=args.min_str_repeats,
-            min_str_length=args.min_str_length,
-            counters=counters,
-            allow_interruptions=False,
-        )
-        if args.allow_interruptions and str_spec["RepeatUnit"] is None:
+            counters["allele counts: TOTAL alleles"] += 1
+
             str_spec = check_if_allele_is_str(
                 fasta_obj, vcf_chrom, vcf_pos, vcf_ref, current_alt,
                 min_str_repeats=args.min_str_repeats,
                 min_str_length=args.min_str_length,
                 counters=counters,
-                allow_interruptions=True,
+                allow_interruptions=allow_interruptions,
             )
 
-        if str_spec["RepeatUnit"] is not None:
-            alt_STR_allele_specs.append(str_spec)
-        else:
-            # append None to indicate this is not an STR allele
-            alt_STR_allele_specs.append(None)
+            if str_spec["RepeatUnit"] is not None:
+                alt_STR_allele_specs.append(str_spec)
+            else:
+                # append None to indicate this is not an STR allele
+                alt_STR_allele_specs.append(None)
+
+        if any(allele_spec is not None for allele_spec in alt_STR_allele_specs):
+            # found at least one STR allele
+            break
 
     if all(allele_spec is None for allele_spec in alt_STR_allele_specs):
         counters[f"skipped variant: no repeat units found in variant"] += 1
@@ -495,21 +495,22 @@ def process_truth_set_vcf_line(
         if alt_STR_allele_specs[0]["Chrom"] != alt_STR_allele_specs[1]["Chrom"]:
             # sanity check
             raise Exception("Alleles in a multiallelic STR have different chromosomes")
+        for attribute in "RepeatUnit", "Start1Based", "End1Based", "IsPureRepeat":
+            if alt_STR_allele_specs[0][attribute] != alt_STR_allele_specs[1][attribute]:
+                print(f"WARNING: Multi-allelic STR {variant_ins_or_del} {variant_summary_string} has alleles with "
+                      f"different {attribute}:",
+                      alt_STR_allele_specs[0][attribute], " vs ",
+                      alt_STR_allele_specs[1][attribute], "  Skipping...")
+                counters[f"skipped variant: multi-allelic with different {attribute}"] += 1
+                return
 
-        if alt_STR_allele_specs[0]["RepeatUnit"] != alt_STR_allele_specs[1]["RepeatUnit"]:
-            print(f"WARNING: Multi-allelic STR {variant_ins_or_del} {variant_summary_string} has alleles with different RepeatUnits:",
-                  alt_STR_allele_specs[0]["RepeatUnit"] + ", " + alt_STR_allele_specs[1]["RepeatUnit"] + "   Skipping...")
-            counters[f"skipped variant: multi-allelic with different RepeatUnits"] += 1
-            return
-
-    # look up the repeat unit
+    # get repeat unit, start, end coords
     repeat_unit = alt_STR_allele_specs[0]["RepeatUnit"]
+    start_1based = alt_STR_allele_specs[0]["Start1Based"]
+    end_1based = alt_STR_allele_specs[0]["End1Based"]
+    is_pure_repeat = alt_STR_allele_specs[0]["IsPureRepeat"]
 
-    # multiallelic STRs will have different lengths, and so each allele may have its own start or end coordinate
-    # For the variant-level record, use the outer boundaries of the 2 alleles as the locus coordinates.
-    variant_locus_start_1based = min(spec["Start1Based"] for spec in alt_STR_allele_specs)
-    variant_locus_end_1based = max(spec["End1Based"] for spec in alt_STR_allele_specs)
-
+    # get allele sizes
     try:
         num_repeats_in_allele1 = get_num_repeats_in_allele(alt_STR_allele_specs, vcf_genotype_indices[0])
         num_repeats_in_allele2 = get_num_repeats_in_allele(alt_STR_allele_specs, vcf_genotype_indices[1])
@@ -539,6 +540,11 @@ def process_truth_set_vcf_line(
 
     tsv_record = {
         "Chrom": vcf_chrom,
+        "Start1Based": start_1based,
+        "End1Based": end_1based,
+        "Locus": f"{vcf_chrom}:{start_1based}-{end_1based}",
+        "LocusId": f"{vcf_chrom}-{start_1based - 1}-{end_1based}-{repeat_unit}",
+        "NumRepeatsInReference": (end_1based - start_1based + 1)/len(repeat_unit),
         "Motif": repeat_unit,
         "CanonicalMotif": compute_canonical_motif(repeat_unit, include_reverse_complement=True),
         "MotifSize": len(repeat_unit),
@@ -546,6 +552,7 @@ def process_truth_set_vcf_line(
         "VcfRef": vcf_ref,
         "VcfGenotype": vcf_genotype,
         "HET_or_HOM": het_or_hom,
+        "IsPureRepeat": is_pure_repeat,
         "IsMultiallelic": "Yes" if len(alt_alleles) > 1 else "No",
         "IsFoundInReference": "Yes" if any(found_in_reference(spec) for spec in alt_STR_allele_specs) else "No",
     }
@@ -554,54 +561,36 @@ def process_truth_set_vcf_line(
         raise ValueError(f"Short or long allele size is < 0: "
                          f"{variant_short_allele_size}, {variant_long_allele_size}  {pformat(tsv_record)}")
 
-    is_pure_repeat_locus = "Yes" if all(spec["IsPureRepeat"] == "Yes" for spec in alt_STR_allele_specs) else "No"
-    counters[f"STR variant counts: pure repeats"] += 1 if is_pure_repeat_locus == "Yes" else 0
-
-    variant_locus_id = f"{vcf_chrom}-{variant_locus_start_1based - 1}-{variant_locus_end_1based}-{repeat_unit}"
+    counters[f"STR variant counts: pure repeats"] += 1 if is_pure_repeat == "Yes" else 0
 
     variant_tsv_record = dict(tsv_record)
     variant_tsv_record.update({
         "VcfAlt": ",".join(alt_alleles),
         "INS_or_DEL": variant_ins_or_del,
         "SummaryString": variant_summary_string,
-        "IsPureRepeat": is_pure_repeat_locus,
         "NumRepeatsShortAllele": variant_short_allele_size,
         "NumRepeatsLongAllele": variant_long_allele_size,
         "RepeatSizeShortAllele (bp)": variant_short_allele_size * len(repeat_unit),
         "RepeatSizeLongAllele (bp)": variant_long_allele_size * len(repeat_unit),
-        "Start1Based": variant_locus_start_1based,
-        "End1Based": variant_locus_end_1based,
-        "Locus": f"{vcf_chrom}:{variant_locus_start_1based}-{variant_locus_end_1based}",
-        "LocusId": variant_locus_id,
-        "NumRepeatsInReference": (variant_locus_end_1based - variant_locus_start_1based + 1)/len(repeat_unit),
     })
     variants_tsv_writer.write("\t".join([str(variant_tsv_record[c]) for c in VARIANT_TSV_OUTPUT_COLUMNS]) + "\n")
     if args.write_bed_file:
         variants_bed_records.add(
-            (vcf_chrom, variant_locus_start_1based - 1, variant_locus_end_1based, variant_summary_string))
+            (vcf_chrom, start_1based - 1, end_1based, variant_summary_string))
 
     for alt_allele, alt_STR_allele_spec in zip(alt_alleles, alt_STR_allele_specs):
         allele_tsv_record = dict(tsv_record)
         ins_or_del, summary_string = compute_variant_summary_string([alt_STR_allele_spec], het_or_hom)
-        allele_locus_start_1based = alt_STR_allele_spec['Start1Based']
-        allele_locus_end_1based = alt_STR_allele_spec['End1Based']
         allele_tsv_record.update({
             "VcfAlt": alt_allele,
             "INS_or_DEL": ins_or_del,
             "SummaryString": summary_string,
-            "IsPureRepeat": alt_STR_allele_spec["IsPureRepeat"],
-            "IsPureRepeatLocus": is_pure_repeat_locus,
             "NumRepeats": alt_STR_allele_spec["NumRepeatsAlt"],
             "RepeatSize (bp)": alt_STR_allele_spec["NumRepeatsAlt"] * len(repeat_unit),
             "NumPureRepeats": alt_STR_allele_spec["NumPureRepeatsAlt"],
             "PureRepeatSize (bp)": alt_STR_allele_spec["NumPureRepeatsAlt"] * len(repeat_unit),
             "FractionPureRepeats": "%0.3f" % alt_STR_allele_spec["FractionPureRepeats"],
             "RepeatUnitInterruptionIndex": alt_STR_allele_spec["RepeatUnitInterruptionIndex"],
-            "Start1Based": allele_locus_start_1based,
-            "End1Based": allele_locus_end_1based,
-            "Locus": f"{vcf_chrom}:{allele_locus_start_1based}-{allele_locus_end_1based}",
-            "LocusId": variant_locus_id,
-            "NumRepeatsInReference": (allele_locus_end_1based - allele_locus_start_1based + 1)/len(repeat_unit),
         })
 
         alleles_tsv_writer.write("\t".join([str(allele_tsv_record[c]) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
