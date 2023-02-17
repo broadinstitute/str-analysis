@@ -2,11 +2,9 @@
 This script takes a .vcf and filters it to insertions and deletions  where either the REF or ALT allele
 is a short tandem repeat (STR).
 """
-
 import argparse
 import collections
 import gzip
-import logging
 import os
 from pprint import pformat, pprint
 import pyfaidx
@@ -15,10 +13,6 @@ import tqdm
 
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from str_analysis.utils.find_repeat_unit import find_repeat_unit, extend_repeat_into_sequence
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
-
-logger = logging.getLogger()
 
 MIN_SEQUENCE_LENGTH_FOR_TRYING_REVERSE_SEQUENCE = 9
 MIN_SEQUENCE_LENGTH_FOR_RUNNING_TRF = 12
@@ -86,8 +80,8 @@ def parse_args():
 
     if not args.allow_interruptions:
         # drop some output columns
-        for column in "NumPureRepeats", "PureRepeatSize (bp)", "FractionPureRepeats", "RepeatUnitInterruptionIndex":
-            for header in VARIANT_TSV_OUTPUT_COLUMNS, ALLELE_TSV_OUTPUT_COLUMNS:
+        for header in VARIANT_TSV_OUTPUT_COLUMNS, ALLELE_TSV_OUTPUT_COLUMNS:
+            for column in "NumPureRepeats", "PureRepeatSize (bp)", "FractionPureRepeats", "RepeatUnitInterruptionIndex":
                 if column in header:
                     header.remove(column)
 
@@ -679,7 +673,7 @@ def print_stats(counters):
             continue
         current_counter = [(key, count) for key, count in counters.items() if key.startswith(key_prefix)]
         current_counter = sorted(current_counter, key=lambda x: (-x[1], x[0]))
-        logger.info("--------------")
+        print("--------------")
         for key, value in current_counter:
             if key_prefix.startswith("STR"):
                 total_key = "STR variant counts: TOTAL" if "variant" in key_prefix else "STR allele counts: TOTAL"
@@ -689,7 +683,7 @@ def print_stats(counters):
             total = counters[total_key]
             percent = f"{100*value / total:5.1f}%" if total > 0 else ""
 
-            logger.info(f"{value:10,d} out of {total:10,d} ({percent}) {key}")
+            print(f"{value:10,d} out of {total:10,d} ({percent}) {key}")
 
 
 def write_bed_file(variants_bed_records, output_bed_path):
