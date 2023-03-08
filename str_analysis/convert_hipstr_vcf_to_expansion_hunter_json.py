@@ -143,12 +143,12 @@ def process_hipstr_vcf(vcf_path):
                 locus_results["LocusResults"][locus_id] = {
                     "AlleleCount": 2,
                     "LocusId": locus_id,
-                    "Coverage": float(genotype_dict["DP"]),  #10.757737459978655,
+                    "Coverage": float(genotype_dict["DP"]),
                     "ReadLength": None,
                     "FragmentLength": None,
                     "Variants": {
                         locus_id: info_dict | genotype_dict | {
-                            "Genotype": f"{num_repeats1}/{num_repeats2}",  #"17/17",
+                            "Genotype": f"{num_repeats1}/{num_repeats2}",
                             "GenotypeConfidenceInterval": f"{num_repeats1}-{num_repeats1}/{num_repeats2}-{num_repeats2}",
                             "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
                             "RepeatUnit": repeat_unit,
