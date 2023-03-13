@@ -133,7 +133,7 @@
    },
    {
       "LocusId": "ATXN1",
-      "LocusStructure": "(TGC)*",
+      "LocusStructure": "(CAG)*",
       "ReferenceRegion": "chr6:16327633-16327723",
       "VariantType": "Repeat",
       "Gene": "ATXN1",
