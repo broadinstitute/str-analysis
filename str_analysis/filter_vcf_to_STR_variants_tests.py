@@ -195,7 +195,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsAlt"], 6)
         self.assertEqual(result["NumRepeatsLeftFlank"], 1)
         self.assertEqual(result["NumRepeatsRightFlank"], 2)
-        self.assertEqual(result["IsPureRepeat"], "Yes")
+        self.assertTrue(result["IsPureRepeat"])
         self.check_results_for_pure_repeats(result)
 
     def test_check_if_allele_is_str4_deletion(self):
@@ -217,7 +217,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsAlt"], 2)
         self.assertEqual(result["NumRepeatsLeftFlank"], 1)
         self.assertEqual(result["NumRepeatsRightFlank"], 1)
-        self.assertEqual(result["IsPureRepeat"], "Yes")
+        self.assertTrue(result["IsPureRepeat"])
         self.check_results_for_pure_repeats(result)
 
     def test_check_if_allele_is_str5_deletion(self):
@@ -239,7 +239,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsAlt"], 5)
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 5)
-        self.assertEqual(result["IsPureRepeat"], "No")
+        self.assertFalse(result["IsPureRepeat"])
 
         self.assertEqual(result["RepeatUnitInterruptionIndex"], 2)
         self.assertEqual(result["FractionPureRepeats"], 10/11)
@@ -270,7 +270,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsAlt"], 9)
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 8)
-        self.assertEqual(result["IsPureRepeat"], "Yes")
+        self.assertTrue(result["IsPureRepeat"])
         self.check_results_for_pure_repeats(result)
 
     def test_check_if_allele_is_str7_insertion(self):
@@ -292,7 +292,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsAlt"], 9)
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 8)
-        self.assertEqual(result["IsPureRepeat"], "Yes")
+        self.assertTrue(result["IsPureRepeat"])
         self.check_results_for_pure_repeats(result)
 
     def test_check_if_allele_is_str8_insertion(self):
@@ -314,7 +314,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsAlt"], 9)
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 8)
-        self.assertEqual(result["IsPureRepeat"], "Yes")
+        self.assertTrue(result["IsPureRepeat"])
         self.check_results_for_pure_repeats(result)
 
     def test_check_if_allele_is_str9_insertion(self):
@@ -337,7 +337,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsAlt"], 3)
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 0)
-        self.assertEqual(result["IsPureRepeat"], "Yes")
+        self.assertTrue(result["IsPureRepeat"])
         self.check_results_for_pure_repeats(result)
 
 
@@ -361,7 +361,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsAlt"], 0)
         self.assertEqual(result["NumRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumRepeatsRightFlank"], 0)
-        self.assertEqual(result["IsPureRepeat"], "Yes")
+        self.assertTrue(result["IsPureRepeat"])
         self.check_results_for_pure_repeats(result)
 
     def tearDown(self):

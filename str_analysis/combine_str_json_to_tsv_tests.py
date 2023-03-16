@@ -174,6 +174,7 @@ def get_expected_columns(row, with_allele_records=False, with_json_file_path=Fal
         'NumInrepeatReadsThatSupportGenotype: Allele 1',
         'NumReadsTotalThatSupportGenotype: Allele 1',
         'FractionOfReadsThatSupportsGenotype: Allele 1',
+        'Q: Allele 1',
     ] + ([
         'SummaryString',
     ] if row['AlleleCount'] == 1 else [
@@ -189,6 +190,7 @@ def get_expected_columns(row, with_allele_records=False, with_json_file_path=Fal
         'NumInrepeatReadsThatSupportGenotype: Allele 2',
         'NumReadsTotalThatSupportGenotype: Allele 2',
         'FractionOfReadsThatSupportsGenotype: Allele 2',
+        'Q: Allele 2',
         'SummaryString',
     ]) if not with_allele_records else [
         'Allele Number',
@@ -203,6 +205,7 @@ def get_expected_columns(row, with_allele_records=False, with_json_file_path=Fal
         'NumInrepeatReadsThatSupportGenotype',
         'NumReadsTotalThatSupportGenotype',
         'FractionOfReadsThatSupportsGenotype',
+        'Q',
     ])
 
 
