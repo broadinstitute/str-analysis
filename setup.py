@@ -40,7 +40,7 @@ def test_suite():
 
 setup(
     name='str_analysis',
-    version="0.9.18",
+    version="0.9.19",
     description="Utilities  short tandem repeats (STRs)",
     install_requires=requirements,
     cmdclass={
