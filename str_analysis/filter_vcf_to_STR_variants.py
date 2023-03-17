@@ -699,6 +699,7 @@ def discard_loci_with_multiple_indels(file_path, locus_ids_with_multiple_indels)
                 header = line.strip().split("\t")
                 if "LocusId" not in header:
                     raise ValueError(f"LocusId column not found in {file_path} header: {header}")
+                fo.write(line)
                 continue
 
             total += 1
