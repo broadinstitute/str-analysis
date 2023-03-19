@@ -56,17 +56,17 @@ ALLELE_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
     "RepeatUnitInterruptionIndex",
 ]
 
-FILTER_ALLELE_WITHOUT_ENOUGH_REPEATS = "allele without enough repeats"
-FILTER_ALLELE_HOMOPOLYMER = "homopolymer allele"
-
 FILTER_MORE_THAN_TWO_ALT_ALLELES = "more than two alt alleles"
 FILTER_UNEXPECTED_GENOTYPE_FORMAT = "unexpected genotype format"
-FILTER_SNV_OR_MNV = "SNV/MNV"
 
-FILTER_ONE_STR_ONE_NON_STR_ALLELE = "one STR, one non-STR allele"
-FILTER_STR_ALLELES_WITH_DIFFERENT_MOTIFS = "STR alleles with different motifs"
-FILTER_STR_ALLELES_WITH_DIFFERENT_COORDS = "STR alleles with different coords"
-FILTER_STR_ONE_PURE_ONE_INTERRUPTED_ALLELE = "one pure STR, one interrupted STR allele"
+FILTER_ALLELE_SNV_OR_MNV = "SNV/MNV"
+FILTER_ALLELE_NON_STR_INDEL = "INDEL"
+FILTER_STR_ALLELE_HOMOPOLYMER = "homopolymer"
+FILTER_STR_ALLELE_WITHOUT_ENOUGH_REPEATS = "allele doesn't have enough repeats"
+FILTER_STR_ALLELE_PARTIAL_REPEAT = "allele ends in partial repeat"
+
+FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_MOTIFS = "STR alleles with different motifs"
+FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_COORDS = "STR alleles with different coords"
 FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS = "locus with multiple STR variants"
 
 
@@ -191,17 +191,17 @@ def check_if_allele_is_str(
     counter_key_suffix = " (interruptions allowed)" if allow_interruptions else ""
 
     if len(ref) == len(alt):
-        if counters: counters[f"non-STR allele: SNV{counter_key_suffix}" if len(ref) == 1 else "non-STR allele: MNV"] += 1
-        null_result["FilterReason"] = FILTER_SNV_OR_MNV
+        if counters: counters[f"allele filter: "+("SNV" if len(ref) == 1 else "MNV")+counter_key_suffix] += 1
+        null_result["FilterReason"] = FILTER_ALLELE_SNV_OR_MNV
         return null_result
 
     ins_or_del = "INS" if len(ref) < len(alt) else "DEL"
-    if counters: counters[f"allele counts: {ins_or_del} alleles{counter_key_suffix}"] += 1
+    if counters: counters[f"allele counts: {ins_or_del} alleles"+counter_key_suffix] += 1
 
     variant_bases = alt[len(ref):] if len(ref) < len(alt) else ref[len(alt):]
     if len(variant_bases) == 1:
-        if counters: counters[f"non-STR allele: 1bp {ins_or_del}{counter_key_suffix}"] += 1
-        null_result["FilterReason"] = FILTER_ALLELE_WITHOUT_ENOUGH_REPEATS
+        if counters: counters[f"allele filter: 1bp {ins_or_del}"+counter_key_suffix] += 1
+        null_result["FilterReason"] = FILTER_ALLELE_NON_STR_INDEL
         return null_result
 
     (
@@ -209,7 +209,7 @@ def check_if_allele_is_str(
         num_pure_repeats_within_variant_bases,
         num_total_repeats_within_variant_bases,
         repeat_unit_interruption_index,
-        _,
+        has_partial_repeats,
     ) = find_repeat_unit(
         variant_bases,
         allow_interruptions=allow_interruptions,
@@ -217,8 +217,8 @@ def check_if_allele_is_str(
     )
 
     if len(repeat_unit) == 1:
-        if counters: counters[f"non-STR allele: homopolymer{counter_key_suffix}"] += 1
-        null_result["FilterReason"] = FILTER_ALLELE_HOMOPOLYMER
+        if counters: counters[f"allele filter: {FILTER_STR_ALLELE_HOMOPOLYMER}"+counter_key_suffix] += 1
+        null_result["FilterReason"] = FILTER_STR_ALLELE_HOMOPOLYMER
         return null_result
 
     left_flanking_reference_sequence, variant_bases2, right_flanking_reference_sequence = get_flanking_reference_sequences(
@@ -271,11 +271,36 @@ def check_if_allele_is_str(
 
     if not allow_interruptions and num_pure_repeats_in_str != num_total_repeats_in_str:
         # sanity check
-        raise Exception("Repeat has interruptions even though allow_interruptions is False")
+        raise ValueError("Repeat has interruptions even though allow_interruptions is False")
 
     if num_total_repeats_in_str < min_str_repeats or num_total_repeats_in_str * len(repeat_unit) < min_str_length:
-        if counters: counters[f"non-STR allele: allele has < {min_str_repeats} repeats{counter_key_suffix} or allele sequence < {min_str_length}bp{counter_key_suffix}"] += 1
-        null_result["FilterReason"] = FILTER_ALLELE_WITHOUT_ENOUGH_REPEATS
+        # this allele didn't pass filters. Determine the detailed reason it's being filtered out.
+        if num_total_repeats_in_str > 1:
+            # it has more than one repeat (so a repeat unit was found), but less than the minimum threshold
+            if counters: counters[f"allele filter: allele has < {min_str_repeats} repeats or allele sequence < {min_str_length}bp"+counter_key_suffix] += 1
+            null_result["FilterReason"] = FILTER_STR_ALLELE_WITHOUT_ENOUGH_REPEATS
+            return null_result
+
+        # check whether it consists of some repeats if it's allowed to end in a partial repeat
+        repeat_unit_allowing_partial, _, num_total_repeats_allowing_partial, _, has_partial_repeats = find_repeat_unit(
+            variant_bases,
+            allow_interruptions=allow_interruptions,
+            allow_partial_repeats=True,
+        )
+
+        if num_total_repeats_allowing_partial > 1:
+            # found that it consists of some repeats if it's allowed to end in a partial repeat
+            if not has_partial_repeats:
+                # sanity check
+                raise ValueError(f"Unexpected return value: has_partial_repeats is False for {variant_bases}, "
+                                 f"allow_interrruptions={allow_interruptions}")
+            if counters: counters[f"allele filter: {FILTER_STR_ALLELE_PARTIAL_REPEAT}"+counter_key_suffix] += 1
+            null_result["FilterReason"] = FILTER_STR_ALLELE_PARTIAL_REPEAT
+            return null_result
+
+        # no repeat unit found in this allele
+        if counters: counters[f"allele filter: {FILTER_ALLELE_NON_STR_INDEL}"+counter_key_suffix] += 1
+        null_result["FilterReason"] = FILTER_ALLELE_NON_STR_INDEL
         return null_result
 
     is_pure_repeat = num_pure_repeats_in_str == num_total_repeats_in_str
@@ -329,6 +354,7 @@ def check_if_allele_is_str(
         counters[f"STR allele motif size{counter_key_suffix}: {len(repeat_unit) if len(repeat_unit) < 9 else '9+'} bp"] += 1
         counters[f"STR allele size{counter_key_suffix}: {num_base_pairs_within_variant_bases}"] += 1
         counters[f"STR allele reference repeats{counter_key_suffix}: with {left_or_right} matching ref. repeat"] += 1
+
     return result
 
 
@@ -432,6 +458,10 @@ def process_vcf_line(
     variant_id = f"{vcf_chrom_without_chr_prefix}-{vcf_pos}-{vcf_ref}-{vcf_alt}"
 
     alt_alleles = vcf_alt.split(",")
+
+    counters["variant counts: TOTAL variants"] += 1
+    counters["allele counts: TOTAL alleles"] += len(alt_alleles)
+
     if len(alt_alleles) > 2:
         print(f"WARNING: Multi-allelic variant with {len(alt_alleles)} alt alleles found: row #{vcf_line_i}: {variant_id}. "
               "This script doesn't support more than 2 alt alleles. Skipping...")
@@ -478,9 +508,6 @@ def process_vcf_line(
     is_homozygous = vcf_genotype_indices[0] == vcf_genotype_indices[1]
     het_or_hom = "HOM" if is_homozygous else "HET"
 
-    counters["variant counts: TOTAL variants"] += 1
-    counters["allele counts: TOTAL alleles"] += len(alt_alleles)
-
     for allow_interruptions in ([False, True] if args.allow_interruptions else [False]):
         # check whether the allele(s) are STRs
         alt_STR_allele_specs = []
@@ -521,17 +548,19 @@ def process_vcf_line(
             raise Exception("Alleles in a multiallelic STR have different chromosomes")
 
         for attribute, filter_string in [
-            ("RepeatUnit", FILTER_STR_ALLELES_WITH_DIFFERENT_MOTIFS),
-            ("Start1Based", FILTER_STR_ALLELES_WITH_DIFFERENT_COORDS),
-            ("End1Based", FILTER_STR_ALLELES_WITH_DIFFERENT_COORDS),
-            ("IsPureRepeat", FILTER_STR_ONE_PURE_ONE_INTERRUPTED_ALLELE)]:
+            ("RepeatUnit", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_MOTIFS),
+            ("Start1Based", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_COORDS),
+            ("End1Based", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_COORDS)]:
             if alt_STR_allele_specs[0][attribute] != alt_STR_allele_specs[1][attribute]:
                 print(f"WARNING: Multi-allelic STR {variant_ins_or_del} {variant_summary_string} has alleles with "
                       f"different {attribute}:",
                       alt_STR_allele_specs[0][attribute], " vs ",
                       alt_STR_allele_specs[1][attribute], "  Skipping...")
-                counters[f"skipped variant: multi-allelic with different {attribute}"] += 1
+                counters[f"variant filter: multi-allelic that has {filter_string}"] += 1
                 return filter_string
+
+        if alt_STR_allele_specs[0]["IsPureRepeat"] != alt_STR_allele_specs[1]["IsPureRepeat"]:
+            alt_STR_allele_specs[0]["IsPureRepeat"] = alt_STR_allele_specs[1]["IsPureRepeat"] = False
 
     # get repeat unit, start, end coords
     repeat_unit = alt_STR_allele_specs[0]["RepeatUnit"]
@@ -594,7 +623,10 @@ def process_vcf_line(
         raise ValueError(f"Short or long allele size is < 0: "
                          f"{variant_short_allele_size}, {variant_long_allele_size}  {pformat(tsv_record)}")
 
-    counters[f"STR variant counts: pure repeats"] += 1 if is_pure_repeat else 0
+    if is_pure_repeat:
+        counters[f"STR variant counts: pure repeats"] += 1
+    else:
+        counters[f"STR variant counts: interrupted repeats"] += 1
 
     variant_tsv_record = dict(tsv_record)
     variant_tsv_record.update({
@@ -687,22 +719,26 @@ def print_stats(counters):
         tokens = key.split(":")
         key_prefixes.add(f"{tokens[0]}:")
 
-    for key_prefix in sorted(key_prefixes):
-        if key_prefix in ("variant counts:", "allele counts:"):
-            continue
-        current_counter = [(key, count) for key, count in counters.items() if key.startswith(key_prefix)]
-        current_counter = sorted(current_counter, key=lambda x: (-x[1], x[0]))
-        print("--------------")
-        for key, value in current_counter:
-            if key_prefix.startswith("STR"):
-                total_key = "STR variant counts: TOTAL" if "variant" in key_prefix else "STR allele counts: TOTAL"
-            else:
-                total_key = "variant counts: TOTAL variants" if "variant" in key_prefix else "allele counts: TOTAL alleles"
+    for print_totals_only in True, False:
+        for key_prefix in sorted(key_prefixes):
+            if print_totals_only ^ (key_prefix in ("variant counts:", "allele counts:")):
+                continue
+            current_counter = [(key, count) for key, count in counters.items() if key.startswith(key_prefix)]
+            current_counter = sorted(current_counter, key=lambda x: (-x[1], x[0]))
+            print("--------------")
+            for key, value in current_counter:
+                if key_prefix.startswith("STR"):
+                    total_key = "STR variant counts: TOTAL" if "variant" in key_prefix else "STR allele counts: TOTAL"
+                else:
+                    total_key = "variant counts: TOTAL variants" if "variant" in key_prefix else "allele counts: TOTAL alleles"
 
-            total = counters[total_key]
-            percent = f"{100*value / total:5.1f}%" if total > 0 else ""
+                total = counters[total_key]
+                percent = f"{100*value / total:5.1f}%" if total > 0 else ""
 
-            print(f"{value:10,d} out of {total:10,d} ({percent}) {key}")
+                if print_totals_only:
+                    print(f"{value:10,d}  {key}")
+                else:
+                    print(f"{value:10,d} out of {total:10,d} ({percent}) {key}")
 
 
 def run(command):
@@ -767,34 +803,40 @@ def main():
 
         if args.n is not None and vcf_line_i >= args.n:
             break
+
         vcf_line_i += 1
 
         filter_string = process_vcf_line(vcf_line_i, vcf_fields, fasta_obj, vcf_writer, variants_tsv_writer,
                                          alleles_tsv_writer, bed_writer, args, counters, indels_per_locus_counter)
 
         if filter_string and args.write_vcf_with_filtered_out_variants:
+            # if this variant was filtered out, record it in output VCFs
+
             vcf_fields[2] = filter_string
 
             if any(filter_reason in filter_string for filter_reason in (
-                FILTER_ONE_STR_ONE_NON_STR_ALLELE,
-                FILTER_STR_ALLELES_WITH_DIFFERENT_MOTIFS,
-                FILTER_STR_ALLELES_WITH_DIFFERENT_COORDS,
-                FILTER_STR_ONE_PURE_ONE_INTERRUPTED_ALLELE,
-                FILTER_ALLELE_HOMOPOLYMER,
+                FILTER_STR_ALLELE_HOMOPOLYMER,
+                FILTER_STR_ALLELE_WITHOUT_ENOUGH_REPEATS,
+                FILTER_STR_ALLELE_PARTIAL_REPEAT,
+                FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_MOTIFS,
+                FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_COORDS,
+                FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS,
             )):
                 filtered_out_strs_vcf_writer.write("\t".join(vcf_fields) + "\n")
+
             elif filter_string not in (
                 FILTER_MORE_THAN_TWO_ALT_ALLELES,
                 FILTER_UNEXPECTED_GENOTYPE_FORMAT,
-                FILTER_SNV_OR_MNV,
-                ";".join([FILTER_SNV_OR_MNV]*2),
+                FILTER_ALLELE_SNV_OR_MNV,
+                ";".join([FILTER_ALLELE_SNV_OR_MNV]*2),
             ):
                 filtered_out_indels_vcf_writer.write("\t".join(vcf_fields) + "\n")
 
     locus_ids_with_multiple_indels = set()
     for locus_id, count in indels_per_locus_counter.items():
         if count > 1:
-            print(f"WARNING: {locus_id} locus contained {count} different INDEL variants in the input vcf")
+            print(f"WARNING: {locus_id} locus contained {count} different STR INDEL variants. Skipping...")
+            counters[f"variant filter: {FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS}"] += 1
             locus_ids_with_multiple_indels.add(locus_id)
 
     # close and post-process all output files
@@ -810,8 +852,8 @@ def main():
             continue
         writer.close()
         if len(locus_ids_with_multiple_indels) > 0:
-            print(f"Filtering {len(locus_ids_with_multiple_indels)} loci from {writer.name} because they have "
-                  f"more than one STR variant")
+            print(f"Filtering {len(locus_ids_with_multiple_indels)} loci from {writer.name} because they overlap "
+                  f"more than one STR INDEL variant")
             if discard_loci_with_multiple_indels:
                 process_STR_loci_with_multiple_indels(writer.name, locus_ids_with_multiple_indels,
                                                       filtered_out_strs_vcf_writer)
