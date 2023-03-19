@@ -66,11 +66,15 @@ def find_repeat_unit(
             "CAGCAGCA" would not be considered as made up of "CAG" repeats since the last repeat is incomplete. If True,
             "CAGCAGCA" would be counted as consisting of 2 "CAG" repeats.
     Return:
-         4-tuple (str, int, int, int): repeat unit, number of pure repeats, num total repeats,
-            which position in the repeat unit varies across
-            repeats or None if the input sequence was found to consist entirely of pure repeats. For example, a return
-            value of (CAG, 7, 10, 0) means the input sequence consists of 7 pure CAGs and 3 CAGs with an interruption at
-            position 0 of the repeat unit (whould could be "AAG", "GAG" or "TAG").
+         5-tuple (str, int, int, int, bool):
+            repeat unit,
+            number of pure repeats,
+            num total repeats,
+            which position in the repeat unit varies across repeats or None if the input sequence was found to
+                consist entirely of pure repeats. For example, a return value of (CAG, 7, 10, 0) means the input
+                sequence consists of 7 pure CAGs and 3 CAGs with an interruption at position 0 of the repeat unit
+                (would could be "AAG", "GAG" or "TAG"),
+            has_partial_repeats
     """
 
     # find the smallest repeat unit that covers the entire motif
@@ -79,12 +83,12 @@ def find_repeat_unit(
         repeat_unit = sequence[:repeat_unit_length]
         num_repeats = sequence.count(repeat_unit)
         partial_repeat_length = len(sequence) % repeat_unit_length
-        if num_repeats * repeat_unit_length == len(sequence) or (
-                allow_partial_repeats
+        if num_repeats * repeat_unit_length == len(sequence):
+            return repeat_unit, num_repeats, num_repeats, None, False
+        if (allow_partial_repeats
                 and num_repeats * repeat_unit_length == len(sequence) - partial_repeat_length
-                and sequence[num_repeats * repeat_unit_length:] == repeat_unit[:partial_repeat_length]
-        ):
-            return repeat_unit, num_repeats, num_repeats, None
+                and sequence[num_repeats * repeat_unit_length:] == repeat_unit[:partial_repeat_length]):
+            return repeat_unit, num_repeats, num_repeats, None, True
 
         repeat_unit_length += 1
 
@@ -117,13 +121,14 @@ def find_repeat_unit(
 
                 if COMPILED_REGEX_CACHE[regex].match(sequence):
                     num_pure_repeats = sequence.count(repeat_unit)
-                    return repeat_unit, num_pure_repeats, num_total_repeats_expected, i
+                    has_partial_repeats = len(repeat_unit) * num_total_repeats_expected < len(sequence)
+                    return repeat_unit, num_pure_repeats, num_total_repeats_expected, i, has_partial_repeats
 
 
     # no repeat unit found, so return the input sequence itself as the repeat unit
     repeat_unit = sequence
     num_pure_repeats = num_total_repeats_expected = 1
-    return repeat_unit, num_pure_repeats, num_total_repeats_expected, None
+    return repeat_unit, num_pure_repeats, num_total_repeats_expected, None, False
 
 
 def extend_repeat_into_sequence(

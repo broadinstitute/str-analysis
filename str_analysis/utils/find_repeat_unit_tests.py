@@ -45,114 +45,130 @@ class Test(unittest.TestCase):
 
     def test_find_repeat_unit(self):
         # test a few examples
-        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index = find_repeat_unit(
+        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit(
             "CAG"*5, allow_interruptions=True)
         self.assertEqual(found_repeat_unit, "CAG")
         self.assertEqual(found_num_pure_repeats, 5)
         self.assertEqual(found_num_total_repeats, 5)
         self.assertEqual(interruption_index, None)
+        self.assertFalse(has_partial_repeats)
 
-        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index = find_repeat_unit(
+        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit(
             "CAG"*5 + "C", allow_interruptions=True, allow_partial_repeats=True)
         self.assertEqual(found_repeat_unit, "CAG")
         self.assertEqual(found_num_pure_repeats, 5)
         self.assertEqual(found_num_total_repeats, 5)
         self.assertEqual(interruption_index, None)
+        self.assertTrue(has_partial_repeats)
 
-        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index = find_repeat_unit(
+        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit(
             "CAG"*5 + "C", allow_interruptions=True, allow_partial_repeats=False)
         self.assertEqual(found_repeat_unit, "CAG"*5 + "C")
         self.assertEqual(found_num_pure_repeats, 1)
         self.assertEqual(found_num_total_repeats, 1)
         self.assertEqual(interruption_index, None)
+        self.assertFalse(has_partial_repeats)
 
-        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index = find_repeat_unit(
+        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit(
             "CATCAGCAGCAGCAG", allow_interruptions=True)
         self.assertEqual(found_repeat_unit, "CAT")
         self.assertEqual(found_num_pure_repeats, 1)
         self.assertEqual(found_num_total_repeats, 5)
         self.assertEqual(interruption_index, 2)
+        self.assertFalse(has_partial_repeats)
 
-        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index = find_repeat_unit(
+        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit(
             "CAGCATCAGCAGCAG", allow_interruptions=True)
         self.assertEqual(found_repeat_unit, "CAG")
         self.assertEqual(found_num_pure_repeats, 4)
         self.assertEqual(found_num_total_repeats, 5)
         self.assertEqual(interruption_index, 2)
+        self.assertFalse(has_partial_repeats)
 
-        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index = find_repeat_unit(
+        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit(
             "A"*5, allow_interruptions=True)
         self.assertEqual(found_repeat_unit, "A")
         self.assertEqual(found_num_pure_repeats, 5)
         self.assertEqual(found_num_total_repeats, 5)
         self.assertEqual(interruption_index, None)
+        self.assertFalse(has_partial_repeats)
 
-        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index = find_repeat_unit(
+        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit(
             "ACG"*2 + "ACA" + "ACG"*2 + "ACT"*2, allow_interruptions=True)
         self.assertEqual(found_repeat_unit, "ACG")
         self.assertEqual(found_num_pure_repeats, 4)
         self.assertEqual(found_num_total_repeats, 7)
         self.assertEqual(interruption_index, 2)
+        self.assertFalse(has_partial_repeats)
 
-        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index = find_repeat_unit(
+        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit(
             "AAAAAGAAAA", allow_interruptions=True)
         self.assertEqual(found_repeat_unit, "AAAAAGAAAA")
         self.assertEqual(found_num_pure_repeats, 1)
         self.assertEqual(found_num_total_repeats, 1)
         self.assertEqual(interruption_index, None)
+        self.assertFalse(has_partial_repeats)
 
-        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index = find_repeat_unit(
+        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit(
             "CTCTCTCACT", allow_interruptions=True)
         self.assertEqual(found_repeat_unit, "CTCTCTCACT")
         self.assertEqual(found_num_pure_repeats, 1)
         self.assertEqual(found_num_total_repeats, 1)
         self.assertEqual(interruption_index, None)
+        self.assertFalse(has_partial_repeats)
 
-        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index = find_repeat_unit(
+        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit(
             "AAAAAGAAA", allow_interruptions=True)
         self.assertEqual(found_repeat_unit, "AAAAAGAAA")
         self.assertEqual(found_num_pure_repeats, 1)
         self.assertEqual(found_num_total_repeats, 1)
         self.assertEqual(interruption_index, None)
+        self.assertFalse(has_partial_repeats)
 
-        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index = find_repeat_unit(
+        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit(
             "AAGAAAAAGAAAAAT", allow_interruptions=True)
         self.assertEqual(found_repeat_unit, "AAGAAAAAGAAAAAT")
         self.assertEqual(found_num_pure_repeats, 1)
         self.assertEqual(found_num_total_repeats, 1)
         self.assertEqual(interruption_index, None)
+        self.assertFalse(has_partial_repeats)
 
-        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index = find_repeat_unit(
+        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit(
             "CTTCGGCAT", allow_interruptions=True)
         self.assertEqual(found_repeat_unit, "CTTCGGCAT")
         self.assertEqual(found_num_pure_repeats, 1)
         self.assertEqual(found_num_total_repeats, 1)
         self.assertEqual(interruption_index, None)
+        self.assertFalse(has_partial_repeats)
+        self.assertFalse(has_partial_repeats)
 
-        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index = find_repeat_unit(
+        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit(
             "CATAATGAT", allow_interruptions=True)
         self.assertEqual(found_repeat_unit, "CAT")
         self.assertEqual(found_num_pure_repeats, 1)
         self.assertEqual(found_num_total_repeats, 3)
         self.assertEqual(interruption_index, 0)
+        self.assertFalse(has_partial_repeats)
 
-        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index = find_repeat_unit(
+        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit(
             "CAGGCATGCAGGCACG", allow_interruptions=True)
         self.assertEqual(found_repeat_unit, "CAGG")
         self.assertEqual(found_num_pure_repeats, 2)
         self.assertEqual(found_num_total_repeats, 4)
         self.assertEqual(interruption_index, 2)
+        self.assertFalse(has_partial_repeats)
 
         # do a general test of various motif sizes and repeat counts
         for repeat_unit in "A", "AC", "ACG", "ACGT", "ACGTA", "ACGGTA", "ACGGTAC", "ACGGTACG":
             for num_repeats in 1, 2, 3, 4, 5:
                 for allow_interruptions in True, False:
                     sequence = repeat_unit * num_repeats
-                    found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, i = find_repeat_unit(
+                    found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, i, has_partial_repeats = find_repeat_unit(
                         sequence, allow_interruptions=allow_interruptions)
 
                     self.assertEqual(found_num_pure_repeats, found_num_total_repeats)
                     self.assertIsNone(i)
+                    self.assertFalse(has_partial_repeats)
 
                     self.assertEqual(found_repeat_unit, repeat_unit,
                                      f"repeat unit not detected correctly for {num_repeats}x{repeat_unit}")
@@ -163,7 +179,7 @@ class Test(unittest.TestCase):
                     for interruption_index in range(len(repeat_unit)):
                         sequence_with_interruption = add_interruption(sequence, repeat_unit, interruption_index)
 
-                        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, i = find_repeat_unit(
+                        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, i, has_partial_repeats = find_repeat_unit(
                             sequence_with_interruption, allow_interruptions=allow_interruptions)
 
                         if allow_interruptions and num_repeats > 1:
