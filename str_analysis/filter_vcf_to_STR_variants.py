@@ -60,14 +60,14 @@ FILTER_MORE_THAN_TWO_ALT_ALLELES = "more than two alt alleles"
 FILTER_UNEXPECTED_GENOTYPE_FORMAT = "unexpected genotype format"
 
 FILTER_ALLELE_SNV_OR_MNV = "SNV/MNV"
-FILTER_ALLELE_NON_STR_INDEL = "INDEL"
+FILTER_ALLELE_NON_STR_INDEL = "INDEL without repeats"
 FILTER_STR_ALLELE_HOMOPOLYMER = "homopolymer"
-FILTER_STR_ALLELE_WITHOUT_ENOUGH_REPEATS = "allele doesn't have enough repeats"
-FILTER_STR_ALLELE_PARTIAL_REPEAT = "allele ends in partial repeat"
+FILTER_STR_ALLELE_WITHOUT_ENOUGH_REPEATS = "too few repeats"
+FILTER_STR_ALLELE_PARTIAL_REPEAT = "ends in partial repeat"
 
 FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_MOTIFS = "STR alleles with different motifs"
 FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_COORDS = "STR alleles with different coords"
-FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS = "locus with multiple STR variants"
+FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS = "locus overlaps more than one STR variant"
 
 
 def parse_args():
@@ -277,7 +277,12 @@ def check_if_allele_is_str(
         # this allele didn't pass filters. Determine the detailed reason it's being filtered out.
         if num_total_repeats_in_str > 1:
             # it has more than one repeat (so a repeat unit was found), but less than the minimum threshold
-            if counters: counters[f"allele filter: allele has < {min_str_repeats} repeats or allele sequence < {min_str_length}bp"+counter_key_suffix] += 1
+            if counters:
+                if num_total_repeats_in_str * len(repeat_unit) < min_str_length:
+                    counters[f"allele filter: allele sequence spans < {min_str_length}bp"+counter_key_suffix] += 1
+                else:
+                    counters[f"allele filter: allele consists of only {num_total_repeats_in_str} repeats"+counter_key_suffix] += 1
+
             null_result["FilterReason"] = FILTER_STR_ALLELE_WITHOUT_ENOUGH_REPEATS
             return null_result
 
@@ -532,7 +537,15 @@ def process_vcf_line(
             break
 
     if any(allele_spec["RepeatUnit"] is None for allele_spec in alt_STR_allele_specs):
-        counters[f"variant filter: one or more alleles didn't pass STR filters"] += 1
+        if len(alt_STR_allele_specs) == 1:
+            counters[f"variant filter: " + alt_STR_allele_specs[0]["FilterReason"]] += 1
+        elif alt_STR_allele_specs[0]["FilterReason"] is None or alt_STR_allele_specs[1]["FilterReason"] is None:
+            counters[f"variant filter: multi-allelic: one STR, one non-STR allele"] += 1
+        elif alt_STR_allele_specs[0]["FilterReason"] == alt_STR_allele_specs[1]["FilterReason"]:
+            counters[f"variant filter: multi-allelic: " + alt_STR_allele_specs[0]["FilterReason"]] += 1
+        else:
+            counters[f"variant filter: multi-allelic: both alleles pass STR filters for different reasons"] += 1
+
         return ";".join((allele_spec["FilterReason"] or f"STR allele") for allele_spec in alt_STR_allele_specs)
 
     if len(alt_STR_allele_specs) > 1 and is_homozygous:
@@ -874,6 +887,7 @@ def main():
         elif writer.name.endswith(".bed"):
             run(f"bedtools sort -i {bed_writer.name} | bgzip > {bed_writer.name}.gz")
             run(f"tabix -f {bed_writer.name}.gz")
+            os.remove(bed_writer.name)
 
         print(f"Finished writing to {writer.name}.gz")
 
