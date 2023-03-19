@@ -472,12 +472,14 @@ def process_vcf_line(
     vcf_genotype_format = vcf_fields[8].split(":")
     if vcf_genotype_format[0] != "GT":
         #print(f"WARNING: Unexpected genotype field in row #{vcf_line_i}: {vcf_fields[8]}  (variant: {variant_id})")
+        counters[f"WARNING: {FILTER_UNEXPECTED_GENOTYPE_FORMAT}"] += 1
         return FILTER_UNEXPECTED_GENOTYPE_FORMAT
 
     vcf_genotype = next(iter(vcf_fields[9].split(":")))
     vcf_genotype_indices = re.split(r"[/|\\]", vcf_genotype)
     if len(vcf_genotype_indices) != 2 or any(not gi.isdigit() for gi in vcf_genotype_indices):
         #print(f"WARNING: Unexpected genotype GT format in row #{vcf_line_i}: {vcf_genotype}  (variant: {variant_id})")
+        counters[f"WARNING: {FILTER_UNEXPECTED_GENOTYPE_FORMAT}"] += 1
         return FILTER_UNEXPECTED_GENOTYPE_FORMAT
 
     vcf_genotype_indices = [int(gi) for gi in vcf_genotype_indices]
@@ -530,7 +532,8 @@ def process_vcf_line(
             break
 
     if any(allele_spec["RepeatUnit"] is None for allele_spec in alt_STR_allele_specs):
-        return ";".join(allele_spec["FilterReason"] or f"STR allele" for allele_spec in alt_STR_allele_specs)
+        counters[f"variant filter: one or more alleles didn't pass STR filters"] += 1
+        return ";".join((allele_spec["FilterReason"] or f"STR allele") for allele_spec in alt_STR_allele_specs)
 
     if len(alt_STR_allele_specs) > 1 and is_homozygous:
         # since these variants are from a single diploid sample, a homozygous genotype and multiple alleles are
