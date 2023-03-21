@@ -9,6 +9,7 @@ import gzip
 import os
 from pprint import pformat
 import pyfaidx
+import pysam
 import re
 import tqdm
 
@@ -232,6 +233,7 @@ def check_if_allele_is_str(
     reversed_repeat_unit_interruption_index = None
     if repeat_unit_interruption_index is not None:
         reversed_repeat_unit_interruption_index = len(repeat_unit) - 1 - repeat_unit_interruption_index
+
     num_pure_repeats_left_flank, num_total_repeats_left_flank, reversed_repeat_unit_interruption_index = extend_repeat_into_sequence(
         repeat_unit[::-1],
         left_flanking_reference_sequence[::-1],
@@ -786,7 +788,13 @@ def main():
     bed_writer = open(f"{args.output_prefix}.variants.bed", "wt") if args.write_bed_file else None
 
     # open the input VCF
-    vcf_iterator = fopen(args.input_vcf_path, "rt")
+    if args.interval:
+        tabix_file = pysam.TabixFile(args.input_vcf_path)
+        print(f"Fetching interval(s):", ", ".join(args.interval))
+        vcf_iterator = (line for interval in args.interval for line in tabix_file.fetch(interval))
+    else:
+        vcf_iterator = fopen(args.input_vcf_path, "rt")
+
     if args.show_progress_bar:
         vcf_iterator = tqdm.tqdm(vcf_iterator, unit=" rows")
 
