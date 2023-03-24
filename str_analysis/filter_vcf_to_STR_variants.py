@@ -72,6 +72,8 @@ FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS = "locus overlaps more than one STR 
 
 
 def parse_args():
+    """Parse command-line arguments."""
+
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     p.add_argument("-R", "--reference-fasta-path", help="Reference genome fasta path.", required=True)
@@ -366,8 +368,9 @@ def check_if_allele_is_str(
 
 
 def found_in_reference(alt_STR_allele):
-    # if the allele is a deletion, it automatically means some of the repeats are found in the reference
-    # otherwise, return True if the allele had STRs in the left or right flanking sequence
+    """Return True if the allele is a deletion, since it by definition means some of the repeats were present in the
+    reference genome. Otherwise, return True if the allele had STRs in the left or right flanking sequence.
+    """
     is_deletion = len(alt_STR_allele["Ref"]) > len(alt_STR_allele["Alt"])
     if is_deletion:
         return True
@@ -451,7 +454,23 @@ def process_vcf_line(
         counters,
         indels_per_locus_counter,
 ):
-    """Utility method for processing a single line from the input vcf"""
+    """Utility method for processing a single line from the input vcf
+
+    Args:
+        vcf_line_i (int): line number of the VCF file
+        vcf_fields (list): list of fields from the VCF line
+        fasta_obj (pyfaidx.Fasta): Fasta object for the reference genome
+        vcf_writer (vcf.Writer): VCF writer object
+        variants_tsv_writer (csv.DictWriter): TSV writer object for the variants file
+        alleles_tsv_writer (csv.DictWriter): TSV writer object for the alleles file
+        bed_writer (csv.DictWriter): BED writer object
+        args (argparse.Namespace): parsed command-line arguments
+        counters (dict): dictionary of counters
+        indels_per_locus_counter (collections.Counter): counter for the number of indels per locus
+
+    Return:
+        str: a string explaining the reason this variant is not a tandem repeat, or None if the variant is a tandem repeat
+    """
 
     # parse the ALT allele(s)
     vcf_chrom = vcf_fields[0]
@@ -679,7 +698,15 @@ def process_vcf_line(
         alleles_tsv_writer.write("\t".join([str(allele_tsv_record[c]) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
 
 
-def process_STR_loci_with_multiple_indels(file_path, locus_ids_with_multiple_indels, filtered_out_strs_vcf_writer):
+def process_STR_loci_with_multiple_indels(file_path, locus_ids_with_multiple_indels, filtered_out_indels_vcf_writer):
+    """Go back and filter out STR loci that turned out to overlap more than one indel since their genotype is unclear.
+
+    Args:
+        file_path (str): Path to VCF or TSV file to rewrite in order to remove loci that have this multiple-indels
+        locus_ids_with_multiple_indels (set): Set of locus IDs that, in previous steps, were found to overlap multiple indels
+        filtered_out_indels_vcf_writer (VcfWriter): VCF writer for filtered out indels
+    """
+
     if not any(file_path.endswith(suffix) for suffix in (".bed", ".vcf", ".tsv")):
         raise ValueError(f"Unexpected file type: {file_path}")
 
@@ -718,10 +745,10 @@ def process_STR_loci_with_multiple_indels(file_path, locus_ids_with_multiple_ind
 
             if locus_id in locus_ids_with_multiple_indels:
                 filtered_count += 1
-                if file_path.endswith(".vcf") and filtered_out_strs_vcf_writer:
+                if file_path.endswith(".vcf") and filtered_out_indels_vcf_writer:
                     # update the FILTER field
-                    fields[2] = FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS
-                    filtered_out_strs_vcf_writer.write("\t".join(fields) + "\n")
+                    fields[6] = FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS
+                    filtered_out_indels_vcf_writer.write("\t".join(fields) + "\n")
             else:
                 fo.write("\t".join(fields) + "\n")
 
@@ -760,6 +787,8 @@ def print_stats(counters):
 
 
 def run(command):
+    """Run a shell command"""
+
     os.system(command)
 
 
@@ -779,8 +808,7 @@ def main():
     fopen = gzip.open if args.input_vcf_path.endswith("gz") else open
     vcf_writer = open(f"{args.output_prefix}.vcf", "wt")
     filtered_out_indels_vcf_writer = open(f"{args.output_prefix}.filtered_out_indels.vcf", "wt") if args.write_vcf_with_filtered_out_variants else None
-    filtered_out_strs_vcf_writer = open(f"{args.output_prefix}.filtered_out_strs.vcf", "wt") if args.write_vcf_with_filtered_out_variants else None
-        
+
     variants_tsv_writer = open(f"{args.output_prefix}.variants.tsv", "wt")
     variants_tsv_writer.write("\t".join(VARIANT_TSV_OUTPUT_COLUMNS) + "\n")
     alleles_tsv_writer = open(f"{args.output_prefix}.alleles.tsv", "wt")
@@ -806,7 +834,6 @@ def main():
             vcf_writer.write(line)
             if args.write_vcf_with_filtered_out_variants:
                 filtered_out_indels_vcf_writer.write(line)
-                filtered_out_strs_vcf_writer.write(line)
 
             continue
 
@@ -822,7 +849,6 @@ def main():
             vcf_writer.write(line)
             if args.write_vcf_with_filtered_out_variants:
                 filtered_out_indels_vcf_writer.write(line)
-                filtered_out_strs_vcf_writer.write(line)
             continue
 
         if args.n is not None and vcf_line_i >= args.n:
@@ -836,19 +862,9 @@ def main():
         if filter_string and args.write_vcf_with_filtered_out_variants:
             # if this variant was filtered out, record it in output VCFs
 
-            vcf_fields[2] = filter_string
+            vcf_fields[6] = filter_string
 
-            if any(filter_reason in filter_string for filter_reason in (
-                FILTER_STR_ALLELE_HOMOPOLYMER,
-                FILTER_STR_ALLELE_WITHOUT_ENOUGH_REPEATS,
-                FILTER_STR_ALLELE_PARTIAL_REPEAT,
-                FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_MOTIFS,
-                FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_COORDS,
-                FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS,
-            )):
-                filtered_out_strs_vcf_writer.write("\t".join(vcf_fields) + "\n")
-
-            elif filter_string not in (
+            if filter_string not in (
                 FILTER_MORE_THAN_TWO_ALT_ALLELES,
                 FILTER_UNEXPECTED_GENOTYPE_FORMAT,
                 FILTER_ALLELE_SNV_OR_MNV,
@@ -870,7 +886,6 @@ def main():
         (alleles_tsv_writer, True),
         (bed_writer, True),
         (filtered_out_indels_vcf_writer, False),
-        (filtered_out_strs_vcf_writer, False),
     ]:
         if writer is None:
             continue
@@ -879,8 +894,8 @@ def main():
             print(f"Filtering {len(locus_ids_with_multiple_indels)} loci from {writer.name} because they overlap "
                   f"more than one STR INDEL variant")
             if discard_loci_with_multiple_indels:
-                process_STR_loci_with_multiple_indels(writer.name, locus_ids_with_multiple_indels,
-                                                      filtered_out_strs_vcf_writer)
+                process_STR_loci_with_multiple_indels(
+                    writer.name, locus_ids_with_multiple_indels, filtered_out_indels_vcf_writer)
 
         if writer.name.endswith(".tsv"):
             run(f"bgzip -f {writer.name}")
