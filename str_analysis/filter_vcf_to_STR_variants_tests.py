@@ -1,48 +1,104 @@
 import collections
 import os
-from pprint import pprint, pformat
+from pprint import pformat, pprint
 import pyfaidx
 import tempfile
 import unittest
 
-from str_analysis.filter_vcf_to_STR_variants import get_flanking_reference_sequences, check_if_allele_is_str
+from str_analysis.filter_vcf_to_STR_variants import get_flanking_reference_sequences, check_if_allele_is_str, \
+    get_num_repeats_in_allele, check_if_single_allele_variant_is_str, check_if_multiallelic_variant_is_str, \
+    postprocess_multiallelic_str_variant
 
 
 class Tests(unittest.TestCase):
-    """
 
-        Insertion:
+    def test_get_num_repeats_in_allele(self):
+        single_allele_str_spec = [
+            {"NumRepeatsRef": 1, "NumRepeatsAlt": 2},
+        ]
+        self.assertEqual(get_num_repeats_in_allele(single_allele_str_spec, 0), 1)
+        self.assertEqual(get_num_repeats_in_allele(single_allele_str_spec, 1), 2)
+        self.assertRaises(ValueError, lambda: get_num_repeats_in_allele(single_allele_str_spec, 2))
 
+        multiallelic_str_spec = [
+            {"NumRepeatsRef": 1, "NumRepeatsAlt": 2},
+            {"NumRepeatsRef": 1, "NumRepeatsAlt": 3},
+        ]
+        self.assertEqual(get_num_repeats_in_allele(multiallelic_str_spec, 0), 1)
+        self.assertEqual(get_num_repeats_in_allele(multiallelic_str_spec, 1), 2)
+        self.assertEqual(get_num_repeats_in_allele(multiallelic_str_spec, 2), 3)
+        self.assertRaises(ValueError, lambda: get_num_repeats_in_allele(multiallelic_str_spec, 3))
+
+    def test_check_if_single_allele_variant_is_str(self):
+        self.maxDiff = None
+
+        counters = collections.defaultdict(int)
+        str_spec, filter_reason = check_if_single_allele_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", "GCAGCAGCAG",
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
+            counters=counters, allow_interruptions=False)
+        self.assertDictEqual({
+            'Chrom': 'chrTest4',
+            'Pos': 9,
+            'Ref': 'G',
+            'Alt': 'GCAGCAGCAG',
+            'Start1Based': 7,
+            'End1Based': 15,
+            'PureStart1Based': 7,
+            'PureEnd1Based': 15,
+            'FilterReason': None,
+            'FractionPureRepeats': 1.0,
+            'IsPureRepeat': True,
+            'NumPureRepeatsRef': 3,
+            'NumPureRepeatsAlt': 6,
+            'NumRepeatsLeftFlank': 1,
+            'NumRepeatsRightFlank': 2,
+
+            'NumRepeatsRef': 3,
+            'NumRepeatsAlt': 6,
+            'NumRepeatsInVariant': 3,
+
+            'NumPureRepeatsInVariant': 3,
+            'NumPureRepeatsLeftFlank': 1,
+            'NumPureRepeatsRightFlank': 2,
+            'RepeatUnit': 'CAG',
+            'RepeatUnitInterruptionIndex': None,
+        }, str_spec)
+
+    def setUp(self):
+
+        self.temp_fasta_file = tempfile.NamedTemporaryFile("w", suffix=".fasta", delete=False)
+
+        """
+        Test 1 - Insertion:
+        
              1234567890--1234567890..
         REF: TGTGTGTGTT--ACACACACTGTGTGTGTGGGGGG
-
+        
         ALT: TGTGTGTGTTacACACACACTGTGTGTGTGGGGGG
-
+        
             output-left: TGTGTGTTac
             output-right: acACACACAC
-
+        
             pos: 10
             ref: T
             alt: TAC
-
-
-        Deletion:
-
+        
+        
+        Test 1 - Deletion:
+        
              12345678901234567890
         REF: TGTGTGTGTTACACACACTGTGTGTGTGGGGGG
-
+        
         ALT: TGTGTGTGTT--ACACACTGTGTGTGTGGGG
-
+        
             output-left: TGTGTGTTAC
             output-right: ACACACACTG
-
+        
             pos: 10
             ref: TAC
             alt: T
-    """
-
-    def setUp(self):
-        self.temp_fasta_file = tempfile.NamedTemporaryFile("w", suffix=".fasta", delete=False)
+        """
         self.temp_fasta_file.write(">chrTest1\n")
         self.temp_fasta_file.write("TGTGTGTGTTACACACACTGTGTGTGTGGGGGG\n")
 
@@ -246,7 +302,6 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(result["PureStart1Based"], 7)
         self.assertEqual(result["PureEnd1Based"], 39)
-        self.assertEqual(result["NumPureRepeatsInStr"], 10)
         self.assertEqual(result["NumPureRepeatsInVariant"], 5)
         self.assertEqual(result["NumPureRepeatsLeftFlank"], 0)
         self.assertEqual(result["NumPureRepeatsRightFlank"], 5)
