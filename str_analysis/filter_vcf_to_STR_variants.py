@@ -424,61 +424,7 @@ def check_if_allele_is_str(
     return result
 
 
-def check_if_single_allele_variant_is_str(
-        fasta_obj,
-        vcf_chrom,
-        vcf_pos,
-        vcf_ref,
-        alt_allele,
-        min_str_repeats,
-        min_str_length,
-        min_repeat_unit_length,
-        max_repeat_unit_length,
-        counters,
-        allow_interruptions=False,
-        vcf_line_i=None,
-        verbose=False,
-):
-
-    # first check whether the allele is a pure STR
-    current_counters = collections.defaultdict(int)
-    str_spec_with_pure_repeats = check_if_allele_is_str(
-        fasta_obj, vcf_chrom, vcf_pos, vcf_ref, alt_allele,
-        min_str_repeats=min_str_repeats, min_str_length=min_str_length,
-        min_repeat_unit_length=min_repeat_unit_length, max_repeat_unit_length=max_repeat_unit_length,
-        allow_interruptions=False,
-        counters=current_counters,
-    )
-
-    if not allow_interruptions or not str_spec_with_pure_repeats["FilterReason"]:
-        # if interruptions are not allowed or if found a pure STR allele, then return it. No need to check for repeats
-        # with interruptions.
-        for counter_key, count in current_counters.items():
-            counters[counter_key] += count
-        if str_spec_with_pure_repeats["FilterReason"]:
-            counters[f"variant filter: " + str_spec_with_pure_repeats["FilterReason"]] += 1
-
-        return str_spec_with_pure_repeats, str_spec_with_pure_repeats["FilterReason"]
-
-    # check again, this time allowing interruptions
-    current_counters = collections.defaultdict(int)
-    str_specs_allowing_interruptions = check_if_allele_is_str(
-        fasta_obj, vcf_chrom, vcf_pos, vcf_ref, alt_allele,
-        min_str_repeats=min_str_repeats, min_str_length=min_str_length,
-        min_repeat_unit_length=min_repeat_unit_length, max_repeat_unit_length=max_repeat_unit_length,
-        allow_interruptions=True,
-        counters=current_counters,
-    )
-
-    for counter_key, count in current_counters.items():
-        counters[counter_key] += count
-    if str_specs_allowing_interruptions["FilterReason"]:
-        counters[f"variant filter: " + str_specs_allowing_interruptions["FilterReason"]] += 1
-
-    return str_specs_allowing_interruptions, str_specs_allowing_interruptions["FilterReason"]
-
-
-def check_if_multiallelic_variant_is_str(
+def check_if_variant_is_str(
         fasta_obj,
         vcf_chrom,
         vcf_pos,
@@ -504,7 +450,7 @@ def check_if_multiallelic_variant_is_str(
         counters=current_counters,
     ) for alt_allele in alt_alleles]
 
-    str_specs_with_pure_repeats, variant_filter_string = postprocess_multiallelic_str_variant(
+    str_specs_with_pure_repeats, variant_filter_string = postprocess_str_variant(
         vcf_line_i, str_specs_with_pure_repeats, allow_interruptions=False, counters=current_counters, verbose=verbose)
 
     if not allow_interruptions or not variant_filter_string:
@@ -514,8 +460,7 @@ def check_if_multiallelic_variant_is_str(
             counters[counter_key] += count
 
         return str_specs_with_pure_repeats, variant_filter_string
-
-
+    
     # check again, this time allowing interruptions
     current_counters = collections.defaultdict(int)
     str_specs_allowing_interruptions = [check_if_allele_is_str(
@@ -526,7 +471,7 @@ def check_if_multiallelic_variant_is_str(
         counters=current_counters,
     ) for alt_allele in alt_alleles]
 
-    str_specs_allowing_interruptions, variant_filter_string = postprocess_multiallelic_str_variant(
+    str_specs_allowing_interruptions, variant_filter_string = postprocess_str_variant(
         vcf_line_i, str_specs_allowing_interruptions, allow_interruptions=True, counters=current_counters, verbose=verbose)
 
     for counter_key, count in current_counters.items():
@@ -535,18 +480,22 @@ def check_if_multiallelic_variant_is_str(
     return str_specs_allowing_interruptions, variant_filter_string
 
 
-def postprocess_multiallelic_str_variant(vcf_line_i, str_allele_specs, allow_interruptions=False, counters=None, verbose=False):
-    """Check whether multiallelic STR alleles are valid.
+def postprocess_str_variant(vcf_line_i, str_allele_specs, allow_interruptions=False, counters=None, verbose=False):
+    """Check whether the STR alleles are valid, or whether they should be filtered out
 
     Return:
         str: the reason a variant should be filtered out, or None if the variant should not be filtered out
     """
+    if len(str_allele_specs) == 1:
+        # handle mono-allelic (rather than multi-allelic) variants
+        if str_allele_specs[0]["FilterReason"] is not None:
+            counters[f"variant filter: " + str_allele_specs[0]["FilterReason"]] += 1
+            
+        return str_allele_specs, str_allele_specs[0]["FilterReason"]
 
     # Filter out multi-allelics where one allele is an STR and the other is not
     if any(allele_spec["RepeatUnit"] is None for allele_spec in str_allele_specs):
-        if len(str_allele_specs) == 1:
-            counters[f"variant filter: " + str_allele_specs[0]["FilterReason"]] += 1
-        elif str_allele_specs[0]["FilterReason"] is None or str_allele_specs[1]["FilterReason"] is None:
+        if str_allele_specs[0]["FilterReason"] is None or str_allele_specs[1]["FilterReason"] is None:
             counters[f"variant filter: multi-allelic: one STR, one non-STR allele"] += 1
         elif str_allele_specs[0]["FilterReason"] == str_allele_specs[1]["FilterReason"]:
             counters[f"variant filter: multi-allelic: " + str_allele_specs[0]["FilterReason"]] += 1
@@ -564,7 +513,7 @@ def postprocess_multiallelic_str_variant(vcf_line_i, str_allele_specs, allow_int
             str_allele_specs[1]["RepeatUnitInterruptionIndex"] = str_allele_specs[0]["RepeatUnitInterruptionIndex"]
 
     # Filter out multi-allelics where the STR alleles have different repeat units or coordinates
-    for attribute, filter_string, error_if_different in [
+    for attribute, filter_string, error_when_different in [
         ("Chrom", "", True),
         ("IsPureRepeat", "", True),
         ("RepeatUnit", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_MOTIFS, False),
@@ -584,7 +533,7 @@ def postprocess_multiallelic_str_variant(vcf_line_i, str_allele_specs, allow_int
         variant_id += f", {str_allele_specs[1]['Alt']} (RU:{str_allele_specs[1]['RepeatUnit']}"
         variant_id += f":{str_allele_specs[1]['RepeatUnitInterruptionIndex']})" if allow_interruptions else ")"
 
-        if error_if_different and str_allele_specs[0][attribute] != str_allele_specs[1][attribute]:
+        if error_when_different:
             raise ValueError(f"STR alleles have different {attribute} values: "
                              f"{str_allele_specs[0][attribute]} vs {str_allele_specs[1][attribute]}")
 
@@ -781,41 +730,21 @@ def process_vcf_line(
     if len(alt_alleles) > 1 and is_homozygous:
         raise ValueError(f"Multi-allelic variant is homozygous in row #{vcf_line_i:,d}: {vcf_genotype} ({vcf_ref} {alt_alleles})")
 
-    if len(alt_alleles) == 1:
-        str_allele_spec, filter_string = check_if_single_allele_variant_is_str(
-            fasta_obj,
-            vcf_chrom,
-            vcf_pos,
-            vcf_ref,
-            alt_alleles[0],
-            args.min_str_repeats,
-            args.min_str_length,
-            args.min_repeat_unit_length,
-            args.max_repeat_unit_length,
-            counters=counters,
-            allow_interruptions=args.allow_interruptions,
-            vcf_line_i=vcf_line_i,
-            verbose=args.verbose,
-        )
-        str_allele_specs = [str_allele_spec]
-    elif len(alt_alleles) == 2:
-        str_allele_specs, filter_string = check_if_multiallelic_variant_is_str(
-            fasta_obj,
-            vcf_chrom,
-            vcf_pos,
-            vcf_ref,
-            alt_alleles,
-            args.min_str_repeats,
-            args.min_str_length,
-            args.min_repeat_unit_length,
-            args.max_repeat_unit_length,
-            counters=counters,
-            allow_interruptions=args.allow_interruptions,
-            vcf_line_i=vcf_line_i,
-            verbose=args.verbose,
-        )
-    else:
-        raise ValueError(f"Unexpected number of alt alleles: {len(alt_alleles)}")
+    str_allele_specs, filter_string = check_if_variant_is_str(
+        fasta_obj,
+        vcf_chrom,
+        vcf_pos,
+        vcf_ref,
+        alt_alleles,
+        args.min_str_repeats,
+        args.min_str_length,
+        args.min_repeat_unit_length,
+        args.max_repeat_unit_length,
+        counters=counters,
+        allow_interruptions=args.allow_interruptions,
+        vcf_line_i=vcf_line_i,
+        verbose=args.verbose,
+    )
 
     if filter_string:
         return filter_string

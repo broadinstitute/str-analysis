@@ -6,8 +6,7 @@ import tempfile
 import unittest
 
 from str_analysis.filter_vcf_to_STR_variants import get_flanking_reference_sequences, check_if_allele_is_str, \
-    get_num_repeats_in_allele, check_if_single_allele_variant_is_str, check_if_multiallelic_variant_is_str, \
-    postprocess_multiallelic_str_variant, compute_indel_variant_bases
+    get_num_repeats_in_allele, check_if_variant_is_str, compute_indel_variant_bases
 
 
 class Tests(unittest.TestCase):
@@ -178,15 +177,17 @@ class Tests(unittest.TestCase):
         self.assertEqual(compute_indel_variant_bases("A", "ACAGCAGCAT"), "CAGCAGCAT")
         self.assertEqual(compute_indel_variant_bases("ACAGCAGCAT", "A"), "CAGCAGCAT")
 
-    def test_check_if_single_allele_variant_is_str(self):
+
+    def test_check_if_variant_is_str(self):
         self.maxDiff = None
 
         counters = collections.defaultdict(int)
-        str_spec, filter_reason = check_if_single_allele_variant_is_str(
-            self.fasta_obj, "chrTest4", 9, "G", "GCAGCAGCAG",
+        str_specs, filter_reason = check_if_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", ["GCAGCAGCAG"],
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters, allow_interruptions=False)
-        self.assertDictEqual({
+        self.assertEqual(len(str_specs), 1)
+        self.assertDictEqual(str_specs[0], {
             'Chrom': 'chrTest4',
             'Pos': 9,
             'Ref': 'G',
@@ -212,30 +213,32 @@ class Tests(unittest.TestCase):
             'NumPureRepeatsRightFlank': 2,
             'RepeatUnit': 'CAG',
             'RepeatUnitInterruptionIndex': None,
-        }, str_spec)
+        })
 
         # test homopolymer + min_repeat_unit_length
-        str_spec, filter_string = check_if_single_allele_variant_is_str(
-            self.fasta_obj, "chrTest4", 9, "G", "GGGGGGGGGGGGGGG",
+        str_specs, filter_string = check_if_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", ["GGGGGGGGGGGGGGG"],
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=2, max_repeat_unit_length=50,
             counters=counters, allow_interruptions=False)
-        self.assertDictEqual(str_spec, {'FilterReason': 'repeat unit < %d bp', 'RepeatUnit': None})
+        self.assertEqual(len(str_specs), 1)
+        self.assertDictEqual(str_specs[0], {'FilterReason': 'repeat unit < %d bp', 'RepeatUnit': None})
 
         # test dinucleotide + min_repeat_unit_length
-        str_spec, filter_string = check_if_single_allele_variant_is_str(
-            self.fasta_obj, "chrTest4", 9, "G", "GAGAGAGAGAGAGAGAGAGAG",
+        str_specs, filter_string = check_if_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", ["GAGAGAGAGAGAGAGAGAGAG"],
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=3, max_repeat_unit_length=50,
             counters=counters, allow_interruptions=False)
-        self.assertDictEqual(str_spec, {'FilterReason': 'repeat unit < %d bp', 'RepeatUnit': None})
+        self.assertEqual(len(str_specs), 1)
+        self.assertDictEqual(str_specs[0], {'FilterReason': 'repeat unit < %d bp', 'RepeatUnit': None})
 
         # test homopolymer
-        str_spec, filter_string = check_if_single_allele_variant_is_str(
-            self.fasta_obj, "chrTest4", 9, "G", "GAAAAAAAAAA",
+        str_specs, filter_string = check_if_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", ["GAAAAAAAAAA"],
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters, allow_interruptions=False)
-
+        self.assertEqual(len(str_specs), 1)
         self.assertEqual(filter_string, None)
-        self.assertDictEqual(str_spec, {'Alt': 'GAAAAAAAAAA',
+        self.assertDictEqual(str_specs[0], {'Alt': 'GAAAAAAAAAA',
                                         'Chrom': 'chrTest4',
                                         'End1Based': 9,
                                         'FilterReason': None,
@@ -260,29 +263,31 @@ class Tests(unittest.TestCase):
                                         'Start1Based': 10})
 
         # test homopolymer with interruptions, allow_interruptions = False
-        str_spec, filter_string = check_if_single_allele_variant_is_str(
-            self.fasta_obj, "chrTest4", 9, "G", "GAAAAACAAAAAAAC",
+        str_specs, filter_string = check_if_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", ["GAAAAACAAAAAAAC"],
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters, allow_interruptions=False)
-        self.assertEqual(filter_string, str_spec["FilterReason"])
-        self.assertEqual(str_spec, {'FilterReason': 'INDEL without repeats', 'RepeatUnit': None})
+        self.assertEqual(len(str_specs), 1)
+        self.assertEqual(filter_string, str_specs[0]["FilterReason"])
+        self.assertEqual(str_specs[0], {'FilterReason': 'INDEL without repeats', 'RepeatUnit': None})
 
         # test homopolymer with interruptions, allow_interruptions = True
-        str_spec, filter_string = check_if_single_allele_variant_is_str(
-            self.fasta_obj, "chrTest4", 9, "G", "GAAAAACTAAAAAAACAAAAAAAAAAAAAAAAAAAA",
+        str_specs, filter_string = check_if_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", ["GAAAAACTAAAAAAACAAAAAAAAAAAAAAAAAAAA"],
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters, allow_interruptions=True)
-        self.assertEqual(filter_string, str_spec["FilterReason"])
-        self.assertEqual(str_spec, {'FilterReason': 'INDEL without repeats', 'RepeatUnit': None})
+        self.assertEqual(len(str_specs), 1)
+        self.assertEqual(filter_string, str_specs[0]["FilterReason"])
+        self.assertEqual(str_specs[0], {'FilterReason': 'INDEL without repeats', 'RepeatUnit': None})
 
         # test homopolymer with interruptions, allow_interruptions = True
-        str_spec, filter_string = check_if_single_allele_variant_is_str(
-            self.fasta_obj, "chrTest4", 9, "G", "GAAAAACAAAAAAACAAAAAAAAAAAAAAAAAAAA",
+        str_specs, filter_string = check_if_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", ["GAAAAACAAAAAAACAAAAAAAAAAAAAAAAAAAA"],
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters, allow_interruptions=True)
-
+        self.assertEqual(len(str_specs), 1)
         self.assertEqual(filter_string, None)
-        self.assertEqual(str_spec, {'Alt': 'GAAAAACAAAAAAACAAAAAAAAAAAAAAAAAAAA',
+        self.assertEqual(str_specs[0], {'Alt': 'GAAAAACAAAAAAACAAAAAAAAAAAAAAAAAAAA',
                                     'Chrom': 'chrTest4',
                                     'End1Based': 9,
                                     'FilterReason': None,
@@ -307,19 +312,21 @@ class Tests(unittest.TestCase):
                                     'Start1Based': 10})
 
         # test dinucleotides with interruptions, allow_interruptions = True
-        str_spec, filter_string = check_if_single_allele_variant_is_str(
-            self.fasta_obj, "chrTest4", 9, "G", "GAGACACAGAGAG",
+        str_specs, filter_string = check_if_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", ["GAGACACAGAGAG"],
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters, allow_interruptions=True)
-        self.assertEqual(filter_string, str_spec["FilterReason"])
-        self.assertEqual(str_spec, {'FilterReason': 'INDEL without repeats', 'RepeatUnit': None})
+        self.assertEqual(len(str_specs), 1)
+        self.assertEqual(filter_string, str_specs[0]["FilterReason"])
+        self.assertEqual(str_specs[0], {'FilterReason': 'INDEL without repeats', 'RepeatUnit': None})
 
-        str_spec, filter_string = check_if_single_allele_variant_is_str(
-            self.fasta_obj, "chrTest4", 9, "G", "GAGACACAGAGAGAGAGAGAG",
+        str_specs, filter_string = check_if_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", ["GAGACACAGAGAGAGAGAGAG"],
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters, allow_interruptions=True)
         self.assertEqual(filter_string, None)
-        self.assertEqual(str_spec, {'Alt': 'GAGACACAGAGAGAGAGAGAG',
+        self.assertEqual(len(str_specs), 1)
+        self.assertEqual(str_specs[0], {'Alt': 'GAGACACAGAGAGAGAGAGAG',
                                     'Chrom': 'chrTest4',
                                     'End1Based': 9,
                                     'FilterReason': None,
@@ -344,13 +351,13 @@ class Tests(unittest.TestCase):
                                     'Start1Based': 8})
 
         # trinucleotide repeat
-        str_spec, filter_string = check_if_single_allele_variant_is_str(
-            self.fasta_obj, "chrTest4", 9, "G", "GCAGCAGCATCAACACCAC",
+        str_specs, filter_string = check_if_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", ["GCAGCAGCATCAACACCAC"],
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters, allow_interruptions=True)
-        self.assertEqual(filter_string, str_spec["FilterReason"])
-        pprint(str_spec)
-        self.assertEqual(str_spec, {'Alt': 'GCAGCAGCATCAACACCAC',
+        self.assertEqual(len(str_specs), 1)
+        self.assertEqual(filter_string, str_specs[0]["FilterReason"])
+        self.assertEqual(str_specs[0], {'Alt': 'GCAGCAGCATCAACACCAC',
                                     'Chrom': 'chrTest4',
                                     'End1Based': 15,
                                     'FilterReason': None,
@@ -373,6 +380,103 @@ class Tests(unittest.TestCase):
                                     'RepeatUnit': 'CAG',
                                     'RepeatUnitInterruptionIndex': 2,
                                     'Start1Based': 7})
+
+    def test_check_if_multiallelic_variant_is_str(self):
+        self.maxDiff = None
+
+        counters = collections.defaultdict(int)
+        str_specs, filter_string = check_if_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", ["GCAGCAGCAG", "GCAGCAGCATCAACACCAC"],
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
+            counters=counters, allow_interruptions=False)
+        self.assertEqual(filter_string, "STR allele;INDEL without repeats")
+        self.assertEqual(str_specs[0]["FilterReason"], None)
+        self.assertEqual(str_specs[1]["FilterReason"], "INDEL without repeats")
+        self.assertDictEqual(counters, {'STR allele counts: INS': 1,
+                                        'STR allele counts: TOTAL': 1,
+                                        'STR allele delta: 3 repeats': 1,
+                                        'STR allele motif size: 3 bp': 1,
+                                        'STR allele reference repeats: with both left and right matching ref. repeat': 1,
+                                        'STR allele size: 0-25bp': 1,
+                                        'allele counts: INS alleles': 2,
+                                        'allele filter: INDEL without repeats': 1,
+                                        'variant filter: multi-allelic: one STR, one non-STR allele': 1})
+
+        counters = collections.defaultdict(int)
+        str_specs, filter_string = check_if_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", ["GCAGCAGCAG", "GCAGCAGCATCAACACCAC"],
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
+            counters=counters, allow_interruptions=True)
+
+        self.assertDictEqual(str_specs[0], {'Alt': 'GCAGCAGCAG',
+                                            'Chrom': 'chrTest4',
+                                            'End1Based': 15,
+                                            'FilterReason': None,
+                                            'FractionPureRepeats': 1.0,
+                                            'IsPureRepeat': False,
+                                            'NumPureRepeatsAlt': 6,
+                                            'NumPureRepeatsInVariant': 3,
+                                            'NumPureRepeatsLeftFlank': 1,
+                                            'NumPureRepeatsRef': 3,
+                                            'NumPureRepeatsRightFlank': 2,
+                                            'NumRepeatsAlt': 6,
+                                            'NumRepeatsInVariant': 3,
+                                            'NumRepeatsLeftFlank': 1,
+                                            'NumRepeatsRef': 3,
+                                            'NumRepeatsRightFlank': 2,
+                                            'Pos': 9,
+                                            'PureEnd1Based': 15,
+                                            'PureStart1Based': 7,
+                                            'Ref': 'G',
+                                            'RepeatUnit': 'CAG',
+                                            'RepeatUnitInterruptionIndex': 2,
+                                            'Start1Based': 7})
+        self.assertDictEqual(str_specs[1], {'Alt': 'GCAGCAGCATCAACACCAC',
+                                            'Chrom': 'chrTest4',
+                                            'End1Based': 15,
+                                            'FilterReason': None,
+                                            'FractionPureRepeats': 0.5555555555555556,
+                                            'IsPureRepeat': False,
+                                            'NumPureRepeatsAlt': 5,
+                                            'NumPureRepeatsInVariant': 2,
+                                            'NumPureRepeatsLeftFlank': 1,
+                                            'NumPureRepeatsRef': 3,
+                                            'NumPureRepeatsRightFlank': 2,
+                                            'NumRepeatsAlt': 9,
+                                            'NumRepeatsInVariant': 6,
+                                            'NumRepeatsLeftFlank': 1,
+                                            'NumRepeatsRef': 3,
+                                            'NumRepeatsRightFlank': 2,
+                                            'Pos': 9,
+                                            'PureEnd1Based': 15,
+                                            'PureStart1Based': 7,
+                                            'Ref': 'G',
+                                            'RepeatUnit': 'CAG',
+                                            'RepeatUnitInterruptionIndex': 2,
+                                            'Start1Based': 7})
+
+        self.assertDictEqual(counters, {'STR allele counts: INS': 2,
+                              'STR allele counts: TOTAL': 2,
+                              'STR allele delta: 3 repeats': 1,
+                              'STR allele delta: 6 repeats': 1,
+                              'STR allele motif size: 3 bp': 2,
+                              'STR allele reference repeats: with both left and right matching ref. repeat': 2,
+                              'STR allele size: 0-25bp': 2,
+                              'allele counts: INS alleles': 2})
+
+        counters = collections.defaultdict(int)
+        _, filter_string = check_if_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", ["GCAGCAGCAG", "GCAGCATCATCATCACCAT"],
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
+            counters=counters, allow_interruptions=True)
+        self.assertEqual(filter_string, "STR alleles with different motifs")
+
+        _, filter_string = check_if_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", ["GCAGCAGCAGCAT", "GCTGCAGCAGCAGCAG"],
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
+            counters=counters, allow_interruptions=True)
+        self.assertEqual(filter_string, "STR alleles with different interruption patterns")
+
 
     def check_results_for_pure_repeats(self, results):
         for key in results:
