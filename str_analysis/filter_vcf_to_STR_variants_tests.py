@@ -306,7 +306,73 @@ class Tests(unittest.TestCase):
                                     'RepeatUnitInterruptionIndex': 0,
                                     'Start1Based': 10})
 
-        # test homopolymer with interruptions, allow_interruptions = True
+        # test dinucleotides with interruptions, allow_interruptions = True
+        str_spec, filter_string = check_if_single_allele_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", "GAGACACAGAGAG",
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
+            counters=counters, allow_interruptions=True)
+        self.assertEqual(filter_string, str_spec["FilterReason"])
+        self.assertEqual(str_spec, {'FilterReason': 'INDEL without repeats', 'RepeatUnit': None})
+
+        str_spec, filter_string = check_if_single_allele_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", "GAGACACAGAGAGAGAGAGAG",
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
+            counters=counters, allow_interruptions=True)
+        self.assertEqual(filter_string, None)
+        self.assertEqual(str_spec, {'Alt': 'GAGACACAGAGAGAGAGAGAG',
+                                    'Chrom': 'chrTest4',
+                                    'End1Based': 9,
+                                    'FilterReason': None,
+                                    'FractionPureRepeats': 0.8181818181818182,
+                                    'IsPureRepeat': False,
+                                    'NumPureRepeatsAlt': 9,
+                                    'NumPureRepeatsInVariant': 8,
+                                    'NumPureRepeatsLeftFlank': 1,
+                                    'NumPureRepeatsRef': 1,
+                                    'NumPureRepeatsRightFlank': 0,
+                                    'NumRepeatsAlt': 11,
+                                    'NumRepeatsInVariant': 10,
+                                    'NumRepeatsLeftFlank': 1,
+                                    'NumRepeatsRef': 1,
+                                    'NumRepeatsRightFlank': 0,
+                                    'Pos': 9,
+                                    'PureEnd1Based': 9,
+                                    'PureStart1Based': 8,
+                                    'Ref': 'G',
+                                    'RepeatUnit': 'AG',
+                                    'RepeatUnitInterruptionIndex': 1,
+                                    'Start1Based': 8})
+
+        # trinucleotide repeat
+        str_spec, filter_string = check_if_single_allele_variant_is_str(
+            self.fasta_obj, "chrTest4", 9, "G", "GCAGCAGCATCAACACCAC",
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
+            counters=counters, allow_interruptions=True)
+        self.assertEqual(filter_string, str_spec["FilterReason"])
+        pprint(str_spec)
+        self.assertEqual(str_spec, {'Alt': 'GCAGCAGCATCAACACCAC',
+                                    'Chrom': 'chrTest4',
+                                    'End1Based': 15,
+                                    'FilterReason': None,
+                                    'FractionPureRepeats': 0.5555555555555556,
+                                    'IsPureRepeat': False,
+                                    'NumPureRepeatsAlt': 5,
+                                    'NumPureRepeatsInVariant': 2,
+                                    'NumPureRepeatsLeftFlank': 1,
+                                    'NumPureRepeatsRef': 3,
+                                    'NumPureRepeatsRightFlank': 2,
+                                    'NumRepeatsAlt': 9,
+                                    'NumRepeatsInVariant': 6,
+                                    'NumRepeatsLeftFlank': 1,
+                                    'NumRepeatsRef': 3,
+                                    'NumRepeatsRightFlank': 2,
+                                    'Pos': 9,
+                                    'PureEnd1Based': 15,
+                                    'PureStart1Based': 7,
+                                    'Ref': 'G',
+                                    'RepeatUnit': 'CAG',
+                                    'RepeatUnitInterruptionIndex': 2,
+                                    'Start1Based': 7})
 
     def check_results_for_pure_repeats(self, results):
         for key in results:
