@@ -144,14 +144,22 @@ def find_repeat_unit_allowing_interruptions(sequence, allow_partial_repeats=Fals
         num_total_repeats_expected = int(len(sequence) / repeat_unit_length)
 
         if repeat_unit_length == 1:
+            # apply the MIN_PURE_REPEAT_FRACTION_FOR_HOMOPOLYMER_REPEATS threshold
             if num_pure_repeats < num_total_repeats_expected * MIN_PURE_REPEAT_FRACTION_FOR_HOMOPOLYMER_REPEATS:
-                # apply the MIN_PURE_REPEAT_FRACTION_FOR_HOMOPOLYMER_REPEATS threshold
                 repeat_unit_length += 1
                 continue
 
-            if (repeat_unit != "A" and "AA" in sequence) or (repeat_unit != "C" and "CC" in sequence) or \
-               (repeat_unit != "G" and "GG" in sequence) or (repeat_unit != "T" and "TT" in sequence):
-                # don't allow homopolymer interruptions to be in consecutive bases
+            # Don't allow homopolymer interruptions to be in consecutive bases. If 2 or more bases in a row deviate
+            # from the homopolymer repeat, the sequence is no longer considered to be a homopolymer.
+            homopolymer_regex_key = f"{repeat_unit}_homopolymer"
+            if homopolymer_regex_key not in COMPILED_REGEX_CACHE:
+                all_bases_except_homopolymer_base = "ACGT".replace(repeat_unit, "")
+                regex = "["+all_bases_except_homopolymer_base+"]"
+                regex = f"{regex}{regex}+"
+                COMPILED_REGEX_CACHE[homopolymer_regex_key] = re.compile(regex)
+
+            if COMPILED_REGEX_CACHE[homopolymer_regex_key].search(sequence):
+                #
                 repeat_unit_length += 1
                 continue
 
