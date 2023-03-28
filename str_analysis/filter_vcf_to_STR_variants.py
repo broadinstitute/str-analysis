@@ -426,7 +426,6 @@ def check_if_allele_is_str(
 
 def check_if_single_allele_variant_is_str(
         fasta_obj,
-        vcf_line_i,
         vcf_chrom,
         vcf_pos,
         vcf_ref,
@@ -437,6 +436,7 @@ def check_if_single_allele_variant_is_str(
         max_repeat_unit_length,
         counters,
         allow_interruptions=False,
+        vcf_line_i=None,
         verbose=False,
 ):
 
@@ -480,7 +480,6 @@ def check_if_single_allele_variant_is_str(
 
 def check_if_multiallelic_variant_is_str(
         fasta_obj,
-        vcf_line_i,
         vcf_chrom,
         vcf_pos,
         vcf_ref,
@@ -491,6 +490,7 @@ def check_if_multiallelic_variant_is_str(
         max_repeat_unit_length,
         counters,
         allow_interruptions=False,
+        vcf_line_i=None,
         verbose=False,
 ):
 
@@ -784,7 +784,6 @@ def process_vcf_line(
     if len(alt_alleles) == 1:
         str_allele_spec, filter_string = check_if_single_allele_variant_is_str(
             fasta_obj,
-            vcf_line_i,
             vcf_chrom,
             vcf_pos,
             vcf_ref,
@@ -795,13 +794,13 @@ def process_vcf_line(
             args.max_repeat_unit_length,
             counters=counters,
             allow_interruptions=args.allow_interruptions,
+            vcf_line_i=vcf_line_i,
             verbose=args.verbose,
         )
         str_allele_specs = [str_allele_spec]
     elif len(alt_alleles) == 2:
         str_allele_specs, filter_string = check_if_multiallelic_variant_is_str(
             fasta_obj,
-            vcf_line_i,
             vcf_chrom,
             vcf_pos,
             vcf_ref,
@@ -812,6 +811,7 @@ def process_vcf_line(
             args.max_repeat_unit_length,
             counters=counters,
             allow_interruptions=args.allow_interruptions,
+            vcf_line_i=vcf_line_i,
             verbose=args.verbose,
         )
     else:

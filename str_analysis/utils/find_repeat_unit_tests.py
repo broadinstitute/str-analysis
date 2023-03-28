@@ -77,6 +77,13 @@ class Test(unittest.TestCase):
         self.assertEqual(interruption_index, None)
         self.assertFalse(has_partial_repeats)
 
+        found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit_allowing_interruptions(
+            "A"*10 + "CT" + "A"*20)
+        self.assertEqual(found_repeat_unit, "A"*10 + "CT" + "A"*20)
+        self.assertEqual(found_num_pure_repeats, 1)
+        self.assertEqual(found_num_total_repeats, 1)
+        self.assertEqual(interruption_index, None)
+        self.assertFalse(has_partial_repeats)
 
         found_repeat_unit, found_num_pure_repeats, found_num_total_repeats, interruption_index, has_partial_repeats = find_repeat_unit_allowing_interruptions(
             "CAG"*5)
