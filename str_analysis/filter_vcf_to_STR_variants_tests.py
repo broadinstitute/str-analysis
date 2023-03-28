@@ -7,7 +7,7 @@ import unittest
 
 from str_analysis.filter_vcf_to_STR_variants import get_flanking_reference_sequences, check_if_allele_is_str, \
     get_num_repeats_in_allele, check_if_single_allele_variant_is_str, check_if_multiallelic_variant_is_str, \
-    postprocess_multiallelic_str_variant
+    postprocess_multiallelic_str_variant, compute_indel_variant_bases
 
 
 class Tests(unittest.TestCase):
@@ -29,12 +29,20 @@ class Tests(unittest.TestCase):
         self.assertEqual(get_num_repeats_in_allele(multiallelic_str_spec, 2), 3)
         self.assertRaises(ValueError, lambda: get_num_repeats_in_allele(multiallelic_str_spec, 3))
 
+    def test_compute_indel_variant_bases(self):
+        # test cases for compute_indel_variant_bases
+        self.assertEqual(compute_indel_variant_bases("A", "AC"), "C")
+        self.assertEqual(compute_indel_variant_bases("A", "ACG"), "CG")
+        self.assertEqual(compute_indel_variant_bases("AC", "A"), "C")
+        self.assertEqual(compute_indel_variant_bases("ACAGCAGCAT", "ACAG"), "CAGCAT")
+
+
     def test_check_if_single_allele_variant_is_str(self):
         self.maxDiff = None
 
         counters = collections.defaultdict(int)
         str_spec, filter_reason = check_if_single_allele_variant_is_str(
-            self.fasta_obj, "chrTest4", 9, "G", "GCAGCAGCAG",
+            self.fasta_obj, None, "chrTest4", 9, "G", "GCAGCAGCAG",
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters, allow_interruptions=False)
         self.assertDictEqual({
@@ -239,7 +247,7 @@ class Tests(unittest.TestCase):
         result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest4", 9, "G", "GCAGCAGCAG",
-            min_str_repeats=3, min_str_length=9,
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
 
@@ -261,7 +269,7 @@ class Tests(unittest.TestCase):
         result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest4", 9, "GCAG", "G",
-            min_str_repeats=3, min_str_length=9,
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
 
@@ -283,7 +291,7 @@ class Tests(unittest.TestCase):
         result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest5", 6, "ACGCCGACGCCGCCGCCGC", "A",
-            min_str_repeats=3, min_str_length=9,
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
 
@@ -313,7 +321,7 @@ class Tests(unittest.TestCase):
         result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest6", 6, "A", "ACAG",
-            min_str_repeats=3, min_str_length=9,
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
 
@@ -335,7 +343,7 @@ class Tests(unittest.TestCase):
         result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest6", 6, "A", "ACAG",
-            min_str_repeats=3, min_str_length=9,
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
 
@@ -357,7 +365,7 @@ class Tests(unittest.TestCase):
         result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest6", 6, "A", "ACAG",
-            min_str_repeats=3, min_str_length=9,
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
 
@@ -380,7 +388,7 @@ class Tests(unittest.TestCase):
         result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest7", 6, "C", "CCAGCAGCAG",
-            min_str_repeats=3, min_str_length=9,
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
 
@@ -404,7 +412,7 @@ class Tests(unittest.TestCase):
         result = check_if_allele_is_str(
             self.fasta_obj,
             "chrTest8", 5, "TCAGCAGCAG", "T",
-            min_str_repeats=3, min_str_length=9,
+            min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
 
