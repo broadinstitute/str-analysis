@@ -97,6 +97,10 @@ def find_repeat_unit_without_allowing_interruptions(sequence, allow_partial_repe
     # find the smallest repeat unit that covers the entire sequence
     repeat_unit_length = 1
     while repeat_unit_length <= len(sequence)/2:
+        if not allow_partial_repeats and len(sequence) % repeat_unit_length != 0:
+            repeat_unit_length += 1
+            continue
+
         repeat_unit = sequence[:repeat_unit_length]
         num_repeats = sequence.count(repeat_unit)
         if num_repeats * repeat_unit_length == len(sequence):
@@ -140,6 +144,10 @@ def find_repeat_unit_allowing_interruptions(sequence, allow_partial_repeats=Fals
     # check for repeats with interruptions
     repeat_unit_length = 1
     while repeat_unit_length <= len(sequence)/2 and repeat_unit_length <= MAX_INTERRUPTED_REPEAT_UNIT_LENGTH:
+        if not allow_partial_repeats and len(sequence) % repeat_unit_length != 0:
+            repeat_unit_length += 1
+            continue
+
         repeat_unit, num_pure_repeats = get_most_common_repeat_unit(sequence, repeat_unit_length)
         num_total_repeats_expected = int(len(sequence) / repeat_unit_length)
 
@@ -159,7 +167,6 @@ def find_repeat_unit_allowing_interruptions(sequence, allow_partial_repeats=Fals
                 COMPILED_REGEX_CACHE[homopolymer_regex_key] = re.compile(regex)
 
             if COMPILED_REGEX_CACHE[homopolymer_regex_key].search(sequence):
-                #
                 repeat_unit_length += 1
                 continue
 
