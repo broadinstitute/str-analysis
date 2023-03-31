@@ -110,25 +110,30 @@ RUN wget -q https://github.com/Illumina/ExpansionHunterDenovo/releases/download/
     && mv ExpansionHunterDenovo-${EH_DENOVO_VERSION}-linux_x86_64/bin/ExpansionHunterDenovo /usr/local/bin/ExpansionHunterDenovo \
     && rm -r ExpansionHunterDenovo-${EH_DENOVO_VERSION}-linux_x86_64 ExpansionHunterDenovo-${EH_DENOVO_VERSION}-linux_x86_64.tar.gz
 
-# install ExpansionHunter binary
-#ENV EH_VERSION="v5.0.0"
-#RUN wget -q https://github.com/Illumina/ExpansionHunter/releases/download/${EH_VERSION}/ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz \
-#    && tar xzf ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz \
-#    && mv /ExpansionHunter-${EH_VERSION}-linux_x86_64/bin/ExpansionHunter /usr/local/bin/ \
-#    && rm -r ExpansionHunter-${EH_VERSION}-linux_x86_64 ExpansionHunter-${EH_VERSION}-linux_x86_64.tar.gz
 
-RUN wget https://raw.githubusercontent.com/bw2/ExpansionHunter/master/bin/linux/ExpansionHunter -O /usr/local/bin/ExpansionHunter \
-    && chmod 777 /usr/local/bin/ExpansionHunter
+RUN wget -q https://github.com/bw2/ExpansionHunter/archive/refs/heads/master.zip \
+	&& unzip master.zip \
+	&& cd ExpansionHunter-master \
+	&& mkdir build \
+	&& cd build \
+	&& cmake .. \
+	&& make \
+	&& cp install/bin/ExpansionHunter /usr/local/bin/ \
+	&& cd / \
+	&& rm -r ExpansionHunter-master master.zip
 
-#RUN wget https://raw.githubusercontent.com/bw2/REViewer/master/bin/linux/REViewer -O /usr/local/bin/REViewer \
-#    && chmod 777 /usr/local/bin/REViewer
 
 # install REViewer
-ENV REVIEWER_VERSION="v0.2.7"
-RUN wget -q https://github.com/Illumina/REViewer/releases/download/${REVIEWER_VERSION}/REViewer-${REVIEWER_VERSION}-linux_x86_64.gz \
-    && gunzip REViewer-${REVIEWER_VERSION}-linux_x86_64.gz \
-    && mv /REViewer-${REVIEWER_VERSION}-linux_x86_64 /usr/local/bin/REViewer \
-    && chmod 777 /usr/local/bin/REViewer
+RUN wget -q https://github.com/bw2/REViewer/archive/refs/heads/master.zip \
+    && unzip master.zip \
+    && cd REViewer-master \
+	&& mkdir build \
+	&& cd build \
+	&& cmake .. \
+	&& make \
+	&& cp install/bin/REViewer /usr/local/bin/ \
+	&& cd / \
+	&& rm -r REViewer-master master.zip
 
 #RUN python3 -m pip install --no-cache-dir str-analysis==0.9.8 \
 #    && python3 -m pip freeze \
@@ -140,5 +145,7 @@ COPY str_analysis ./str_analysis
 COPY README.md .
 COPY setup.py .
 COPY requirements.txt .
+RUN python3 -m pip install -r requirements.txt
+RUN python3 setup.py test
 RUN python3 setup.py install
 
