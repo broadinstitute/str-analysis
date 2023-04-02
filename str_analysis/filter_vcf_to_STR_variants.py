@@ -90,16 +90,20 @@ def parse_args():
                    "the left and right of the variant + in the inserted or deleted bases themselves")
     p.add_argument("--min-repeat-unit-length", type=int, default=1, help="Minimum repeat unit length in base pairs.")
     p.add_argument("--max-repeat-unit-length", type=int, default=10**9, help="Max repeat unit length in base pairs.")
-    p.add_argument("--allow-interruptions", help="Whether to allow interruptions in the repeat sequence.",
-                   action="store_true")
-
+    p.add_argument("--allow-interruptions", help="Whether to allow interruptions in the repeat sequence. There are 3 "
+                   "options: 1) 'no' disallows interruptions and only looks for pure repeats. "
+                   "2) 'only-if-pure-repeats-not-found' checks for interrupted repeats only for variants that don't "
+                   "pass filters as pure repeats. 3) 'always' checks all variants for interrupted repeats, extending "
+                   "their locus start and end coordinates to include interrupted repeats in the reference even when "
+                   "the variant sequence contains only pure repeats.",
+                   choices=["no", "only-if-pure-repeats-not-found", "always"], required=True)
     p.add_argument("--show-progress-bar", help="Show a progress bar in the terminal when processing variants.",
                    action="store_true")
     p.add_argument("-v", "--verbose", help="Print detailed logs.", action="store_true")
     p.add_argument("-n", type=int, help="Only process the first N rows of the VCF. Useful for testing.")
 
     p.add_argument("-o", "--output-prefix", help="Output vcf prefix. If not specified, it will be computed based on "
-                                                 "the input vcf filename")
+                   "the input vcf filename")
     p.add_argument("--write-bed-file", help="Whether to output a .bed file containing the STR variants. This requires "
                    "bedtools, bgzip and tabix tools to be available in the shell environment.",
                    action="store_true")
@@ -115,7 +119,7 @@ def parse_args():
 
     args = p.parse_args()
 
-    if not args.allow_interruptions:
+    if not args.allow_interruptions != "no":
         # drop some output columns
         for header in VARIANT_TSV_OUTPUT_COLUMNS, ALLELE_TSV_OUTPUT_COLUMNS:
             for column in "NumPureRepeats", "PureRepeatSize (bp)", "FractionPureRepeats", "RepeatUnitInterruptionIndex":
@@ -212,7 +216,7 @@ def determine_reason_indel_allele_failed_str_filter(
         if not has_partial_repeats:
             # sanity check
             raise ValueError(f"Unexpected return value: has_partial_repeats is False for {variant_bases}, "
-                             f"allow_interrruptions={allow_interruptions}")
+                             f"allow_interruptions={allow_interruptions}")
         counters[f"allele filter: {FILTER_STR_ALLELE_PARTIAL_REPEAT}"] += 1
         return FILTER_STR_ALLELE_PARTIAL_REPEAT
 
@@ -435,33 +439,34 @@ def check_if_variant_is_str(
         min_repeat_unit_length,
         max_repeat_unit_length,
         counters,
-        allow_interruptions=False,
+        interruptions="no",
         vcf_line_i=None,
         verbose=False,
 ):
 
     # first check whether the alleles are both pure STRs
-    current_counters = collections.defaultdict(int)
-    str_specs_with_pure_repeats = [check_if_allele_is_str(
-        fasta_obj, vcf_chrom, vcf_pos, vcf_ref, alt_allele,
-        min_str_repeats=min_str_repeats, min_str_length=min_str_length,
-        min_repeat_unit_length=min_repeat_unit_length, max_repeat_unit_length=max_repeat_unit_length,
-        allow_interruptions=False,
-        counters=current_counters,
-    ) for alt_allele in alt_alleles]
+    if interruptions != "always":
+        current_counters = collections.defaultdict(int)
+        str_specs_with_pure_repeats = [check_if_allele_is_str(
+            fasta_obj, vcf_chrom, vcf_pos, vcf_ref, alt_allele,
+            min_str_repeats=min_str_repeats, min_str_length=min_str_length,
+            min_repeat_unit_length=min_repeat_unit_length, max_repeat_unit_length=max_repeat_unit_length,
+            allow_interruptions=False,
+            counters=current_counters,
+        ) for alt_allele in alt_alleles]
 
-    str_specs_with_pure_repeats, variant_filter_string = postprocess_str_variant(
-        vcf_line_i, str_specs_with_pure_repeats, allow_interruptions=False, counters=current_counters, verbose=verbose)
+        str_specs_with_pure_repeats, variant_filter_string = postprocess_str_variant(
+            vcf_line_i, str_specs_with_pure_repeats, allow_interruptions=False, counters=current_counters, verbose=verbose)
 
-    if not allow_interruptions or not variant_filter_string:
-        # found that both alleles are pure STRs, so no need to check for repeats with interruptions
-        # if interruptions are not allowed, then return the pure STR results
-        for counter_key, count in current_counters.items():
-            counters[counter_key] += count
+        if interruptions == "no" or not variant_filter_string:
+            # found that both alleles are pure STRs, so no need to check for repeats with interruptions
+            # if interruptions are not allowed, then return the pure STR results
+            for counter_key, count in current_counters.items():
+                counters[counter_key] += count
 
-        return str_specs_with_pure_repeats, variant_filter_string
-    
-    # check again, this time allowing interruptions
+            return str_specs_with_pure_repeats, variant_filter_string
+
+    # check again, now allowing interruptions
     current_counters = collections.defaultdict(int)
     str_specs_allowing_interruptions = [check_if_allele_is_str(
         fasta_obj, vcf_chrom, vcf_pos, vcf_ref, alt_allele,
@@ -741,7 +746,7 @@ def process_vcf_line(
         args.min_repeat_unit_length,
         args.max_repeat_unit_length,
         counters=counters,
-        allow_interruptions=args.allow_interruptions,
+        interruptions=args.allow_interruptions,
         vcf_line_i=vcf_line_i,
         verbose=args.verbose,
     )
