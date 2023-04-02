@@ -82,6 +82,13 @@ def parse_args():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     p.add_argument("-R", "--reference-fasta-path", help="Reference genome fasta path.", required=True)
+    p.add_argument("--allow-interruptions", help="Whether to allow interruptions in the repeat sequence. There are 3 "
+                   "options: 1) 'no' disallows interruptions and only looks for pure repeats. "
+                   "2) 'only-if-pure-repeats-not-found' checks for interrupted repeats only for variants that don't "
+                   "pass filters as pure repeats. 3) 'always' checks all variants for interrupted repeats, extending "
+                   "their locus start and end coordinates to include interrupted repeats in the reference even when "
+                   "the variant sequence contains only pure repeats.",
+                   choices=["no", "only-if-pure-repeats-not-found", "always"], required=True)
     p.add_argument("--min-str-length", type=int, default=9, help="Minimum STR length in base pairs. This threshold "
                    "applies to the total repeat length comprising any repeats in the flanking sequence to the left "
                    "and right of the variant + in the inserted or deleted bases themselves")
@@ -90,13 +97,6 @@ def parse_args():
                    "the left and right of the variant + in the inserted or deleted bases themselves")
     p.add_argument("--min-repeat-unit-length", type=int, default=1, help="Minimum repeat unit length in base pairs.")
     p.add_argument("--max-repeat-unit-length", type=int, default=10**9, help="Max repeat unit length in base pairs.")
-    p.add_argument("--allow-interruptions", help="Whether to allow interruptions in the repeat sequence. There are 3 "
-                   "options: 1) 'no' disallows interruptions and only looks for pure repeats. "
-                   "2) 'only-if-pure-repeats-not-found' checks for interrupted repeats only for variants that don't "
-                   "pass filters as pure repeats. 3) 'always' checks all variants for interrupted repeats, extending "
-                   "their locus start and end coordinates to include interrupted repeats in the reference even when "
-                   "the variant sequence contains only pure repeats.",
-                   choices=["no", "only-if-pure-repeats-not-found", "always"], required=True)
     p.add_argument("--show-progress-bar", help="Show a progress bar in the terminal when processing variants.",
                    action="store_true")
     p.add_argument("-v", "--verbose", help="Print detailed logs.", action="store_true")
