@@ -3,6 +3,7 @@ import unittest
 from str_analysis.utils.find_repeat_unit import get_repeat_unit_regex_with_N_base, get_most_common_repeat_unit, \
     find_repeat_unit_without_allowing_interruptions, find_repeat_unit_allowing_interruptions, \
     extend_repeat_into_sequence_allowing_interruptions, extend_repeat_into_sequence_without_allowing_interruptions
+from utils.find_repeat_unit import count_pure_repeats
 
 
 def add_interruption(sequence, motif, i):
@@ -300,3 +301,16 @@ class Test(unittest.TestCase):
         self.assertEqual(num_pure_repeats, 1)
         self.assertEqual(num_total_repeats, 3)
         self.assertEqual(repeat_unit_interruption_index, 1)
+
+    def test_count_pure_repeats(self):
+        # 5 test cases for count_pure_repeats
+        self.assertEqual(count_pure_repeats("CAGCAGCATCAG", "CAG"), 3)
+        self.assertEqual(count_pure_repeats("CAGCAGCATCAG", "CAGCAG"), 1)
+        self.assertEqual(count_pure_repeats("CAGCAGCATCAG", "CAGCAGCATCAG"), 1)
+        self.assertEqual(count_pure_repeats("CAGCAGCATCAG", "CAT"), 1)
+        self.assertEqual(count_pure_repeats("CAGCAGCATCAG", "AGC"), 0)
+
+        # 5 test cases for count_pure_repeats with a 4bp repeat unit
+        self.assertEqual(count_pure_repeats("CAGACATACAGA", "CAGA"), 2)
+        self.assertEqual(count_pure_repeats("CAGACATACAGA", "GACA"), 0)
+

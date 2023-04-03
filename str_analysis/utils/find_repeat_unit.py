@@ -192,7 +192,7 @@ def find_repeat_unit_allowing_interruptions(sequence, allow_partial_repeats=Fals
                 COMPILED_REGEX_CACHE[regex] = re.compile(regex)
 
             if COMPILED_REGEX_CACHE[regex].match(sequence):
-                num_pure_repeats = sequence.count(repeat_unit)
+                num_pure_repeats = count_pure_repeats(sequence, repeat_unit)
                 repeat_unit_interruption_index = i if num_pure_repeats < num_total_repeats_expected else None
                 has_partial_repeats = len(sequence) % repeat_unit_length > 0
                 return repeat_unit, num_pure_repeats, num_total_repeats_expected, repeat_unit_interruption_index, has_partial_repeats
@@ -277,7 +277,7 @@ def extend_repeat_into_sequence_allowing_interruptions(
             matching_impure_sequence = match.group(1)
             current_num_total_repeats = int(len(matching_impure_sequence) / len(repeat_unit))
             if current_num_total_repeats > num_total_repeats:
-                num_pure_repeats = matching_impure_sequence.count(repeat_unit)
+                num_pure_repeats = count_pure_repeats(matching_impure_sequence, repeat_unit)
                 num_total_repeats = current_num_total_repeats
                 if num_pure_repeats < num_total_repeats:
                     repeat_unit_interruption_index = current_index
@@ -289,6 +289,20 @@ def extend_repeat_into_sequence_allowing_interruptions(
                       f"Consider increasing the length of the flanking sequencing.")
 
     return num_pure_repeats, num_total_repeats, repeat_unit_interruption_index
+
+
+def count_pure_repeats(sequence, repeat_unit):
+    """Count the number of pure repeats of the given repeat unit in the given sequence."""
+
+    if not sequence or not repeat_unit or len(sequence) < len(repeat_unit):
+        raise ValueError(f"Invalid sequence arg: '{sequence}' or repeat unit arg: '{repeat_unit}'")
+
+    num_pure_repeats = 0
+    for i in range(0, len(sequence) - len(repeat_unit) + 1, len(repeat_unit)):
+        if sequence[i:i+len(repeat_unit)] == repeat_unit:
+            num_pure_repeats += 1
+
+    return num_pure_repeats
 
 
 def find_repeat_unit_using_trf(
