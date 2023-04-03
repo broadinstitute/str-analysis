@@ -1033,8 +1033,7 @@ def main():
     locus_ids_with_multiple_indels = set()
     for locus_id, count in [item for item in indels_per_locus_counter.items() if item[1] > 1]:
         if args.verbose:
-            print(f"WARNING: vcf row #{vcf_line_i:,d}: {locus_id} locus contained {count} different STR INDEL "
-                  f"variants. Skipping...")
+            print(f"WARNING: {locus_id} locus contained {count} different STR INDEL variants. Skipping...")
         counters[f"variant filter: {FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS}"] += 1
         locus_ids_with_multiple_indels.add(locus_id)
 
