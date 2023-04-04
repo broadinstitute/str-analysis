@@ -64,7 +64,8 @@ FILTER_UNEXPECTED_GENOTYPE_FORMAT = "unexpected genotype format"
 FILTER_ALLELE_SNV_OR_MNV = "SNV/MNV"
 FILTER_ALLELE_MNV_INDEL = "complex multinucleotide insertion + deletion"
 FILTER_ALLELE_NON_STR_INDEL = "INDEL without repeats"
-FILTER_STR_ALLELE_WITHOUT_ENOUGH_REPEATS = "too few repeats"
+FILTER_STR_ALLELE_NOT_ENOUGH_REPEATS = "is only %d repeats"
+FILTER_STR_ALLELE_DOESNT_SPAN_ENOUGH_BASE_PAIRS = "spans < %d bp"
 FILTER_STR_ALLELE_PARTIAL_REPEAT = "ends in partial repeat"
 
 FILTER_STR_ALLELE_REPEAT_UNIT_TOO_SHORT = "repeat unit < %d bp"
@@ -194,10 +195,10 @@ def determine_reason_indel_allele_failed_str_filter(
         # it has more than one repeat, so a repeat unit was found, but it was less than the minimum threshold
         if num_total_repeats_in_str * len(repeat_unit) < min_str_length:
             counters[f"allele filter: allele sequence spans < {min_str_length}bp"] += 1
+            return FILTER_STR_ALLELE_DOESNT_SPAN_ENOUGH_BASE_PAIRS % min_str_length
         else:
             counters[f"allele filter: allele consists of only {num_total_repeats_in_str} repeats"] += 1
-
-        return FILTER_STR_ALLELE_WITHOUT_ENOUGH_REPEATS
+            return FILTER_STR_ALLELE_NOT_ENOUGH_REPEATS % num_total_repeats_in_str
 
     # check whether it consists of some repeats if it's allowed to end in a partial repeat
     if allow_interruptions:
