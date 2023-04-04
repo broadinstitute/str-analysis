@@ -519,7 +519,7 @@ def postprocess_str_variant(vcf_line_i, str_allele_specs, allow_interruptions=Fa
             str_allele_specs[1]["RepeatUnitInterruptionIndex"] = str_allele_specs[0]["RepeatUnitInterruptionIndex"]
 
     # Filter out multi-allelics where the STR alleles have different repeat units or coordinates
-    for attribute, filter_string, error_when_different in [
+    for attribute, filter_reason, error_when_different in [
         ("Chrom", "", True),
         ("IsPureRepeat", "", True),
         ("RepeatUnit", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_MOTIFS, False),
@@ -548,7 +548,9 @@ def postprocess_str_variant(vcf_line_i, str_allele_specs, allow_interruptions=Fa
                   f"multi-allelic STR has alleles with different {attribute}:",
                   str_allele_specs[0][attribute], " vs ", str_allele_specs[1][attribute], "  Skipping...")
 
-        counters[f"variant filter: multi-allelic: has {filter_string}"] += 1
+        counters[f"variant filter: multi-allelic: has {filter_reason}"] += 1
+
+        filter_string = ";".join([filter_reason] * len(str_allele_specs))  # add filter reason to both alleles
         return str_allele_specs, filter_string
 
     return str_allele_specs, None
@@ -906,7 +908,8 @@ def process_STR_loci_with_multiple_indels(file_path, locus_ids_with_multiple_ind
                 filtered_count += 1
                 if file_path.endswith(".vcf") and filtered_out_indels_vcf_writer:
                     # update the FILTER field
-                    fields[6] = FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS
+                    n_alleles = len(fields[4].split(","))
+                    fields[6] = ";".join([FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS]*n_alleles)
                     filtered_out_indels_vcf_writer.write("\t".join(fields) + "\n")
             else:
                 fo.write("\t".join(fields) + "\n")
