@@ -277,6 +277,9 @@ def check_if_allele_is_str(
     if set(alt) - {"A", "C", "G", "T", "N"}:
         raise ValueError(f"Invalid bases in ALT allele: {alt}")
 
+    if locus_allele1_or_2 not in (1, 2):
+        raise ValueError(f"locus_allele1_or_2 must be the integer 1 or 2 rather than: {locus_allele1_or_2}")
+
     if len(ref) == len(alt):
         counters[f"allele filter: "+("SNV" if len(alt) == 1 else "MNV")] += 1
         null_result["FilterReason"] = FILTER_ALLELE_SNV_OR_MNV

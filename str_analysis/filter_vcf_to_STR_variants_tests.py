@@ -13,6 +13,7 @@ class Tests(unittest.TestCase):
 
     def setUp(self):
 
+        self.maxDiff = None
         self.temp_fasta_file = tempfile.NamedTemporaryFile("w", suffix=".fasta", delete=False)
 
         """
@@ -179,7 +180,6 @@ class Tests(unittest.TestCase):
 
 
     def test_check_if_variant_is_str(self):
-        self.maxDiff = None
 
         counters = collections.defaultdict(int)
         str_specs, filter_reason = check_if_variant_is_str(
@@ -199,6 +199,7 @@ class Tests(unittest.TestCase):
             'FilterReason': None,
             'FractionPureRepeats': 1.0,
             'IsPureRepeat': True,
+            'LocusAllele1_or_2': 1,
             'NumPureRepeatsRef': 3,
             'NumPureRepeatsAlt': 6,
             'NumRepeatsLeftFlank': 1,
@@ -244,6 +245,7 @@ class Tests(unittest.TestCase):
                                         'FilterReason': None,
                                         'FractionPureRepeats': 1.0,
                                         'IsPureRepeat': True,
+                                        'LocusAllele1_or_2': 1,
                                         'NumPureRepeatsAlt': 10,
                                         'NumPureRepeatsInVariant': 10,
                                         'NumPureRepeatsLeftFlank': 0,
@@ -293,6 +295,7 @@ class Tests(unittest.TestCase):
                                     'FilterReason': None,
                                     'FractionPureRepeats': 0.9411764705882353,
                                     'IsPureRepeat': False,
+                                    'LocusAllele1_or_2': 1,
                                     'NumPureRepeatsAlt': 32,
                                     'NumPureRepeatsInVariant': 32,
                                     'NumPureRepeatsLeftFlank': 0,
@@ -332,6 +335,7 @@ class Tests(unittest.TestCase):
                                     'FilterReason': None,
                                     'FractionPureRepeats': 0.8181818181818182,
                                     'IsPureRepeat': False,
+                                    'LocusAllele1_or_2': 1,
                                     'NumPureRepeatsAlt': 9,
                                     'NumPureRepeatsInVariant': 8,
                                     'NumPureRepeatsLeftFlank': 1,
@@ -363,6 +367,7 @@ class Tests(unittest.TestCase):
                                     'FilterReason': None,
                                     'FractionPureRepeats': 0.5555555555555556,
                                     'IsPureRepeat': False,
+                                    'LocusAllele1_or_2': 1,
                                     'NumPureRepeatsAlt': 5,
                                     'NumPureRepeatsInVariant': 2,
                                     'NumPureRepeatsLeftFlank': 1,
@@ -382,8 +387,6 @@ class Tests(unittest.TestCase):
                                     'Start1Based': 7})
 
     def test_check_if_multiallelic_variant_is_str(self):
-        self.maxDiff = None
-
         counters = collections.defaultdict(int)
         str_specs, filter_string = check_if_variant_is_str(
             self.fasta_obj, "chrTest4", 9, "G", ["GCAGCAGCAG", "GCAGCAGCATCAACACCAC"],
@@ -414,6 +417,7 @@ class Tests(unittest.TestCase):
                                             'FilterReason': None,
                                             'FractionPureRepeats': 1.0,
                                             'IsPureRepeat': False,
+                                            'LocusAllele1_or_2': 1,
                                             'NumPureRepeatsAlt': 6,
                                             'NumPureRepeatsInVariant': 3,
                                             'NumPureRepeatsLeftFlank': 1,
@@ -437,6 +441,7 @@ class Tests(unittest.TestCase):
                                             'FilterReason': None,
                                             'FractionPureRepeats': 0.5555555555555556,
                                             'IsPureRepeat': False,
+                                            'LocusAllele1_or_2': 2,
                                             'NumPureRepeatsAlt': 5,
                                             'NumPureRepeatsInVariant': 2,
                                             'NumPureRepeatsLeftFlank': 1,
@@ -490,6 +495,7 @@ class Tests(unittest.TestCase):
                                             'FilterReason': None,
                                             'FractionPureRepeats': 1.0,
                                             'IsPureRepeat': False,
+                                            'LocusAllele1_or_2': 1,
                                             'NumPureRepeatsAlt': 6,
                                             'NumPureRepeatsInVariant': 3,
                                             'NumPureRepeatsLeftFlank': 1,
@@ -513,6 +519,7 @@ class Tests(unittest.TestCase):
                                             'FilterReason': None,
                                             'FractionPureRepeats': 0.5555555555555556,
                                             'IsPureRepeat': False,
+                                            'LocusAllele1_or_2': 2,
                                             'NumPureRepeatsAlt': 5,
                                             'NumPureRepeatsInVariant': 2,
                                             'NumPureRepeatsLeftFlank': 1,
@@ -576,7 +583,7 @@ class Tests(unittest.TestCase):
 
         result = check_if_allele_is_str(
             self.fasta_obj,
-            "chrTest4", 9, "G", "GCAGCAGCAG",
+            "chrTest4", 9, "G", "GCAGCAGCAG", locus_allele1_or_2=1,
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
@@ -598,7 +605,7 @@ class Tests(unittest.TestCase):
 
         result = check_if_allele_is_str(
             self.fasta_obj,
-            "chrTest4", 9, "GCAG", "G",
+            "chrTest4", 9, "GCAG", "G", locus_allele1_or_2=1,
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
@@ -620,7 +627,7 @@ class Tests(unittest.TestCase):
 
         result = check_if_allele_is_str(
             self.fasta_obj,
-            "chrTest5", 6, "ACGCCGACGCCGCCGCCGC", "A",
+            "chrTest5", 6, "ACGCCGACGCCGCCGCCGC", "A", locus_allele1_or_2=2,
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
@@ -650,7 +657,7 @@ class Tests(unittest.TestCase):
 
         result = check_if_allele_is_str(
             self.fasta_obj,
-            "chrTest6", 6, "A", "ACAG",
+            "chrTest6", 6, "A", "ACAG",  locus_allele1_or_2=1,
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
@@ -672,7 +679,7 @@ class Tests(unittest.TestCase):
 
         result = check_if_allele_is_str(
             self.fasta_obj,
-            "chrTest6", 6, "A", "ACAG",
+            "chrTest6", 6, "A", "ACAG", locus_allele1_or_2=1,
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
@@ -694,7 +701,7 @@ class Tests(unittest.TestCase):
 
         result = check_if_allele_is_str(
             self.fasta_obj,
-            "chrTest6", 6, "A", "ACAG",
+            "chrTest6", 6, "A", "ACAG", locus_allele1_or_2=1,
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
@@ -717,7 +724,7 @@ class Tests(unittest.TestCase):
         # TTTTTCCCCC
         result = check_if_allele_is_str(
             self.fasta_obj,
-            "chrTest7", 6, "C", "CCAGCAGCAG",
+            "chrTest7", 6, "C", "CCAGCAGCAG", locus_allele1_or_2=1,
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
@@ -741,7 +748,7 @@ class Tests(unittest.TestCase):
         # TTTTTCAGCAGCAGCCCCC
         result = check_if_allele_is_str(
             self.fasta_obj,
-            "chrTest8", 5, "TCAGCAGCAG", "T",
+            "chrTest8", 5, "TCAGCAGCAG", "T", locus_allele1_or_2=1,
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters,
             allow_interruptions=True)
