@@ -50,7 +50,7 @@ VARIANT_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
 ]
 
 ALLELE_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
-    "Allele1_or_2",
+    "LocusAllele1_or_2",
     "NumRepeats",
     "RepeatSize (bp)",
     "NumPureRepeats",
@@ -243,7 +243,7 @@ def compute_indel_variant_bases(ref, alt):
 
 
 def check_if_allele_is_str(
-    fasta_obj, chrom, pos, ref, alt,
+    fasta_obj, chrom, pos, ref, alt, locus_allele1_or_2,
     min_str_repeats, min_str_length, min_repeat_unit_length, max_repeat_unit_length,
     allow_interruptions=False,
     counters=None,
@@ -256,6 +256,7 @@ def check_if_allele_is_str(
         pos (int): 1-based position
         ref (str): VCF ref sequence
         alt (str): VCF alt sequence
+        locus_allele1_or_2 (int): 1 or 2, indicating whether this is the 1st allele or the 2nd allele at this locus
         min_str_repeats (int): The min number of repeats that must be found in the variant sequence + flanking
             reference sequences for the variant to be considered an STR.
         min_str_length (int): The repeats in the variant sequence + the flanking reference sequence must cover at least
@@ -345,7 +346,6 @@ def check_if_allele_is_str(
             repeat_unit,
             right_flanking_reference_sequence)
 
-
     # even though the VCF position is 1-based, it represents the location of the base preceding the variant bases, so
     # add 1 to get the 1-based position of the true base
     start_1based = pos + 1 - num_total_repeats_left_flank * len(repeat_unit)
@@ -385,6 +385,7 @@ def check_if_allele_is_str(
         "Pos": pos,
         "Ref": ref,
         "Alt": alt,
+        "LocusAllele1_or_2": locus_allele1_or_2,
         "Start1Based": start_1based,
         "End1Based": end_1based,
         "RepeatUnit": repeat_unit,
@@ -455,12 +456,12 @@ def check_if_variant_is_str(
     if interruptions != "always":
         current_counters = collections.defaultdict(int)
         str_specs_with_pure_repeats = [check_if_allele_is_str(
-            fasta_obj, vcf_chrom, vcf_pos, vcf_ref, alt_allele,
+            fasta_obj, vcf_chrom, vcf_pos, vcf_ref, alt_allele, allele_i + 1,
             min_str_repeats=min_str_repeats, min_str_length=min_str_length,
             min_repeat_unit_length=min_repeat_unit_length, max_repeat_unit_length=max_repeat_unit_length,
             allow_interruptions=False,
             counters=current_counters,
-        ) for alt_allele in alt_alleles]
+        ) for allele_i, alt_allele in enumerate(alt_alleles)]
 
         str_specs_with_pure_repeats, variant_filter_string = postprocess_str_variant(
             vcf_line_i, str_specs_with_pure_repeats, allow_interruptions=False, counters=current_counters, verbose=verbose)
@@ -476,12 +477,12 @@ def check_if_variant_is_str(
     # check again, now allowing interruptions
     current_counters = collections.defaultdict(int)
     str_specs_allowing_interruptions = [check_if_allele_is_str(
-        fasta_obj, vcf_chrom, vcf_pos, vcf_ref, alt_allele,
+        fasta_obj, vcf_chrom, vcf_pos, vcf_ref, alt_allele, allele_i + 1,
         min_str_repeats=min_str_repeats, min_str_length=min_str_length,
         min_repeat_unit_length=min_repeat_unit_length, max_repeat_unit_length=max_repeat_unit_length,
         allow_interruptions=True,
         counters=current_counters,
-    ) for alt_allele in alt_alleles]
+    ) for allele_i, alt_allele in enumerate(alt_alleles)]
 
     str_specs_allowing_interruptions, variant_filter_string = postprocess_str_variant(
         vcf_line_i, str_specs_allowing_interruptions, allow_interruptions=True, counters=current_counters, verbose=verbose)
@@ -854,6 +855,7 @@ def process_vcf_line(
             "VcfAlt": alt_allele,
             "INS_or_DEL_or_REF": ins_or_del_or_ref,
             "SummaryString": summary_string,
+            "LocusAllele1_or_2": alt_STR_allele_spec["LocusAllele1_or_2"],
             "NumRepeats": alt_STR_allele_spec["NumRepeatsAlt"],
             "RepeatSize (bp)": alt_STR_allele_spec["NumRepeatsAlt"] * len(repeat_unit),
             "NumPureRepeats": alt_STR_allele_spec["NumPureRepeatsAlt"],
