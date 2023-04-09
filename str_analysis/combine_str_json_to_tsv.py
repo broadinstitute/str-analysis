@@ -281,21 +281,21 @@ def compute_variant_summary_string(variant_record):
         het_or_hom = "HET"
         allele_numbers = [1, 2]
 
-    ins_or_del = []
+    ins_or_del_or_ref = []
     for i in allele_numbers:
         allele_size = int(variant_record[f"Repeat Size (bp): Allele {i}"])
         if allele_size == reference_locus_size:
-            ins_or_del.append("REF")
+            ins_or_del_or_ref.append("REF")
         elif allele_size > reference_locus_size:
-            ins_or_del.append("INS")
+            ins_or_del_or_ref.append("INS")
         elif allele_size < reference_locus_size:
-            ins_or_del.append("DEL")
+            ins_or_del_or_ref.append("DEL")
 
     summary_string = str(num_repeats_ref) + "=>" + variant_record["Genotype"]
     summary_string += "[" + variant_record["GenotypeConfidenceInterval"] + "]"
     summary_string += ":" + f"{repeat_unit}[{len(repeat_unit)}bp]"
     summary_string += ":" + het_or_hom
-    summary_string += ":" + ",".join(ins_or_del)
+    summary_string += ":" + ",".join(ins_or_del_or_ref)
 
     return summary_string
 

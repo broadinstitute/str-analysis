@@ -469,13 +469,13 @@ class Tests(unittest.TestCase):
             self.fasta_obj, "chrTest4", 9, "G", ["GCAGCAGCAG", "GCAGCATCATCATCACCAT"],
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters, interruptions="only-if-pure-repeats-not-found")
-        self.assertEqual(filter_string, "STR alleles with different motifs")
+        self.assertEqual(filter_string, "STR alleles with different motifs;STR alleles with different motifs")
 
         _, filter_string = check_if_variant_is_str(
             self.fasta_obj, "chrTest4", 9, "G", ["GCAGCAGCAGCAT", "GCTGCAGCAGCAGCAG"],
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters, interruptions="only-if-pure-repeats-not-found")
-        self.assertEqual(filter_string, "STR alleles with different interruption patterns")
+        self.assertEqual(filter_string, "STR alleles with different interruption patterns;STR alleles with different interruption patterns")
 
     def check_if_multiallelic_variant_is_str_with_allow_interruptions_always(self):
         counters = collections.defaultdict(int)
