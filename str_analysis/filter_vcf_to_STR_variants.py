@@ -27,7 +27,6 @@ COMMON_TSV_OUTPUT_COLUMNS = [
     "Locus",
     "LocusId",
     "INS_or_DEL_or_REF",
-    "HET_or_HOM",
     "Motif",
     "CanonicalMotif",
     "MotifSize",
@@ -43,6 +42,7 @@ COMMON_TSV_OUTPUT_COLUMNS = [
 ]
 
 VARIANT_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
+    "HET_or_HOM_or_MULTI",
     "NumRepeatsShortAllele",
     "NumRepeatsLongAllele",
     "RepeatSizeShortAllele (bp)",
@@ -50,6 +50,7 @@ VARIANT_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
 ]
 
 ALLELE_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
+    "Allele1_or_2",
     "NumRepeats",
     "RepeatSize (bp)",
     "NumPureRepeats",
@@ -601,12 +602,12 @@ def get_num_repeats_in_allele(str_allele_specs, genotype_index):
     return str_allele_specs[genotype_index - 1]["NumRepeatsAlt"]
 
 
-def compute_variant_summary_string(str_allele_specs, het_or_hom):
+def compute_variant_summary_string(str_allele_specs, het_or_hom_or_multi):
     """Returns a short easy-to-read string summarizing the STR variant.
 
     Args:
         str_allele_specs (list): list of 1 or more allele spec dictionaries
-        het_or_hom (str): describes the genotype as "HET" or "HOM"
+        het_or_hom_or_multi (str): describes the genotype as "HET" or "HOM" or "MULTI" meaning multi-allelic
     Return:
         str: short summary of the variant
     """
@@ -627,7 +628,7 @@ def compute_variant_summary_string(str_allele_specs, het_or_hom):
     summary_string += str(str_allele_specs[i]["NumRepeatsRef"]) + "=>" + ",".join([
         str(str_allele_specs[i]["NumRepeatsAlt"]) for i in range(0, len(str_allele_specs))
     ])
-    summary_string += ":" + het_or_hom
+    summary_string += ":" + het_or_hom_or_multi
 
     if not str_allele_specs[0]["IsPureRepeat"]:
         summary_string += ":not-pure"
@@ -736,7 +737,7 @@ def process_vcf_line(
         raise ValueError(f"Unexpected '*' allele in row #{vcf_line_i:,d}: {variant_id}")
 
     is_homozygous = vcf_genotype_indices[0] == vcf_genotype_indices[1]
-    het_or_hom = "HOM" if is_homozygous else "HET"
+    het_or_hom_or_multi = "HOM" if is_homozygous else ("MULTI" if len(alt_alleles) > 1 else "HET")
 
     # since these variants are from a single sample VCF, a homozygous genotype and multiple alleles are
     # an error of some sort.
@@ -763,7 +764,7 @@ def process_vcf_line(
         return filter_string
 
     variant_ins_or_del_or_ref, variant_summary_string = compute_variant_summary_string(
-        str_allele_specs, "MULTI" if len(str_allele_specs) > 1 else het_or_hom)
+        str_allele_specs, het_or_hom_or_multi)
 
     # get repeat unit, start, end coords for the variant
     repeat_unit = str_allele_specs[0]["RepeatUnit"]
@@ -816,7 +817,6 @@ def process_vcf_line(
         "VcfPos": vcf_pos,
         "VcfRef": vcf_ref,
         "VcfGenotype": vcf_genotype,
-        "HET_or_HOM": het_or_hom,
         "IsPureRepeat": is_pure_repeat,
         "IsMultiallelic": len(alt_alleles) > 1,
         "IsFoundInReference": any(is_found_in_reference(spec) for spec in str_allele_specs),
@@ -835,6 +835,7 @@ def process_vcf_line(
     variant_tsv_record.update({
         "VcfAlt": ",".join(alt_alleles),
         "INS_or_DEL_or_REF": variant_ins_or_del_or_ref,
+        "HET_or_HOM_or_MULTI": het_or_hom_or_multi,
         "SummaryString": variant_summary_string,
         "NumRepeatsShortAllele": variant_short_allele_size,
         "NumRepeatsLongAllele": variant_long_allele_size,
@@ -848,7 +849,7 @@ def process_vcf_line(
 
     for alt_allele, alt_STR_allele_spec in zip(alt_alleles, str_allele_specs):
         allele_tsv_record = dict(tsv_record)
-        ins_or_del_or_ref, summary_string = compute_variant_summary_string([alt_STR_allele_spec], het_or_hom)
+        ins_or_del_or_ref, summary_string = compute_variant_summary_string([alt_STR_allele_spec], het_or_hom_or_multi)
         allele_tsv_record.update({
             "VcfAlt": alt_allele,
             "INS_or_DEL_or_REF": ins_or_del_or_ref,

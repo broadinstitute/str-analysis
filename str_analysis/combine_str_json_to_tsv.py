@@ -261,7 +261,6 @@ def compute_variant_summary_string(variant_record):
 
     Args:
         variant_record (dict): list of 1 or more allele spec dictionaries
-        het_or_hom (str): describes the genotype as "HET" or "HOM"
     Return:
         str: short summary of the variant
     """
