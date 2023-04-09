@@ -37,7 +37,7 @@ def test_suite():
 
 setup(
     name='str_analysis',
-    version="0.9.20",
+    version="0.9.21",
     description="Utilities for analyzing short tandem repeats (STRs)",
     install_requires=requirements,
     cmdclass={
