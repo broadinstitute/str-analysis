@@ -26,7 +26,7 @@ COMMON_TSV_OUTPUT_COLUMNS = [
     "End1Based",
     "Locus",
     "LocusId",
-    "INS_or_DEL_or_REF",
+    "INS_or_DEL",
     "Motif",
     "CanonicalMotif",
     "MotifSize",
@@ -287,12 +287,12 @@ def check_if_allele_is_str(
         return null_result
 
     if len(ref) == len(alt):
-        ins_or_del_or_ref = "REF"
+        raise ValueError(f"Unexpected ref, alt pair: len('{ref}') == len('{alt}')")
     elif len(ref) < len(alt):
-        ins_or_del_or_ref = "INS"
+        ins_or_del = "INS"
     else:
-        ins_or_del_or_ref = "DEL"
-    counters[f"allele counts: {ins_or_del_or_ref} alleles"] += 1
+        ins_or_del = "DEL"
+    counters[f"allele counts: {ins_or_del} alleles"] += 1
 
     left_flanking_reference_sequence, variant_bases2, right_flanking_reference_sequence = get_flanking_reference_sequences(
         fasta_obj, chrom, pos, ref, alt, num_flanking_bases=2000)
@@ -424,7 +424,7 @@ def check_if_allele_is_str(
             num_base_pairs_within_variant_bases = "500+bp"
 
         counters[f"STR allele counts: TOTAL"] += 1
-        counters[f"STR allele counts: {ins_or_del_or_ref}"] += 1
+        counters[f"STR allele counts: {ins_or_del}"] += 1
         counters[f"STR allele delta: {num_total_repeats_within_variant_bases if num_total_repeats_within_variant_bases < 9 else '9+'} repeats"] += 1
         counters[f"STR allele motif size: {len(repeat_unit) if len(repeat_unit) < 9 else '9+'} bp"] += 1
         counters[f"STR allele size: {num_base_pairs_within_variant_bases}"] += 1
@@ -613,16 +613,16 @@ def compute_variant_summary_string(str_allele_specs, het_or_hom_or_multi):
     repeat_unit = str_allele_specs[0]["RepeatUnit"]
     summary_string = "{}bp:{}:".format(len(repeat_unit), repeat_unit)
 
-    ins_or_del_or_ref = []
+    ins_or_del = []
     for i in range(0, len(str_allele_specs)):
         if len(str_allele_specs[i]["Ref"]) > len(str_allele_specs[i]["Alt"]):
-            ins_or_del_or_ref.append("DEL")
+            ins_or_del.append("DEL")
         elif len(str_allele_specs[i]["Ref"]) < len(str_allele_specs[i]["Alt"]):
-            ins_or_del_or_ref.append("INS")
+            ins_or_del.append("INS")
         elif len(str_allele_specs[i]["Ref"]) == len(str_allele_specs[i]["Alt"]):
-            ins_or_del_or_ref.append("REF")
+            raise ValueError(f"Unexpected ref, alt pair: len('{str_allele_specs[i]['Ref']}') == len('{str_allele_specs[i]['Alt']}')")
 
-    summary_string += ",".join(ins_or_del_or_ref) + ":"
+    summary_string += ",".join(ins_or_del) + ":"
     summary_string += str(str_allele_specs[i]["NumRepeatsRef"]) + "=>" + ",".join([
         str(str_allele_specs[i]["NumRepeatsAlt"]) for i in range(0, len(str_allele_specs))
     ])
@@ -631,7 +631,7 @@ def compute_variant_summary_string(str_allele_specs, het_or_hom_or_multi):
     if not str_allele_specs[0]["IsPureRepeat"]:
         summary_string += ":not-pure"
 
-    return ":".join(ins_or_del_or_ref), summary_string
+    return ":".join(ins_or_del), summary_string
 
 
 def process_vcf_line(
@@ -761,7 +761,7 @@ def process_vcf_line(
     if filter_string:
         return filter_string
 
-    variant_ins_or_del_or_ref, variant_summary_string = compute_variant_summary_string(
+    variant_ins_or_del, variant_summary_string = compute_variant_summary_string(
         str_allele_specs, het_or_hom_or_multi)
 
     # get repeat unit, start, end coords for the variant
@@ -832,7 +832,7 @@ def process_vcf_line(
     variant_tsv_record = dict(tsv_record)
     variant_tsv_record.update({
         "VcfAlt": ",".join(alt_alleles),
-        "INS_or_DEL_or_REF": variant_ins_or_del_or_ref,
+        "INS_or_DEL": variant_ins_or_del,
         "HET_or_HOM_or_MULTI": het_or_hom_or_multi,
         "SummaryString": variant_summary_string,
         "NumRepeatsShortAllele": variant_short_allele_size,
@@ -847,10 +847,10 @@ def process_vcf_line(
 
     for alt_allele, alt_STR_allele_spec in zip(alt_alleles, str_allele_specs):
         allele_tsv_record = dict(tsv_record)
-        ins_or_del_or_ref, summary_string = compute_variant_summary_string([alt_STR_allele_spec], het_or_hom_or_multi)
+        ins_or_del, summary_string = compute_variant_summary_string([alt_STR_allele_spec], het_or_hom_or_multi)
         allele_tsv_record.update({
             "VcfAlt": alt_allele,
-            "INS_or_DEL_or_REF": ins_or_del_or_ref,
+            "INS_or_DEL": ins_or_del,
             "SummaryString": summary_string,
             "NumRepeats": alt_STR_allele_spec["NumRepeatsAlt"],
             "RepeatSize (bp)": alt_STR_allele_spec["NumRepeatsAlt"] * len(repeat_unit),
