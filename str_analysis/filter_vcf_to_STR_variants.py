@@ -28,6 +28,7 @@ COMMON_TSV_OUTPUT_COLUMNS = [
     "LocusId",
     "INS_or_DEL",
     "Motif",
+    "MotifInterruptionIndex",
     "CanonicalMotif",
     "MotifSize",
     "NumRepeatsInReference",
@@ -55,7 +56,6 @@ ALLELE_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
     "NumPureRepeats",
     "PureRepeatSize (bp)",
     "FractionPureRepeats",
-    "RepeatUnitInterruptionIndex",
 ]
 
 FILTER_MORE_THAN_TWO_ALT_ALLELES = "more than two alt alleles"
@@ -105,6 +105,8 @@ def parse_args():
 
     p.add_argument("-o", "--output-prefix", help="Output file prefix. If not specified, it will be computed based on "
                    "the input vcf filename")
+    p.add_argument("-ik", "--copy-info-field-keys-to-tsv", help="Copy the values of these INFO fields from the input VCF to "
+                                                                "the output TSV files.", action="append")
     p.add_argument("--write-bed-file", help="Whether to output a .bed file containing the STR variants. This requires "
                    "bedtools, bgzip and tabix tools to be available in the shell environment.",
                    action="store_true")
@@ -123,9 +125,13 @@ def parse_args():
     if not args.allow_interruptions != "no":
         # drop some output columns
         for header in VARIANT_TSV_OUTPUT_COLUMNS, ALLELE_TSV_OUTPUT_COLUMNS:
-            for column in "NumPureRepeats", "PureRepeatSize (bp)", "FractionPureRepeats", "RepeatUnitInterruptionIndex":
+            for column in "NumPureRepeats", "PureRepeatSize (bp)", "FractionPureRepeats", "MotifInterruptionIndex":
                 if column in header:
                     header.remove(column)
+
+    if args.copy_info_field_keys_to_tsv:
+        VARIANT_TSV_OUTPUT_COLUMNS.extend(args.copy_info_field_keys_to_tsv)
+        ALLELE_TSV_OUTPUT_COLUMNS.extend(args.copy_info_field_keys_to_tsv)
 
     return args
 
@@ -389,7 +395,7 @@ def check_if_allele_is_str(
         "NumRepeatsInVariant": num_total_repeats_within_variant_bases,
         "IsPureRepeat": num_pure_repeats_in_variant_plus_flanks == num_total_repeats_in_variant_plus_flanks,
         "FractionPureRepeats": num_pure_repeats_in_variant_plus_flanks / num_total_repeats_in_variant_plus_flanks,
-        "RepeatUnitInterruptionIndex": repeat_unit_interruption_index,
+        "MotifInterruptionIndex": repeat_unit_interruption_index,
         "PureStart1Based": pure_start_1based,
         "PureEnd1Based": pure_end_1based,
         "NumPureRepeatsRef": num_pure_repeats_ref,
@@ -400,8 +406,8 @@ def check_if_allele_is_str(
         "FilterReason": None,
     }
 
-    if result["IsPureRepeat"] and result["RepeatUnitInterruptionIndex"] is not None:
-        raise ValueError(f"Allele has IsPureRepeat set to True, but RepeatUnitInterruptionIndex is not None:" + pformat(result))
+    if result["IsPureRepeat"] and result["MotifInterruptionIndex"] is not None:
+        raise ValueError(f"Allele has IsPureRepeat set to True, but MotifInterruptionIndex is not None:" + pformat(result))
 
     # update counters
     if counters:
@@ -513,17 +519,17 @@ def postprocess_str_variant(vcf_line_i, str_allele_specs, allow_interruptions=Fa
     if str_allele_specs[0]["IsPureRepeat"] != str_allele_specs[1]["IsPureRepeat"]:
         str_allele_specs[0]["IsPureRepeat"] = str_allele_specs[1]["IsPureRepeat"] = False
 
-        if str_allele_specs[0]["RepeatUnitInterruptionIndex"] is None:
-            str_allele_specs[0]["RepeatUnitInterruptionIndex"] = str_allele_specs[1]["RepeatUnitInterruptionIndex"]
-        elif str_allele_specs[1]["RepeatUnitInterruptionIndex"] is None:
-            str_allele_specs[1]["RepeatUnitInterruptionIndex"] = str_allele_specs[0]["RepeatUnitInterruptionIndex"]
+        if str_allele_specs[0]["MotifInterruptionIndex"] is None:
+            str_allele_specs[0]["MotifInterruptionIndex"] = str_allele_specs[1]["MotifInterruptionIndex"]
+        elif str_allele_specs[1]["MotifInterruptionIndex"] is None:
+            str_allele_specs[1]["MotifInterruptionIndex"] = str_allele_specs[0]["MotifInterruptionIndex"]
 
     # Filter out multi-allelics where the STR alleles have different repeat units or coordinates
     for attribute, filter_reason, error_when_different in [
         ("Chrom", "", True),
         ("IsPureRepeat", "", True),
         ("RepeatUnit", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_MOTIFS, False),
-        ("RepeatUnitInterruptionIndex", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_INTERRUPTION_PATTERNS, True if not allow_interruptions else False),
+        ("MotifInterruptionIndex", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_INTERRUPTION_PATTERNS, True if not allow_interruptions else False),
         ("Start1Based", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_COORDS, True if not allow_interruptions else False),
         ("End1Based", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_COORDS, True if not allow_interruptions else False),
     ]:
@@ -535,9 +541,9 @@ def postprocess_str_variant(vcf_line_i, str_allele_specs, allow_interruptions=Fa
         variant_id = f"{chrom}-{str_allele_specs[0]['Start1Based']}-{str_allele_specs[0]['End1Based']}-"
         variant_id += f"{str_allele_specs[0]['Ref']}-"
         variant_id += f"{str_allele_specs[0]['Alt']} (RU:{str_allele_specs[0]['RepeatUnit']}"
-        variant_id += f":{str_allele_specs[0]['RepeatUnitInterruptionIndex']})" if allow_interruptions else ")"
+        variant_id += f":{str_allele_specs[0]['MotifInterruptionIndex']})" if allow_interruptions else ")"
         variant_id += f", {str_allele_specs[1]['Alt']} (RU:{str_allele_specs[1]['RepeatUnit']}"
-        variant_id += f":{str_allele_specs[1]['RepeatUnitInterruptionIndex']})" if allow_interruptions else ")"
+        variant_id += f":{str_allele_specs[1]['MotifInterruptionIndex']})" if allow_interruptions else ")"
 
         if error_when_different:
             raise ValueError(f"STR alleles have different {attribute} values: "
@@ -765,7 +771,7 @@ def process_vcf_line(
     start_1based = str_allele_specs[0]["Start1Based"]
     end_1based = str_allele_specs[0]["End1Based"]
     is_pure_repeat = str_allele_specs[0]["IsPureRepeat"]
-    repeat_unit_interruption_index = str_allele_specs[0]["RepeatUnitInterruptionIndex"]
+    repeat_unit_interruption_index = str_allele_specs[0]["MotifInterruptionIndex"]
 
     # get allele sizes based on the variant's genotype in the VCF
     try:
@@ -808,13 +814,14 @@ def process_vcf_line(
     })
 
     if not is_pure_repeat:
-        info_field_dict["RepeatUnitInterruptionIndex"] = str(repeat_unit_interruption_index)
+        info_field_dict["MotifInterruptionIndex"] = str(repeat_unit_interruption_index)
 
     vcf_fields[7] = ";".join([f"{key}={value}" for key, value in info_field_dict.items()])
     vcf_fields[9] = vcf_genotype
     vcf_writer.write("\t".join(vcf_fields) + "\n")
 
-    # remove "NumRepeatsShortAllele" and "NumRepeatsLongAllele" keys from info_fields_dict
+    # remove "NumRepeatsShortAllele" and "NumRepeatsLongAllele" keys from info_fields_dict since it doesn't make sense
+    # to add them to the alleles tsv
     del info_field_dict["NumRepeatsShortAllele"]
     del info_field_dict["NumRepeatsLongAllele"]
 
@@ -837,7 +844,7 @@ def process_vcf_line(
         "VcfRef": vcf_ref,
         "VcfGenotype": vcf_genotype,
         "IsPureRepeat": is_pure_repeat,
-        "RepeatUnitInterruptionIndex": repeat_unit_interruption_index,
+        "MotifInterruptionIndex": repeat_unit_interruption_index,
         "IsMultiallelic": len(alt_alleles) > 1,
         "IsFoundInReference": any(is_found_in_reference(spec) for spec in str_allele_specs),
     })
@@ -862,7 +869,7 @@ def process_vcf_line(
         "RepeatSizeShortAllele (bp)": num_repeats_short_allele * len(repeat_unit),
         "RepeatSizeLongAllele (bp)": num_repeats_long_allele * len(repeat_unit),
     })
-    variants_tsv_writer.write("\t".join([str(variant_tsv_record[c]) for c in VARIANT_TSV_OUTPUT_COLUMNS]) + "\n")
+    variants_tsv_writer.write("\t".join([str(variant_tsv_record.get(c)) for c in VARIANT_TSV_OUTPUT_COLUMNS]) + "\n")
 
     if bed_writer is not None:
         bed_writer.write("\t".join(map(str, [vcf_chrom, start_1based - 1, end_1based, variant_summary_string, "."])) + "\n")
@@ -881,7 +888,7 @@ def process_vcf_line(
             "FractionPureRepeats": "%0.3f" % alt_STR_allele_spec["FractionPureRepeats"],
         })
 
-        alleles_tsv_writer.write("\t".join([str(allele_tsv_record[c]) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
+        alleles_tsv_writer.write("\t".join([str(allele_tsv_record.get(c)) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
 
 
 def process_STR_loci_with_multiple_indels(file_path, locus_ids_with_multiple_indels, filtered_out_indels_vcf_writer):

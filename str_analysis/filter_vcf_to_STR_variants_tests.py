@@ -212,7 +212,7 @@ class Tests(unittest.TestCase):
             'NumPureRepeatsLeftFlank': 1,
             'NumPureRepeatsRightFlank': 2,
             'RepeatUnit': 'CAG',
-            'RepeatUnitInterruptionIndex': None,
+            'MotifInterruptionIndex': None,
         })
 
         # test homopolymer + min_repeat_unit_length
@@ -259,7 +259,7 @@ class Tests(unittest.TestCase):
                                         'PureStart1Based': 10,
                                         'Ref': 'G',
                                         'RepeatUnit': 'A',
-                                        'RepeatUnitInterruptionIndex': None,
+                                        'MotifInterruptionIndex': None,
                                         'Start1Based': 10})
 
         # test homopolymer with interruptions, allow_interruptions = False
@@ -308,7 +308,7 @@ class Tests(unittest.TestCase):
                                     'PureStart1Based': 10,
                                     'Ref': 'G',
                                     'RepeatUnit': 'A',
-                                    'RepeatUnitInterruptionIndex': 0,
+                                    'MotifInterruptionIndex': 0,
                                     'Start1Based': 10})
 
         # test dinucleotides with interruptions, allow_interruptions = True
@@ -347,7 +347,7 @@ class Tests(unittest.TestCase):
                                     'PureStart1Based': 8,
                                     'Ref': 'G',
                                     'RepeatUnit': 'AG',
-                                    'RepeatUnitInterruptionIndex': 1,
+                                    'MotifInterruptionIndex': 1,
                                     'Start1Based': 8})
 
         # trinucleotide repeat
@@ -378,7 +378,7 @@ class Tests(unittest.TestCase):
                                     'PureStart1Based': 7,
                                     'Ref': 'G',
                                     'RepeatUnit': 'CAG',
-                                    'RepeatUnitInterruptionIndex': 2,
+                                    'MotifInterruptionIndex': 2,
                                     'Start1Based': 7})
 
     def test_check_if_multiallelic_variant_is_str(self):
@@ -427,7 +427,7 @@ class Tests(unittest.TestCase):
                                             'PureStart1Based': 7,
                                             'Ref': 'G',
                                             'RepeatUnit': 'CAG',
-                                            'RepeatUnitInterruptionIndex': 2,
+                                            'MotifInterruptionIndex': 2,
                                             'Start1Based': 7})
         self.assertDictEqual(str_specs[1], {'Alt': 'GCAGCAGCATCAACACCAC',
                                             'Chrom': 'chrTest4',
@@ -450,7 +450,7 @@ class Tests(unittest.TestCase):
                                             'PureStart1Based': 7,
                                             'Ref': 'G',
                                             'RepeatUnit': 'CAG',
-                                            'RepeatUnitInterruptionIndex': 2,
+                                            'MotifInterruptionIndex': 2,
                                             'Start1Based': 7})
 
         self.assertDictEqual(counters, {'STR allele counts: INS': 2,
@@ -503,7 +503,7 @@ class Tests(unittest.TestCase):
                                             'PureStart1Based': 7,
                                             'Ref': 'G',
                                             'RepeatUnit': 'CAG',
-                                            'RepeatUnitInterruptionIndex': 2,
+                                            'MotifInterruptionIndex': 2,
                                             'Start1Based': 7})
         self.assertDictEqual(str_specs[1], {'Alt': 'GCAGCAGCATCAACACCAC',
                                             'Chrom': 'chrTest4',
@@ -526,7 +526,7 @@ class Tests(unittest.TestCase):
                                             'PureStart1Based': 7,
                                             'Ref': 'G',
                                             'RepeatUnit': 'CAG',
-                                            'RepeatUnitInterruptionIndex': 2,
+                                            'MotifInterruptionIndex': 2,
                                             'Start1Based': 7})
 
         self.assertDictEqual(counters, {'STR allele counts: INS': 2,
@@ -633,7 +633,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["NumRepeatsRightFlank"], 5)
         self.assertFalse(result["IsPureRepeat"])
 
-        self.assertEqual(result["RepeatUnitInterruptionIndex"], 2)
+        self.assertEqual(result["MotifInterruptionIndex"], 2)
         self.assertEqual(result["FractionPureRepeats"], 10/11)
 
         self.assertEqual(result["PureStart1Based"], 7)
