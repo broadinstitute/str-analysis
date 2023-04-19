@@ -807,10 +807,10 @@ def process_vcf_line(
         f"IsPureRepeat": f"{is_pure_repeat}",
     })
 
-    if is_pure_repeat:
+    if not is_pure_repeat:
         info_field_dict["RepeatUnitInterruptionIndex"] = str(repeat_unit_interruption_index)
 
-    vcf_fields[7] += ";".join([f"{key}={value}" for key, value in info_field_dict.items()])
+    vcf_fields[7] = ";".join([f"{key}={value}" for key, value in info_field_dict.items()])
     vcf_fields[9] = vcf_genotype
     vcf_writer.write("\t".join(vcf_fields) + "\n")
 
@@ -821,7 +821,6 @@ def process_vcf_line(
     # write results to TSVs
     if len(alt_alleles) > 1:
         counters[f"STR variant counts: multi-allelic"] += 1
-
 
     tsv_record = info_field_dict
     tsv_record.update({
