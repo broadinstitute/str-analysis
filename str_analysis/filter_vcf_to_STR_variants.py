@@ -105,7 +105,6 @@ def parse_args():
 
     p.add_argument("-o", "--output-prefix", help="Output file prefix. If not specified, it will be computed based on "
                    "the input vcf filename")
-    p.add_argument("--output-vcf-info-fields-prefix", help="Prefix for the new INFO fields in the output VCF.")
     p.add_argument("--write-bed-file", help="Whether to output a .bed file containing the STR variants. This requires "
                    "bedtools, bgzip and tabix tools to be available in the shell environment.",
                    action="store_true")
@@ -775,8 +774,8 @@ def process_vcf_line(
     except Exception as e:
         raise ValueError(f"{e} {vcf_ref} {alt_alleles} {vcf_genotype}")
 
-    variant_short_allele_size = min(num_repeats_in_allele1, num_repeats_in_allele2)
-    variant_long_allele_size  = max(num_repeats_in_allele1, num_repeats_in_allele2)
+    num_repeats_short_allele = min(num_repeats_in_allele1, num_repeats_in_allele2)
+    num_repeats_long_allele  = max(num_repeats_in_allele1, num_repeats_in_allele2)
 
     counters["STR variant counts: TOTAL"] += 1
 
@@ -784,33 +783,48 @@ def process_vcf_line(
     indels_per_locus_counter[locus_id] += 1
 
     num_repeats_in_reference = (end_1based - start_1based + 1)/len(repeat_unit)
-    # write results to a VCF file
-    key_prefix = args.output_vcf_info_fields_prefix or ""
-    INFO_field = ";".join([
-        f"{key_prefix}LocusId={locus_id}",
-        f"{key_prefix}Locus={vcf_chrom_without_chr_prefix}:{start_1based}-{end_1based}",
-        f"{key_prefix}Motif={repeat_unit}",
-        f"{key_prefix}NumRepeats1={num_repeats_in_allele1}",
-        f"{key_prefix}NumRepeats2={num_repeats_in_allele2}",
-        f"{key_prefix}NumRepeatsInReference={num_repeats_in_reference}",
-    ] + ([f"{key_prefix}IsPureRepeat"] if is_pure_repeat else
-         [f"{key_prefix}RepeatUnitInterruptionIndex={repeat_unit_interruption_index}"]
-    ))
 
+    # write results to a VCF file
     vcf_fields[2] = variant_summary_string
     vcf_fields[4] = ",".join(alt_alleles)
-    if not vcf_fields[7] or vcf_fields[7] == ".":
-        vcf_fields[7] = INFO_field
-    else:
-        vcf_fields[7] += ";" + INFO_field  # append to existing INFO field
+
+    info_field_dict = {}
+    if vcf_fields[7] and vcf_fields[7] != ".":
+        for info_key_value in vcf_fields[7].split(";"):
+            info_field_tokens = info_key_value.split("=")
+            if len(info_field_tokens) > 1:
+                info_field_dict[info_field_tokens[0]] = info_field_tokens[1]
+            else:
+                info_field_dict[info_field_tokens[0]] = True
+
+    info_field_dict.update({
+        f"LocusId": f"{locus_id}",
+        f"Locus": f"{vcf_chrom_without_chr_prefix}:{start_1based}-{end_1based}",
+        f"Motif": f"{repeat_unit}",
+        f"NumRepeatsShortAllele": f"{num_repeats_short_allele}",
+        f"NumRepeatsLongAllele": f"{num_repeats_long_allele}",
+        f"NumRepeatsInReference": f"{num_repeats_in_reference}",
+        f"IsPureRepeat": f"{is_pure_repeat}",
+    })
+
+    if is_pure_repeat:
+        info_field_dict["RepeatUnitInterruptionIndex"] = str(repeat_unit_interruption_index)
+
+    vcf_fields[7] += ";".join([f"{key}={value}" for key, value in info_field_dict.items()])
     vcf_fields[9] = vcf_genotype
     vcf_writer.write("\t".join(vcf_fields) + "\n")
+
+    # remove "NumRepeatsShortAllele" and "NumRepeatsLongAllele" keys from info_fields_dict
+    del info_field_dict["NumRepeatsShortAllele"]
+    del info_field_dict["NumRepeatsLongAllele"]
 
     # write results to TSVs
     if len(alt_alleles) > 1:
         counters[f"STR variant counts: multi-allelic"] += 1
 
-    tsv_record = {
+
+    tsv_record = info_field_dict
+    tsv_record.update({
         "Chrom": vcf_chrom,
         "Start1Based": start_1based,
         "End1Based": end_1based,
@@ -827,11 +841,11 @@ def process_vcf_line(
         "RepeatUnitInterruptionIndex": repeat_unit_interruption_index,
         "IsMultiallelic": len(alt_alleles) > 1,
         "IsFoundInReference": any(is_found_in_reference(spec) for spec in str_allele_specs),
-    }
+    })
 
-    if variant_short_allele_size < 0 or variant_long_allele_size < 0:
+    if num_repeats_short_allele < 0 or num_repeats_long_allele < 0:
         raise ValueError(f"Short or long allele size is < 0: "
-                         f"{variant_short_allele_size}, {variant_long_allele_size}  {pformat(tsv_record)}")
+                         f"{num_repeats_short_allele}, {num_repeats_long_allele}  {pformat(tsv_record)}")
 
     if is_pure_repeat:
         counters[f"STR variant counts: pure repeats"] += 1
@@ -844,10 +858,10 @@ def process_vcf_line(
         "INS_or_DEL": variant_ins_or_del,
         "HET_or_HOM_or_MULTI": het_or_hom_or_multi,
         "SummaryString": variant_summary_string,
-        "NumRepeatsShortAllele": variant_short_allele_size,
-        "NumRepeatsLongAllele": variant_long_allele_size,
-        "RepeatSizeShortAllele (bp)": variant_short_allele_size * len(repeat_unit),
-        "RepeatSizeLongAllele (bp)": variant_long_allele_size * len(repeat_unit),
+        "NumRepeatsShortAllele": num_repeats_short_allele,
+        "NumRepeatsLongAllele": num_repeats_long_allele,
+        "RepeatSizeShortAllele (bp)": num_repeats_short_allele * len(repeat_unit),
+        "RepeatSizeLongAllele (bp)": num_repeats_long_allele * len(repeat_unit),
     })
     variants_tsv_writer.write("\t".join([str(variant_tsv_record[c]) for c in VARIANT_TSV_OUTPUT_COLUMNS]) + "\n")
 
