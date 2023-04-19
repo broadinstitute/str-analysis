@@ -221,7 +221,7 @@ class Tests(unittest.TestCase):
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=2, max_repeat_unit_length=50,
             counters=counters, interruptions="no")
         self.assertEqual(len(str_specs), 1)
-        self.assertDictEqual(str_specs[0], {'FilterReason': 'repeat unit < %d bp', 'RepeatUnit': None})
+        self.assertDictEqual(str_specs[0], {'FilterReason': 'repeat unit < 2 bp', 'RepeatUnit': None})
 
         # test dinucleotide + min_repeat_unit_length
         str_specs, filter_string = check_if_variant_is_str(
@@ -229,7 +229,7 @@ class Tests(unittest.TestCase):
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=3, max_repeat_unit_length=50,
             counters=counters, interruptions="no")
         self.assertEqual(len(str_specs), 1)
-        self.assertDictEqual(str_specs[0], {'FilterReason': 'repeat unit < %d bp', 'RepeatUnit': None})
+        self.assertDictEqual(str_specs[0], {'FilterReason': 'repeat unit < 3 bp', 'RepeatUnit': None})
 
         # test homopolymer
         str_specs, filter_string = check_if_variant_is_str(
