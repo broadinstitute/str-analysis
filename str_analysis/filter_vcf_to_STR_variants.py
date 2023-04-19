@@ -103,8 +103,9 @@ def parse_args():
     p.add_argument("-v", "--verbose", help="Print detailed logs.", action="store_true")
     p.add_argument("-n", type=int, help="Only process the first N rows of the VCF. Useful for testing.")
 
-    p.add_argument("-o", "--output-prefix", help="Output vcf prefix. If not specified, it will be computed based on "
+    p.add_argument("-o", "--output-prefix", help="Output file prefix. If not specified, it will be computed based on "
                    "the input vcf filename")
+    p.add_argument("--output-vcf-info-fields-prefix", help="Prefix for the new INFO fields in the output VCF.")
     p.add_argument("--write-bed-file", help="Whether to output a .bed file containing the STR variants. This requires "
                    "bedtools, bgzip and tabix tools to be available in the shell environment.",
                    action="store_true")
@@ -126,10 +127,6 @@ def parse_args():
             for column in "NumPureRepeats", "PureRepeatSize (bp)", "FractionPureRepeats", "RepeatUnitInterruptionIndex":
                 if column in header:
                     header.remove(column)
-
-    global FILTER_STR_ALLELE_REPEAT_UNIT_TOO_SHORT, FILTER_STR_ALLELE_REPEAT_UNIT_TOO_LONG
-    FILTER_STR_ALLELE_REPEAT_UNIT_TOO_SHORT = FILTER_STR_ALLELE_REPEAT_UNIT_TOO_SHORT % args.min_repeat_unit_length
-    FILTER_STR_ALLELE_REPEAT_UNIT_TOO_LONG = FILTER_STR_ALLELE_REPEAT_UNIT_TOO_LONG % args.max_repeat_unit_length
 
     return args
 
@@ -186,10 +183,10 @@ def determine_reason_indel_allele_failed_str_filter(
     """
     if len(repeat_unit) < min_repeat_unit_length:
         counters[f"allele filter: repeat unit is shorter than {min_repeat_unit_length}bp"] += 1
-        return FILTER_STR_ALLELE_REPEAT_UNIT_TOO_SHORT
+        return FILTER_STR_ALLELE_REPEAT_UNIT_TOO_SHORT % min_repeat_unit_length
     if len(repeat_unit) > max_repeat_unit_length:
         counters[f"allele filter: repeat unit is longer than {max_repeat_unit_length}bp"] += 1
-        return FILTER_STR_ALLELE_REPEAT_UNIT_TOO_LONG
+        return FILTER_STR_ALLELE_REPEAT_UNIT_TOO_LONG % max_repeat_unit_length
 
     if num_total_repeats_in_str > 1:
         # it has more than one repeat, so a repeat unit was found, but it was less than the minimum threshold
@@ -491,7 +488,7 @@ def check_if_variant_is_str(
 
 
 def postprocess_str_variant(vcf_line_i, str_allele_specs, allow_interruptions=False, counters=None, verbose=False):
-    """Check whether the STR alleles are valid, or whether they should be filtered out
+    """Check whether the STR alleles are valid, or whether they should be filtered out.
 
     Return:
         str: the reason a variant should be filtered out, or None if the variant should not be filtered out
@@ -769,6 +766,7 @@ def process_vcf_line(
     start_1based = str_allele_specs[0]["Start1Based"]
     end_1based = str_allele_specs[0]["End1Based"]
     is_pure_repeat = str_allele_specs[0]["IsPureRepeat"]
+    repeat_unit_interruption_index = str_allele_specs[0]["RepeatUnitInterruptionIndex"]
 
     # get allele sizes based on the variant's genotype in the VCF
     try:
@@ -785,16 +783,26 @@ def process_vcf_line(
     locus_id = f"{vcf_chrom_without_chr_prefix}-{start_1based - 1}-{end_1based}-{repeat_unit}"
     indels_per_locus_counter[locus_id] += 1
 
+    num_repeats_in_reference = (end_1based - start_1based + 1)/len(repeat_unit)
     # write results to a VCF file
+    key_prefix = args.output_vcf_info_fields_prefix or ""
     INFO_field = ";".join([
-        f"Motif={repeat_unit}",
-        f"NumRepeats1={num_repeats_in_allele1}",
-        f"NumRepeats2={num_repeats_in_allele2}",
-        f"LocusId={locus_id}",
-    ])
+        f"{key_prefix}LocusId={locus_id}",
+        f"{key_prefix}Locus={vcf_chrom_without_chr_prefix}:{start_1based}-{end_1based}",
+        f"{key_prefix}Motif={repeat_unit}",
+        f"{key_prefix}NumRepeats1={num_repeats_in_allele1}",
+        f"{key_prefix}NumRepeats2={num_repeats_in_allele2}",
+        f"{key_prefix}NumRepeatsInReference={num_repeats_in_reference}",
+    ] + ([f"{key_prefix}IsPureRepeat"] if is_pure_repeat else
+         [f"{key_prefix}RepeatUnitInterruptionIndex={repeat_unit_interruption_index}"]
+    ))
+
     vcf_fields[2] = variant_summary_string
     vcf_fields[4] = ",".join(alt_alleles)
-    vcf_fields[7] = INFO_field
+    if not vcf_fields[7] or vcf_fields[7] == ".":
+        vcf_fields[7] = INFO_field
+    else:
+        vcf_fields[7] += ";" + INFO_field  # append to existing INFO field
     vcf_fields[9] = vcf_genotype
     vcf_writer.write("\t".join(vcf_fields) + "\n")
 
@@ -808,7 +816,7 @@ def process_vcf_line(
         "End1Based": end_1based,
         "Locus": f"{vcf_chrom_without_chr_prefix}:{start_1based}-{end_1based}",
         "LocusId": locus_id,
-        "NumRepeatsInReference": (end_1based - start_1based + 1)/len(repeat_unit),
+        "NumRepeatsInReference": num_repeats_in_reference,
         "Motif": repeat_unit,
         "CanonicalMotif": compute_canonical_motif(repeat_unit, include_reverse_complement=True),
         "MotifSize": len(repeat_unit),
@@ -816,6 +824,7 @@ def process_vcf_line(
         "VcfRef": vcf_ref,
         "VcfGenotype": vcf_genotype,
         "IsPureRepeat": is_pure_repeat,
+        "RepeatUnitInterruptionIndex": repeat_unit_interruption_index,
         "IsMultiallelic": len(alt_alleles) > 1,
         "IsFoundInReference": any(is_found_in_reference(spec) for spec in str_allele_specs),
     }
@@ -857,7 +866,6 @@ def process_vcf_line(
             "NumPureRepeats": alt_STR_allele_spec["NumPureRepeatsAlt"],
             "PureRepeatSize (bp)": alt_STR_allele_spec["NumPureRepeatsAlt"] * len(repeat_unit),
             "FractionPureRepeats": "%0.3f" % alt_STR_allele_spec["FractionPureRepeats"],
-            "RepeatUnitInterruptionIndex": alt_STR_allele_spec["RepeatUnitInterruptionIndex"],
         })
 
         alleles_tsv_writer.write("\t".join([str(allele_tsv_record[c]) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
@@ -895,7 +903,7 @@ def process_STR_loci_with_multiple_indels(file_path, locus_ids_with_multiple_ind
                 row = dict(zip(header, fields))
                 locus_id = row["LocusId"]
             elif file_path.endswith(".vcf"):
-                info = dict([info_record.split("=") for info_record in fields[7].split(";")])
+                info = dict([info_record.split("=") for info_record in fields[7].split(";") if "=" in info_record])
                 if "LocusId" not in info:
                     raise ValueError(f"Unexpected info field format in {file_path} line: {fields}")
                 locus_id = info["LocusId"]

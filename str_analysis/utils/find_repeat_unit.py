@@ -143,7 +143,7 @@ def find_repeat_unit_allowing_interruptions(sequence, allow_partial_repeats=Fals
 
     # check for repeats with interruptions
     repeat_unit_length = 1
-    while repeat_unit_length <= len(sequence)/2 and repeat_unit_length <= MAX_INTERRUPTED_REPEAT_UNIT_LENGTH:
+    while repeat_unit_length <= len(sequence)/2:
         if not allow_partial_repeats and len(sequence) % repeat_unit_length != 0:
             repeat_unit_length += 1
             continue
@@ -179,23 +179,36 @@ def find_repeat_unit_allowing_interruptions(sequence, allow_partial_repeats=Fals
                 repeat_unit_length += 1
                 continue
 
-        # allow position i within the repeat unit to vary across repeats
-        for i in range(repeat_unit_length):
-            repeat_unit_regex = get_repeat_unit_regex_with_N_base(repeat_unit, i, allow_homopolymer=False)
-            regex = "^(" + repeat_unit_regex + ")+"
+        if repeat_unit_length <= MAX_INTERRUPTED_REPEAT_UNIT_LENGTH:
+            # allow position i within the repeat unit to vary across repeats
+            for i in range(repeat_unit_length):
+                repeat_unit_regex = get_repeat_unit_regex_with_N_base(repeat_unit, i, allow_homopolymer=False)
+                regex = "^(" + repeat_unit_regex + ")+"
+                if allow_partial_repeats:
+                    partial_repeat_length = len(sequence) % repeat_unit_length
+                    regex += repeat_unit[:partial_repeat_length]
+                regex += "$"
+
+                if regex not in COMPILED_REGEX_CACHE:
+                    COMPILED_REGEX_CACHE[regex] = re.compile(regex)
+
+                if COMPILED_REGEX_CACHE[regex].match(sequence):
+                    num_pure_repeats = count_pure_repeats(sequence, repeat_unit)
+                    repeat_unit_interruption_index = i if num_pure_repeats < num_total_repeats_expected else None
+                    has_partial_repeats = len(sequence) % repeat_unit_length > 0
+                    return repeat_unit, num_pure_repeats, num_total_repeats_expected, repeat_unit_interruption_index, has_partial_repeats
+        else:
+            # check for pure repeats only
+            repeat_unit = sequence[:repeat_unit_length]
+            num_repeats = sequence.count(repeat_unit)
+            if num_repeats * repeat_unit_length == len(sequence):
+                return repeat_unit, num_repeats, num_repeats, None, False
+
             if allow_partial_repeats:
                 partial_repeat_length = len(sequence) % repeat_unit_length
-                regex += repeat_unit[:partial_repeat_length]
-            regex += "$"
-
-            if regex not in COMPILED_REGEX_CACHE:
-                COMPILED_REGEX_CACHE[regex] = re.compile(regex)
-
-            if COMPILED_REGEX_CACHE[regex].match(sequence):
-                num_pure_repeats = count_pure_repeats(sequence, repeat_unit)
-                repeat_unit_interruption_index = i if num_pure_repeats < num_total_repeats_expected else None
-                has_partial_repeats = len(sequence) % repeat_unit_length > 0
-                return repeat_unit, num_pure_repeats, num_total_repeats_expected, repeat_unit_interruption_index, has_partial_repeats
+                if num_repeats * repeat_unit_length == len(sequence) - partial_repeat_length \
+                        and sequence[num_repeats * repeat_unit_length:] == repeat_unit[:partial_repeat_length]:
+                    return repeat_unit, num_repeats, num_repeats, None, True
 
         repeat_unit_length += 1
 
