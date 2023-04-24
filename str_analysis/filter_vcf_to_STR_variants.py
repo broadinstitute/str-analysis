@@ -869,7 +869,7 @@ def process_vcf_line(
         "RepeatSizeShortAllele (bp)": num_repeats_short_allele * len(repeat_unit),
         "RepeatSizeLongAllele (bp)": num_repeats_long_allele * len(repeat_unit),
     })
-    variants_tsv_writer.write("\t".join([str(variant_tsv_record.get(c)) for c in VARIANT_TSV_OUTPUT_COLUMNS]) + "\n")
+    variants_tsv_writer.write("\t".join([str(variant_tsv_record.get(c, "")) for c in VARIANT_TSV_OUTPUT_COLUMNS]) + "\n")
 
     if bed_writer is not None:
         bed_writer.write("\t".join(map(str, [vcf_chrom, start_1based - 1, end_1based, variant_summary_string, "."])) + "\n")
@@ -888,7 +888,7 @@ def process_vcf_line(
             "FractionPureRepeats": "%0.3f" % alt_STR_allele_spec["FractionPureRepeats"],
         })
 
-        alleles_tsv_writer.write("\t".join([str(allele_tsv_record.get(c)) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
+        alleles_tsv_writer.write("\t".join([str(allele_tsv_record.get(c, "")) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
 
 
 def process_STR_loci_with_multiple_indels(file_path, locus_ids_with_multiple_indels, filtered_out_indels_vcf_writer):
