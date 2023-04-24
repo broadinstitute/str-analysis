@@ -844,7 +844,7 @@ def process_vcf_line(
         "VcfRef": vcf_ref,
         "VcfGenotype": vcf_genotype,
         "IsPureRepeat": is_pure_repeat,
-        "MotifInterruptionIndex": repeat_unit_interruption_index,
+        "MotifInterruptionIndex": repeat_unit_interruption_index if repeat_unit_interruption_index is not None else "",
         "IsMultiallelic": len(alt_alleles) > 1,
         "IsFoundInReference": any(is_found_in_reference(spec) for spec in str_allele_specs),
     })
