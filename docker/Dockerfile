@@ -1,6 +1,6 @@
-FROM bitnami/minideb:stretch
+FROM bitnami/minideb:bullseye
 
-RUN install_packages \
+RUN apt-get update && apt-get install --no-install-recommends --yes \
     ca-certificates \
     wget -q \
     curl \
@@ -23,6 +23,34 @@ RUN install_packages \
     parallel \
     time
 
+RUN apt-get update && apt-get install --no-install-recommends --yes \
+	libncursesw5-dev \
+	libgdbm-dev \
+	libc6-dev \
+	zlib1g-dev \
+	libsqlite3-dev \
+	libssl-dev \
+	openssl \
+	libffi-dev
+
+# install python3.9
+RUN apt-get update && apt-get install --no-install-recommends --yes python3.9 python3-distutils \
+	&& curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
+	&& python3 get-pip.py
+
+# python3 packages
+RUN python3 -m pip install --upgrade --no-cache-dir "intervaltree>=3.1.0" "numpy>=1.20.3" "pandas>=1.1.4" "pysam>=0.16.0.1"
+
+# install gcloud
+ENV GCLOUD_SDK_VERISON="427.0.0"
+RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
+    && tar xzf google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
+    && /google-cloud-sdk/install.sh -q \
+    && /google-cloud-sdk/bin/gcloud components update --quiet
+
+ENV PATH=/google-cloud-sdk/bin:$PATH
+
+# install htslib
 ENV SAMTOOLS_VERSION="1.9"
 RUN wget -q https://github.com/samtools/htslib/releases/download/${SAMTOOLS_VERSION}/htslib-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& tar xjf htslib-${SAMTOOLS_VERSION}.tar.bz2 \
@@ -43,30 +71,6 @@ RUN wget -q https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VE
 	&& make install \
 	&& make clean
 
-# install python3.9 (adds 800Mb)
-RUN install_packages python-smbus libncursesw5-dev libgdbm-dev libc6-dev zlib1g-dev libsqlite3-dev libssl-dev openssl libffi-dev
-
-ENV PYTHON_VERSION="3.9.13"
-RUN wget -q https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz \
-	&& tar xvf Python-${PYTHON_VERSION}.tar.xz \
-	&& rm Python-${PYTHON_VERSION}.tar.xz \
-	&& cd Python-${PYTHON_VERSION} \
-	&& ./configure --enable-optimizations --with-ssl \
-	&& make install \
-	&& make clean
-
-# install gcloud
-ENV GCLOUD_SDK_VERISON="390.0.0"
-RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
-    && tar xzf google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
-    && /google-cloud-sdk/install.sh -q \
-    && /google-cloud-sdk/bin/gcloud components update --quiet
-
-ENV PATH=/google-cloud-sdk/bin:$PATH
-
-# python3 packages
-RUN python3 -m pip install --upgrade pip \
-	&& python3 -m pip install --no-cache-dir "intervaltree>=3.1.0" "numpy>=1.20.3" "pandas>=1.1.4" "pysam>=0.16.0.1"
 
 # install GangSTR from https://github.com/gymreklab/GangSTR
 ENV GANGSTR_VERSION="2.5.0-Source"
@@ -110,7 +114,19 @@ RUN wget -q https://github.com/Illumina/ExpansionHunterDenovo/releases/download/
     && mv ExpansionHunterDenovo-${EH_DENOVO_VERSION}-linux_x86_64/bin/ExpansionHunterDenovo /usr/local/bin/ExpansionHunterDenovo \
     && rm -r ExpansionHunterDenovo-${EH_DENOVO_VERSION}-linux_x86_64 ExpansionHunterDenovo-${EH_DENOVO_VERSION}-linux_x86_64.tar.gz
 
+# install original version of ExpansionHunter
+RUN wget -q https://github.com/Illumina/ExpansionHunter/archive/refs/heads/master.zip \
+	&& unzip master.zip \
+	&& cd ExpansionHunter-master \
+	&& mkdir build \
+	&& cd build \
+	&& cmake .. \
+	&& make \
+	&& cp install/bin/ExpansionHunter /usr/local/bin/IlluminaExpansionHunter \
+	&& cd / \
+	&& rm -r ExpansionHunter-master master.zip
 
+# install optimized version of ExpansionHunter
 RUN wget -q https://github.com/bw2/ExpansionHunter/archive/refs/heads/master.zip \
 	&& unzip master.zip \
 	&& cd ExpansionHunter-master \
@@ -134,6 +150,15 @@ RUN wget -q https://github.com/bw2/REViewer/archive/refs/heads/master.zip \
 	&& cp install/bin/REViewer /usr/local/bin/ \
 	&& cd / \
 	&& rm -r REViewer-master master.zip
+
+
+# install HipSTR
+RUN git clone https://github.com/HipSTR-Tool/HipSTR \
+    && cd HipSTR \
+    && make \
+    && cp /HipSTR/HipSTR /bin/HipSTR \
+    && make clean
+
 
 #RUN python3 -m pip install --no-cache-dir str-analysis==0.9.8 \
 #    && python3 -m pip freeze \
