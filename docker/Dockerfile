@@ -160,6 +160,10 @@ RUN git clone https://github.com/HipSTR-Tool/HipSTR \
     && make clean
 
 
+# install jq
+RUN apt-get update && apt-get install --no-install-recommends --yes  jq
+
+
 #RUN python3 -m pip install --no-cache-dir str-analysis==0.9.8 \
 #    && python3 -m pip freeze \
 #    && sleep 2
