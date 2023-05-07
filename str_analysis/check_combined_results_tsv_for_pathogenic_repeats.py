@@ -231,7 +231,6 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
     # Get the 1st row and use it to look up metadata values which are the same across all rows for the locus
     # (ie. Inheritance Mode)
     first_row = locus_df.iloc[0].to_dict()
-    inheritance_mode = first_row.get("VariantCatalog_Inheritance") or "Unknown"
 
     disease_info = first_row.get("VariantCatalog_Diseases")
     intermediate_threshold_min = None
@@ -256,6 +255,10 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
     genome_version = f"GRCh{first_row['Sample_genome_version']}" if first_row.get('Sample_genome_version') else ""
     motif = first_row.get("RepeatUnit")
     locus_description = f"{locus_id} ({reference_region}: {genome_version})  https://stripy.org/database/{locus_id}"
+    inheritance_mode = first_row.get("VariantCatalog_Inheritance")
+    if not inheritance_mode or pd.isna(inheritance_mode):
+        inheritance_mode = "XR" if "X" in reference_region else "AD"
+
     if highlight_locus:
         locus_description += " " * 100 + "  <== previously diagnosed using short reads"
     print("**Locus**: ", locus_description)
@@ -309,7 +312,7 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
     args.max_rows += 2  # add 2 to allow for these threshold rows
 
     # create a list of dfs to print, filtered by the pathogenic thresholds and/or affected status
-    threshold = min(filter(None, [intermediate_threshold_min, pathogenic_threshold_min])) if args.use_thresholds else 0
+    threshold = min(list(filter(None, [intermediate_threshold_min, pathogenic_threshold_min])) or [0]) if args.use_thresholds else 0
 
     if inheritance_mode == "XR":
 
