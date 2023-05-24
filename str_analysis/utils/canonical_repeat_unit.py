@@ -57,6 +57,7 @@ def compute_canonical_motif(motif, include_reverse_complement=True):
     Return:
         str: The alphabetically first repeat motif.
     """
+    motif = motif.upper()
     minimal_motif = _alphabetically_first_motif_under_shift(motif)
 
     if include_reverse_complement:

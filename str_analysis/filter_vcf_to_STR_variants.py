@@ -43,7 +43,7 @@ COMMON_TSV_OUTPUT_COLUMNS = [
 ]
 
 VARIANT_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
-    "HET_or_HOM_or_MULTI",
+    "HET_or_HOM_or_HEMI_or_MULTI",
     "NumRepeatsShortAllele",
     "NumRepeatsLongAllele",
     "RepeatSizeShortAllele (bp)",
@@ -530,8 +530,8 @@ def postprocess_str_variant(vcf_line_i, str_allele_specs, allow_interruptions=Fa
         ("IsPureRepeat", "", True),
         ("RepeatUnit", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_MOTIFS, False),
         ("MotifInterruptionIndex", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_INTERRUPTION_PATTERNS, True if not allow_interruptions else False),
-        ("Start1Based", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_COORDS, True if not allow_interruptions else False),
-        ("End1Based", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_COORDS, True if not allow_interruptions else False),
+        ("Start1Based", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_COORDS, False),
+        ("End1Based", FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_COORDS, False),
     ]:
         if str_allele_specs[0][attribute] == str_allele_specs[1][attribute]:
             continue
@@ -670,8 +670,8 @@ def process_vcf_line(
     vcf_chrom = vcf_fields[0]
     vcf_chrom_without_chr_prefix = vcf_chrom.replace("chr", "")
     vcf_pos = int(vcf_fields[1])
-    vcf_ref = vcf_fields[3]
-    vcf_alt = vcf_fields[4]
+    vcf_ref = vcf_fields[3].upper()
+    vcf_alt = vcf_fields[4].upper()
     if not vcf_alt:
         raise ValueError(f"No ALT allele found in line {vcf_fields}")
 
@@ -703,14 +703,16 @@ def process_vcf_line(
 
     vcf_genotype = next(iter(vcf_fields[9].split(":")))
     vcf_genotype_indices = re.split(r"[/|\\]", vcf_genotype)
-    if len(vcf_genotype_indices) != 2 or any(not gi.isdigit() for gi in vcf_genotype_indices):
+    if len(vcf_genotype_indices) not in (1, 2) or any(not gi.isdigit() for gi in vcf_genotype_indices if gi != "."):
         if args.verbose:
             print(f"WARNING: vcf row #{vcf_line_i:,d}:  Unexpected genotype GT format in row #{vcf_line_i:,d}: "
                   f"{vcf_genotype}  (variant: {variant_id})")
         counters[f"WARNING: {FILTER_UNEXPECTED_GENOTYPE_FORMAT}"] += 1
         return FILTER_UNEXPECTED_GENOTYPE_FORMAT
 
-    vcf_genotype_indices = [int(gi) for gi in vcf_genotype_indices]
+    vcf_genotype_indices = [int(gi) for gi in vcf_genotype_indices if gi != "."]
+    vcf_genotype_separator = "|" if "|" in vcf_genotype else ("\\" if "\\" in vcf_genotype else "/")
+    vcf_genotype = vcf_genotype_separator.join(map(str, vcf_genotype_indices))
 
     # check that genotype indices correctly correspond to alt allele(s)
     for genotype_index in vcf_genotype_indices:
@@ -723,25 +725,26 @@ def process_vcf_line(
                              f"alt alleles {alt_alleles}: {vcf_genotype_indices}")
 
     # handle '*' alleles
-    if len(alt_alleles) == 2 and alt_alleles[1] == "*":
+    if len(alt_alleles) == 2 and "*" in alt_alleles:
         #counters["variant counts: removed * allele and converted to homozygous genotype"] += 1
         # if this variant has 1 regular allele and 1 "*" allele (which represents an overlapping deletion), discard the
-        # "*" allele and recode the genotype as homozygous
-        alt_alleles = [alt_alleles[0]]
-        vcf_genotype_indices = [1,1]
-        vcf_genotype_separator = "|" if "|" in vcf_genotype else ("\\" if "\\" in vcf_genotype else "/")
+        # "*" allele and recode the genotype as haploid
+        star_allele_index = alt_alleles.index("*")
+        alt_alleles = [a for a in alt_alleles if a != "*"]
+        vcf_genotype_indices = [gi for gi in vcf_genotype_indices if gi != star_allele_index]
         vcf_genotype = vcf_genotype_separator.join(map(str, vcf_genotype_indices))
 
     # confirm that there are no more "*" alleles
     if "*" in alt_alleles:
         raise ValueError(f"Unexpected '*' allele in row #{vcf_line_i:,d}: {variant_id}")
 
-    is_homozygous = vcf_genotype_indices[0] == vcf_genotype_indices[1]
-    het_or_hom_or_multi = "HOM" if is_homozygous else ("MULTI" if len(alt_alleles) > 1 else "HET")
+    is_homozygous = len(vcf_genotype_indices) == 2 and vcf_genotype_indices[0] == vcf_genotype_indices[1]
+    is_hemizygous = len(vcf_genotype_indices) == 1
+    het_or_hom_or_hemi_or_multi = "HOM" if is_homozygous else ("MULTI" if len(alt_alleles) > 1 else ("HEMI" if is_hemizygous else "HET"))
 
     # since these variants are from a single sample VCF, a homozygous genotype and multiple alleles are
     # an error of some sort.
-    if len(alt_alleles) > 1 and is_homozygous:
+    if len(alt_alleles) > 1 and len(set(vcf_genotype_indices)) == 1:
         raise ValueError(f"Multi-allelic variant is homozygous in row #{vcf_line_i:,d}: {vcf_genotype} ({vcf_ref} {alt_alleles})")
 
     str_allele_specs, filter_string = check_if_variant_is_str(
@@ -764,7 +767,7 @@ def process_vcf_line(
         return filter_string
 
     variant_ins_or_del, variant_summary_string = compute_variant_summary_string(
-        str_allele_specs, het_or_hom_or_multi)
+        str_allele_specs, het_or_hom_or_hemi_or_multi)
 
     # get repeat unit, start, end coords for the variant
     repeat_unit = str_allele_specs[0]["RepeatUnit"]
@@ -776,12 +779,16 @@ def process_vcf_line(
     # get allele sizes based on the variant's genotype in the VCF
     try:
         num_repeats_in_allele1 = get_num_repeats_in_allele(str_allele_specs, vcf_genotype_indices[0])
-        num_repeats_in_allele2 = get_num_repeats_in_allele(str_allele_specs, vcf_genotype_indices[1])
+        if len(vcf_genotype_indices) == 2:
+            num_repeats_in_allele2 = get_num_repeats_in_allele(str_allele_specs, vcf_genotype_indices[1])
+            num_repeats_short_allele = min(num_repeats_in_allele1, num_repeats_in_allele2)
+            num_repeats_long_allele  = max(num_repeats_in_allele1, num_repeats_in_allele2)
+        else:
+            num_repeats_short_allele = num_repeats_in_allele1
+            num_repeats_long_allele  = ""
     except Exception as e:
         raise ValueError(f"{e} {vcf_ref} {alt_alleles} {vcf_genotype}")
 
-    num_repeats_short_allele = min(num_repeats_in_allele1, num_repeats_in_allele2)
-    num_repeats_long_allele  = max(num_repeats_in_allele1, num_repeats_in_allele2)
 
     counters["STR variant counts: TOTAL"] += 1
 
@@ -849,7 +856,7 @@ def process_vcf_line(
         "IsFoundInReference": any(is_found_in_reference(spec) for spec in str_allele_specs),
     })
 
-    if num_repeats_short_allele < 0 or num_repeats_long_allele < 0:
+    if num_repeats_short_allele < 0 or (num_repeats_long_allele and num_repeats_long_allele < 0):
         raise ValueError(f"Short or long allele size is < 0: "
                          f"{num_repeats_short_allele}, {num_repeats_long_allele}  {pformat(tsv_record)}")
 
@@ -862,12 +869,12 @@ def process_vcf_line(
     variant_tsv_record.update({
         "VcfAlt": ",".join(alt_alleles),
         "INS_or_DEL": variant_ins_or_del,
-        "HET_or_HOM_or_MULTI": het_or_hom_or_multi,
+        "HET_or_HOM_or_HEMI_or_MULTI": het_or_hom_or_hemi_or_multi,
         "SummaryString": variant_summary_string,
         "NumRepeatsShortAllele": num_repeats_short_allele,
         "NumRepeatsLongAllele": num_repeats_long_allele,
         "RepeatSizeShortAllele (bp)": num_repeats_short_allele * len(repeat_unit),
-        "RepeatSizeLongAllele (bp)": num_repeats_long_allele * len(repeat_unit),
+        "RepeatSizeLongAllele (bp)": num_repeats_long_allele * len(repeat_unit) if num_repeats_long_allele != "" else "",
     })
     variants_tsv_writer.write("\t".join([str(variant_tsv_record.get(c, "")) for c in VARIANT_TSV_OUTPUT_COLUMNS]) + "\n")
 
@@ -876,7 +883,7 @@ def process_vcf_line(
 
     for alt_allele, alt_STR_allele_spec in zip(alt_alleles, str_allele_specs):
         allele_tsv_record = dict(tsv_record)
-        ins_or_del, summary_string = compute_variant_summary_string([alt_STR_allele_spec], het_or_hom_or_multi)
+        ins_or_del, summary_string = compute_variant_summary_string([alt_STR_allele_spec], het_or_hom_or_hemi_or_multi)
         allele_tsv_record.update({
             "VcfAlt": alt_allele,
             "INS_or_DEL": ins_or_del,
