@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 
 # The basic set of columns that need to be present in the input table
 BASIC_INPUT_COLUMNS = [
-    "SampleId", "LocusId", "VariantId", "Filename", "Genotype", "GenotypeConfidenceInterval", "ReferenceRegion",
+    "SampleId", "LocusId", "VariantId", "Genotype", "GenotypeConfidenceInterval", "ReferenceRegion",
     "RepeatUnit", "Sex", "Num Repeats: Allele 2", "Coverage",
 ]
 
@@ -89,7 +89,7 @@ def parse_combined_str_calls_tsv_path(combined_str_calls_tsv_path):
         ValueError: if it finds duplicates by ("SampleId", "LocusId", "VariantId")
     """
 
-    combined_str_calls_df = pd.read_table(combined_str_calls_tsv_path)
+    combined_str_calls_df = pd.read_table(combined_str_calls_tsv_path, dtype=str)
     combined_str_calls_df_columns = set(combined_str_calls_df.columns)
     expected_columns = list(BASIC_INPUT_COLUMNS)
     if all(k in combined_str_calls_df_columns for k in EXTRA_INPUT_COLUMNS):
@@ -97,7 +97,7 @@ def parse_combined_str_calls_tsv_path(combined_str_calls_tsv_path):
 
     combined_str_calls_df = combined_str_calls_df[expected_columns]
     #combined_str_calls_df = combined_str_calls_df.drop_duplicates()
-    combined_str_calls_df.set_index(["Filename", "SampleId", "LocusId", "VariantId"], inplace=True)
+    combined_str_calls_df.set_index(["SampleId", "LocusId", "VariantId"], inplace=True)
     check_for_duplicate_keys(combined_str_calls_df, combined_str_calls_tsv_path)
     return combined_str_calls_df.reset_index()
 
@@ -138,7 +138,7 @@ def group_rows_by_trio(combined_str_calls_df):
     for _, row in tqdm.tqdm(combined_str_calls_df.iterrows(), unit=" table rows", total=len(combined_str_calls_df)):
         if row.Genotype is not None:
             all_rows[(row.SampleId, row.LocusId, row.VariantId)] = row
-            all_rows[(row.Filename, row.LocusId, row.VariantId)] = row
+            #all_rows[(row.Filename, row.LocusId, row.VariantId)] = row
 
     calls_counter = 0
     trio_ids = set()
