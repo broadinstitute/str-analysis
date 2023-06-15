@@ -228,6 +228,9 @@ MISSING_PCR_PROTOCOL_THRESHOLD = 0.25
 # Expected number of known pathogenic repeats
 EXPECTED_N_KNOWN_PATHOGENIC_REPEATS = 60
 
+# gnomAD projects for which it's ok to release individual-level genotype data
+PUBLIC_PROJECT_NAMES = {"1000 Genomes Project", "Human Genome Diversity Project"}
+
 # Add this "salt" value to the sha512 hash to prevent dictionary attacks on the encrypted sample ids
 salt = pwd.getpwuid(os.getuid()).pw_name
 
@@ -429,9 +432,14 @@ def load_data_df(args):
 
     gnomad_df = gnomad_df[[
         "s", "population_inference.pop", "sex_imputation.sex_karyotype",
-        "age", "pcr_protocol", "read_length",
+        "age", "pcr_protocol", "read_length", "project_meta.title",
     ]]
     gnomad_df.loc[:, "s"] = gnomad_df.s.apply(process_sample_id)
+
+    is_public_project = gnomad_df["project_meta.title"].isin(PUBLIC_PROJECT_NAMES)
+    gnomad_df.loc[~is_public_project, "project_meta.title"] = None
+    gnomad_df.loc[is_public_project, "public_sample_id"] = gnomad_df[is_public_project].s
+    gnomad_df.rename(columns={"project_meta.title": "public_project_id"}, inplace=True)
 
     unknown_sample_ids = set(df.SampleId) - set(gnomad_df.s)
     if len(unknown_sample_ids) > 0:
@@ -688,6 +696,7 @@ def add_histograms_and_compute_readviz_paths(
     user_friendly_genotypes_json = []
     user_friendly_genotypes_json_binned = collections.defaultdict(list)
     age_counter = collections.defaultdict(int)
+    public_sample_id_counter = collections.defaultdict(set)
 
     total_readviz_counter = collections.defaultdict(int)
     missing_readviz_counter = collections.defaultdict(int)
@@ -718,6 +727,8 @@ def add_histograms_and_compute_readviz_paths(
         population = row["population_inference.pop"]
         pcr_protocol = row["pcr_protocol"]
         read_length = int(row["read_length"])
+        public_project_id = row["public_project_id"] if not pd.isna(row["public_project_id"]) else None
+        public_sample_id = row["public_sample_id"] if not pd.isna(row["public_sample_id"]) else None
 
         # Compute age_range
         if row["age"] == AGE_NOT_AVAILABLE:
@@ -825,7 +836,12 @@ def add_histograms_and_compute_readviz_paths(
             "PcrProtocol": pcr_protocol,
             "ReadLength": read_length,
             "ReadvizFilename": encrypted_svg_filename,
+            "PublicProjectId": public_project_id,
+            "PublicSampleId": public_sample_id,
         }
+
+        if public_sample_id:
+            public_sample_id_counter[public_project_id].add(public_sample_id)
 
         # transfer additional columns from the table row. The values are: (to_column, to_column_type, warn_if_missing)
         extra_columns = {
@@ -872,7 +888,12 @@ def add_histograms_and_compute_readviz_paths(
                 "GenotypeConfidenceInterval": row["GenotypeConfidenceInterval"],
                 "ReadLength": read_length,
                 "ReadvizFilename": encrypted_svg_filename,
+                "PublicProjectId": public_project_id,
+                "PublicSampleId": public_sample_id,
             })
+
+    for project_id, sample_id_set in sorted(public_sample_id_counter.items(), key=lambda x: -len(x[1])):
+        print(f"{len(sample_id_set):,d} public sample ids in gnomAD project '{project_id}'")
 
     # check whether an unexpected number of readviz images are missing
     for locus_id, missing_count in missing_readviz_counter.items():
@@ -1201,6 +1222,8 @@ def main():
         "GenotypeConfidenceIntervalUsingOfftargetRegions",
         "ReadvizFilename",
         "ReadLength",
+        "PublicProjectId",
+        "PublicSampleId",
     ]]
     output_path = f"{local_output_dir}/gnomAD_STR_genotypes{output_filename_label}__"
     if args.include_all_age_and_pcr_info:
