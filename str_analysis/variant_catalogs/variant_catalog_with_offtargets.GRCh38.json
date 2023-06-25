@@ -3,6 +3,7 @@
       "LocusId": "AFF2",
       "LocusStructure": "(GCC)*",
       "ReferenceRegion": "chrX:148500631-148500691",
+      "RepeatUnit": "GCC",
       "VariantType": "RareRepeat",
       "Gene": "AFF2",
       "Inheritance": "XR",
@@ -39,6 +40,7 @@
       "LocusId": "AR",
       "LocusStructure": "(GCA)*",
       "ReferenceRegion": "chrX:67545316-67545385",
+      "RepeatUnit": "GCA",
       "VariantType": "RareRepeat",
       "Gene": "AR",
       "Inheritance": "XR",
@@ -207,6 +209,7 @@
       "LocusId": "ATN1",
       "LocusStructure": "(CAG)*",
       "ReferenceRegion": "chr12:6936716-6936773",
+      "RepeatUnit": "CAG",
       "VariantType": "RareRepeat",
       "Gene": "ATN1",
       "Inheritance": "AD",
@@ -248,6 +251,7 @@
       "LocusId": "ATXN1",
       "LocusStructure": "(TGC)*",
       "ReferenceRegion": "chr6:16327633-16327723",
+      "RepeatUnit": "TGC",
       "VariantType": "RareRepeat",
       "Gene": "ATXN1",
       "Inheritance": "AD",
@@ -289,6 +293,7 @@
       "LocusId": "ATXN10",
       "LocusStructure": "(ATTCT)*",
       "ReferenceRegion": "chr22:45795354-45795424",
+      "RepeatUnit": "ATTCT",
       "VariantType": "RareRepeat",
       "Gene": "ATXN10",
       "Inheritance": "AD",
@@ -316,6 +321,7 @@
       "LocusId": "ATXN2",
       "LocusStructure": "(GCT)*",
       "ReferenceRegion": "chr12:111598949-111599018",
+      "RepeatUnit": "GCT",
       "VariantType": "RareRepeat",
       "Gene": "ATXN2",
       "Inheritance": "AD",
@@ -358,6 +364,7 @@
       "LocusId": "ATXN3",
       "LocusStructure": "(CTG)*",
       "ReferenceRegion": "chr14:92071010-92071040",
+      "RepeatUnit": "CTG",
       "VariantType": "RareRepeat",
       "Gene": "ATXN3",
       "Inheritance": "AD",
@@ -403,6 +410,7 @@
          "chr3:63912684-63912714",
          "chr3:63912714-63912726"
       ],
+      "RepeatUnit": "GCA",
       "VariantId": [
          "ATXN7",
          "ATXN7_GCC"
@@ -455,6 +463,7 @@
          "chr13:70139353-70139383",
          "chr13:70139383-70139428"
       ],
+      "RepeatUnit": "CTG",
       "VariantId": [
          "ATXN8OS_CTA",
          "ATXN8OS"
@@ -553,6 +562,7 @@
          "chrX:154390328-154390720"
       ],
       "ReferenceRegion": "chr9:27573528-27573546",
+      "RepeatUnit": "GGCCCC",
       "VariantType": "RareRepeat",
       "Gene": "C9orf72",
       "Inheritance": "AD",
@@ -575,6 +585,7 @@
       "LocusId": "CACNA1A",
       "LocusStructure": "(CTG)*",
       "ReferenceRegion": "chr19:13207858-13207897",
+      "RepeatUnit": "CTG",
       "VariantType": "RareRepeat",
       "Gene": "CACNA1A",
       "Inheritance": "AD",
@@ -620,6 +631,7 @@
          "chr3:129172656-129172696",
          "chr3:129172696-129172732"
       ],
+      "RepeatUnit": "CAGG",
       "VariantId": [
          "CNBP",
          "CNBP_CAGA",
@@ -708,6 +720,7 @@
       "LocusId": "CSTB",
       "LocusStructure": "(CGCGGGGCGGGG)*",
       "ReferenceRegion": "chr21:43776443-43776479",
+      "RepeatUnit": "CGCGGGGCGGGG",
       "VariantType": "RareRepeat",
       "Gene": "CSTB",
       "Inheritance": "AR",
@@ -775,6 +788,7 @@
       "LocusId": "DIP2B",
       "LocusStructure": "(GGC)*",
       "ReferenceRegion": "chr12:50505001-50505022",
+      "RepeatUnit": "GGC",
       "VariantType": "RareRepeat",
       "Gene": "DIP2B",
       "Inheritance": "AD",
@@ -848,6 +862,7 @@
       "LocusId": "DMPK",
       "LocusStructure": "(CAG)*",
       "ReferenceRegion": "chr19:45770204-45770264",
+      "RepeatUnit": "CAG",
       "VariantType": "RareRepeat",
       "Gene": "DMPK",
       "Inheritance": "AD",
@@ -923,6 +938,7 @@
          "chrX:19990766-19991128"
       ],
       "ReferenceRegion": "chrX:147912050-147912110",
+      "RepeatUnit": "CGG",
       "VariantType": "RareRepeat",
       "Gene": "FMR1",
       "Inheritance": "XD",
@@ -1012,6 +1028,7 @@
          "chr9:69037261-69037286",
          "chr9:69037286-69037304"
       ],
+      "RepeatUnit": "GAA",
       "VariantId": [
          "FXN_A",
          "FXN"
@@ -1059,6 +1076,7 @@
       "LocusId": "GIPC1",
       "LocusStructure": "(CCG)*",
       "ReferenceRegion": "chr19:14496041-14496074",
+      "RepeatUnit": "CCG",
       "VariantType": "RareRepeat",
       "Gene": "GIPC1",
       "Inheritance": "AD",
@@ -1095,6 +1113,7 @@
       "LocusId": "GLS",
       "LocusStructure": "(GCA)*",
       "ReferenceRegion": "chr2:190880872-190880920",
+      "RepeatUnit": "GCA",
       "VariantType": "RareRepeat",
       "Gene": "GLS",
       "Inheritance": "AR",
@@ -1338,6 +1357,7 @@
          "chr4:3074876-3074933",
          "chr4:3074939-3074966"
       ],
+      "RepeatUnit": "CAG",
       "VariantId": [
          "HTT",
          "HTT_CCG"
@@ -1387,6 +1407,7 @@
       "LocusId": "JPH3",
       "LocusStructure": "(CTG)*",
       "ReferenceRegion": "chr16:87604287-87604329",
+      "RepeatUnit": "CTG",
       "VariantType": "RareRepeat",
       "Gene": "JPH3",
       "Inheritance": "AD",
@@ -1543,6 +1564,7 @@
       "LocusId": "NIPA1",
       "LocusStructure": "(GCG)*",
       "ReferenceRegion": "chr15:22786677-22786701",
+      "RepeatUnit": "GCG",
       "VariantType": "RareRepeat",
       "Gene": "NIPA1",
       "Inheritance": "AD",
@@ -1580,6 +1602,7 @@
          "chr20:2652733-2652757",
          "chr20:2652757-2652775"
       ],
+      "RepeatUnit": "GGCCTG",
       "VariantId": [
          "NOP56",
          "NOP56_CGCCTG"
@@ -1612,6 +1635,7 @@
       "LocusId": "NOTCH2NLC",
       "LocusStructure": "(GGC)*",
       "ReferenceRegion": "chr1:149390802-149390841",
+      "RepeatUnit": "GGC",
       "VariantType": "RareRepeat",
       "Gene": "NOTCH2NLC",
       "Inheritance": "AD",
@@ -1656,6 +1680,7 @@
       "LocusId": "PABPN1",
       "LocusStructure": "(GCG)*",
       "ReferenceRegion": "chr14:23321472-23321490",
+      "RepeatUnit": "GCG",
       "VariantType": "RareRepeat",
       "Gene": "PABPN1",
       "Inheritance": "AD",
@@ -1692,6 +1717,7 @@
       "LocusId": "PHOX2B",
       "LocusStructure": "(GCN)*",
       "ReferenceRegion": "chr4:41745972-41746032",
+      "RepeatUnit": "GCN",
       "VariantType": "RareRepeat",
       "Gene": "PHOX2B",
       "Inheritance": "AD",
@@ -1745,6 +1771,7 @@
       "LocusId": "PPP2R2B",
       "LocusStructure": "(GCT)*",
       "ReferenceRegion": "chr5:146878727-146878757",
+      "RepeatUnit": "GCT",
       "VariantType": "RareRepeat",
       "Gene": "PPP2R2B",
       "Inheritance": "AD",
@@ -1893,6 +1920,7 @@
       "LocusId": "RFC1",
       "LocusStructure": "(AARRG)*",
       "ReferenceRegion": "chr4:39348424-39348479",
+      "RepeatUnit": "AAAAG",
       "VariantType": "RareRepeat",
       "Gene": "RFC1",
       "Inheritance": "AR",
@@ -2166,6 +2194,7 @@
       "LocusId": "TBP",
       "LocusStructure": "(GCA)*",
       "ReferenceRegion": "chr6:170561906-170562017",
+      "RepeatUnit": "GCA",
       "VariantType": "RareRepeat",
       "Gene": "TBP",
       "Inheritance": "AD",
@@ -2258,6 +2287,7 @@
       "LocusId": "TCF4",
       "LocusStructure": "(CAG)*",
       "ReferenceRegion": "chr18:55586155-55586227",
+      "RepeatUnit": "CAG",
       "VariantType": "RareRepeat",
       "Gene": "TCF4",
       "Inheritance": "AD",
