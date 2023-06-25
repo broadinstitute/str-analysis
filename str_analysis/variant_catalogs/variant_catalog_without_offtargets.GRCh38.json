@@ -1,569 +1,591 @@
 [
-   {
-      "LocusId": "AFF2",
-      "LocusStructure": "(GCC)*",
-      "ReferenceRegion": "chrX:148500631-148500691",
-      "RepeatUnit": "GCC",      
-      "VariantType": "Repeat",
-      "Gene": "AFF2",
-      "Inheritance": "XR",
-      "GeneRegion": "5'-UTR",
-      "GeneId": "ENSG00000155966",
-      "DiscoveryMethod": "K, L",
-      "DiscoveryYear": 1993,
-      "Diseases": [
-         {
-            "Symbol": "FRAXE",
-            "Name": "FRAXE mental retardation",
-            "Inheritance": "XR",
-            "OMIM": "309548",
-            "NormalMax": 25,
-            "PathogenicMin": 200
-         }
-      ]
-   },
-   {
-      "LocusId": "AR",
-      "LocusStructure": "(GCA)*",
-      "ReferenceRegion": "chrX:67545316-67545385",
-      "RepeatUnit": "GCA",
-      "VariantType": "Repeat",
-      "Gene": "AR",
-      "Inheritance": "XR",
-      "GeneRegion": "coding: polyglutamine",
-      "GeneId": "ENSG00000169083",
-      "DiscoveryMethod": "L, CGA",
-      "DiscoveryYear": 1991,
-      "Diseases": [
-         {
-            "Symbol": "SBMA",
-            "Name": "Spinal and bulbar muscular atrophy",
-            "Inheritance": "XR",
-            "OMIM": "313200",
-            "NormalMax": 35,
-            "PathogenicMin": 40
-         }
-      ]
-   },
-   {
-      "LocusId": "ARX_1",
-      "LocusStructure": "(NGC)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chrX:25013649-25013697",
-      "RepeatUnit": "NGC",
-      "Gene": "ARX",
-      "Inheritance": "XR",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000004848",
-      "Diseases": [
-         {
-            "Symbol": "DEE1",
-            "Name": "Developmental and epileptic encephalopathy-1",
-            "Inheritance": "XR",
-            "OMIM": "308350",
-            "NormalMax": 16,
-            "PathogenicMin": 23
-         },
-         {
-            "Symbol": "MRXARX",
-            "Name": "X-linked mental retardation with or without seizures",
-            "Inheritance": "XR",
-            "OMIM": "300419",
-            "NormalMax": 16,
-            "PathogenicMin": 18
-         }
-      ]
-   },
-   {
-      "LocusId": "ARX_2",
-      "LocusStructure": "(NGC)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chrX:25013529-25013565",
-      "RepeatUnit": "NGC",
-      "Gene": "ARX",
-      "Inheritance": "XR",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000004848",
-      "Diseases": [
-         {
-            "Symbol": "DEE1",
-            "Name": "Developmental and epileptic encephalopathy-1",
-            "Inheritance": "XR",
-            "OMIM": "308350",
-            "NormalMax": 12,
-            "PathogenicMin": 20
-         },
-         {
-            "Symbol": "PRTS",
-            "Name": "Partington syndrome",
-            "Inheritance": "XR",
-            "OMIM": "309510",
-            "NormalMax": 12,
-            "PathogenicMin": 20
-         },
-         {
-            "Symbol": "MRXARX",
-            "Name": "X-linked mental retardation with or without seizures",
-            "Inheritance": "XR",
-            "OMIM": "300419",
-            "NormalMax": 12,
-            "PathogenicMin": 23
-         }
-      ]
-   },
-   {
-      "LocusId": "ATN1",
-      "LocusStructure": "(CAG)*",
-      "ReferenceRegion": "chr12:6936716-6936773",
-      "RepeatUnit": "CAG",      
-      "VariantType": "Repeat",
-      "Gene": "ATN1",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyglutamine",
-      "GeneId": "ENSG00000111676",
-      "DiscoveryMethod": "L, ExScr",
-      "DiscoveryYear": 1994,
-      "Diseases": [
-         {
-            "Symbol": "DRPLA",
-            "Name": "Dentatorubral-pallidoluysian atrophy",
-            "Inheritance": "AD",
-            "OMIM": "125370",
-            "NormalMax": 23,
-            "PathogenicMin": 49
-         }
-      ]
-   },
-   {
-      "LocusId": "ATXN1",
-      "LocusStructure": "(TGC)*",
-      "ReferenceRegion": "chr6:16327633-16327723",
-      "RepeatUnit": "TGC",      
-      "VariantType": "Repeat",
-      "Gene": "ATXN1",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyglutamine",
-      "GeneId": "ENSG00000124788",
-      "DiscoveryMethod": "L, ExScr",
-      "DiscoveryYear": 1993,
-      "Diseases": [
-         {
-            "Symbol": "SCA1",
-            "Name": "Spinocerebellar ataxia 1",
-            "Inheritance": "AD",
-            "OMIM": "164400",
-            "NormalMax": 32,
-            "PathogenicMin": 39,
-            "IntermediateRange": "36-38"
-         }
-      ]
-   },
-   {
-      "LocusId": "ATXN10",
-      "LocusStructure": "(ATTCT)*",
-      "ReferenceRegion": "chr22:45795354-45795424",
-      "RepeatUnit": "ATTCT",
-      "VariantType": "Repeat",
-      "Gene": "ATXN10",
-      "Inheritance": "AD",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000130638",
-      "DiscoveryMethod": "L, ExScr",
-      "DiscoveryYear": 2000,
-      "Diseases": [
-         {
-            "Symbol": "SCA10",
-            "Name": "Spinocerebellar ataxia 10",
-            "Inheritance": "AD",
-            "OMIM": "603516",
-            "NormalMax": 29,
-            "PathogenicMin": 800,
-            "IntermediateRange": "30-799"
-         }
-      ]
-   },
-   {
-      "LocusId": "ATXN2",
-      "LocusStructure": "(GCT)*",
-      "ReferenceRegion": "chr12:111598949-111599018",
-      "RepeatUnit": "GCT",
-      "VariantType": "Repeat",
-      "Gene": "ATXN2",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyglutamine",
-      "GeneId": "ENSG00000204842",
-      "DiscoveryMethod": "L, cl",
-      "DiscoveryYear": 1996,
-      "Diseases": [
-         {
-            "Symbol": "SCA2",
-            "Name": "Spinocerebellar ataxia 2",
-            "Inheritance": "AD",
-            "OMIM": "183090",
-            "NormalMax": 31,
-            "PathogenicMin": 35,
-            "IntermediateRange": "32-34"
-         }
-      ]
-   },
-   {
-      "LocusId": "ATXN3",
-      "LocusStructure": "(CTG)*",
-      "ReferenceRegion": "chr14:92071010-92071040",
-      "RepeatUnit": "CTG",
-      "VariantType": "Repeat",
-      "Gene": "ATXN3",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyglutamine",
-      "GeneId": "ENSG00000066427",
-      "DiscoveryMethod": "L, cl",
-      "DiscoveryYear": 1994,
-      "Diseases": [
-         {
-            "Symbol": "SCA3",
-            "Name": "Spinocerebellar ataxia 3",
-            "Inheritance": "AD",
-            "OMIM": "109150",
-            "NormalMax": 44,
-            "PathogenicMin": 56,
-            "IntermediateRange": "45-55"
-         }
-      ]
-   },
-   {
-      "LocusId": "ATXN7",
-      "LocusStructure": "(GCA)*(GCC)+",
-      "ReferenceRegion": [
-         "chr3:63912684-63912714",
-         "chr3:63912714-63912726"
-      ],
-      "RepeatUnit": "GCA",
-      "VariantId": [
-         "ATXN7",
-         "ATXN7_GCC"
-      ],
-      "VariantType": [
-         "Repeat",
-         "Repeat"
-      ],
-      "Gene": "ATXN7",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyglutamine",
-      "GeneId": "ENSG00000163635",
-      "DiscoveryMethod": "L, cl",
-      "DiscoveryYear": 1996,
-      "Diseases": [
-         {
-            "Symbol": "SCA7",
-            "Name": "Spinocerebellar ataxia 7",
-            "Inheritance": "AD",
-            "OMIM": "164500",
-            "NormalMax": 33,
-            "PathogenicMin": 37,
-            "IntermediateRange": "34-36"
-         }
-      ]
-   },
-   {
-      "LocusId": "ATXN8OS",
-      "LocusStructure": "(CTA)*(CTG)*",
-      "ReferenceRegion": [
-         "chr13:70139353-70139383",
-         "chr13:70139383-70139428"
-      ],
-      "RepeatUnit": "CTG",
-      "VariantId": [
-         "ATXN8OS_CTA",
-         "ATXN8OS"
-      ],
-      "VariantType": [
-         "Repeat",
-         "Repeat"
-      ],
-      "Gene": "ATXN8",
-      "Inheritance": "AD",
-      "GeneRegion": "3'-UTR",
-      "GeneId": "ENSG00000230223",
-      "DiscoveryMethod": "L, cl",
-      "DiscoveryYear": 1999,
-      "Diseases": [
-         {
-            "Symbol": "SCA8",
-            "Name": "Spinocerebellar ataxia 8",
-            "Inheritance": "AD",
-            "OMIM": "608768",
-            "NormalMax": 37,
-            "PathogenicMin": 80,
-            "IntermediateRange": "38-79"
-         }
-      ]
-   },
-   {
-      "LocusId": "BEAN1",
-      "LocusStructure": "(TAAAA)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr16:66490398-66490453",
-      "RepeatUnit": "TAAAA",
-      "Gene": "BEAN1",
-      "Inheritance": "AD",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000166546",
-      "DiscoveryMethod": "L",
-      "DiscoveryYear": 2009,
-      "PathogenicMotif": "TGGAA  (+TAGAA)",
-      "Diseases": [
-         {
-            "Symbol": "SCA31",
-            "Name": "Spinocerebellar ataxia 31",
-            "Inheritance": "AD",
-            "OMIM": "117210",
-            "PathogenicMin": 500
-         }
-      ]
-   },
-   {
-      "LocusId": "C9ORF72",
-      "LocusStructure": "(GGCCCC)*",
-      "ReferenceRegion": "chr9:27573528-27573546",
-      "RepeatUnit": "GGCCCC",
-      "VariantType": "RareRepeat",
-      "Gene": "C9orf72",
-      "Inheritance": "AD",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000147894",
-      "DiscoveryMethod": "L, WGS",
-      "DiscoveryYear": 2011,
-      "Diseases": [
-         {
-            "Symbol": "FTDALS1",
-            "Name": "Amyotrophic lateral sclerosis and/or frontotemporal dementia",
-            "Inheritance": "AD",
-            "OMIM": "105550",
-            "NormalMax": 23,
-            "PathogenicMin": 31
-         }
-      ]
-   },
-   {
-      "LocusId": "CACNA1A",
-      "LocusStructure": "(CTG)*",
-      "ReferenceRegion": "chr19:13207858-13207897",
-      "RepeatUnit": "CTG",
-      "VariantType": "Repeat",
-      "Gene": "CACNA1A",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyglutamine",
-      "GeneId": "ENSG00000141837",
-      "DiscoveryMethod": "L, ExScr",
-      "DiscoveryYear": 1997,
-      "Diseases": [
-         {
-            "Symbol": "SCA6",
-            "Name": "Spinocerebellar ataxia 6",
-            "Inheritance": "AD",
-            "OMIM": "183086",
-            "NormalMax": 18,
-            "PathogenicMin": 21,
-            "IntermediateRange": "19-19"
-         }
-      ]
-   },
-   {
-      "LocusId": "CNBP",
-      "LocusStructure": "(CAGG)*(CAGA)*(CA)*",
-      "ReferenceRegion": [
-         "chr3:129172576-129172656",
-         "chr3:129172656-129172696",
-         "chr3:129172696-129172732"
-      ],
-      "RepeatUnit": "CAGG",
-      "VariantId": [
-         "CNBP",
-         "CNBP_CAGA",
-         "CNBP_CA"
-      ],
-      "VariantType": [
-         "Repeat",
-         "Repeat",
-         "Repeat"
-      ],
-      "Gene": "CNBP",
-      "Inheritance": "AD",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000169714",
-      "DiscoveryMethod": "L, ExScr",
-      "DiscoveryYear": 2001,
-      "Diseases": [
-         {
-            "Symbol": "DM2",
-            "Name": "Myotonic dystrophy 2",
-            "Inheritance": "AD",
-            "OMIM": "602668",
-            "NormalMax": 54,
-            "PathogenicMin": 55
-         }
-      ]
-   },
-   {
-      "LocusId": "COMP",
-      "LocusStructure": "(GTC)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr19:18786034-18786049",
-      "RepeatUnit": "GTC",
-      "Gene": "COMP",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: poly-aspartic-acid",
-      "GeneId": "ENSG00000105664",
-      "Diseases": [
-         {
-            "Symbol": "EDM1",
-            "Name": "Multiple epiphyseal dysplasia",
-            "Inheritance": "AD",
-            "OMIM": "132400",
-            "PathogenicMin": 6
-         },
-         {
-            "Symbol": "PSACH",
-            "Name": "Pseudoachondroplasia",
-            "Inheritance": "AD",
-            "OMIM": "177170",
-            "Note": "5 repeats are normal. Contractions to 4 repeats are also pathogenic.",
-            "PathogenicMin": 7
-         }
-      ]
-   },
-   {
-      "LocusId": "CSTB",
-      "LocusStructure": "(CGCGGGGCGGGG)*",
-      "ReferenceRegion": "chr21:43776443-43776479",
-      "RepeatUnit": "CGCGGGGCGGGG",
-      "VariantType": "Repeat",
-      "Gene": "CSTB",
-      "Inheritance": "AR",
-      "GeneRegion": "promoter",
-      "GeneId": "ENSG00000160213",
-      "DiscoveryMethod": "L, cl, exp",
-      "DiscoveryYear": 1997,
-      "Diseases": [
-         {
-            "Symbol": "EPM1",
-            "Name": "Epilepsy Progressive Myoclonic",
-            "Inheritance": "AR",
-            "OMIM": "254800",
-            "PathogenicMin": 30
-         }
-      ]
-   },
-   {
-      "LocusId": "DAB1",
-      "LocusStructure": "(AAAAT)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr1:57367043-57367118",
-      "RepeatUnit": "AAAAT",
-      "Gene": "DAB1",
-      "Inheritance": "AD",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000173406",
-      "DiscoveryMethod": "L, ExScr",
-      "DiscoveryYear": 2017,
-      "PathogenicMotif": "ATTTC",
-      "Diseases": [
-         {
-            "Symbol": "SCA37",
-            "Name": "Spinocerebellar ataxia 37",
-            "Inheritance": "AD",
-            "OMIM": "615945",
-            "PathogenicMin": 31
-         }
-      ]
-   },
-   {
-      "LocusId": "DIP2B",
-      "LocusStructure": "(GGC)*",
-      "ReferenceRegion": "chr12:50505001-50505022",
-      "RepeatUnit": "GGC",
-      "VariantType": "Repeat",
-      "Gene": "DIP2B",
-      "Inheritance": "AD",
-      "GeneRegion": "5'-UTR",
-      "GeneId": "ENSG00000066084",
-      "Diseases": [
-         {
-            "Symbol": "MRFRA12A",
-            "Name": "Mental retardation, FRA12A type",
-            "Inheritance": "AD",
-            "OMIM": "136630",
-            "NormalMax": 23,
-            "PathogenicMin": 350
-         }
-      ]
-   },
-   {
-      "LocusId": "DMD",
-      "LocusStructure": "(TTC)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chrX:31284557-31284605",
-      "RepeatUnit": "TTC",
-      "Gene": "DMD",
-      "Inheritance": "XR",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000198947",
-      "Diseases": [
-         {
-            "Symbol": "DMD",
-            "Name": "Duchenne muscular dystrophy",
-            "Inheritance": "XR",
-            "OMIM": "310200",
-            "NormalMax": 33,
-            "PathogenicMin": 59
-         }
-      ]
-   },
-   {
-      "LocusId": "DMPK",
-      "LocusStructure": "(CAG)*",
-      "ReferenceRegion": "chr19:45770204-45770264",
-      "RepeatUnit": "CAG",
-      "VariantType": "Repeat",
-      "Gene": "DMPK",
-      "Inheritance": "AD",
-      "GeneRegion": "3'-UTR",
-      "GeneId": "ENSG00000104936",
-      "DiscoveryMethod": "L, cl",
-      "DiscoveryYear": 1992,
-      "Diseases": [
-         {
-            "Symbol": "DM1",
-            "Name": "Myotonic dystrophy 1",
-            "Inheritance": "AD",
-            "OMIM": "160900",
-            "NormalMax": 34,
-            "PathogenicMin": 50,
-            "IntermediateRange": "35-49"
-         }
-      ]
-   },
-   {
-      "LocusId": "EIF4A3",
-      "LocusStructure": "(CCTCGCTGTGCCGCTGCCGA)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr17:80147059-80147139",
-      "RepeatUnit": "CCTCGCTGTGCCGCTGCCGA",
-      "Gene": "EIF4A3",
-      "Inheritance": "AR",
-      "GeneRegion": "5'-UTR",
-      "GeneId": "ENSG00000141543",
-      "Diseases": [
-         {
-            "Symbol": "RCPS",
-            "Name": "Richieri-Costa-Pereira syndrome",
-            "Inheritance": "AR",
-            "OMIM": "268305",
-            "PathogenicMin": 14
-         }
-      ]
-   },
-   {
+    {
+        "LocusId": "AFF2",
+        "LocusStructure": "(GCC)*",
+        "ReferenceRegion": "chrX:148500631-148500691",
+        "RepeatUnit": "GCC",
+        "VariantType": "Repeat",
+        "Gene": "AFF2",
+        "Inheritance": "XR",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000155966",
+        "DiscoveryMethod": "K, L",
+        "DiscoveryYear": 1993,
+        "Diseases": [
+            {
+                "Symbol": "FRAXE",
+                "Name": "FRAXE mental retardation",
+                "Inheritance": "XR",
+                "OMIM": "309548",
+                "NormalMax": 25,
+                "PathogenicMin": 200
+            }
+        ],
+        "MainReferenceRegion": "chrX:148500631-148500691"
+    },
+    {
+        "LocusId": "AR",
+        "LocusStructure": "(GCA)*",
+        "ReferenceRegion": "chrX:67545316-67545385",
+        "RepeatUnit": "GCA",
+        "VariantType": "Repeat",
+        "Gene": "AR",
+        "Inheritance": "XR",
+        "GeneRegion": "coding: polyglutamine",
+        "GeneId": "ENSG00000169083",
+        "DiscoveryMethod": "L, CGA",
+        "DiscoveryYear": 1991,
+        "Diseases": [
+            {
+                "Symbol": "SBMA",
+                "Name": "Spinal and bulbar muscular atrophy",
+                "Inheritance": "XR",
+                "OMIM": "313200",
+                "NormalMax": 35,
+                "PathogenicMin": 40
+            }
+        ],
+        "MainReferenceRegion": "chrX:67545316-67545385"
+    },
+    {
+        "LocusId": "ARX_1",
+        "LocusStructure": "(NGC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chrX:25013649-25013697",
+        "RepeatUnit": "NGC",
+        "Gene": "ARX",
+        "Inheritance": "XR",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000004848",
+        "Diseases": [
+            {
+                "Symbol": "DEE1",
+                "Name": "Developmental and epileptic encephalopathy-1",
+                "Inheritance": "XR",
+                "OMIM": "308350",
+                "NormalMax": 16,
+                "PathogenicMin": 23
+            },
+            {
+                "Symbol": "MRXARX",
+                "Name": "X-linked mental retardation with or without seizures",
+                "Inheritance": "XR",
+                "OMIM": "300419",
+                "NormalMax": 16,
+                "PathogenicMin": 18
+            }
+        ],
+        "MainReferenceRegion": "chrX:25013649-25013697"
+    },
+    {
+        "LocusId": "ARX_2",
+        "LocusStructure": "(NGC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chrX:25013529-25013565",
+        "RepeatUnit": "NGC",
+        "Gene": "ARX",
+        "Inheritance": "XR",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000004848",
+        "Diseases": [
+            {
+                "Symbol": "DEE1",
+                "Name": "Developmental and epileptic encephalopathy-1",
+                "Inheritance": "XR",
+                "OMIM": "308350",
+                "NormalMax": 12,
+                "PathogenicMin": 20
+            },
+            {
+                "Symbol": "PRTS",
+                "Name": "Partington syndrome",
+                "Inheritance": "XR",
+                "OMIM": "309510",
+                "NormalMax": 12,
+                "PathogenicMin": 20
+            },
+            {
+                "Symbol": "MRXARX",
+                "Name": "X-linked mental retardation with or without seizures",
+                "Inheritance": "XR",
+                "OMIM": "300419",
+                "NormalMax": 12,
+                "PathogenicMin": 23
+            }
+        ],
+        "MainReferenceRegion": "chrX:25013529-25013565"
+    },
+    {
+        "LocusId": "ATN1",
+        "LocusStructure": "(CAG)*",
+        "ReferenceRegion": "chr12:6936716-6936773",
+        "RepeatUnit": "CAG",
+        "VariantType": "Repeat",
+        "Gene": "ATN1",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyglutamine",
+        "GeneId": "ENSG00000111676",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 1994,
+        "Diseases": [
+            {
+                "Symbol": "DRPLA",
+                "Name": "Dentatorubral-pallidoluysian atrophy",
+                "Inheritance": "AD",
+                "OMIM": "125370",
+                "NormalMax": 23,
+                "PathogenicMin": 49
+            }
+        ],
+        "MainReferenceRegion": "chr12:6936716-6936773"
+    },
+    {
+        "LocusId": "ATXN1",
+        "LocusStructure": "(TGC)*",
+        "ReferenceRegion": "chr6:16327633-16327723",
+        "RepeatUnit": "TGC",
+        "VariantType": "Repeat",
+        "Gene": "ATXN1",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyglutamine",
+        "GeneId": "ENSG00000124788",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 1993,
+        "Diseases": [
+            {
+                "Symbol": "SCA1",
+                "Name": "Spinocerebellar ataxia 1",
+                "Inheritance": "AD",
+                "OMIM": "164400",
+                "NormalMax": 32,
+                "PathogenicMin": 39,
+                "IntermediateRange": "36-38"
+            }
+        ],
+        "MainReferenceRegion": "chr6:16327633-16327723"
+    },
+    {
+        "LocusId": "ATXN10",
+        "LocusStructure": "(ATTCT)*",
+        "ReferenceRegion": "chr22:45795354-45795424",
+        "RepeatUnit": "ATTCT",
+        "VariantType": "Repeat",
+        "Gene": "ATXN10",
+        "Inheritance": "AD",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000130638",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 2000,
+        "Diseases": [
+            {
+                "Symbol": "SCA10",
+                "Name": "Spinocerebellar ataxia 10",
+                "Inheritance": "AD",
+                "OMIM": "603516",
+                "NormalMax": 29,
+                "PathogenicMin": 800,
+                "IntermediateRange": "30-799"
+            }
+        ],
+        "MainReferenceRegion": "chr22:45795354-45795424"
+    },
+    {
+        "LocusId": "ATXN2",
+        "LocusStructure": "(GCT)*",
+        "ReferenceRegion": "chr12:111598949-111599018",
+        "RepeatUnit": "GCT",
+        "VariantType": "Repeat",
+        "Gene": "ATXN2",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyglutamine",
+        "GeneId": "ENSG00000204842",
+        "DiscoveryMethod": "L, cl",
+        "DiscoveryYear": 1996,
+        "Diseases": [
+            {
+                "Symbol": "SCA2",
+                "Name": "Spinocerebellar ataxia 2",
+                "Inheritance": "AD",
+                "OMIM": "183090",
+                "NormalMax": 31,
+                "PathogenicMin": 35,
+                "IntermediateRange": "32-34"
+            }
+        ],
+        "MainReferenceRegion": "chr12:111598949-111599018"
+    },
+    {
+        "LocusId": "ATXN3",
+        "LocusStructure": "(CTG)*",
+        "ReferenceRegion": "chr14:92071010-92071040",
+        "RepeatUnit": "CTG",
+        "VariantType": "Repeat",
+        "Gene": "ATXN3",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyglutamine",
+        "GeneId": "ENSG00000066427",
+        "DiscoveryMethod": "L, cl",
+        "DiscoveryYear": 1994,
+        "Diseases": [
+            {
+                "Symbol": "SCA3",
+                "Name": "Spinocerebellar ataxia 3",
+                "Inheritance": "AD",
+                "OMIM": "109150",
+                "NormalMax": 44,
+                "PathogenicMin": 56,
+                "IntermediateRange": "45-55"
+            }
+        ],
+        "MainReferenceRegion": "chr14:92071010-92071040"
+    },
+    {
+        "LocusId": "ATXN7",
+        "LocusStructure": "(GCA)*(GCC)+",
+        "ReferenceRegion": [
+            "chr3:63912684-63912714",
+            "chr3:63912714-63912726"
+        ],
+        "RepeatUnit": "GCA",
+        "VariantId": [
+            "ATXN7",
+            "ATXN7_GCC"
+        ],
+        "VariantType": [
+            "Repeat",
+            "Repeat"
+        ],
+        "Gene": "ATXN7",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyglutamine",
+        "GeneId": "ENSG00000163635",
+        "DiscoveryMethod": "L, cl",
+        "DiscoveryYear": 1996,
+        "Diseases": [
+            {
+                "Symbol": "SCA7",
+                "Name": "Spinocerebellar ataxia 7",
+                "Inheritance": "AD",
+                "OMIM": "164500",
+                "NormalMax": 33,
+                "PathogenicMin": 37,
+                "IntermediateRange": "34-36"
+            }
+        ],
+        "MainReferenceRegion": "chr3:63912684-63912714"
+    },
+    {
+        "LocusId": "ATXN8OS",
+        "LocusStructure": "(CTA)*(CTG)*",
+        "ReferenceRegion": [
+            "chr13:70139353-70139383",
+            "chr13:70139383-70139428"
+        ],
+        "RepeatUnit": "CTG",
+        "VariantId": [
+            "ATXN8OS_CTA",
+            "ATXN8OS"
+        ],
+        "VariantType": [
+            "Repeat",
+            "Repeat"
+        ],
+        "Gene": "ATXN8",
+        "Inheritance": "AD",
+        "GeneRegion": "3'-UTR",
+        "GeneId": "ENSG00000230223",
+        "DiscoveryMethod": "L, cl",
+        "DiscoveryYear": 1999,
+        "Diseases": [
+            {
+                "Symbol": "SCA8",
+                "Name": "Spinocerebellar ataxia 8",
+                "Inheritance": "AD",
+                "OMIM": "608768",
+                "NormalMax": 37,
+                "PathogenicMin": 80,
+                "IntermediateRange": "38-79"
+            }
+        ],
+        "MainReferenceRegion": "chr13:70139383-70139428"
+    },
+    {
+        "LocusId": "BEAN1",
+        "LocusStructure": "(TAAAA)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr16:66490398-66490453",
+        "RepeatUnit": "TAAAA",
+        "Gene": "BEAN1",
+        "Inheritance": "AD",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000166546",
+        "DiscoveryMethod": "L",
+        "DiscoveryYear": 2009,
+        "PathogenicMotif": "TGGAA  (+TAGAA)",
+        "Diseases": [
+            {
+                "Symbol": "SCA31",
+                "Name": "Spinocerebellar ataxia 31",
+                "Inheritance": "AD",
+                "OMIM": "117210",
+                "PathogenicMin": 500
+            }
+        ],
+        "MainReferenceRegion": "chr16:66490398-66490453"
+    },
+    {
+        "LocusId": "C9ORF72",
+        "LocusStructure": "(GGCCCC)*",
+        "ReferenceRegion": "chr9:27573528-27573546",
+        "RepeatUnit": "GGCCCC",
+        "VariantType": "RareRepeat",
+        "Gene": "C9orf72",
+        "Inheritance": "AD",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000147894",
+        "DiscoveryMethod": "L, WGS",
+        "DiscoveryYear": 2011,
+        "Diseases": [
+            {
+                "Symbol": "FTDALS1",
+                "Name": "Amyotrophic lateral sclerosis and/or frontotemporal dementia",
+                "Inheritance": "AD",
+                "OMIM": "105550",
+                "NormalMax": 23,
+                "PathogenicMin": 31
+            }
+        ],
+        "MainReferenceRegion": "chr9:27573528-27573546"
+    },
+    {
+        "LocusId": "CACNA1A",
+        "LocusStructure": "(CTG)*",
+        "ReferenceRegion": "chr19:13207858-13207897",
+        "RepeatUnit": "CTG",
+        "VariantType": "Repeat",
+        "Gene": "CACNA1A",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyglutamine",
+        "GeneId": "ENSG00000141837",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 1997,
+        "Diseases": [
+            {
+                "Symbol": "SCA6",
+                "Name": "Spinocerebellar ataxia 6",
+                "Inheritance": "AD",
+                "OMIM": "183086",
+                "NormalMax": 18,
+                "PathogenicMin": 21,
+                "IntermediateRange": "19-19"
+            }
+        ],
+        "MainReferenceRegion": "chr19:13207858-13207897"
+    },
+    {
+        "LocusId": "CNBP",
+        "LocusStructure": "(CAGG)*(CAGA)*(CA)*",
+        "ReferenceRegion": [
+            "chr3:129172576-129172656",
+            "chr3:129172656-129172696",
+            "chr3:129172696-129172732"
+        ],
+        "RepeatUnit": "CAGG",
+        "VariantId": [
+            "CNBP",
+            "CNBP_CAGA",
+            "CNBP_CA"
+        ],
+        "VariantType": [
+            "Repeat",
+            "Repeat",
+            "Repeat"
+        ],
+        "Gene": "CNBP",
+        "Inheritance": "AD",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000169714",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 2001,
+        "Diseases": [
+            {
+                "Symbol": "DM2",
+                "Name": "Myotonic dystrophy 2",
+                "Inheritance": "AD",
+                "OMIM": "602668",
+                "NormalMax": 54,
+                "PathogenicMin": 55
+            }
+        ],
+        "MainReferenceRegion": "chr3:129172576-129172656"
+    },
+    {
+        "LocusId": "COMP",
+        "LocusStructure": "(GTC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr19:18786034-18786049",
+        "RepeatUnit": "GTC",
+        "Gene": "COMP",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: poly-aspartic-acid",
+        "GeneId": "ENSG00000105664",
+        "Diseases": [
+            {
+                "Symbol": "EDM1",
+                "Name": "Multiple epiphyseal dysplasia",
+                "Inheritance": "AD",
+                "OMIM": "132400",
+                "PathogenicMin": 6
+            },
+            {
+                "Symbol": "PSACH",
+                "Name": "Pseudoachondroplasia",
+                "Inheritance": "AD",
+                "OMIM": "177170",
+                "Note": "5 repeats are normal. Contractions to 4 repeats are also pathogenic.",
+                "PathogenicMin": 7
+            }
+        ],
+        "MainReferenceRegion": "chr19:18786034-18786049"
+    },
+    {
+        "LocusId": "CSTB",
+        "LocusStructure": "(CGCGGGGCGGGG)*",
+        "ReferenceRegion": "chr21:43776443-43776479",
+        "RepeatUnit": "CGCGGGGCGGGG",
+        "VariantType": "Repeat",
+        "Gene": "CSTB",
+        "Inheritance": "AR",
+        "GeneRegion": "promoter",
+        "GeneId": "ENSG00000160213",
+        "DiscoveryMethod": "L, cl, exp",
+        "DiscoveryYear": 1997,
+        "Diseases": [
+            {
+                "Symbol": "EPM1",
+                "Name": "Epilepsy Progressive Myoclonic",
+                "Inheritance": "AR",
+                "OMIM": "254800",
+                "PathogenicMin": 30
+            }
+        ],
+        "MainReferenceRegion": "chr21:43776443-43776479"
+    },
+    {
+        "LocusId": "DAB1",
+        "LocusStructure": "(AAAAT)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr1:57367043-57367118",
+        "RepeatUnit": "AAAAT",
+        "Gene": "DAB1",
+        "Inheritance": "AD",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000173406",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 2017,
+        "PathogenicMotif": "ATTTC",
+        "Diseases": [
+            {
+                "Symbol": "SCA37",
+                "Name": "Spinocerebellar ataxia 37",
+                "Inheritance": "AD",
+                "OMIM": "615945",
+                "PathogenicMin": 31
+            }
+        ],
+        "MainReferenceRegion": "chr1:57367043-57367118"
+    },
+    {
+        "LocusId": "DIP2B",
+        "LocusStructure": "(GGC)*",
+        "ReferenceRegion": "chr12:50505001-50505022",
+        "RepeatUnit": "GGC",
+        "VariantType": "Repeat",
+        "Gene": "DIP2B",
+        "Inheritance": "AD",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000066084",
+        "Diseases": [
+            {
+                "Symbol": "MRFRA12A",
+                "Name": "Mental retardation, FRA12A type",
+                "Inheritance": "AD",
+                "OMIM": "136630",
+                "NormalMax": 23,
+                "PathogenicMin": 350
+            }
+        ],
+        "MainReferenceRegion": "chr12:50505001-50505022"
+    },
+    {
+        "LocusId": "DMD",
+        "LocusStructure": "(TTC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chrX:31284557-31284605",
+        "RepeatUnit": "TTC",
+        "Gene": "DMD",
+        "Inheritance": "XR",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000198947",
+        "Diseases": [
+            {
+                "Symbol": "DMD",
+                "Name": "Duchenne muscular dystrophy",
+                "Inheritance": "XR",
+                "OMIM": "310200",
+                "NormalMax": 33,
+                "PathogenicMin": 59
+            }
+        ],
+        "MainReferenceRegion": "chrX:31284557-31284605"
+    },
+    {
+        "LocusId": "DMPK",
+        "LocusStructure": "(CAG)*",
+        "ReferenceRegion": "chr19:45770204-45770264",
+        "RepeatUnit": "CAG",
+        "VariantType": "Repeat",
+        "Gene": "DMPK",
+        "Inheritance": "AD",
+        "GeneRegion": "3'-UTR",
+        "GeneId": "ENSG00000104936",
+        "DiscoveryMethod": "L, cl",
+        "DiscoveryYear": 1992,
+        "Diseases": [
+            {
+                "Symbol": "DM1",
+                "Name": "Myotonic dystrophy 1",
+                "Inheritance": "AD",
+                "OMIM": "160900",
+                "NormalMax": 34,
+                "PathogenicMin": 50,
+                "IntermediateRange": "35-49"
+            }
+        ],
+        "MainReferenceRegion": "chr19:45770204-45770264"
+    },
+    {
+        "LocusId": "EIF4A3",
+        "LocusStructure": "(CCTCGCTGTGCCGCTGCCGA)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr17:80147059-80147139",
+        "RepeatUnit": "CCTCGCTGTGCCGCTGCCGA",
+        "Gene": "EIF4A3",
+        "Inheritance": "AR",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000141543",
+        "Diseases": [
+            {
+                "Symbol": "RCPS",
+                "Name": "Richieri-Costa-Pereira syndrome",
+                "Inheritance": "AR",
+                "OMIM": "268305",
+                "PathogenicMin": 14
+            }
+        ],
+        "MainReferenceRegion": "chr17:80147059-80147139"
+    },
+    {
         "LocusId": "FGF14",
         "LocusStructure": "(AAG)*",
         "VariantType": "Repeat",
@@ -575,943 +597,982 @@
         "GeneId": "ENSG00000102466",
         "Diseases": [
             {
-               "Symbol": "SCA50",
-               "Name": "Spinocerebellar ataxia 50",
-               "Inheritance": "AD",
-               "OMIM": "620158",
-               "PathogenicMin": 335,
-               "IntermediateRange": "250-335",
-               "NormalMax": 250
+                "Symbol": "SCA50",
+                "Name": "Spinocerebellar ataxia 50",
+                "Inheritance": "AD",
+                "OMIM": "620158",
+                "PathogenicMin": 335,
+                "IntermediateRange": "250-335",
+                "NormalMax": 250
             }
-        ]
-   },
-   {
-      "LocusId": "FMR1",
-      "LocusStructure": "(CGG)*",
-      "ReferenceRegion": "chrX:147912050-147912110",
-      "RepeatUnit": "CGG",
-      "VariantType": "RareRepeat",
-      "Gene": "FMR1",
-      "Inheritance": "XD",
-      "GeneRegion": "5'-UTR",
-      "GeneId": "ENSG00000102081",
-      "DiscoveryMethod": "K, FS, L, Me, cl",
-      "DiscoveryYear": 1991,
-      "Diseases": [
-         {
-            "Symbol": "FXTAS",
-            "Name": "Fragile X tremor/ataxia syndrome",
-            "Inheritance": "XD",
-            "OMIM": "300623",
-            "NormalMax": 40,
-            "PathogenicMin": 55,
-            "IntermediateRange": "41-54"
-         },
-         {
-            "Symbol": "FXS",
-            "Name": "Fragile X Syndrome",
-            "Inheritance": "XD",
-            "OMIM": "300624",
-            "NormalMax": 40,
-            "PathogenicMin": 201,
-            "IntermediateRange": "41-54"
-         }
-      ]
-   },
-   {
-      "LocusId": "FOXL2",
-      "LocusStructure": "(NGC)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr3:138946020-138946062",
-      "RepeatUnit": "NGC",
-      "Gene": "FOXL2",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000183770",
-      "DiscoveryMethod": "L, CGA",
-      "DiscoveryYear": 2001,
-      "Diseases": [
-         {
-            "Symbol": "BPES",
-            "Name": "Blepharophimosis, ptosis, and epicanthus inversus syndrome",
-            "Inheritance": "AD",
-            "OMIM": "110100",
-            "NormalMax": 14,
-            "PathogenicMin": 19
-         }
-      ]
-   },
-   {
-      "LocusId": "FXN",
-      "LocusStructure": "(A)*(GAA)*",
-      "ReferenceRegion": [
-         "chr9:69037261-69037286",
-         "chr9:69037286-69037304"
-      ],
-      "RepeatUnit": "GAA",      
-      "VariantId": [
-         "FXN_A",
-         "FXN"
-      ],
-      "VariantType": [
-         "Repeat",
-         "Repeat"
-      ],
-      "Gene": "FXN",
-      "Inheritance": "AR",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000165060",
-      "DiscoveryMethod": "L, ExScr",
-      "DiscoveryYear": 1996,
-      "Diseases": [
-         {
-            "Symbol": "FRDA",
-            "Name": "Friedreich ataxia",
-            "Inheritance": "AR",
-            "OMIM": "229300",
-            "NormalMax": 30,
-            "PathogenicMin": 70
-         }
-      ]
-   },
-   {
-      "LocusId": "GIPC1",
-      "LocusStructure": "(CCG)*",
-      "ReferenceRegion": "chr19:14496041-14496074",
-      "RepeatUnit": "CCG",
-      "VariantType": "Repeat",
-      "Gene": "GIPC1",
-      "Inheritance": "AD",
-      "GeneRegion": "5'-UTR",
-      "GeneId": "ENSG00000123159",
-      "DiscoveryMethod": "L, WGS, LRS",
-      "DiscoveryYear": 2020,
-      "Diseases": [
-         {
-            "Symbol": "OPDM2",
-            "Name": "Oculopharyngodistal myopathy 2",
-            "Inheritance": "AD",
-            "OMIM": "618940",
-            "NormalMax": 32,
-            "PathogenicMin": 73
-         }
-      ]
-   },
-   {
-      "LocusId": "GLS",
-      "LocusStructure": "(GCA)*",
-      "ReferenceRegion": "chr2:190880872-190880920",
-      "RepeatUnit": "GCA",
-      "VariantType": "Repeat",
-      "Gene": "GLS",
-      "Inheritance": "AR",
-      "GeneRegion": "5'-UTR",
-      "GeneId": "ENSG00000115419",
-      "DiscoveryMethod": "CGA",
-      "DiscoveryYear": 2019,
-      "Diseases": [
-         {
-            "Symbol": "GD",
-            "Name": "Glutaminase deficiency with impaired intellectual development and progressive ataxia",
-            "Inheritance": "AR",
-            "OMIM": "618412",
-            "NormalMax": 26,
-            "PathogenicMin": 680
-         }
-      ]
-   },
-   {
-      "LocusId": "HOXA13_1",
-      "LocusStructure": "(NGC)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr7:27199924-27199966",
-      "RepeatUnit": "NGC",
-      "Gene": "HOXA13",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000106031",
-      "DiscoveryMethod": "L, CGA",
-      "DiscoveryYear": 2000,
-      "Diseases": [
-         {
-            "Symbol": "HFG",
-            "Name": "Hand-foot-genital syndrome",
-            "Inheritance": "AD",
-            "OMIM": "140000",
-            "NormalMax": 14,
-            "PathogenicMin": 22
-         }
-      ]
-   },
-   {
-      "LocusId": "HOXA13_2",
-      "LocusStructure": "(NGC)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr7:27199825-27199861",
-      "RepeatUnit": "NGC",
-      "Gene": "HOXA13",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000106031",
-      "DiscoveryMethod": "L, CGA",
-      "DiscoveryYear": 2000,
-      "Diseases": [
-         {
-            "Symbol": "HFG",
-            "Name": "Hand-foot-genital syndrome",
-            "Inheritance": "AD",
-            "OMIM": "140000",
-            "NormalMax": 12,
-            "PathogenicMin": 18
-         }
-      ]
-   },
-   {
-      "LocusId": "HOXA13_3",
-      "LocusStructure": "(NGC)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr7:27199678-27199732",
-      "RepeatUnit": "NGC",
-      "Gene": "HOXA13",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000106031",
-      "DiscoveryMethod": "L, CGA",
-      "DiscoveryYear": 2000,
-      "Diseases": [
-         {
-            "Symbol": "HFG",
-            "Name": "Hand-foot-genital syndrome",
-            "Inheritance": "AD",
-            "OMIM": "140000",
-            "NormalMax": 18,
-            "PathogenicMin": 24
-         }
-      ]
-   },
-   {
-      "LocusId": "HOXD13",
-      "LocusStructure": "(GCG)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr2:176093058-176093103",
-      "RepeatUnit": "GCG",
-      "Gene": "HOXD13",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000128714",
-      "DiscoveryMethod": "L, CGA",
-      "DiscoveryYear": 1996,
-      "Diseases": [
-         {
-            "Symbol": "SPD",
-            "Name": "Synpolydactyly",
-            "Inheritance": "AD",
-            "OMIM": "186300",
-            "NormalMax": 15,
-            "PathogenicMin": 22
-         }
-      ]
-   },
-   {
-      "LocusId": "HTT",
-      "LocusStructure": "(CAG)*CAACAG(CCG)*",
-      "ReferenceRegion": [
-         "chr4:3074876-3074933",
-         "chr4:3074939-3074966"
-      ],
-      "RepeatUnit": "CAG",
-      "VariantId": [
-         "HTT",
-         "HTT_CCG"
-      ],
-      "VariantType": [
-         "Repeat",
-         "Repeat"
-      ],
-      "Gene": "HTT",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyglutamine",
-      "GeneId": "ENSG00000197386",
-      "DiscoveryMethod": "L, ExScr",
-      "DiscoveryYear": 1993,
-      "Diseases": [
-         {
-            "Symbol": "HD",
-            "Name": "Huntington's disease",
-            "Inheritance": "AD",
-            "OMIM": "143100",
-            "NormalMax": 26,
-            "PathogenicMin": 36,
-            "IntermediateRange": "27-35"
-         }
-      ]
-   },
-   {
-      "LocusId": "JPH3",
-      "LocusStructure": "(CTG)*",
-      "ReferenceRegion": "chr16:87604287-87604329",
-      "RepeatUnit": "CTG",
-      "VariantType": "Repeat",
-      "Gene": "JPH3",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyglutamine",
-      "GeneId": "ENSG00000154118",
-      "DiscoveryMethod": "L, RED",
-      "DiscoveryYear": 2001,
-      "Diseases": [
-         {
-            "Symbol": "HDL2",
-            "Name": "Huntington disease-like 2",
-            "Inheritance": "AD",
-            "OMIM": "606438",
-            "NormalMax": 27,
-            "PathogenicMin": 41
-         }
-      ]
-   },
-   {
-      "LocusId": "NUTM2B-AS1",
-      "LocusStructure": "(GGC)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr10:79826383-79826404",
-      "RepeatUnit": "GGC",
-      "Gene": "LOC642361",
-      "Inheritance": "AD",
-      "GeneRegion": "non-coding RNA",
-      "GeneId": "ENSG00000272447",
-      "DiscoveryMethod": "TRhist",
-      "DiscoveryYear": 2019,
-      "Diseases": [
-         {
-            "Symbol": "OPML1",
-            "Name": "Oculopharyngeal myopathy with leukoencephalopathy 1",
-            "Inheritance": "AD",
-            "OMIM": "618637",
-            "NormalMax": 16,
-            "PathogenicMin": 700
-         }
-      ]
-   },
-   {
-      "LocusId": "LRP12",
-      "LocusStructure": "(CGC)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr8:104588970-104588997",
-      "RepeatUnit": "CGC",
-      "Gene": "LRP12",
-      "Inheritance": "AD",
-      "GeneRegion": "5'-UTR",
-      "GeneId": "ENSG00000147650",
-      "DiscoveryMethod": "TRhist",
-      "DiscoveryYear": 2019,
-      "Diseases": [
-         {
-            "Symbol": "OPDM1",
-            "Name": "Oculopharyngodistal myopathy 1",
-            "Inheritance": "AD",
-            "OMIM": "164310",
-            "NormalMax": 45,
-            "PathogenicMin": 93
-         }
-      ]
-   },
-   {
-      "LocusId": "MARCHF6",
-      "LocusStructure": "(ATTTT)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr5:10356346-10356411",
-      "RepeatUnit": "ATTTT",
-      "Gene": "MARCHF6",
-      "Inheritance": "AD",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000145495",
-      "DiscoveryMethod": "L, ExScr",
-      "DiscoveryYear": 2019,
-      "PathogenicMotif": "ATTTC",
-      "Diseases": [
-         {
-            "Symbol": "FAME3",
-            "Name": "Familial adult myoclonic epilepsy 3",
-            "Inheritance": "AD",
-            "OMIM": "613608",
-            "PathogenicMin": 668
-         }
-      ]
-   },
-   {
-      "LocusId": "NIPA1",
-      "LocusStructure": "(GCG)*",
-      "ReferenceRegion": "chr15:22786677-22786701",
-      "RepeatUnit": "GCG",
-      "VariantType": "Repeat",
-      "Gene": "NIPA1",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000170113",
-      "Diseases": [
-         {
-            "Symbol": "ALS",
-            "Name": "Amyotrophic lateral sclerosis",
-            "Inheritance": "AD",
-            "OMIM": "105400",
-            "NormalMax": 10,
-            "PathogenicMin": 11
-         }
-      ]
-   },
-   {
-      "LocusId": "NOP56",
-      "LocusStructure": "(GGCCTG)*(CGCCTG)*",
-      "ReferenceRegion": [
-         "chr20:2652733-2652757",
-         "chr20:2652757-2652775"
-      ],
-      "RepeatUnit": "GGCCTG",
-      "VariantId": [
-         "NOP56",
-         "NOP56_CGCCTG"
-      ],
-      "VariantType": [
-         "Repeat",
-         "Repeat"
-      ],
-      "Gene": "NOP56",
-      "Inheritance": "AD",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000101361",
-      "DiscoveryMethod": "L, ExScr",
-      "DiscoveryYear": 2011,
-      "Diseases": [
-         {
-            "Symbol": "SCA36",
-            "Name": "Spinocerebellar ataxia 36",
-            "Inheritance": "AD",
-            "OMIM": "614153",
-            "NormalMax": 14,
-            "PathogenicMin": 650
-         }
-      ]
-   },
-   {
-      "LocusId": "NOTCH2NLC",
-      "LocusStructure": "(GGC)*",
-      "ReferenceRegion": "chr1:149390802-149390841",
-      "RepeatUnit": "GGC",      
-      "VariantType": "Repeat",
-      "Gene": "NOTCH2NLC",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyglycine",
-      "GeneId": "ENSG00000286219",
-      "DiscoveryMethod": "TRhist, L, WGS",
-      "DiscoveryYear": 2019,
-      "Diseases": [
-         {
-            "Symbol": "NIID",
-            "Name": "Neuronal intranuclear inclusion disease",
-            "Inheritance": "AD",
-            "OMIM": "603472",
-            "NormalMax": 39,
-            "PathogenicMin": 90
-         },
-         {
-            "Symbol": "ETM6",
-            "Name": "Hereditary essential tremor type 6",
-            "Inheritance": "AD",
-            "OMIM": "618866",
-            "NormalMax": 41,
-            "PathogenicMin": 60
-         }
-      ]
-   },
-   {
-      "LocusId": "PABPN1",
-      "LocusStructure": "(GCG)*",
-      "ReferenceRegion": "chr14:23321472-23321490",
-      "RepeatUnit": "GCG",
-      "VariantType": "Repeat",
-      "Gene": "PABPN1",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000100836",
-      "DiscoveryMethod": "L, ExScr",
-      "DiscoveryYear": 1998,
-      "Diseases": [
-         {
-            "Symbol": "OPMD",
-            "Name": "Oculopharyngeal muscular dystrophy",
-            "Inheritance": "AD",
-            "OMIM": "164300",
-            "NormalMax": 6,
-            "PathogenicMin": 7
-         }
-      ]
-   },
-   {
-      "LocusId": "PHOX2B",
-      "LocusStructure": "(GCN)*",
-      "ReferenceRegion": "chr4:41745972-41746032",
-      "RepeatUnit": "GCN",
-      "VariantType": "Repeat",
-      "Gene": "PHOX2B",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000109132",
-      "DiscoveryMethod": "L, CGA",
-      "DiscoveryYear": 2003,
-      "Diseases": [
-         {
-            "Symbol": "CCHS",
-            "Name": "Central hypoventilation syndrome",
-            "Inheritance": "AD",
-            "OMIM": "209880",
-            "NormalMax": 20,
-            "PathogenicMin": 24
-         }
-      ]
-   },
-   {
-      "LocusId": "PPP2R2B",
-      "LocusStructure": "(GCT)*",
-      "ReferenceRegion": "chr5:146878727-146878757",
-      "RepeatUnit": "GCT",
-      "VariantType": "Repeat",
-      "Gene": "PPP2R2B",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyserine",
-      "GeneId": "ENSG00000156475",
-      "DiscoveryMethod": "L, RED",
-      "DiscoveryYear": 1999,
-      "Diseases": [
-         {
-            "Symbol": "SCA12",
-            "Name": "Spinocerebellar ataxia 12",
-            "Inheritance": "AD",
-            "OMIM": "604326",
-            "NormalMax": 31,
-            "PathogenicMin": 51
-         }
-      ]
-   },
-   {
-      "LocusId": "PRDM12",
-      "LocusStructure": "(GCC)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr9:130681606-130681639",
-      "RepeatUnit": "GCC",
-      "Gene": "PRDM12",
-      "Inheritance": "AR",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000130711",
-      "Diseases": [
-         {
-            "Symbol": "HSAN8",
-            "Name": "Hereditary sensory and autonomic neuropathy type VIII",
-            "Inheritance": "AR",
-            "OMIM": "616488",
-            "NormalMax": 14,
-            "PathogenicMin": 18
-         }
-      ]
-   },
-   {
-      "LocusId": "PRNP",
-      "LocusStructure": "(CCTCAGGGCGGTGGTGGCTGGGGGCAG)*(CCTCATGGTGGTGGCTGGGGGCAG)*",
-      "VariantType": [
-         "Repeat",
-         "Repeat"
-      ],
-      "ReferenceRegion": [
-         "chr20:4699370-4699397",
-         "chr20:4699397-4699493"
-      ],
-      "RepeatUnit": "CCTCATGGTGGTGGCTGGGGGCAG",
-      "VariantId": [
-         "PRNP_CCTCAGGGCGGTGGTGGCTGGGGGCAG",
-         "PRNP"
-      ],
-      "Gene": "PRNP",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: other",
-      "GeneId": "ENSG00000171867",
-      "Diseases": [
-         {
-            "Symbol": "CJD",
-            "Name": "Creutzfeldt-Jakob disease",
-            "Inheritance": "AD",
-            "OMIM": "123400",
-            "NormalMax": 4,
-            "PathogenicMin": 5
-         }
-      ]
-   },
-   {
-      "LocusId": "RAPGEF2",
-      "LocusStructure": "(TTTTA)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr4:159342526-159342616",
-      "RepeatUnit": "TTTTA",
-      "Gene": "RAPGEF2",
-      "Inheritance": "AD",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000109756",
-      "DiscoveryMethod": "TRhist",
-      "DiscoveryYear": 2018,
-      "PathogenicMotif": "ATTTC",
-      "Diseases": [
-         {
-            "Symbol": "FAME7",
-            "Name": "Familial adult myoclonic epilepsy 7",
-            "Inheritance": "AD",
-            "OMIM": "618075",
-            "PathogenicMin": 60
-         }
-      ]
-   },
-   {
-      "LocusId": "RFC1",
-      "LocusStructure": "(AARRG)*",
-      "ReferenceRegion": "chr4:39348424-39348479",
-      "RepeatUnit": "AAAAG",
-      "VariantType": "Repeat",
-      "Gene": "RFC1",
-      "Inheritance": "AR",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000035928",
-      "DiscoveryMethod": "L, WGS",
-      "DiscoveryYear": 2019,
-      "PathogenicMotif": "AAGGG",
-      "Diseases": [
-         {
-            "Symbol": "CANVAS",
-            "Name": "Cerebellar ataxia, neuropathy, and vestibular areflexia syndrome",
-            "Inheritance": "AR",
-            "OMIM": "614575",
-            "PathogenicMin": 400
-         }
-      ]
-   },
-   {
-      "LocusId": "RILPL1",
-      "LocusStructure": "(GGC)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr12:123533720-123533750",
-      "RepeatUnit": "GGC",
-      "Gene": "RILPL1",
-      "Inheritance": "AD",
-      "GeneRegion": "5'-UTR",
-      "GeneId": "ENSG00000188026",
-      "DiscoveryMethod": "L",
-      "DiscoveryYear": 2022,
-      "Diseases": [
-         {
-            "Symbol": "OPDM4",
-            "Name": "Oculopharyngodistal myopathy type 4",
-            "Inheritance": "AD",
-            "OMIM": "619790",
-            "NormalMax": 20,
-            "PathogenicMin": 139
-         }
-      ]
-   },
-   {
-      "LocusId": "RUNX2",
-      "LocusStructure": "(GCN)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr6:45422750-45422792",
-      "RepeatUnit": "GCN",
-      "Gene": "RUNX2",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000124813",
-      "DiscoveryMethod": "L, CGA",
-      "DiscoveryYear": 1997,
-      "Diseases": [
-         {
-            "Symbol": "CCD",
-            "Name": "Cleidocranial dysplasia",
-            "Inheritance": "AD",
-            "OMIM": "119600",
-            "NormalMax": 17,
-            "PathogenicMin": 27
-         }
-      ]
-   },
-   {
-      "LocusId": "SAMD12",
-      "LocusStructure": "(TAAAA)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr8:118366815-118366880",
-      "RepeatUnit": "TAAAA",
-      "Gene": "SAMD12",
-      "Inheritance": "AD",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000177570",
-      "DiscoveryMethod": "L, ExScr",
-      "DiscoveryYear": 2018,
-      "PathogenicMotif": "ATTTC",
-      "Diseases": [
-         {
-            "Symbol": "FAME1",
-            "Name": "Familial adult myoclonic epilepsy 1",
-            "Inheritance": "AD",
-            "OMIM": "601068",
-            "PathogenicMin": 100
-         }
-      ]
-   },
-   {
-      "LocusId": "SOX3",
-      "LocusStructure": "(NGC)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chrX:140504316-140504361",
-      "RepeatUnit": "NGC",
-      "Gene": "SOX3",
-      "Inheritance": "XR",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000134595",
-      "DiscoveryMethod": "L, CGA",
-      "DiscoveryYear": 2002,
-      "Diseases": [
-         {
-            "Symbol": "XLMR",
-            "Name": "X-linked mental retardation with isolated growth hormone",
-            "Inheritance": "XR",
-            "OMIM": "300123",
-            "NormalMax": 15,
-            "PathogenicMin": 26
-         },
-         {
-            "Symbol": "PHPX",
-            "Name": "X-linked panhypopituitarism",
-            "Inheritance": "XR",
-            "OMIM": "312000",
-            "NormalMax": 15,
-            "PathogenicMin": 22
-         }
-      ]
-   },
-   {
-      "LocusId": "STARD7",
-      "LocusStructure": "(AAAAT)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr2:96197066-96197121",
-      "RepeatUnit": "AAAAT",
-      "Gene": "STARD7",
-      "Inheritance": "AD",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000084090",
-      "DiscoveryMethod": "L, ExScr",
-      "DiscoveryYear": 2019,
-      "PathogenicMotif": "ATTTC",
-      "Diseases": [
-         {
-            "Symbol": "FAME2",
-            "Name": "Familial adult myoclonic epilepsy 2",
-            "Inheritance": "AD",
-            "OMIM": "607876",
-            "PathogenicMin": 274
-         }
-      ]
-   },
-   {
-      "LocusId": "TBP",
-      "LocusStructure": "(GCA)*",
-      "ReferenceRegion": "chr6:170561906-170562017",
-      "RepeatUnit": "GCA",
-      "VariantType": "Repeat",
-      "Gene": "TBP",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyglutamine",
-      "GeneId": "ENSG00000112592",
-      "DiscoveryMethod": "L, CGA",
-      "DiscoveryYear": 1999,
-      "Diseases": [
-         {
-            "Symbol": "SCA17",
-            "Name": "Spinocerebellar ataxia 17",
-            "Inheritance": "AD",
-            "OMIM": "607136",
-            "NormalMax": 42,
-            "PathogenicMin": 43
-         }
-      ]
-   },
-   {
-      "LocusId": "TBX1",
-      "LocusStructure": "(GCN)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr22:19766762-19766807",
-      "RepeatUnit": "GCN",
-      "Gene": "TBX1",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000184058",
-      "Diseases": [
-         {
-            "Symbol": "TOF",
-            "Name": "Tetralogy of Fallot",
-            "Inheritance": "AD",
-            "OMIM": "187500",
-            "NormalMax": 15,
-            "PathogenicMin": 25
-         }
-      ]
-   },
-   {
-      "LocusId": "TCF4",
-      "LocusStructure": "(CAG)*",
-      "ReferenceRegion": "chr18:55586155-55586227",
-      "RepeatUnit": "CAG",
-      "VariantType": "Repeat",
-      "Gene": "TCF4",
-      "Inheritance": "AD",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000196628",
-      "DiscoveryMethod": "L, GWAS",
-      "DiscoveryYear": 2015,
-      "Diseases": [
-         {
-            "Symbol": "FECD3",
-            "Name": "Fuchs endothelial corneal dystrophy-3",
-            "Inheritance": "AD",
-            "OMIM": "613267",
-            "NormalMax": 31,
-            "PathogenicMin": 50
-         }
-      ]
-   },
-   {
-      "LocusId": "TNRC6A",
-      "LocusStructure": "(TTTTA)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr16:24613439-24613529",
-      "RepeatUnit": "TTTTA",
-      "Gene": "TNRC6A",
-      "Inheritance": "AD",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000090905",
-      "DiscoveryMethod": "TRhist",
-      "DiscoveryYear": 2018,
-      "PathogenicMotif": "ATTTC",
-      "Diseases": [
-         {
-            "Symbol": "FAME6",
-            "Name": "Familial adult myoclonic epilepsy 6",
-            "Inheritance": "AD",
-            "OMIM": "618074",
-            "PathogenicMin": 1100
-         }
-      ]
-   },
-   {
-      "LocusId": "VWA1",
-      "LocusStructure": "(GGCGCGGAGC)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr1:1435798-1435818",
-      "RepeatUnit": "GGCGCGGAGC",
-      "Gene": "VWA1",
-      "Inheritance": "AR",
-      "GeneRegion": "coding: other",
-      "GeneId": "ENSG00000179403",
-      "Diseases": [
-         {
-            "Symbol": "HMN",
-            "Name": "Hereditary motor neuropathy",
-            "Inheritance": "AR",
-            "OMIM": "619216",
-            "NormalMax": 2,
-            "PathogenicMin": 3
-         }
-      ]
-   },
-   {
-      "LocusId": "XYLT1",
-      "LocusStructure": "(GCC)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr16:17470907-17470922",
-      "RepeatUnit": "GCC",
-      "Gene": "XYLT1",
-      "Inheritance": "AR",
-      "GeneRegion": "5'-UTR",
-      "GeneId": "ENSG00000103489",
-      "DiscoveryMethod": "ADO, Me",
-      "DiscoveryYear": 2019,
-      "Diseases": [
-         {
-            "Symbol": "DBQD2",
-            "Name": "Desbuquois dysplasia-2",
-            "Inheritance": "AR",
-            "OMIM": "615777",
-            "NormalMax": 20,
-            "PathogenicMin": 110
-         }
-      ]
-   },
-   {
-      "LocusId": "YEATS2",
-      "LocusStructure": "(TTTTA)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr3:183712187-183712222",
-      "RepeatUnit": "TTTTA",
-      "Gene": "YEATS2",
-      "Inheritance": "AD",
-      "GeneRegion": "intron",
-      "GeneId": "ENSG00000163872",
-      "DiscoveryMethod": "L, ExScr",
-      "DiscoveryYear": 2019,
-      "PathogenicMotif": "ATTTC",
-      "Diseases": [
-         {
-            "Symbol": "FAME4",
-            "Name": "Familial adult myoclonic epilepsy 4",
-            "Inheritance": "AD",
-            "OMIM": "615127",
-            "PathogenicMin": 1000
-         }
-      ]
-   },
-   {
-      "LocusId": "ZIC2",
-      "LocusStructure": "(GCN)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chr13:99985448-99985493",
-      "RepeatUnit": "GCN",
-      "Gene": "ZIC2",
-      "Inheritance": "AD",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000043355",
-      "DiscoveryMethod": "L, CGA",
-      "DiscoveryYear": 2001,
-      "Diseases": [
-         {
-            "Symbol": "HPE5",
-            "Name": "Holoprosencephaly 5",
-            "Inheritance": "AD",
-            "OMIM": "609637",
-            "NormalMax": 15,
-            "PathogenicMin": 25
-         }
-      ]
-   },
-   {
-      "LocusId": "ZIC3",
-      "LocusStructure": "(GCN)*",
-      "VariantType": "Repeat",
-      "ReferenceRegion": "chrX:137566826-137566856",
-      "RepeatUnit": "GCN",
-      "Gene": "ZIC3",
-      "Inheritance": "XR",
-      "GeneRegion": "coding: polyalanine",
-      "GeneId": "ENSG00000156925",
-      "Diseases": [
-         {
-            "Symbol": "VACTERLX",
-            "Name": "X-linked VACTERL syndrome",
-            "Inheritance": "XR",
-            "OMIM": "314390",
-            "NormalMax": 10,
-            "PathogenicMin": 12
-         }
-      ]
-   }
+        ],
+        "MainReferenceRegion": "chr13:102161574-102161724"
+    },
+    {
+        "LocusId": "FMR1",
+        "LocusStructure": "(CGG)*",
+        "ReferenceRegion": "chrX:147912050-147912110",
+        "RepeatUnit": "CGG",
+        "VariantType": "RareRepeat",
+        "Gene": "FMR1",
+        "Inheritance": "XD",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000102081",
+        "DiscoveryMethod": "K, FS, L, Me, cl",
+        "DiscoveryYear": 1991,
+        "Diseases": [
+            {
+                "Symbol": "FXTAS",
+                "Name": "Fragile X tremor/ataxia syndrome",
+                "Inheritance": "XD",
+                "OMIM": "300623",
+                "NormalMax": 40,
+                "PathogenicMin": 55,
+                "IntermediateRange": "41-54"
+            },
+            {
+                "Symbol": "FXS",
+                "Name": "Fragile X Syndrome",
+                "Inheritance": "XD",
+                "OMIM": "300624",
+                "NormalMax": 40,
+                "PathogenicMin": 201,
+                "IntermediateRange": "41-54"
+            }
+        ],
+        "MainReferenceRegion": "chrX:147912050-147912110"
+    },
+    {
+        "LocusId": "FOXL2",
+        "LocusStructure": "(NGC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr3:138946020-138946062",
+        "RepeatUnit": "NGC",
+        "Gene": "FOXL2",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000183770",
+        "DiscoveryMethod": "L, CGA",
+        "DiscoveryYear": 2001,
+        "Diseases": [
+            {
+                "Symbol": "BPES",
+                "Name": "Blepharophimosis, ptosis, and epicanthus inversus syndrome",
+                "Inheritance": "AD",
+                "OMIM": "110100",
+                "NormalMax": 14,
+                "PathogenicMin": 19
+            }
+        ],
+        "MainReferenceRegion": "chr3:138946020-138946062"
+    },
+    {
+        "LocusId": "FXN",
+        "LocusStructure": "(A)*(GAA)*",
+        "ReferenceRegion": [
+            "chr9:69037261-69037286",
+            "chr9:69037286-69037304"
+        ],
+        "RepeatUnit": "GAA",
+        "VariantId": [
+            "FXN_A",
+            "FXN"
+        ],
+        "VariantType": [
+            "Repeat",
+            "Repeat"
+        ],
+        "Gene": "FXN",
+        "Inheritance": "AR",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000165060",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 1996,
+        "Diseases": [
+            {
+                "Symbol": "FRDA",
+                "Name": "Friedreich ataxia",
+                "Inheritance": "AR",
+                "OMIM": "229300",
+                "NormalMax": 30,
+                "PathogenicMin": 70
+            }
+        ],
+        "MainReferenceRegion": "chr9:69037286-69037304"
+    },
+    {
+        "LocusId": "GIPC1",
+        "LocusStructure": "(CCG)*",
+        "ReferenceRegion": "chr19:14496041-14496074",
+        "RepeatUnit": "CCG",
+        "VariantType": "Repeat",
+        "Gene": "GIPC1",
+        "Inheritance": "AD",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000123159",
+        "DiscoveryMethod": "L, WGS, LRS",
+        "DiscoveryYear": 2020,
+        "Diseases": [
+            {
+                "Symbol": "OPDM2",
+                "Name": "Oculopharyngodistal myopathy 2",
+                "Inheritance": "AD",
+                "OMIM": "618940",
+                "NormalMax": 32,
+                "PathogenicMin": 73
+            }
+        ],
+        "MainReferenceRegion": "chr19:14496041-14496074"
+    },
+    {
+        "LocusId": "GLS",
+        "LocusStructure": "(GCA)*",
+        "ReferenceRegion": "chr2:190880872-190880920",
+        "RepeatUnit": "GCA",
+        "VariantType": "Repeat",
+        "Gene": "GLS",
+        "Inheritance": "AR",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000115419",
+        "DiscoveryMethod": "CGA",
+        "DiscoveryYear": 2019,
+        "Diseases": [
+            {
+                "Symbol": "GD",
+                "Name": "Glutaminase deficiency with impaired intellectual development and progressive ataxia",
+                "Inheritance": "AR",
+                "OMIM": "618412",
+                "NormalMax": 26,
+                "PathogenicMin": 680
+            }
+        ],
+        "MainReferenceRegion": "chr2:190880872-190880920"
+    },
+    {
+        "LocusId": "HOXA13_1",
+        "LocusStructure": "(NGC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr7:27199924-27199966",
+        "RepeatUnit": "NGC",
+        "Gene": "HOXA13",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000106031",
+        "DiscoveryMethod": "L, CGA",
+        "DiscoveryYear": 2000,
+        "Diseases": [
+            {
+                "Symbol": "HFG",
+                "Name": "Hand-foot-genital syndrome",
+                "Inheritance": "AD",
+                "OMIM": "140000",
+                "NormalMax": 14,
+                "PathogenicMin": 22
+            }
+        ],
+        "MainReferenceRegion": "chr7:27199924-27199966"
+    },
+    {
+        "LocusId": "HOXA13_2",
+        "LocusStructure": "(NGC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr7:27199825-27199861",
+        "RepeatUnit": "NGC",
+        "Gene": "HOXA13",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000106031",
+        "DiscoveryMethod": "L, CGA",
+        "DiscoveryYear": 2000,
+        "Diseases": [
+            {
+                "Symbol": "HFG",
+                "Name": "Hand-foot-genital syndrome",
+                "Inheritance": "AD",
+                "OMIM": "140000",
+                "NormalMax": 12,
+                "PathogenicMin": 18
+            }
+        ],
+        "MainReferenceRegion": "chr7:27199825-27199861"
+    },
+    {
+        "LocusId": "HOXA13_3",
+        "LocusStructure": "(NGC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr7:27199678-27199732",
+        "RepeatUnit": "NGC",
+        "Gene": "HOXA13",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000106031",
+        "DiscoveryMethod": "L, CGA",
+        "DiscoveryYear": 2000,
+        "Diseases": [
+            {
+                "Symbol": "HFG",
+                "Name": "Hand-foot-genital syndrome",
+                "Inheritance": "AD",
+                "OMIM": "140000",
+                "NormalMax": 18,
+                "PathogenicMin": 24
+            }
+        ],
+        "MainReferenceRegion": "chr7:27199678-27199732"
+    },
+    {
+        "LocusId": "HOXD13",
+        "LocusStructure": "(GCG)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr2:176093058-176093103",
+        "RepeatUnit": "GCG",
+        "Gene": "HOXD13",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000128714",
+        "DiscoveryMethod": "L, CGA",
+        "DiscoveryYear": 1996,
+        "Diseases": [
+            {
+                "Symbol": "SPD",
+                "Name": "Synpolydactyly",
+                "Inheritance": "AD",
+                "OMIM": "186300",
+                "NormalMax": 15,
+                "PathogenicMin": 22
+            }
+        ],
+        "MainReferenceRegion": "chr2:176093058-176093103"
+    },
+    {
+        "LocusId": "HTT",
+        "LocusStructure": "(CAG)*CAACAG(CCG)*",
+        "ReferenceRegion": [
+            "chr4:3074876-3074933",
+            "chr4:3074939-3074966"
+        ],
+        "RepeatUnit": "CAG",
+        "VariantId": [
+            "HTT",
+            "HTT_CCG"
+        ],
+        "VariantType": [
+            "Repeat",
+            "Repeat"
+        ],
+        "Gene": "HTT",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyglutamine",
+        "GeneId": "ENSG00000197386",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 1993,
+        "Diseases": [
+            {
+                "Symbol": "HD",
+                "Name": "Huntington's disease",
+                "Inheritance": "AD",
+                "OMIM": "143100",
+                "NormalMax": 26,
+                "PathogenicMin": 36,
+                "IntermediateRange": "27-35"
+            }
+        ],
+        "MainReferenceRegion": "chr4:3074876-3074933"
+    },
+    {
+        "LocusId": "JPH3",
+        "LocusStructure": "(CTG)*",
+        "ReferenceRegion": "chr16:87604287-87604329",
+        "RepeatUnit": "CTG",
+        "VariantType": "Repeat",
+        "Gene": "JPH3",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyglutamine",
+        "GeneId": "ENSG00000154118",
+        "DiscoveryMethod": "L, RED",
+        "DiscoveryYear": 2001,
+        "Diseases": [
+            {
+                "Symbol": "HDL2",
+                "Name": "Huntington disease-like 2",
+                "Inheritance": "AD",
+                "OMIM": "606438",
+                "NormalMax": 27,
+                "PathogenicMin": 41
+            }
+        ],
+        "MainReferenceRegion": "chr16:87604287-87604329"
+    },
+    {
+        "LocusId": "NUTM2B-AS1",
+        "LocusStructure": "(GGC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr10:79826383-79826404",
+        "RepeatUnit": "GGC",
+        "Gene": "LOC642361",
+        "Inheritance": "AD",
+        "GeneRegion": "non-coding RNA",
+        "GeneId": "ENSG00000272447",
+        "DiscoveryMethod": "TRhist",
+        "DiscoveryYear": 2019,
+        "Diseases": [
+            {
+                "Symbol": "OPML1",
+                "Name": "Oculopharyngeal myopathy with leukoencephalopathy 1",
+                "Inheritance": "AD",
+                "OMIM": "618637",
+                "NormalMax": 16,
+                "PathogenicMin": 700
+            }
+        ],
+        "MainReferenceRegion": "chr10:79826383-79826404"
+    },
+    {
+        "LocusId": "LRP12",
+        "LocusStructure": "(CGC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr8:104588970-104588997",
+        "RepeatUnit": "CGC",
+        "Gene": "LRP12",
+        "Inheritance": "AD",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000147650",
+        "DiscoveryMethod": "TRhist",
+        "DiscoveryYear": 2019,
+        "Diseases": [
+            {
+                "Symbol": "OPDM1",
+                "Name": "Oculopharyngodistal myopathy 1",
+                "Inheritance": "AD",
+                "OMIM": "164310",
+                "NormalMax": 45,
+                "PathogenicMin": 93
+            }
+        ],
+        "MainReferenceRegion": "chr8:104588970-104588997"
+    },
+    {
+        "LocusId": "MARCHF6",
+        "LocusStructure": "(ATTTT)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr5:10356346-10356411",
+        "RepeatUnit": "ATTTT",
+        "Gene": "MARCHF6",
+        "Inheritance": "AD",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000145495",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 2019,
+        "PathogenicMotif": "ATTTC",
+        "Diseases": [
+            {
+                "Symbol": "FAME3",
+                "Name": "Familial adult myoclonic epilepsy 3",
+                "Inheritance": "AD",
+                "OMIM": "613608",
+                "PathogenicMin": 668
+            }
+        ],
+        "MainReferenceRegion": "chr5:10356346-10356411"
+    },
+    {
+        "LocusId": "NIPA1",
+        "LocusStructure": "(GCG)*",
+        "ReferenceRegion": "chr15:22786677-22786701",
+        "RepeatUnit": "GCG",
+        "VariantType": "Repeat",
+        "Gene": "NIPA1",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000170113",
+        "Diseases": [
+            {
+                "Symbol": "ALS",
+                "Name": "Amyotrophic lateral sclerosis",
+                "Inheritance": "AD",
+                "OMIM": "105400",
+                "NormalMax": 10,
+                "PathogenicMin": 11
+            }
+        ],
+        "MainReferenceRegion": "chr15:22786677-22786701"
+    },
+    {
+        "LocusId": "NOP56",
+        "LocusStructure": "(GGCCTG)*(CGCCTG)*",
+        "ReferenceRegion": [
+            "chr20:2652733-2652757",
+            "chr20:2652757-2652775"
+        ],
+        "RepeatUnit": "GGCCTG",
+        "VariantId": [
+            "NOP56",
+            "NOP56_CGCCTG"
+        ],
+        "VariantType": [
+            "Repeat",
+            "Repeat"
+        ],
+        "Gene": "NOP56",
+        "Inheritance": "AD",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000101361",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 2011,
+        "Diseases": [
+            {
+                "Symbol": "SCA36",
+                "Name": "Spinocerebellar ataxia 36",
+                "Inheritance": "AD",
+                "OMIM": "614153",
+                "NormalMax": 14,
+                "PathogenicMin": 650
+            }
+        ],
+        "MainReferenceRegion": "chr20:2652733-2652757"
+    },
+    {
+        "LocusId": "NOTCH2NLC",
+        "LocusStructure": "(GGC)*",
+        "ReferenceRegion": "chr1:149390802-149390841",
+        "RepeatUnit": "GGC",
+        "VariantType": "Repeat",
+        "Gene": "NOTCH2NLC",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyglycine",
+        "GeneId": "ENSG00000286219",
+        "DiscoveryMethod": "TRhist, L, WGS",
+        "DiscoveryYear": 2019,
+        "Diseases": [
+            {
+                "Symbol": "NIID",
+                "Name": "Neuronal intranuclear inclusion disease",
+                "Inheritance": "AD",
+                "OMIM": "603472",
+                "NormalMax": 39,
+                "PathogenicMin": 90
+            },
+            {
+                "Symbol": "ETM6",
+                "Name": "Hereditary essential tremor type 6",
+                "Inheritance": "AD",
+                "OMIM": "618866",
+                "NormalMax": 41,
+                "PathogenicMin": 60
+            }
+        ],
+        "MainReferenceRegion": "chr1:149390802-149390841"
+    },
+    {
+        "LocusId": "PABPN1",
+        "LocusStructure": "(GCG)*",
+        "ReferenceRegion": "chr14:23321472-23321490",
+        "RepeatUnit": "GCG",
+        "VariantType": "Repeat",
+        "Gene": "PABPN1",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000100836",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 1998,
+        "Diseases": [
+            {
+                "Symbol": "OPMD",
+                "Name": "Oculopharyngeal muscular dystrophy",
+                "Inheritance": "AD",
+                "OMIM": "164300",
+                "NormalMax": 6,
+                "PathogenicMin": 7
+            }
+        ],
+        "MainReferenceRegion": "chr14:23321472-23321490"
+    },
+    {
+        "LocusId": "PHOX2B",
+        "LocusStructure": "(GCN)*",
+        "ReferenceRegion": "chr4:41745972-41746032",
+        "RepeatUnit": "GCN",
+        "VariantType": "Repeat",
+        "Gene": "PHOX2B",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000109132",
+        "DiscoveryMethod": "L, CGA",
+        "DiscoveryYear": 2003,
+        "Diseases": [
+            {
+                "Symbol": "CCHS",
+                "Name": "Central hypoventilation syndrome",
+                "Inheritance": "AD",
+                "OMIM": "209880",
+                "NormalMax": 20,
+                "PathogenicMin": 24
+            }
+        ],
+        "MainReferenceRegion": "chr4:41745972-41746032"
+    },
+    {
+        "LocusId": "PPP2R2B",
+        "LocusStructure": "(GCT)*",
+        "ReferenceRegion": "chr5:146878727-146878757",
+        "RepeatUnit": "GCT",
+        "VariantType": "Repeat",
+        "Gene": "PPP2R2B",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyserine",
+        "GeneId": "ENSG00000156475",
+        "DiscoveryMethod": "L, RED",
+        "DiscoveryYear": 1999,
+        "Diseases": [
+            {
+                "Symbol": "SCA12",
+                "Name": "Spinocerebellar ataxia 12",
+                "Inheritance": "AD",
+                "OMIM": "604326",
+                "NormalMax": 31,
+                "PathogenicMin": 51
+            }
+        ],
+        "MainReferenceRegion": "chr5:146878727-146878757"
+    },
+    {
+        "LocusId": "PRDM12",
+        "LocusStructure": "(GCC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr9:130681606-130681639",
+        "RepeatUnit": "GCC",
+        "Gene": "PRDM12",
+        "Inheritance": "AR",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000130711",
+        "Diseases": [
+            {
+                "Symbol": "HSAN8",
+                "Name": "Hereditary sensory and autonomic neuropathy type VIII",
+                "Inheritance": "AR",
+                "OMIM": "616488",
+                "NormalMax": 14,
+                "PathogenicMin": 18
+            }
+        ],
+        "MainReferenceRegion": "chr9:130681606-130681639"
+    },
+    {
+        "LocusId": "PRNP",
+        "LocusStructure": "(CCTCAGGGCGGTGGTGGCTGGGGGCAG)*(CCTCATGGTGGTGGCTGGGGGCAG)*",
+        "VariantType": [
+            "Repeat",
+            "Repeat"
+        ],
+        "ReferenceRegion": [
+            "chr20:4699370-4699397",
+            "chr20:4699397-4699493"
+        ],
+        "RepeatUnit": "CCTCATGGTGGTGGCTGGGGGCAG",
+        "VariantId": [
+            "PRNP_CCTCAGGGCGGTGGTGGCTGGGGGCAG",
+            "PRNP"
+        ],
+        "Gene": "PRNP",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: other",
+        "GeneId": "ENSG00000171867",
+        "Diseases": [
+            {
+                "Symbol": "CJD",
+                "Name": "Creutzfeldt-Jakob disease",
+                "Inheritance": "AD",
+                "OMIM": "123400",
+                "NormalMax": 4,
+                "PathogenicMin": 5
+            }
+        ],
+        "MainReferenceRegion": "chr20:4699397-4699493"
+    },
+    {
+        "LocusId": "RAPGEF2",
+        "LocusStructure": "(TTTTA)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr4:159342526-159342616",
+        "RepeatUnit": "TTTTA",
+        "Gene": "RAPGEF2",
+        "Inheritance": "AD",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000109756",
+        "DiscoveryMethod": "TRhist",
+        "DiscoveryYear": 2018,
+        "PathogenicMotif": "ATTTC",
+        "Diseases": [
+            {
+                "Symbol": "FAME7",
+                "Name": "Familial adult myoclonic epilepsy 7",
+                "Inheritance": "AD",
+                "OMIM": "618075",
+                "PathogenicMin": 60
+            }
+        ],
+        "MainReferenceRegion": "chr4:159342526-159342616"
+    },
+    {
+        "LocusId": "RFC1",
+        "LocusStructure": "(AARRG)*",
+        "ReferenceRegion": "chr4:39348424-39348479",
+        "RepeatUnit": "AAAAG",
+        "VariantType": "Repeat",
+        "Gene": "RFC1",
+        "Inheritance": "AR",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000035928",
+        "DiscoveryMethod": "L, WGS",
+        "DiscoveryYear": 2019,
+        "PathogenicMotif": "AAGGG",
+        "Diseases": [
+            {
+                "Symbol": "CANVAS",
+                "Name": "Cerebellar ataxia, neuropathy, and vestibular areflexia syndrome",
+                "Inheritance": "AR",
+                "OMIM": "614575",
+                "PathogenicMin": 400
+            }
+        ],
+        "MainReferenceRegion": "chr4:39348424-39348479"
+    },
+    {
+        "LocusId": "RILPL1",
+        "LocusStructure": "(GGC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr12:123533720-123533750",
+        "RepeatUnit": "GGC",
+        "Gene": "RILPL1",
+        "Inheritance": "AD",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000188026",
+        "DiscoveryMethod": "L",
+        "DiscoveryYear": 2022,
+        "Diseases": [
+            {
+                "Symbol": "OPDM4",
+                "Name": "Oculopharyngodistal myopathy type 4",
+                "Inheritance": "AD",
+                "OMIM": "619790",
+                "NormalMax": 20,
+                "PathogenicMin": 139
+            }
+        ],
+        "MainReferenceRegion": "chr12:123533720-123533750"
+    },
+    {
+        "LocusId": "RUNX2",
+        "LocusStructure": "(GCN)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr6:45422750-45422792",
+        "RepeatUnit": "GCN",
+        "Gene": "RUNX2",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000124813",
+        "DiscoveryMethod": "L, CGA",
+        "DiscoveryYear": 1997,
+        "Diseases": [
+            {
+                "Symbol": "CCD",
+                "Name": "Cleidocranial dysplasia",
+                "Inheritance": "AD",
+                "OMIM": "119600",
+                "NormalMax": 17,
+                "PathogenicMin": 27
+            }
+        ],
+        "MainReferenceRegion": "chr6:45422750-45422792"
+    },
+    {
+        "LocusId": "SAMD12",
+        "LocusStructure": "(TAAAA)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr8:118366815-118366880",
+        "RepeatUnit": "TAAAA",
+        "Gene": "SAMD12",
+        "Inheritance": "AD",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000177570",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 2018,
+        "PathogenicMotif": "ATTTC",
+        "Diseases": [
+            {
+                "Symbol": "FAME1",
+                "Name": "Familial adult myoclonic epilepsy 1",
+                "Inheritance": "AD",
+                "OMIM": "601068",
+                "PathogenicMin": 100
+            }
+        ],
+        "MainReferenceRegion": "chr8:118366815-118366880"
+    },
+    {
+        "LocusId": "SOX3",
+        "LocusStructure": "(NGC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chrX:140504316-140504361",
+        "RepeatUnit": "NGC",
+        "Gene": "SOX3",
+        "Inheritance": "XR",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000134595",
+        "DiscoveryMethod": "L, CGA",
+        "DiscoveryYear": 2002,
+        "Diseases": [
+            {
+                "Symbol": "XLMR",
+                "Name": "X-linked mental retardation with isolated growth hormone",
+                "Inheritance": "XR",
+                "OMIM": "300123",
+                "NormalMax": 15,
+                "PathogenicMin": 26
+            },
+            {
+                "Symbol": "PHPX",
+                "Name": "X-linked panhypopituitarism",
+                "Inheritance": "XR",
+                "OMIM": "312000",
+                "NormalMax": 15,
+                "PathogenicMin": 22
+            }
+        ],
+        "MainReferenceRegion": "chrX:140504316-140504361"
+    },
+    {
+        "LocusId": "STARD7",
+        "LocusStructure": "(AAAAT)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr2:96197066-96197121",
+        "RepeatUnit": "AAAAT",
+        "Gene": "STARD7",
+        "Inheritance": "AD",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000084090",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 2019,
+        "PathogenicMotif": "ATTTC",
+        "Diseases": [
+            {
+                "Symbol": "FAME2",
+                "Name": "Familial adult myoclonic epilepsy 2",
+                "Inheritance": "AD",
+                "OMIM": "607876",
+                "PathogenicMin": 274
+            }
+        ],
+        "MainReferenceRegion": "chr2:96197066-96197121"
+    },
+    {
+        "LocusId": "TBP",
+        "LocusStructure": "(GCA)*",
+        "ReferenceRegion": "chr6:170561906-170562017",
+        "RepeatUnit": "GCA",
+        "VariantType": "Repeat",
+        "Gene": "TBP",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyglutamine",
+        "GeneId": "ENSG00000112592",
+        "DiscoveryMethod": "L, CGA",
+        "DiscoveryYear": 1999,
+        "Diseases": [
+            {
+                "Symbol": "SCA17",
+                "Name": "Spinocerebellar ataxia 17",
+                "Inheritance": "AD",
+                "OMIM": "607136",
+                "NormalMax": 42,
+                "PathogenicMin": 43
+            }
+        ],
+        "MainReferenceRegion": "chr6:170561906-170562017"
+    },
+    {
+        "LocusId": "TBX1",
+        "LocusStructure": "(GCN)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr22:19766762-19766807",
+        "RepeatUnit": "GCN",
+        "Gene": "TBX1",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000184058",
+        "Diseases": [
+            {
+                "Symbol": "TOF",
+                "Name": "Tetralogy of Fallot",
+                "Inheritance": "AD",
+                "OMIM": "187500",
+                "NormalMax": 15,
+                "PathogenicMin": 25
+            }
+        ],
+        "MainReferenceRegion": "chr22:19766762-19766807"
+    },
+    {
+        "LocusId": "TCF4",
+        "LocusStructure": "(CAG)*",
+        "ReferenceRegion": "chr18:55586155-55586227",
+        "RepeatUnit": "CAG",
+        "VariantType": "Repeat",
+        "Gene": "TCF4",
+        "Inheritance": "AD",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000196628",
+        "DiscoveryMethod": "L, GWAS",
+        "DiscoveryYear": 2015,
+        "Diseases": [
+            {
+                "Symbol": "FECD3",
+                "Name": "Fuchs endothelial corneal dystrophy-3",
+                "Inheritance": "AD",
+                "OMIM": "613267",
+                "NormalMax": 31,
+                "PathogenicMin": 50
+            }
+        ],
+        "MainReferenceRegion": "chr18:55586155-55586227"
+    },
+    {
+        "LocusId": "TNRC6A",
+        "LocusStructure": "(TTTTA)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr16:24613439-24613529",
+        "RepeatUnit": "TTTTA",
+        "Gene": "TNRC6A",
+        "Inheritance": "AD",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000090905",
+        "DiscoveryMethod": "TRhist",
+        "DiscoveryYear": 2018,
+        "PathogenicMotif": "ATTTC",
+        "Diseases": [
+            {
+                "Symbol": "FAME6",
+                "Name": "Familial adult myoclonic epilepsy 6",
+                "Inheritance": "AD",
+                "OMIM": "618074",
+                "PathogenicMin": 1100
+            }
+        ],
+        "MainReferenceRegion": "chr16:24613439-24613529"
+    },
+    {
+        "LocusId": "VWA1",
+        "LocusStructure": "(GGCGCGGAGC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr1:1435798-1435818",
+        "RepeatUnit": "GGCGCGGAGC",
+        "Gene": "VWA1",
+        "Inheritance": "AR",
+        "GeneRegion": "coding: other",
+        "GeneId": "ENSG00000179403",
+        "Diseases": [
+            {
+                "Symbol": "HMN",
+                "Name": "Hereditary motor neuropathy",
+                "Inheritance": "AR",
+                "OMIM": "619216",
+                "NormalMax": 2,
+                "PathogenicMin": 3
+            }
+        ],
+        "MainReferenceRegion": "chr1:1435798-1435818"
+    },
+    {
+        "LocusId": "XYLT1",
+        "LocusStructure": "(GCC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr16:17470907-17470922",
+        "RepeatUnit": "GCC",
+        "Gene": "XYLT1",
+        "Inheritance": "AR",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000103489",
+        "DiscoveryMethod": "ADO, Me",
+        "DiscoveryYear": 2019,
+        "Diseases": [
+            {
+                "Symbol": "DBQD2",
+                "Name": "Desbuquois dysplasia-2",
+                "Inheritance": "AR",
+                "OMIM": "615777",
+                "NormalMax": 20,
+                "PathogenicMin": 110
+            }
+        ],
+        "MainReferenceRegion": "chr16:17470907-17470922"
+    },
+    {
+        "LocusId": "YEATS2",
+        "LocusStructure": "(TTTTA)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr3:183712187-183712222",
+        "RepeatUnit": "TTTTA",
+        "Gene": "YEATS2",
+        "Inheritance": "AD",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000163872",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 2019,
+        "PathogenicMotif": "ATTTC",
+        "Diseases": [
+            {
+                "Symbol": "FAME4",
+                "Name": "Familial adult myoclonic epilepsy 4",
+                "Inheritance": "AD",
+                "OMIM": "615127",
+                "PathogenicMin": 1000
+            }
+        ],
+        "MainReferenceRegion": "chr3:183712187-183712222"
+    },
+    {
+        "LocusId": "ZIC2",
+        "LocusStructure": "(GCN)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr13:99985448-99985493",
+        "RepeatUnit": "GCN",
+        "Gene": "ZIC2",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000043355",
+        "DiscoveryMethod": "L, CGA",
+        "DiscoveryYear": 2001,
+        "Diseases": [
+            {
+                "Symbol": "HPE5",
+                "Name": "Holoprosencephaly 5",
+                "Inheritance": "AD",
+                "OMIM": "609637",
+                "NormalMax": 15,
+                "PathogenicMin": 25
+            }
+        ],
+        "MainReferenceRegion": "chr13:99985448-99985493"
+    },
+    {
+        "LocusId": "ZIC3",
+        "LocusStructure": "(GCN)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chrX:137566826-137566856",
+        "RepeatUnit": "GCN",
+        "Gene": "ZIC3",
+        "Inheritance": "XR",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000156925",
+        "Diseases": [
+            {
+                "Symbol": "VACTERLX",
+                "Name": "X-linked VACTERL syndrome",
+                "Inheritance": "XR",
+                "OMIM": "314390",
+                "NormalMax": 10,
+                "PathogenicMin": 12
+            }
+        ],
+        "MainReferenceRegion": "chrX:137566826-137566856"
+    }
 ]
