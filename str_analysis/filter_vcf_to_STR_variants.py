@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 This script takes a single-sample .vcf and filters it to insertions and deletions where either the REF or ALT allele
 is a short tandem repeat (STR).

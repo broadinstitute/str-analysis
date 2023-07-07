@@ -47,7 +47,7 @@ def parse_args(args_list=None):
     )
     p.add_argument(
         "combined_str_calls_tsv",
-        help=".tsv table that conatains str calls for all individuals, created by the "
+        help=".tsv table that contains str calls for all individuals, created by the "
         "combine_expansion_hunter_json_results_to_tsv script",
         type=pathlib.Path,
     )

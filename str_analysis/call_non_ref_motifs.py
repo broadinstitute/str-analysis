@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from str_analysis.utils.strling_info_for_locus import parse_strling_info_for_locus
 
 DESCRIPTION = """This script takes a bam or cram file and determines which motifs are present at known pathogenic STR 
 loci (such as RFC1, BEAN1, DAB1, etc.) where several motifs are known to segregate in the population. It then 
@@ -22,12 +21,11 @@ from pprint import pformat, pprint
 
 import pysam
 
-from str_analysis.utils.canonical_repeat_unit import \
-    compute_canonical_motif
+from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from str_analysis.utils.ehdn_info_for_locus import parse_ehdn_info_for_locus
 from str_analysis.utils.misc_utils import parse_interval
-from str_analysis.utils.most_frequent_repeat_unit import \
-    compute_most_frequent_repeat_unit
+from str_analysis.utils.most_frequent_repeat_unit import compute_most_frequent_repeat_unit
+from str_analysis.utils.strling_info_for_locus import parse_strling_info_for_locus
 
 LOCUS_INFO = json.loads(pkgutil.get_data(__name__, "data/non_ref_motif.locus_info.json"))
 """
