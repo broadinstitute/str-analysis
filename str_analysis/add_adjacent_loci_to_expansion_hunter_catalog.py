@@ -19,6 +19,7 @@ from str_analysis.utils.file_utils import open_file, file_exists
 from str_analysis.utils.get_adjacent_repeats import get_adjacent_repeats, \
     MAX_DISTANCE_BETWEEN_REPEATS, MAX_TOTAL_ADJACENT_REGION_SIZE, MAX_OVERLAP_BETWEEN_ADJACENT_REPEATS
 from str_analysis.utils.misc_utils import parse_interval
+from utils.file_utils import download_local_copy
 
 
 def process_input_record(
@@ -103,8 +104,11 @@ def get_interval_tree_for_chrom(adjacent_loci_bed_file_path, chrom, start, end):
         intervaltree.IntervalTree: An IntervalTree containing 0-based intervals that represent the reference start and
             end coordinates of all TR loci found in the reference genome on the given chromosome.
     """
+    if adjacent_loci_bed_file_path.startswith("gs://"):
+        adjacent_loci_bed_file_path = download_local_copy(adjacent_loci_bed_file_path)
+
     interval_tree = intervaltree.IntervalTree()
-    already_added_to_interval_tree = set() # avoid duplicates
+    already_added_to_interval_tree = set()  # avoid duplicates
     t = pybedtools.BedTool(os.path.expanduser(adjacent_loci_bed_file_path))
     print(f"Loading potential adjacent repeats from a {end-start+1:,d}bp region ({chrom}:{start:,d}-{end:,d}) in "
           f"{adjacent_loci_bed_file_path}...")
