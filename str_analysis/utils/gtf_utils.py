@@ -2,18 +2,14 @@
 genomic regions of interest.
 """
 
-
 import collections
 from intervaltree import Interval, IntervalTree
-import os
 import tqdm
 
 from str_analysis.utils.file_utils import open_file
 
 GENE_MODELS = {
-    "gencode":
-        #"gs://str-truth-set/hg38/ref/other/gencode.v43.annotation.gtf.gz",
-        os.path.expanduser("~/code/str-truth-set/ref/other/gencode.v43.annotation.gtf.gz"),
+    "gencode": "gs://str-truth-set/hg38/ref/other/gencode.v43.annotation.gtf.gz",
     "mane": "gs://str-truth-set/hg38/ref/other/MANE.GRCh38.v1.0.ensembl_genomic.gtf.gz",
 }
 
@@ -209,19 +205,25 @@ def compute_genomic_region_of_interval(chrom, start_1based, end_1based, genes_gt
 
     # The truth set STR may overlap more than one region in the GTF. Return the most biologically important region.
     overlapping_intervals_from_gtf = interval_trees[input_chrom].overlap(input_locus_interval)
-    overlapping_intervals_feature_types = {i.data["feature_type"]: i.data for i in overlapping_intervals_from_gtf}
+    overlapping_intervals_feature_types = {}
+    for i in sorted(overlapping_intervals_from_gtf, key=lambda i: i.data["transcript_id"]):
+        feature_type = i.data["feature_type"]
+        if feature_type not in overlapping_intervals_feature_types:
+            overlapping_intervals_feature_types[feature_type] = i.data
 
     if "transcript" in overlapping_intervals_feature_types and "exon" not in overlapping_intervals_feature_types:
         overlapping_intervals_feature_types["intron"] = overlapping_intervals_feature_types["transcript"]
 
-    for region in "CDS", "5' UTR", "3' UTR", "UTR", "exon", "intron", "promoter":  # handle both coding and non-coding transcripts
-        if region not in overlapping_intervals_feature_types:
+    for feature_type in "CDS", "5' UTR", "3' UTR", "UTR", "exon", "intron", "promoter":  # handle both coding and non-coding transcripts
+        if feature_type not in overlapping_intervals_feature_types:
             continue
-        record = overlapping_intervals_feature_types[region]
-        if region == "UTR":
-            region = compute_UTR_type(overlapping_intervals_feature_types["UTR"], transcript_id_to_cds_coords_map)
-        return region, record["gene_name"], record["gene_id"], record["transcript_id"]
+        record = overlapping_intervals_feature_types[feature_type]
+        if feature_type == "UTR":
+            feature_type = compute_UTR_type(overlapping_intervals_feature_types["UTR"], transcript_id_to_cds_coords_map)
+        return feature_type, record["gene_name"], record["gene_id"], record["transcript_id"]
 
     return "intergenic", None, None, None
+
+
 
 
