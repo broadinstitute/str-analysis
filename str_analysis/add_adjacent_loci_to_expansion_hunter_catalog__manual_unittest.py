@@ -1,3 +1,5 @@
+"""NOTE: These unittests should be run manually since they take a relatively long time and require large data files"""
+
 import json
 import os
 from pprint import pformat
