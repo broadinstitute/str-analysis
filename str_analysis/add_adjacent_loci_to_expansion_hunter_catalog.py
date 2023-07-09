@@ -214,7 +214,8 @@ def main():
 
         chrom = record["ReferenceRegion"].split(":")[0]
         if chrom not in ref_fasta_chromosomes:
-            print(f"ERROR: chromosome '{chrom}' from input variant catalog record #{record_i + 1} is not in {args.ref_fasta}. Skipping...")
+            print(f"ERROR: chrom. '{chrom}' from ReferenceRegion '{record['ReferenceRegion']}' in input variant catalog"
+                  f" record #{record_i + 1} doesn't match any of the chromosomes in {args.ref_fasta}. Skipping...")
             continue
 
         if current_chrom != chrom:
