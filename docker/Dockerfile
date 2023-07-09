@@ -161,7 +161,7 @@ RUN git clone https://github.com/HipSTR-Tool/HipSTR \
 
 
 # install jq
-RUN apt-get update && apt-get install --no-install-recommends --yes  jq
+RUN apt-get update && apt-get install --no-install-recommends --yes  jq  python3-dev
 
 
 #RUN python3 -m pip install --no-cache-dir str-analysis==0.9.8 \
@@ -170,7 +170,7 @@ RUN apt-get update && apt-get install --no-install-recommends --yes  jq
 
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
-COPY str_analysis ./str_analysis
+COPY str_analysis /str_analysis
 COPY README.md .
 COPY setup.py .
 COPY requirements.txt .
@@ -178,3 +178,4 @@ RUN python3 -m pip install -r requirements.txt
 RUN python3 setup.py test
 RUN python3 setup.py install
 
+ENV PYTHONPATH=/:.:$PYTHONPATH
