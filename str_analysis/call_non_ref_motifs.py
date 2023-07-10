@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from str_analysis.utils.file_utils import open_file
 
 DESCRIPTION = """This script takes a bam or cram file and determines which motifs are present at known pathogenic STR 
 loci (such as RFC1, BEAN1, DAB1, etc.) where several motifs are known to segregate in the population. It then 
@@ -79,17 +80,18 @@ GENOME_VERSION_ALIASES = {
 PATHOGENIC_MOTIF_CALL = "PATHOGENIC MOTIF"
 BENIGN_MOTIF_CALL = "BENIGN MOTIF"
 UNCERTAIN_SIG_CALL = "MOTIF OF UNCERTAIN SIGNIFICANCE"
-
+REF_MOTIF_CALL = "REFERENCE MOTIF"
 NO_CALL = "NO CALL (no motif has sufficient read support)"
 
 PATHOGENIC_PATHOGENIC_CALL = f"{PATHOGENIC_MOTIF_CALL} / {PATHOGENIC_MOTIF_CALL}"
 BENIGN_BENIGN_CALL = f"{BENIGN_MOTIF_CALL} / {BENIGN_MOTIF_CALL}"
 UNCERTAIN_SIG_UNCERTAIN_SIG_CALL = f"{UNCERTAIN_SIG_CALL} / {UNCERTAIN_SIG_CALL}"
+REF_REF_CALL = f"{REF_MOTIF_CALL} / {REF_MOTIF_CALL}"
 
 BENIGN_PATHOGENIC_CALL = f"{BENIGN_MOTIF_CALL} / {PATHOGENIC_MOTIF_CALL}"
 PATHOGENIC_UNCERTAIN_SIG_CALL = f"{PATHOGENIC_MOTIF_CALL} / {UNCERTAIN_SIG_CALL}"
 BENIGN_UNCERTAIN_SIG_CALL = f"{BENIGN_MOTIF_CALL} / {UNCERTAIN_SIG_CALL}"
-
+REF_UNCERTAIN_SIG_CALL = f"{REF_MOTIF_CALL} / {UNCERTAIN_SIG_CALL}"
 
 def parse_args():
     """Parse command-line args, perform basic validation, and then return the args object."""
@@ -137,10 +139,13 @@ def parse_args():
         " --run-expansion-hunter must also be specified.")
 
     grp = p.add_mutually_exclusive_group(required=True)
-    grp.add_argument("--all-loci", action="store_true", help="Generate calls for all these loci: " + ", ".join(LOCUS_INFO.keys()))
-    grp.add_argument("-l", "--locus", action="append", help="Generate calls for this specific locus. "
-        "This argument can be specified more than once to call multiple loci.",
-        choices=LOCUS_INFO.keys())
+    grp.add_argument("--loci-from-variant-catalog", help="Path of ExpansionHunter variant catalog file. This script "
+        "will check for non-reference motifs at all of these loci. This can be a local path or a gs:// path.")
+    grp.add_argument("--known-loci", action="store_true", help="Generate calls for loci known to have non-reference "
+                                                               "motifs: " + ", ".join(LOCUS_INFO.keys()))
+
+    p.add_argument("-l", "--locus", action="append", help="Generate calls for this specific locus id. "
+        "This argument can be specified more than once to call multiple loci.")
 
     p.add_argument("-v", "--verbose", action="store_true", help="Print detailed log messages.")
     p.add_argument("bam_or_cram_path", help="bam or cram path.")
@@ -802,7 +807,7 @@ def process_reads_in_locus(
     return overlapping_sequences, left_flank_n_well_aligned_bases, right_flank_n_well_aligned_bases
 
 
-def compute_final_call(n_total_well_supported_motifs, n_pathogenic_motifs, n_benign_motifs):
+def compute_final_call(n_ref_alleles, n_total_well_supported_alleles, n_pathogenic_alleles, n_benign_alleles):
     """Decide which combination of motifs is supported by the data.
 
     NOTE: there's no attempt to determine the size of the expansion and whether it's in the pathogenic range.
@@ -811,29 +816,34 @@ def compute_final_call(n_total_well_supported_motifs, n_pathogenic_motifs, n_ben
         str: a string such as "BENIGN MOTIF / PATHOGENIC MOTIF" indicating which motifs were detected
     """
 
-    if n_total_well_supported_motifs == 0:
+    if n_total_well_supported_alleles == 0:
         final_call = NO_CALL
-    elif n_pathogenic_motifs == n_total_well_supported_motifs:
+    elif n_pathogenic_alleles == n_total_well_supported_alleles:
         # Reads support only known pathogenic motif(s)
         final_call = PATHOGENIC_PATHOGENIC_CALL
-    elif n_benign_motifs == n_total_well_supported_motifs:
+    elif n_benign_alleles == n_total_well_supported_alleles:
         # Reads support only known benign motif(s)
         final_call = BENIGN_BENIGN_CALL
-    elif n_benign_motifs == 0 and n_pathogenic_motifs == 0:
+    elif n_benign_alleles == 0 and n_pathogenic_alleles == 0:
         # Reads support one or more non-reference motifs of unknown significance
-        final_call = UNCERTAIN_SIG_UNCERTAIN_SIG_CALL
-    elif n_benign_motifs > 0 and n_pathogenic_motifs > 0:
+        if n_total_well_supported_alleles == n_ref_alleles:
+            final_call = REF_REF_CALL
+        elif n_ref_alleles > 0:
+            final_call = REF_UNCERTAIN_SIG_CALL
+        else:
+            final_call = UNCERTAIN_SIG_UNCERTAIN_SIG_CALL
+    elif n_benign_alleles > 0 and n_pathogenic_alleles > 0:
         # Reads support one known benign motif and one pathogenic motif
         final_call = BENIGN_PATHOGENIC_CALL
-    elif n_pathogenic_motifs > 0:
+    elif n_pathogenic_alleles > 0:
         # Reads support one pathogenic motif and at least one other motif of unknown significance
         final_call = PATHOGENIC_UNCERTAIN_SIG_CALL
-    elif n_benign_motifs > 0:
+    elif n_benign_alleles > 0:
         # Reads support one known benign motif and at least one other motif of unknown significance
         final_call = BENIGN_UNCERTAIN_SIG_CALL
     else:
-        raise Exception(f"Unexpected state when n_total_well_supported_motifs={n_total_well_supported_motifs}, "
-                        f"n_pathogenic_motifs={n_pathogenic_motifs}, n_benign_motifs={n_benign_motifs}")
+        raise Exception(f"Unexpected state when n_total_well_supported_alleles={n_total_well_supported_alleles}, "
+                        f"n_pathogenic_alleles={n_pathogenic_alleles}, n_benign_alleles={n_benign_alleles}")
 
     return final_call
 
@@ -889,6 +899,7 @@ def process_offtarget_regions(
 def process_locus(
         locus_id,
         args,
+        locus_info=LOCUS_INFO,
         strling_genotype_df=None,
         expansion_hunter_denovo_json=None,
         normalize_to_coverage=NORMALIZE_TO_COVERAGE,
@@ -898,25 +909,27 @@ def process_locus(
     Args:
         locus_id (str): Locus id
         args (object): Command-line args from argparse.
+        locus_info (dict): nested dictionary with info about each locus. See data/non_ref_motif.locus_info.json for the schema.
         strling_genotype_df (pd.DataFrame): optional parsed STRling genotypes table
         expansion_hunter_denovo_json (dict): optional parsed ExpansionHunterDenovo profile json
         normalize_to_coverage (int): Normalize to this mean coverage. For example = 40 means normalize to 40x coverage.
         min_read_support (int): Ignore motifs supported by fewer than this many reads.
     """
-    locus_coords_1based = LOCUS_INFO[locus_id]["LocusCoords_1based"][args.genome_version]
+    locus_coords_1based = locus_info[locus_id]["LocusCoords_1based"][args.genome_version]
     locus_chrom, start_1based, end_1based = parse_interval(locus_coords_1based)
     locus_start_0based = start_1based - 1
     locus_end = end_1based
-    use_offtarget_regions = args.use_offtarget_regions or LOCUS_INFO[locus_id]["UseOfftargetRegions"]
+    use_offtarget_regions = args.use_offtarget_regions or locus_info[locus_id]["UseOfftargetRegions"]
 
-    known_pathogenic_motifs = list(map(compute_canonical_motif, LOCUS_INFO[locus_id]["Motifs"]["PATHOGENIC"]))
-    known_benign_motifs = list(map(compute_canonical_motif, LOCUS_INFO[locus_id]["Motifs"]["BENIGN"]))
+    canonical_reference_motif = compute_canonical_motif(locus_info[locus_id]["Motifs"]["REFERENCE"])
+    reference_motif_size = len(canonical_reference_motif)
 
-    pathogenic_motif_size = len(known_pathogenic_motifs[0])
+    known_pathogenic_motifs = list(map(compute_canonical_motif, locus_info[locus_id]["Motifs"].get("PATHOGENIC", [])))
+    known_benign_motifs = list(map(compute_canonical_motif, locus_info[locus_id]["Motifs"].get("BENIGN", [])))
 
     # Process bam/cram
     overlapping_sequences, left_flank_n_well_aligned_bases, right_flank_n_well_aligned_bases = process_reads_in_locus(
-        args.bam_or_cram_path, args.reference_fasta, locus_chrom, locus_start_0based, locus_end, pathogenic_motif_size)
+        args.bam_or_cram_path, args.reference_fasta, locus_chrom, locus_start_0based, locus_end, reference_motif_size)
 
     locus_results_json = {}
     left_flank_coverage = left_flank_n_well_aligned_bases / FLANK_SIZE
@@ -937,10 +950,11 @@ def process_locus(
     canonical_motif_to_n_occurrences = collections.defaultdict(int)
     if locus_id == "RFC1":
         # In gnomAD, EHdn sometimes finds 6bp repeat units (eg. AAAGGG), so check for those as well
-        motif_sizes_to_check = [pathogenic_motif_size, pathogenic_motif_size + 1]
+        motif_sizes_to_check = [reference_motif_size, reference_motif_size + 1]
     else:
         motif_sizes_to_check = {len(m) for m in known_pathogenic_motifs + known_benign_motifs}
-
+        motif_sizes_to_check.add(reference_motif_size)
+        
     for overlapping_sequence in overlapping_sequences:
         for motif_size in motif_sizes_to_check:
             if len(overlapping_sequence) < motif_size:
@@ -957,7 +971,7 @@ def process_locus(
                     print(f"Found {motif} occurs {count}x in read bases that "
                           f"overlap the {locus_id} locus: {overlapping_sequence}")
                 else:
-                    if motif_size == pathogenic_motif_size:
+                    if motif_size == reference_motif_size:
                         print(f"Didn't find a consistent {motif_size}bp repeat unit in read bases "
                               f"that overlap the {locus_id} locus: {overlapping_sequence}")
 
@@ -999,29 +1013,34 @@ def process_locus(
     well_supported_motifs.sort(key=lambda motif: motif_to_n_occurrences[motif], reverse=True)
     selected_motifs = well_supported_motifs[:2]
 
-    # Sort then into BENIGN .. PATHOGENIC .. UNCERTAIN SIGNIFICANCE to match the order in the "call" output field
+    # Sort them into BENIGN .. PATHOGENIC .. UNCERTAIN SIGNIFICANCE to match the order in the "call" output field
     selected_motifs = sorted(selected_motifs, key=lambda motif:
         1 if compute_canonical_motif(motif) in known_benign_motifs else
         2 if compute_canonical_motif(motif) in known_pathogenic_motifs else
         3)
 
     flank_coverage_mean = (left_flank_coverage + right_flank_coverage) / 2.0
-    n_pathogenic_motifs = 0
-    n_benign_motifs = 0
-    n_total_well_supported_motifs = 0
+    n_pathogenic_alleles = 0
+    n_benign_alleles = 0
+    n_total_well_supported_alleles = 0
+    
+    n_ref_alleles = 0  # for known motifs/loci, a motif can be counted as both reference and benign
     for i in 0, 1:
         motif_number = i + 1
         if len(selected_motifs) <= i:
             continue
 
-        n_total_well_supported_motifs += 1
+        n_total_well_supported_alleles += 1
         motif = selected_motifs[i]
         canonical_motif = compute_canonical_motif(motif)
         if canonical_motif in known_pathogenic_motifs:
-            n_pathogenic_motifs += 1
+            n_pathogenic_alleles += 1
         elif canonical_motif in known_benign_motifs:
-            n_benign_motifs += 1
+            n_benign_alleles += 1
 
+        if canonical_motif == canonical_reference_motif:
+            n_ref_alleles += 1
+            
         read_count = canonical_motif_to_read_count.get(canonical_motif)
         n_occurrences = canonical_motif_to_n_occurrences.get(canonical_motif)
 
@@ -1032,17 +1051,19 @@ def process_locus(
             f"motif{motif_number}_normalized_read_count":
                 read_count * normalize_to_coverage / flank_coverage_mean if flank_coverage_mean > 0 else 0,
             f"motif{motif_number}_n_occurrences": n_occurrences,
+            f"motif{motif_number}_is_reference_motif": canonical_motif == canonical_reference_motif,
         })
 
         if use_offtarget_regions:
             process_offtarget_regions(motif, motif_number, read_count, flank_coverage_mean, args, locus_results_json)
 
-    final_call = compute_final_call(n_total_well_supported_motifs, n_pathogenic_motifs, n_benign_motifs)
+    final_call = compute_final_call(n_ref_alleles, n_total_well_supported_alleles, n_pathogenic_alleles, n_benign_alleles)
 
     locus_results_json.update({
-        "n_total_well_supported_motifs": n_total_well_supported_motifs,
-        "n_benign_motifs": n_benign_motifs,
-        "n_pathogenic_motifs": n_pathogenic_motifs,
+        "n_reference_alleles": n_ref_alleles,
+        "n_total_well_supported_alleles": n_total_well_supported_alleles,
+        "n_benign_alleles": n_benign_alleles,
+        "n_pathogenic_alleles": n_pathogenic_alleles,
         "call": final_call,
     })
 
@@ -1179,18 +1200,68 @@ def main():
         with open_func(args.expansion_hunter_denovo_profile, "rt") as f:
             expansion_hunter_denovo_json = json.load(f)
 
-    if args.locus:
-        loci = args.locus
-    elif args.all_loci:
-        loci = LOCUS_INFO.keys()
-    else:
-        raise ValueError("Must specify --locus or --all-loci")
+    if args.known_loci:
+        locus_info = LOCUS_INFO
+    elif args.loci_from_variant_catalog:
+        # convert variant catalog to locus_info format
+        with open_file(args.loci_from_variant_catalog) as f:
+            loci_from_variant_catalog = json.load(f)
 
-    for locus_id in loci:
+        locus_info = {}
+        for i, locus in enumerate(loci_from_variant_catalog):
+            reference_motifs = []
+            locus_structure = locus["LocusStructure"]
+            for locus_structure_part in locus_structure.split(")"):
+                reference_motif = locus_structure_part.strip("()*+")
+                reference_motifs.append(reference_motif)
+
+            if len(reference_motifs) > 1:
+                if "MainReferenceRegion" not in locus:
+                    print(f"WARNING: Skipping locus #{i+1} with LocusStructure {locus_structure}. This script only "
+                          f"allows loci with a ReferenceRegion list if a 'MainReferenceRegion' key is also provided.")
+                    continue
+
+                main_reference_region = locus["MainReferenceRegion"]
+                variant_ids = locus.get("VariantId", [])
+                reference_regions = locus.get("ReferenceRegion", [])
+                if len(reference_motifs) != len(reference_regions):
+                    raise ValueError(f"LocusStructure {locus_structure} doesn't match the # of ReferenceRegions at "
+                                     f"locus {locus.get('LocusId')} in {args.loci_from_variant_catalog} record #{i+1}")
+
+                if len(variant_ids) != len(reference_regions):
+                    raise ValueError(f"The number of VariantIds doesn't match the number of ReferenceRegions for "
+                                     f"locus {locus.get('LocusId')} in {args.loci_from_variant_catalog} record #{i+1}")
+
+                for reference_motif, variant_id, ref_region in zip(reference_motifs, variant_ids, reference_regions):
+                    if reference_region == locus["MainReferenceRegion"]:
+                        locus_id = variant_id
+                        reference_region = ref_region
+                        break
+                else:
+                    raise ValueError(f"MainReferenceRegion {main_reference_region} doesn't match any of the entries in "
+                                     f"the ReferenceRegion list {reference_regions} for locus {locus.get('LocusId')} "
+                                     f"in {args.loci_from_variant_catalog} record #{i+1}")
+
+            else:
+                locus_id = locus["LocusId"]
+                reference_region = locus["ReferenceRegion"]
+
+            if locus_id in locus_info:
+                raise ValueError(f"Non-unique locus id {locus_id} in {args.loci_from_variant_catalog} record #{i+1}")
+
+            chrom, start_0based, end_1based = parse_interval(reference_region)
+            locus_info[locus_id] = {
+                "LocusCoords_1based": {args.genome_version: f"{chrom}:{start_0based + 1}-{end_1based}"},
+                "Motifs": {"REFERENCE": reference_motif},
+                "UseOfftargetRegions": False,
+            }
+
+    for locus_id in args.locus or locus_info.keys():
         print(f"Processing {locus_id} in {args.bam_or_cram_path}")
         process_locus(
             locus_id,
             args,
+            locus_info=locus_info,
             strling_genotype_df=strling_genotype_df,
             expansion_hunter_denovo_json=expansion_hunter_denovo_json)
 
