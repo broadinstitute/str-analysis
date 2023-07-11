@@ -1,7 +1,7 @@
 import unittest
 
-from utils.file_utils import download_local_copy
-from utils.gtf_utils import compute_genomic_region_of_interval, GENE_MODELS
+from str_analysis.utils.file_utils import download_local_copy
+from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval, GENE_MODELS
 
 
 class GTFUtilsTests(unittest.TestCase):

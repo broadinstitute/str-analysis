@@ -19,7 +19,7 @@ from str_analysis.utils.file_utils import open_file, file_exists
 from str_analysis.utils.get_adjacent_repeats import get_adjacent_repeats, \
     MAX_DISTANCE_BETWEEN_REPEATS, MAX_TOTAL_ADJACENT_REGION_SIZE, MAX_OVERLAP_BETWEEN_ADJACENT_REPEATS
 from str_analysis.utils.misc_utils import parse_interval
-from utils.file_utils import download_local_copy
+from str_analysis.utils.file_utils import download_local_copy
 
 
 def process_input_record(

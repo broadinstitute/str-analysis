@@ -3,7 +3,7 @@ import unittest
 from str_analysis.utils.find_repeat_unit import get_repeat_unit_regex_with_N_base, get_most_common_repeat_unit, \
     find_repeat_unit_without_allowing_interruptions, find_repeat_unit_allowing_interruptions, \
     extend_repeat_into_sequence_allowing_interruptions, extend_repeat_into_sequence_without_allowing_interruptions
-from utils.find_repeat_unit import count_pure_repeats
+from str_analysis.utils.find_repeat_unit import count_pure_repeats
 
 
 def add_interruption(sequence, motif, i):
