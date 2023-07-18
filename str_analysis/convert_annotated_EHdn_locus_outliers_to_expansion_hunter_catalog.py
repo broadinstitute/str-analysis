@@ -48,6 +48,8 @@ def parse_args():
     parser.add_argument("-ms", "--motif-size", type=int, action="append", help="Only include loci with these motif sizes")
     parser.add_argument("-m", "--motif", action="append", help="Only include loci whose canonical motif Matched this motif")
 
+    parser.add_argument("--max-rank", type=int, help="Maximum sample rank to include in the output catalog")
+
     parser.add_argument("--gene-column-prefix", default="Gencode", help="Prefix for gene columns in the input table")
     parser.add_argument("-t", "--region-type", action="append", help="Gene region(s) to include in the output catalog",
                         choices=VALID_GENE_REGIONS)
@@ -61,7 +63,6 @@ def parse_args():
     parser.add_argument("--exclude-gene-id", action="append", help="Exclude loci with this gene id")
 
     parser.add_argument("-s", "--sample-id", action="append", help="Sample IDs to include in the output catalog")
-    parser.add_argument("-r", "--max-rank", type=int, help="Only include samples with this rank or better")
 
     parser.add_argument("-ok", "--only-known-disease-associated-loci", action="store_true",
                         help="Only include known disease-associated loci")
@@ -127,6 +128,7 @@ def parse_args():
             "SampleId",
             "SampleRankAtLocus",
             f"TotalSamplesAtLocus",
+            "NormalizedCount",
         ]
         if args.overlaps_with:
             for matched_tr_from in args.matched_tr_from:
@@ -165,6 +167,7 @@ def group_by_locus(df, gene_column_prefix):
         "SampleId",
         "SampleRankAtLocus",
         "Source",
+        "NormalizedCount",
     ]]
 
     df_loci = df.groupby([
