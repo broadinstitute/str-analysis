@@ -127,6 +127,7 @@ def get_interval_tree_for_chrom(adjacent_loci_bed_file_path, chrom, start, end):
 
     return interval_tree
 
+
 def get_min_and_max_coords_for_chrom(input_catalog, chrom):
     """Get the minimum and maximum coordinates of all TR loci found in the given chromosome in the input catalog
 
