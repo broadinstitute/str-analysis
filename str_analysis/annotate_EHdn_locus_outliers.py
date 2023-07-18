@@ -80,10 +80,11 @@ def parse_args():
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("-o", "--output-dir", help="Output directory")
 
-    parser.add_argument("ehdn_locus_outlier_tsv", nargs="+", help="One or more EHdn locus outlier results .tsv file(s)")
+    parser.add_argument("ehdn_locus_outlier_tsv", nargs="?", help="One or more EHdn locus outlier results .tsv file(s)")
     args = parser.parse_args()
 
-    for file_path in [args.known_disease_associated_loci, args.reference_tr_bed_file] + args.overlap_bed_file + args.tr_bed_file:
+    for file_path in args.overlap_bed_file + args.tr_bed_file + args.genes_gtf + [args.known_disease_associated_loci,
+                                                                                  args.reference_tr_bed_file]:
         if not file_exists(os.path.expanduser(file_path)):
             parser.error(f"File not found: {file_path}")
 
@@ -130,6 +131,7 @@ def get_overlapping_interval_generator(interval_tree, require_motif_match=False)
             return None
 
     return get_overlapping_interval
+
 
 def parse_known_disease_associated_loci(args, parser):
     try:
@@ -203,6 +205,15 @@ def parse_bed_to_interval_tree(bed_file_path, name_field_is_repeat_unit=False, v
     return interval_tree
 
 
+def compute_genomic_region_of_row(row, verbose=False):
+    matched_reference_TR = row["MatchedReferenceTR"]
+    if matched_reference_TR and not pd.isna(matched_reference_TR):
+        chrom, start, end = parse_interval(matched_reference_TR)
+    else:
+        chrom, start, end = row["contig"], row["start"], row["end"]
+    return compute_genomic_region_of_interval(chrom, start, end, verbose=verbose)
+
+
 def main():
     args, parser = parse_args()
 
@@ -221,7 +232,8 @@ def main():
     known_disease_associated_loci_interval_tree, known_disease_associated_motifs = parse_known_disease_associated_loci(
         args, parser)
 
-    known_disease_associated_loci_column_func = get_overlapping_interval_generator(known_disease_associated_loci_interval_tree, require_motif_match=True)
+    known_disease_associated_loci_column_func = get_overlapping_interval_generator(
+        known_disease_associated_loci_interval_tree, require_motif_match=True)
 
     # prepare functions that will be used to annotate the outlier tables
     path_to_column_func = {}
@@ -288,9 +300,7 @@ def main():
         for genes_gtf in args.genes_gtf:
             label = os.path.basename(genes_gtf).split(".")[0].title()
             df[[f"{label}GeneRegion", f"{label}GeneName", f"{label}GeneId", f"{label}TranscriptId"]] = df.apply(
-                lambda input_row: compute_genomic_region_of_interval(
-                    input_row["contig"], input_row["start"], input_row["end"], verbose=args.verbose),
-                axis=1, result_type='expand')
+                lambda input_row: compute_genomic_region_of_row(input_row, verbose=args.verbose), axis=1, result_type='expand')
 
         # compute overlap with other bed files
         for column_name, column_func in path_to_column_func.items():
