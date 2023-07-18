@@ -164,6 +164,14 @@ RUN git clone https://github.com/HipSTR-Tool/HipSTR \
 RUN apt-get update && apt-get install --no-install-recommends --yes  jq  python3-dev
 
 
+# install cloudfuse
+RUN GCSFUSE_REPO=gcsfuse-bullseye \
+	&& echo "deb https://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list \
+	&& apt-get install --no-install-recommends --yes gnupg \
+	&& curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
+	&& apt-get update && apt-get install --no-install-recommends --yes fuse gcsfuse
+
+
 #RUN python3 -m pip install --no-cache-dir str-analysis==0.9.8 \
 #    && python3 -m pip freeze \
 #    && sleep 2
