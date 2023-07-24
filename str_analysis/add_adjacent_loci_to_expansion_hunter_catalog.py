@@ -13,13 +13,13 @@ import os
 import pybedtools
 import pysam
 import re
-import tqdm
 
 from str_analysis.utils.file_utils import open_file, file_exists
 from str_analysis.utils.get_adjacent_repeats import get_adjacent_repeats, \
     MAX_DISTANCE_BETWEEN_REPEATS, MAX_TOTAL_ADJACENT_REGION_SIZE, MAX_OVERLAP_BETWEEN_ADJACENT_REPEATS
 from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.file_utils import download_local_copy
+from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 
 
 def process_input_record(
@@ -27,6 +27,7 @@ def process_input_record(
     max_distance_between_adjacent_repeats=MAX_DISTANCE_BETWEEN_REPEATS,
     max_total_adjacent_region_size=MAX_TOTAL_ADJACENT_REGION_SIZE,
     max_overlap_between_adjacent_repeats=MAX_OVERLAP_BETWEEN_ADJACENT_REPEATS,
+    add_extra_fields=False,
 ):
     """"Add adjacent loci to a record from the variant catalog
 
@@ -42,6 +43,9 @@ def process_input_record(
         max_distance_between_adjacent_repeats (int)
         max_total_adjacent_region_size (int)
         max_overlap_between_adjacent_repeats (int)
+        add_extra_fields (bool) If True, add extra fields to the output record that record the number of base pairs
+            between the main repeat and any adjacent repeats.
+
 
     Return:
         dict: An copy of the input record, modified to include any adjacent repeats found in the interval_tree.
@@ -72,6 +76,11 @@ def process_input_record(
         reference_regions = []
         variant_ids = []
         variant_types = []
+        if add_extra_fields:
+            previous_reference_region_end = None
+            distances_between_reference_regions = []
+            reference_region_motifs = []
+
         for adjacent_repeat_label, adjacent_repeat in [
             (f"{locus_id}_ADJACENT_LEFT_{i+1}", adjacent_repeat_left) for i, adjacent_repeat_left in enumerate(adjacent_repeats_left)
         ] + [(locus_id, f"{chrom}:{start_0based}-{end_1based}-{repeat_unit}")] + [
@@ -81,11 +90,21 @@ def process_input_record(
             reference_regions.append(f"{adjacent_repeat_chrom}:{adjacent_repeat_start_0based}-{adjacent_repeat_end_1based}")
             variant_ids.append(adjacent_repeat_label)
             variant_types.append("Repeat")
+            if add_extra_fields:
+                reference_region_motifs.append(adjacent_repeat_unit)
+                if previous_reference_region_end is not None:
+                    distances_between_reference_regions.append(
+                        int(adjacent_repeat_start_0based) - int(previous_reference_region_end))
+                previous_reference_region_end = int(adjacent_repeat_end_1based)
 
         output_record["ReferenceRegion"] = reference_regions
         output_record["VariantId"] = variant_ids
         output_record["VariantType"] = variant_types
         output_record["LocusStructure"] = adjacent_repeats_locus_structure
+
+        if add_extra_fields and distances_between_reference_regions:
+            output_record["DistancesBetweenReferenceRegions"] = distances_between_reference_regions
+            output_record["ReferenceRegionMotifs"] = reference_region_motifs
 
     return output_record
 
@@ -110,9 +129,9 @@ def get_interval_tree_for_chrom(adjacent_loci_bed_file_path, chrom, start, end):
     interval_tree = intervaltree.IntervalTree()
     already_added_to_interval_tree = set()  # avoid duplicates
     t = pybedtools.BedTool(os.path.expanduser(adjacent_loci_bed_file_path))
-    print(f"Loading potential adjacent repeats from a {end-start+1:,d}bp region ({chrom}:{start:,d}-{end:,d}) in "
+    print(f"Parsing potential adjacent repeats from a {end-start+1:,d}bp region ({chrom}:{start:,d}-{end:,d}) in "
           f"{adjacent_loci_bed_file_path}...")
-    for bed_record in tqdm.tqdm(t.all_hits(pybedtools.Interval(chrom, start, end)), unit=" bed records"):
+    for bed_record in t.all_hits(pybedtools.Interval(chrom, start, end)):
         start_0based = bed_record.start
         end_1based = bed_record.end
         repeat_unit = bed_record.name
@@ -126,6 +145,31 @@ def get_interval_tree_for_chrom(adjacent_loci_bed_file_path, chrom, start, end):
         print(f"WARNING: no adjacent loci found in {adjacent_loci_bed_file_path} for chromosome {chrom}")
 
     return interval_tree
+
+
+def toggle_chromosome_prefix(variant_catalog_record):
+    """Toggle the ReferenceRegion field in the given variant catalog record between having and not having a 'chr' prefix
+
+    Args:
+        variant_catalog_record (dict): A variant catalog record
+    """
+    if isinstance(variant_catalog_record["ReferenceRegion"], list):
+        for i in range(len(variant_catalog_record["ReferenceRegion"])):
+            if variant_catalog_record["ReferenceRegion"][i].startswith("chr"):
+                variant_catalog_record["ReferenceRegion"][i] = variant_catalog_record["ReferenceRegion"][i].replace("chr", "")
+            else:
+                variant_catalog_record["ReferenceRegion"][i] = "chr" + variant_catalog_record["ReferenceRegion"][i]
+
+        chrom = variant_catalog_record["ReferenceRegion"][0].split(":")[0]
+    else:
+        if variant_catalog_record["ReferenceRegion"].startswith("chr"):
+            variant_catalog_record["ReferenceRegion"] = variant_catalog_record["ReferenceRegion"].replace("chr", "")
+        else:
+            variant_catalog_record["ReferenceRegion"] = "chr" + variant_catalog_record["ReferenceRegion"]
+
+        chrom = variant_catalog_record["ReferenceRegion"].split(":")[0]
+
+    return chrom
 
 
 def get_min_and_max_coords_for_chrom(input_catalog, chrom):
@@ -158,103 +202,197 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ref-fasta", help="Reference fasta path", required=True)
     parser.add_argument("-d", "--max-distance-between-adjacent-repeats",
+                        type=int,
                         default=MAX_DISTANCE_BETWEEN_REPEATS,
                         help="Loci no more than this many base pairs from each other will be combined into a single "
-                             "locus, including any non-repetative bases between them")
-    parser.add_argument("--max-overlap-between-adjacent-loci",
+                             "locus, including any non-repetitive bases between them")
+    parser.add_argument("--max-overlap-between-adjacent-repeats",
+                        type=int,
                         default=MAX_OVERLAP_BETWEEN_ADJACENT_REPEATS,
                         help="TandemRepeatFinder sometimes outputs loci that overlap by a few base pairs. For "
                              "ExpansionHunter catalogs that are based on TandemRepeatFinder output, this "
                              "controls how slightly overlapping loci are combined")
     parser.add_argument("--max-total-adjacent-region-size",
+                        type=int,
                         default=MAX_TOTAL_ADJACENT_REGION_SIZE,
                         help="The maximum size of the region spanning all adjacent repeats that we will load from "
                              "the adjacent loci bed file")
     parser.add_argument("--source-of-adjacent-loci",
-                        default="gs://str-truth-set/hg38/ref/other/repeat_specs_GRCh38_without_mismatches.sorted.trimmed.at_least_6bp.bed.gz",
+                        required=True,
+                        default="gs://str-truth-set/hg38/ref/other/"
+                                "repeat_specs_GRCh38_without_mismatches.sorted.trimmed.at_least_6bp.bed.gz",
                         help="The local or Google Storage (gs://) path of a .bed file that specifies repeat intervals "
-                             "in the reference genome. It should have 0-based coordinates, and the name field (column 4) "
-                             "should contain the repeat motif. This can be a large catalog of loci generated using "
-                             "TandemRepeatFinder. This .bed file will be used as the source "
-                             "for adjacent loci.", required=True)
-    parser.add_argument("-o", "--output-catalog", help="Path where to write the output catalog. If not specified, "
-                                                       "it will be based on the input catalog path")
-    parser.add_argument("input_catalog", help="ExpansionHunter catalog json file path")
+                             "in the reference genome. It should have 0-based coordinates and the name field (column 4)"
+                             " should contain the repeat motif. This can be a large catalog of loci generated using "
+                             "TandemRepeatFinder. This .bed file will be used as the source for adjacent loci.")
+    parser.add_argument("--add-extra-fields",
+                        action="store_true",
+                        help="Add extra fields to each locus in the output variant catalog that record the number of "
+                             "base pairs between any adjacent loci and the main locus in an easy-to-parse format")
+    parser.add_argument("--output-dir",
+                        help="Output directory. If not specified, the input catalog's directory will be used.")
+    parser.add_argument("-o", "--output-catalog",
+                        help="Path where to write the output catalog. If not specified, it will be based on the input "
+                             "catalog path")
+    parser.add_argument("input_catalog_paths",
+                        nargs="+",
+                        help="ExpansionHunter catalog json file path. If more than one catalog path is specified, the "
+                             "catalogs will be processed sequentially, and the output catalog arg will be used as "
+                             "an output filename suffix.")
     args = parser.parse_args()
 
-    for path in args.ref_fasta, args.input_catalog:
+    # validate command-line args
+    for path in [args.ref_fasta] + args.input_catalog_paths:
         if not file_exists(path):
             parser.error(f"{path} not found")
 
     ref_fasta = pysam.FastaFile(os.path.abspath(os.path.expanduser(args.ref_fasta)))
     ref_fasta_chromosomes = set(ref_fasta.references)
 
-    with open_file(args.input_catalog) as f:
-        input_catalog = json.load(f)
+    # parse the input catalog(s)
+    input_catalogs = []
+    for input_catalog_path in args.input_catalog_paths:
+        with open_file(input_catalog_path) as f:
+            input_catalog = json.load(f)
 
-    # sort the input catalog by its ReferenceRegion chromosome
-    input_catalog.sort(key=lambda record: (
-        record["ReferenceRegion"][0].split(":")[0]
-        if isinstance(record["ReferenceRegion"], list) else
-        record["ReferenceRegion"].split(":")[0]))
+        # sort the input catalog by its ReferenceRegion chromosome
+        input_catalog.sort(key=lambda record: (
+            record["ReferenceRegion"][0].split(":")[0]
+            if isinstance(record["ReferenceRegion"], list) else
+            record["ReferenceRegion"].split(":")[0]))
 
-    output_catalog = []
-    already_added_to_output_catalog = set()  # avoid duplicates
-    current_chrom = None
-    current_interval_tree = None
+        input_catalogs.append(input_catalog)
+
+    print(f"Processing {len(input_catalogs)} input variant catalog" + ("s" if len(input_catalogs) > 1 else f": {args.input_catalog_paths[0]}"))
+
+    # validate input catalog records and get the min and max coordinates of the TR loci for each chromosome
+    min_max_coords_for_chrom = collections.defaultdict(lambda: (10**10, 0))
+    for input_catalog in input_catalogs:
+        for record_i, record in enumerate(input_catalog):
+            missing_keys = {"ReferenceRegion", "LocusStructure", "LocusId"} - set(record.keys())
+            if missing_keys:
+                print(f"WARNING: record {record} is missing keys: {missing_keys}. Skipping...")
+                continue
+
+            if isinstance(record["ReferenceRegion"], list):
+                chrom = record["ReferenceRegion"][0].split(":")[0]
+            else:
+                chrom = record["ReferenceRegion"].split(":")[0]
+
+            if chrom not in ref_fasta_chromosomes:
+                chrom = toggle_chromosome_prefix(record)
+                if chrom not in ref_fasta_chromosomes:
+                    raise ValueError(f"chromosome '{chrom}' not found in reference fasta {args.ref_fasta} which has "
+                                     f"chromosomes: " + ", ".join(sorted(ref_fasta_chromosomes)))
+
+            if isinstance(record["ReferenceRegion"], list):
+                chrom_start_end_tuples = [parse_interval(ref_region) for ref_region in record["ReferenceRegion"]]
+            else:
+                chrom_start_end_tuples = [parse_interval(record["ReferenceRegion"])]
+
+            for current_chrom, current_start, current_end in chrom_start_end_tuples:
+                current_start -= args.max_total_adjacent_region_size
+                current_end += args.max_total_adjacent_region_size
+                min_max_coords_for_chrom[current_chrom] = (
+                    min(current_start, min_max_coords_for_chrom[current_chrom][0]),
+                    max(current_end, min_max_coords_for_chrom[current_chrom][1]))
+
+    # parse args.source_of_adjacent_loci within the genomic regions spanned by the input catalog(s)
+    interval_trees_by_chrom = collections.defaultdict(intervaltree.IntervalTree)
+    for chrom, (min_start, max_end) in min_max_coords_for_chrom.items():
+        interval_trees_by_chrom[chrom] = get_interval_tree_for_chrom(
+            args.source_of_adjacent_loci, chrom, min_start, max_end)
+
+    # process the records from the input catalog(s) to add adjacent loci
     counters = collections.defaultdict(int)
-    for record_i, record in enumerate(input_catalog):
-        counters["total"] += 1
-        missing_keys = {"ReferenceRegion", "LocusStructure", "LocusId"} - set(record.keys())
-        if missing_keys:
-            print(f"WARNING: record {record} is missing keys: {missing_keys}. Skipping...")
-            continue
+    for input_catalog_path, input_catalog in zip(args.input_catalog_paths, input_catalogs):
+        output_catalog = []
+        already_added_to_output_catalog = set()  # avoid duplicate records in the output catalog
+        for record_i, record in enumerate(input_catalog):
+            counters["total records"] += 1
+            # handle input catalog recordsd that already have adjacent loci
+            if isinstance(record["ReferenceRegion"], list):
+                print(f"WARNING: record {record} already has adjacent intervals specified in the input variant catalog. "
+                      f"Will add it to the output variant catalog without modification...")
+                output_catalog.append(record)
+                continue
 
-        if isinstance(record["ReferenceRegion"], list):
-            counters["already had adjacent loci"] += 1
-            print(f"WARNING: record {record} already has adjacent intervals specified in the input variant catalog. "
-                  f"Will add it to the output variant catalog without modification...")
-            output_catalog.append(record)
-            continue
+            # add any adjacent loci to the current record
+            chrom = record["ReferenceRegion"].split(":")[0]
+            output_record = process_input_record(
+                record,
+                ref_fasta,
+                interval_trees_by_chrom[chrom],
+                add_extra_fields=args.add_extra_fields,
+                max_distance_between_adjacent_repeats=args.max_distance_between_adjacent_repeats,
+                max_total_adjacent_region_size=args.max_total_adjacent_region_size,
+                max_overlap_between_adjacent_repeats=args.max_overlap_between_adjacent_repeats,
+            )
 
-        chrom = record["ReferenceRegion"].split(":")[0]
-        if chrom not in ref_fasta_chromosomes:
-            print(f"ERROR: chrom. '{chrom}' from ReferenceRegion '{record['ReferenceRegion']}' in input variant catalog"
-                  f" record #{record_i + 1} doesn't match any of the chromosomes in {args.ref_fasta}. Skipping...")
-            continue
+            # check if adjacent loci were added
+            if isinstance(output_record["ReferenceRegion"], list):
+                counters["added adjacent loci"] += 1
+                counters["total reference regions"] += len(output_record["ReferenceRegion"])
+                counters["total spacers"] += len(output_record["ReferenceRegion"]) - 1
+                output_record_key = output_record["LocusStructure"] + ";" + ";".join(output_record["ReferenceRegion"])
+            else:
+                output_record_key = output_record["LocusStructure"] + ";" + output_record["ReferenceRegion"]
+                counters["total reference regions"] += 1
 
-        if current_chrom != chrom:
-            current_chrom = chrom
-            min_coord, max_coord = get_min_and_max_coords_for_chrom(input_catalog, chrom)
-            min_coord -= args.max_total_adjacent_region_size
-            max_coord += args.max_total_adjacent_region_size
-            current_interval_tree = get_interval_tree_for_chrom(args.source_of_adjacent_loci, chrom, min_coord, max_coord)
+            # if this isn't a duplicate record, add it to the output catalog
+            if output_record_key not in already_added_to_output_catalog:
+                already_added_to_output_catalog.add(output_record_key)
+                output_catalog.append(output_record)
 
-        output_record = process_input_record(record, ref_fasta, current_interval_tree)
-        if isinstance(output_record["ReferenceRegion"], list):
-            counters["added adjacent loci"] += 1
-            output_record_key = output_record["LocusStructure"] + ";" + ";".join(output_record["ReferenceRegion"])
+            # compute stats about distances:
+            if "DistancesBetweenReferenceRegions" in output_record:
+                for distance in output_record["DistancesBetweenReferenceRegions"]:
+                    counters[f"  {distance:3d}bp spacer"] += 1
+            if "ReferenceRegionMotifs" in output_record:
+                num_reference_regions = len(output_record["ReferenceRegion"])
+                num_unique_motifs = len(set(compute_canonical_motif(m) for m in output_record["ReferenceRegionMotifs"]))
+                same_motif = "same motif" if num_unique_motifs == 1 else "different motifs"
+                counters[f"adjacent repeats count: {num_reference_regions:3d} reference regions with {same_motif}"] += 1
+
+        # write the results to the output catalog
+        if args.output_catalog:
+            if len(input_catalogs) > 1:
+                output_catalog_path = re.sub(".json$", "", input_catalog_path) + f".{args.output_catalog}.json"
+            else:
+                output_catalog_path = args.output_catalog
         else:
-            output_record_key = output_record["LocusStructure"] + ";" + output_record["ReferenceRegion"]
+            output_catalog_path = re.sub(".json$", "", input_catalog_path) + ".with_adjacent_loci.json"
 
-        if output_record_key not in already_added_to_output_catalog:
-            already_added_to_output_catalog.add(output_record_key)
-            output_catalog.append(output_record)
+        if args.output_dir:
+            output_catalog_path = os.path.join(args.output_dir, os.path.basename(output_catalog_path))
 
-    print(f"Added adjacent loci to {counters['added adjacent loci']:,d} out of {counters['total']:,d} records ("
-          f"{counters['added adjacent loci'] / counters['total']:.1%})")
+        with open(output_catalog_path, "wt") as f:
+            json.dump(output_catalog, f, indent=2)
+
+        print(f"Wrote {len(output_catalog):,d} total records to {output_catalog_path}")
+
+    print("----")
     if counters["already had adjacent loci"]:
-        print(f"{counters['already had adjacent loci']:,d}  out of {counters['total']:,d} records already had adjacent "
+        print(f"{counters['already had adjacent loci']:,d} out of {counters['total records']:,d} records already had adjacent "
               f"loci specified in the input catalog, and so were added to the output catalog without modification")
+    else:
+        print("None of the records in the input catalog(s) had adjacent loci specified")
+    print(f"Added adjacent loci to {counters['added adjacent loci']:,d} out of {counters['total records']:,d} records ("
+          f"{counters['added adjacent loci'] / counters['total records']:.1%})")
 
-    if not args.output_catalog:
-        args.output_catalog = re.sub(".json$", "", args.input_catalog) + ".combined_adjacent_loci.json"
+    for key, value in sorted(counters.items(), key=lambda x: x[0]):
+        if key.startswith("total") or key in {"already had adjacent loci", "added adjacent loci"}:
+            continue
+        if "adjacent repeats count" in key:
+            label = "reference regions"
+        elif "spacer" in key:
+            label = "spacers"
+        else:
+            continue
 
-    with open(args.output_catalog, "wt") as f:
-        json.dump(output_catalog, f, indent=2)
-
-    print(f"Wrote {len(output_catalog):,d} total records to {args.output_catalog}")
+        total = counters[f"total {label}"]
+        print(f"{value:8,d} out of {total:8,d} {label} ({value / total:6.1%}) had {key}")
 
 
 if __name__ == '__main__':
-  main()
+    main()

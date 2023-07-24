@@ -18,6 +18,8 @@ MAX_OVERLAP_BETWEEN_ADJACENT_REPEATS = 3
 def get_repeat_unit_from_fasta(chrom, start_1based, end_1based, repeat_unit_length, pysam_fasta_file):
     ref_fasta_sequence = pysam_fasta_file.fetch(chrom, start_1based - 1, end_1based)  # fetch uses 0-based coords
     repeat_unit = ref_fasta_sequence[:repeat_unit_length]  # get repeat unit from reference that matches these coords
+    repeat_unit = repeat_unit.upper()  # convert to upper-case since the reference contains some lower-case regions
+
     return repeat_unit
 
 
@@ -72,6 +74,7 @@ def get_adjacent_repeats(locus_interval_0based, repeat_unit, pysam_fasta_file, i
         ref_spacer = ""
         if adj_repeat.end_1based < current_left_coord_1based - 1:
             ref_spacer = pysam_fasta_file.fetch(chrom, adj_repeat.end_1based, current_left_coord_1based - 1)
+            ref_spacer = ref_spacer.upper() # convert to upper-case since the reference contains some lower-case regions
 
         # record the next repeat to the left of the current repeat (which, on the 1st iteration, is the main repeat)
         repeat_unit = get_repeat_unit_from_fasta(
@@ -123,11 +126,11 @@ def get_adjacent_repeats(locus_interval_0based, repeat_unit, pysam_fasta_file, i
         ref_spacer = ""
         if adj_repeat.start_1based > current_right_coord_1based + 1:
             ref_spacer = pysam_fasta_file.fetch(chrom, current_right_coord_1based, adj_repeat.start_1based - 1)
+            ref_spacer = ref_spacer.upper() # convert to upper-case since the reference contains some lower-case regions
 
         # record the next repeat to the right of the current repeat (which, on the 1st iteration, is the main repeat)
         repeat_unit = get_repeat_unit_from_fasta(
-            chrom, adj_repeat.start_1based, adj_repeat.end_1based, len(adj_repeat.repeat_unit),
-            pysam_fasta_file)
+            chrom, adj_repeat.start_1based, adj_repeat.end_1based, len(adj_repeat.repeat_unit), pysam_fasta_file)
         if repeat_unit in repeat_units_already_added:
             break # ExpansionHunter can't handle the same repeat unit being specified more than once
         repeat_units_already_added.add(repeat_unit)
