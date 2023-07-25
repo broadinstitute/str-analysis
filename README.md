@@ -34,7 +34,7 @@ This repo contains scripts and utilities for analyzing tandem repeats (TRs).
     available for [download on the gnomAD website](https://gnomad.broadinstitute.org/downloads#v3-short-tandem-repeats).
 
 
-* combine ExpansionHunter or other .json results files:
+* combine ExpansionHunter or other .json results files into a .tsv table:
   * **combine_str_json_to_tsv** - takes a set of ExpansionHunter json output files and combines them into a single tsv table.
   * **combine_json_to_tsv** - takes a set of arbitrary json files that share the same schema and combines their top-level fields into a single tsv file.
 
