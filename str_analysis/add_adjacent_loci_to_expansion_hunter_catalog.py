@@ -367,7 +367,7 @@ def main():
             output_catalog_path = os.path.join(args.output_dir, os.path.basename(output_catalog_path))
 
         with open(output_catalog_path, "wt") as f:
-            json.dump(output_catalog, f, indent=2)
+            json.dump(output_catalog, f, indent=1)
 
         print(f"Wrote {len(output_catalog):,d} total records to {output_catalog_path}")
 
