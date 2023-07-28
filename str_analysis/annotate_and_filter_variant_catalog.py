@@ -22,26 +22,26 @@ VALID_GENE_REGIONS = {"CDS", "UTR", "5UTR", "3UTR", "promoter", "exon", "intron"
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Annotate and filter a variant catalog.")
-    parser.add_argument("--known-disease-associated-loci",
-                        help="ExpansionHunter catalog .json file with all known disease-associated loci",
-                        default="~/code/str-analysis/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json")
-    #default="https://raw.githubusercontent.com/broadinstitute/str-analysis/main/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json")
-    parser.add_argument("--genes-gtf", help="Gene models gtf file path or url.",
-                        default="~/code/str-truth-set/ref/other/MANE.v1.0.ensembl_genomic.sorted.gtf.gz")
-    parser.add_argument("--gene-models-source", help="Source of the genes-gtf file. If not specified, it will be "
-                        "computed based on the filename", choices=["gencode", "mane", "refseq"])
-
+    parser = argparse.ArgumentParser(description="Annotate and filter an STR variant catalog.")
     parser.add_argument("-o", "--output-path", help="Output path")
     parser.add_argument("--verbose", action="store_true", help="Print verbose output.")
 
-    annotations_group = parser.add_argument_group("Annotations")
+    annotations_group = parser.add_argument_group("annotations")
+    annotations_group.add_argument("--known-disease-associated-loci",
+                        help="ExpansionHunter catalog .json file with all known disease-associated loci",
+                        default="~/code/str-analysis/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json")
+    #default="https://raw.githubusercontent.com/broadinstitute/str-analysis/main/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json")
+    annotations_group.add_argument("--genes-gtf", help="Gene models gtf file path or url.",
+                        default="~/code/str-truth-set/ref/other/MANE.v1.0.ensembl_genomic.sorted.gtf.gz")
+    annotations_group.add_argument("--gene-models-source", help="Source of the genes-gtf file. If not specified, it will be "
+                                                     "computed based on the filename", choices=["gencode", "mane", "refseq"])
+
     annotations_group.add_argument("--skip-gene-annotations", action="store_true", help="Don't addd gene annotations to "
                                                                                         "the output catalog")
     annotations_group.add_argument("--skip-disease-loci-annotations", action="store_true", help="Don't annotate known "
                                    "disease associated loci in the output catalog")
 
-    filter_group = parser.add_argument_group("Filters")
+    filter_group = parser.add_argument_group("filters")
     filter_group.add_argument("--min-motif-size", type=int, help="Minimum motif size to include in the output catalog")
     filter_group.add_argument("--max-motif-size", type=int, help="Maximum motif size to include in the output catalog")
     filter_group.add_argument("-ms", "--motif-size", type=int, action="append", help="Only include loci with these motif sizes")
