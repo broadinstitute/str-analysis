@@ -2,6 +2,7 @@ import argparse
 import collections
 import ijson
 import intervaltree
+import gzip
 import json
 import os
 import re
@@ -95,11 +96,11 @@ def get_variant_catalog_iterator(
             if verbose:
                 file_iterator = tqdm.tqdm(file_iterator, unit=" records", unit_scale=True)
 
-            for i, record in enumerate(file_iterator):
+            for record_i, record in enumerate(file_iterator):
                 missing_keys = REQUIRED_OUTPUT_FIELDS - record.keys()
                 if missing_keys:
-                    raise ValueError(f"Record #{i+1} in {variant_catalog_json_or_bed} is missing required field(s): "
-                                     f"{missing_keys}")
+                    raise ValueError(f"Record #{record_i+1} in {variant_catalog_json_or_bed} is missing required "
+                                     f"field(s): {missing_keys}")
 
                 if not add_extra_fields_from_input_catalogs:
                     record = {k: record[k] for k in REQUIRED_OUTPUT_FIELDS}
@@ -274,8 +275,8 @@ def write_output_catalog(interval_trees, output_path, output_format):
 
     # write the output catalog to the output file in the requested format
     if output_format == "JSON":
-        open_file = gzip.open if output_path.endswith("gz") else open
-        with open_file(output_path, "wt") as output_catalog:
+        fopen = gzip.open if output_path.endswith("gz") else open
+        with fopen(output_path, "wt") as output_catalog:
             output_records_list = list(output_catalog_record_generator)
             json.dump(output_records_list, output_catalog, indent=1)
         print(f"Done writing {len(output_records_list):,d} output records to {output_path}")
@@ -310,7 +311,6 @@ def write_output_catalog(interval_trees, output_path, output_format):
         os.system(f"bgzip -f {output_path}")
         os.system(f"tabix -f -p bed {output_path}.gz")
         print(f"Done writing {total:,d} output records to {output_path}.gz")
-
 
 
 def print_catalog_stats(interval_trees, has_source_field=False):
@@ -359,6 +359,7 @@ def main():
 
     if args.verbose:
         print_catalog_stats(interval_trees, has_source_field=args.add_source_field)
+
 
 if __name__ == "__main__":
     main()
