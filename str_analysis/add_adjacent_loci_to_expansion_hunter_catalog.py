@@ -27,9 +27,10 @@ def process_input_record(
     max_distance_between_adjacent_repeats=MAX_DISTANCE_BETWEEN_REPEATS,
     max_total_adjacent_region_size=MAX_TOTAL_ADJACENT_REGION_SIZE,
     max_overlap_between_adjacent_repeats=MAX_OVERLAP_BETWEEN_ADJACENT_REPEATS,
+    add_extra_info_to_locus_id=False,
     add_extra_fields=False,
 ):
-    """"Add adjacent loci to a record from the variant catalog
+    """Add adjacent loci to a record from the variant catalog
 
     Args:
         record (dict): A record from the input variant catalog. It must contain the following fields:
@@ -43,9 +44,9 @@ def process_input_record(
         max_distance_between_adjacent_repeats (int)
         max_total_adjacent_region_size (int)
         max_overlap_between_adjacent_repeats (int)
+        add_extra_info_to_locus_id (bool) If True, add info about adjacent loci to the locus id in the output variant
         add_extra_fields (bool) If True, add extra fields to the output record that record the number of base pairs
             between the main repeat and any adjacent repeats.
-
 
     Return:
         dict: An copy of the input record, modified to include any adjacent repeats found in the interval_tree.
@@ -90,7 +91,7 @@ def process_input_record(
             reference_regions.append(f"{adjacent_repeat_chrom}:{adjacent_repeat_start_0based}-{adjacent_repeat_end_1based}")
             variant_ids.append(adjacent_repeat_label)
             variant_types.append("Repeat")
-            if add_extra_fields:
+            if add_extra_info_to_locus_id or add_extra_fields:
                 reference_region_motifs.append(adjacent_repeat_unit)
                 if previous_reference_region_end is not None:
                     distances_between_reference_regions.append(
@@ -102,9 +103,14 @@ def process_input_record(
         output_record["VariantType"] = variant_types
         output_record["LocusStructure"] = adjacent_repeats_locus_structure
 
+        if add_extra_info_to_locus_id:
+            output_record["LocusId"] += f";{len(reference_regions) - 1}_adjacent_repeats"
+            if len(reference_regions) > 1:
+                output_record["LocusId"] += f";max_dist_{max(distances_between_reference_regions)}bp"
         if add_extra_fields and distances_between_reference_regions:
             output_record["DistancesBetweenReferenceRegions"] = distances_between_reference_regions
             output_record["ReferenceRegionMotifs"] = reference_region_motifs
+            output_record["MaxDistanceBetweenReferenceRegions"] = max(distances_between_reference_regions)
 
     return output_record
 
@@ -225,6 +231,10 @@ def main():
                              "in the reference genome. It should have 0-based coordinates and the name field (column 4)"
                              " should contain the repeat motif. This can be a large catalog of loci generated using "
                              "TandemRepeatFinder. This .bed file will be used as the source for adjacent loci.")
+    parser.add_argument("--add-extra-info-to-locus-id",
+                        action="store_true",
+                        help="Add info about adjacent loci to the locus id in the output variant catalog. This will "
+                             "include the number of adjacent loci and the max distance between them.")
     parser.add_argument("--add-extra-fields",
                         action="store_true",
                         help="Add extra fields to each locus in the output variant catalog that record the number of "
@@ -323,10 +333,11 @@ def main():
                 record,
                 ref_fasta,
                 interval_trees_by_chrom[chrom],
-                add_extra_fields=args.add_extra_fields,
                 max_distance_between_adjacent_repeats=args.max_distance_between_adjacent_repeats,
                 max_total_adjacent_region_size=args.max_total_adjacent_region_size,
                 max_overlap_between_adjacent_repeats=args.max_overlap_between_adjacent_repeats,
+                add_extra_info_to_locus_id=args.add_extra_info_to_locus_id,
+                add_extra_fields=args.add_extra_fields,
             )
 
             # check if adjacent loci were added
