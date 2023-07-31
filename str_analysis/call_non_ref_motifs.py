@@ -139,7 +139,7 @@ def parse_args():
         " --run-expansion-hunter must also be specified.")
 
     grp = p.add_mutually_exclusive_group(required=True)
-    grp.add_argument("--loci-from-variant-catalog", help="Path of ExpansionHunter variant catalog file. This script "
+    grp.add_argument("--variant-catalog", help="Path of ExpansionHunter variant catalog file. This script "
         "will check for non-reference motifs at all of these loci. This can be a local path or a gs:// path.")
     grp.add_argument("--known-loci", action="store_true", help="Generate calls for loci known to have non-reference "
                                                                "motifs: " + ", ".join(LOCUS_INFO.keys()))
@@ -1202,13 +1202,13 @@ def main():
 
     if args.known_loci:
         locus_info = LOCUS_INFO
-    elif args.loci_from_variant_catalog:
+    elif args.variant_catalog:
         # convert variant catalog to locus_info format
-        with open_file(args.loci_from_variant_catalog) as f:
-            loci_from_variant_catalog = json.load(f)
+        with open_file(args.variant_catalog) as f:
+            variant_catalog = json.load(f)
 
         locus_info = {}
-        for i, locus in enumerate(loci_from_variant_catalog):
+        for i, locus in enumerate(variant_catalog):
             reference_motifs = []
             locus_structure = locus["LocusStructure"]
             for locus_structure_part in locus_structure.split(")"):
@@ -1226,11 +1226,11 @@ def main():
                 reference_regions = locus.get("ReferenceRegion", [])
                 if len(reference_motifs) != len(reference_regions):
                     raise ValueError(f"LocusStructure {locus_structure} doesn't match the # of ReferenceRegions at "
-                                     f"locus {locus.get('LocusId')} in {args.loci_from_variant_catalog} record #{i+1}")
+                                     f"locus {locus.get('LocusId')} in {args.variant_catalog} record #{i+1}")
 
                 if len(variant_ids) != len(reference_regions):
                     raise ValueError(f"The number of VariantIds doesn't match the number of ReferenceRegions for "
-                                     f"locus {locus.get('LocusId')} in {args.loci_from_variant_catalog} record #{i+1}")
+                                     f"locus {locus.get('LocusId')} in {args.variant_catalog} record #{i+1}")
 
                 for reference_motif, variant_id, ref_region in zip(reference_motifs, variant_ids, reference_regions):
                     if reference_region == locus["MainReferenceRegion"]:
@@ -1240,14 +1240,14 @@ def main():
                 else:
                     raise ValueError(f"MainReferenceRegion {main_reference_region} doesn't match any of the entries in "
                                      f"the ReferenceRegion list {reference_regions} for locus {locus.get('LocusId')} "
-                                     f"in {args.loci_from_variant_catalog} record #{i+1}")
+                                     f"in {args.variant_catalog} record #{i+1}")
 
             else:
                 locus_id = locus["LocusId"]
                 reference_region = locus["ReferenceRegion"]
 
             if locus_id in locus_info:
-                raise ValueError(f"Non-unique locus id {locus_id} in {args.loci_from_variant_catalog} record #{i+1}")
+                raise ValueError(f"Non-unique locus id {locus_id} in {args.variant_catalog} record #{i+1}")
 
             chrom, start_0based, end_1based = parse_interval(reference_region)
             locus_info[locus_id] = {
