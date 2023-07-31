@@ -51,6 +51,8 @@ setup(
             'add_adjacent_loci_to_expansion_hunter_catalog = str_analysis.add_adjacent_loci_to_expansion_hunter_catalog:main',
             'check_trios_for_mendelian_violations = str_analysis.check_trios_for_mendelian_violations:main',
             'simulate_str_expansions = str_analysis.simulate_str_expansions:main',
+            'combine_str_catalogs = str_analysis.combine_str_catalogs:main',
+            'annotate_and_filter_str_catalog = str_analysis.annotate_and_filter_str_catalog:main',
             'annotate_EHdn_locus_outliers = str_analysis.annotate_EHdn_locus_outliers:main',
             'convert_annotated_EHdn_locus_outliers_to_expansion_hunter_catalog = str_analysis.convert_annotated_EHdn_locus_outliers_to_expansion_hunter_catalog:main',
             'combine_str_json_to_tsv = str_analysis.combine_str_json_to_tsv:main',
