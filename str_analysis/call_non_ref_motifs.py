@@ -18,9 +18,9 @@ import pkgutil
 import re
 import pandas as pd
 from pprint import pformat, pprint
-
 import pysam
 
+from str_analysis.combine_str_catalogs import parse_motifs_from_locus_structure
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from str_analysis.utils.ehdn_info_for_locus import parse_ehdn_info_for_locus
 from str_analysis.utils.file_utils import open_file
@@ -761,6 +761,7 @@ def process_reads_in_locus(
     Return:
           overlapping_sequences, left_flank_n_well_aligned_bases, right_flank_n_well_aligned_bases
     """
+
     with pysam.Samfile(bam_or_cram_path, reference_filename=reference_fasta) as f:
 
         # Count reads in the left & right flanks to estimate read depth
@@ -1044,6 +1045,9 @@ def process_locus(
         read_count = canonical_motif_to_read_count.get(canonical_motif)
         n_occurrences = canonical_motif_to_n_occurrences.get(canonical_motif)
 
+        canonical_reference_motif_regexp = canonical_reference_motif.replace("N", "[ACGT]")
+        is_reference_motif = re.match(f"^{canonical_reference_motif_regexp}$", canonical_motif) is not None
+
         locus_results_json.update({
             f"motif{motif_number}_repeat_unit": motif,
             f"motif{motif_number}_canonical_repeat_unit": canonical_motif,
@@ -1051,7 +1055,7 @@ def process_locus(
             f"motif{motif_number}_normalized_read_count":
                 read_count * normalize_to_coverage / flank_coverage_mean if flank_coverage_mean > 0 else 0,
             f"motif{motif_number}_n_occurrences": n_occurrences,
-            f"motif{motif_number}_is_reference_motif": canonical_motif == canonical_reference_motif,
+            f"motif{motif_number}_is_reference_repeat_unit": is_reference_motif,
         })
 
         if use_offtarget_regions:
@@ -1064,6 +1068,7 @@ def process_locus(
         "n_total_well_supported_alleles": n_total_well_supported_alleles,
         "n_benign_alleles": n_benign_alleles,
         "n_pathogenic_alleles": n_pathogenic_alleles,
+        "canonical_reference_repeat_unit": canonical_reference_motif,
         "call": final_call,
     })
 
@@ -1209,35 +1214,39 @@ def main():
 
         locus_info = {}
         for i, locus in enumerate(variant_catalog):
-            reference_motifs = []
             locus_structure = locus["LocusStructure"]
-            for locus_structure_part in locus_structure.split(")"):
-                reference_motif = locus_structure_part.strip("()*+")
-                reference_motifs.append(reference_motif)
+            reference_motifs = parse_motifs_from_locus_structure(locus_structure)
 
-            if len(reference_motifs) > 1:
+            # figure out which motif to look for
+            if isinstance(locus["ReferenceRegion"], list):
                 if "MainReferenceRegion" not in locus:
                     print(f"WARNING: Skipping locus #{i+1} with LocusStructure {locus_structure}. This script only "
-                          f"allows loci with a ReferenceRegion list if a 'MainReferenceRegion' key is also provided.")
+                          f"supports loci with multiple reference regions if a 'MainReferenceRegion' field is also "
+                          f"specified.")
                     continue
 
+                reference_regions = locus["ReferenceRegion"]
                 main_reference_region = locus["MainReferenceRegion"]
                 variant_ids = locus.get("VariantId", [])
-                reference_regions = locus.get("ReferenceRegion", [])
                 if len(reference_motifs) != len(reference_regions):
-                    raise ValueError(f"LocusStructure {locus_structure} doesn't match the # of ReferenceRegions at "
-                                     f"locus {locus.get('LocusId')} in {args.variant_catalog} record #{i+1}")
+                    raise ValueError(f"LocusStructure {locus_structure} has {len(reference_motifs)} motifs "
+                                     f"and {len(reference_regions)} ReferenceRegions specified in locus "
+                                     f"{locus} in {args.variant_catalog} record #{i+1}")
 
                 if len(variant_ids) != len(reference_regions):
-                    raise ValueError(f"The number of VariantIds doesn't match the number of ReferenceRegions for "
-                                     f"locus {locus.get('LocusId')} in {args.variant_catalog} record #{i+1}")
+                    raise ValueError(f"There are {len(variant_ids)} variant ids but {len(reference_motifs)} motifs "
+                                     f"specified in locus {locus} in {args.variant_catalog} record #{i+1}")
 
-                for reference_motif, variant_id, ref_region in zip(reference_motifs, variant_ids, reference_regions):
-                    if reference_region == locus["MainReferenceRegion"]:
+                reference_region = None
+                reference_motif = None
+                for motif, variant_id, ref_region in zip(reference_motifs, variant_ids, reference_regions):
+                    if ref_region == locus["MainReferenceRegion"]:
                         locus_id = variant_id
                         reference_region = ref_region
+                        reference_motif = motif
                         break
-                else:
+
+                if reference_motif is None:
                     raise ValueError(f"MainReferenceRegion {main_reference_region} doesn't match any of the entries in "
                                      f"the ReferenceRegion list {reference_regions} for locus {locus.get('LocusId')} "
                                      f"in {args.variant_catalog} record #{i+1}")
@@ -1245,6 +1254,7 @@ def main():
             else:
                 locus_id = locus["LocusId"]
                 reference_region = locus["ReferenceRegion"]
+                reference_motif = reference_motifs[0]
 
             if locus_id in locus_info:
                 raise ValueError(f"Non-unique locus id {locus_id} in {args.variant_catalog} record #{i+1}")
