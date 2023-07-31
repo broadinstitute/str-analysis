@@ -176,6 +176,18 @@ RUN GCSFUSE_REPO=gcsfuse-bullseye \
 #    && python3 -m pip freeze \
 #    && sleep 2
 
+RUN python3 -m pip install --upgrade \
+	hail>=0.2.115 \
+    ijson>=3.2.2 \
+    intervaltree>=3.1.0 \
+    numpy>=1.20.3 \
+    pandas>=1.1.4 \
+    pyfaidx>=0.6.4 \
+    pybedtools>=0.9.0 \
+    pysam>=0.16.0.1 \
+    requests>=2.25.1 \
+    tqdm>=4.62.3
+
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
 COPY str_analysis /str_analysis

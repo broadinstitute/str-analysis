@@ -313,7 +313,7 @@ def run_expansion_hunter(
         # to support single-allele genotypes for males on the X chromosome which are just a single number (eg. 35)
         # rather than the standard bi-allelic genotype (eg. 20/35)
         if "X" in chrom:
-            raise Exception("Need to add support for hemizygous genotypes")
+            print("WARNING: hemizygous genotypes currently not supported")
 
         if eh_result.get("Genotype"):
             (
@@ -808,7 +808,7 @@ def process_reads_in_locus(
     return overlapping_sequences, left_flank_n_well_aligned_bases, right_flank_n_well_aligned_bases
 
 
-def compute_final_call(n_ref_alleles, n_total_well_supported_alleles, n_pathogenic_alleles, n_benign_alleles):
+def compute_final_call(n_ref_motifs, n_total_well_supported_motifs, n_pathogenic_motifs, n_benign_motifs):
     """Decide which combination of motifs is supported by the data.
 
     NOTE: there's no attempt to determine the size of the expansion and whether it's in the pathogenic range.
@@ -817,34 +817,34 @@ def compute_final_call(n_ref_alleles, n_total_well_supported_alleles, n_pathogen
         str: a string such as "BENIGN MOTIF / PATHOGENIC MOTIF" indicating which motifs were detected
     """
 
-    if n_total_well_supported_alleles == 0:
+    if n_total_well_supported_motifs == 0:
         final_call = NO_CALL
-    elif n_pathogenic_alleles == n_total_well_supported_alleles:
+    elif n_pathogenic_motifs == n_total_well_supported_motifs:
         # Reads support only known pathogenic motif(s)
         final_call = PATHOGENIC_PATHOGENIC_CALL
-    elif n_benign_alleles == n_total_well_supported_alleles:
+    elif n_benign_motifs == n_total_well_supported_motifs:
         # Reads support only known benign motif(s)
         final_call = BENIGN_BENIGN_CALL
-    elif n_benign_alleles == 0 and n_pathogenic_alleles == 0:
+    elif n_benign_motifs == 0 and n_pathogenic_motifs == 0:
         # Reads support one or more non-reference motifs of unknown significance
-        if n_total_well_supported_alleles == n_ref_alleles:
+        if n_total_well_supported_motifs == n_ref_motifs:
             final_call = REF_REF_CALL
-        elif n_ref_alleles > 0:
+        elif n_ref_motifs > 0:
             final_call = REF_UNCERTAIN_SIG_CALL
         else:
             final_call = UNCERTAIN_SIG_UNCERTAIN_SIG_CALL
-    elif n_benign_alleles > 0 and n_pathogenic_alleles > 0:
+    elif n_benign_motifs > 0 and n_pathogenic_motifs > 0:
         # Reads support one known benign motif and one pathogenic motif
         final_call = BENIGN_PATHOGENIC_CALL
-    elif n_pathogenic_alleles > 0:
+    elif n_pathogenic_motifs > 0:
         # Reads support one pathogenic motif and at least one other motif of unknown significance
         final_call = PATHOGENIC_UNCERTAIN_SIG_CALL
-    elif n_benign_alleles > 0:
+    elif n_benign_motifs > 0:
         # Reads support one known benign motif and at least one other motif of unknown significance
         final_call = BENIGN_UNCERTAIN_SIG_CALL
     else:
-        raise Exception(f"Unexpected state when n_total_well_supported_alleles={n_total_well_supported_alleles}, "
-                        f"n_pathogenic_alleles={n_pathogenic_alleles}, n_benign_alleles={n_benign_alleles}")
+        raise Exception(f"Unexpected state when n_total_well_supported_motifs={n_total_well_supported_motifs}, "
+                        f"n_pathogenic_motifs={n_pathogenic_motifs}, n_benign_motifs={n_benign_motifs}")
 
     return final_call
 
@@ -972,9 +972,8 @@ def process_locus(
                     print(f"Found {motif} occurs {count}x in read bases that "
                           f"overlap the {locus_id} locus: {overlapping_sequence}")
                 else:
-                    if motif_size == reference_motif_size:
-                        print(f"Didn't find a consistent {motif_size}bp repeat unit in read bases "
-                              f"that overlap the {locus_id} locus: {overlapping_sequence}")
+                    print(f"Didn't find a consistent {motif_size}bp repeat unit in read bases "
+                          f"that overlap the {locus_id} locus: {overlapping_sequence}")
 
             if motif is not None:
                 canonical_motif = compute_canonical_motif(motif)
@@ -1021,26 +1020,26 @@ def process_locus(
         3)
 
     flank_coverage_mean = (left_flank_coverage + right_flank_coverage) / 2.0
-    n_pathogenic_alleles = 0
-    n_benign_alleles = 0
-    n_total_well_supported_alleles = 0
+    n_pathogenic_motifs = 0
+    n_benign_motifs = 0
+    n_total_well_supported_motifs = 0
     
-    n_ref_alleles = 0  # for known motifs/loci, a motif can be counted as both reference and benign
+    n_ref_motifs = 0  # for known motifs/loci, a motif can be counted as both reference and benign
     for i in 0, 1:
         motif_number = i + 1
         if len(selected_motifs) <= i:
             continue
 
-        n_total_well_supported_alleles += 1
+        n_total_well_supported_motifs += 1
         motif = selected_motifs[i]
         canonical_motif = compute_canonical_motif(motif)
         if canonical_motif in known_pathogenic_motifs:
-            n_pathogenic_alleles += 1
+            n_pathogenic_motifs += 1
         elif canonical_motif in known_benign_motifs:
-            n_benign_alleles += 1
+            n_benign_motifs += 1
 
         if canonical_motif == canonical_reference_motif:
-            n_ref_alleles += 1
+            n_ref_motifs += 1
             
         read_count = canonical_motif_to_read_count.get(canonical_motif)
         n_occurrences = canonical_motif_to_n_occurrences.get(canonical_motif)
@@ -1061,13 +1060,13 @@ def process_locus(
         if use_offtarget_regions:
             process_offtarget_regions(motif, motif_number, read_count, flank_coverage_mean, args, locus_results_json)
 
-    final_call = compute_final_call(n_ref_alleles, n_total_well_supported_alleles, n_pathogenic_alleles, n_benign_alleles)
+    final_call = compute_final_call(n_ref_motifs, n_total_well_supported_motifs, n_pathogenic_motifs, n_benign_motifs)
 
     locus_results_json.update({
-        "n_reference_alleles": n_ref_alleles,
-        "n_total_well_supported_alleles": n_total_well_supported_alleles,
-        "n_benign_alleles": n_benign_alleles,
-        "n_pathogenic_alleles": n_pathogenic_alleles,
+        "n_reference_alleles": n_ref_motifs,
+        "n_total_well_supported_motifs": n_total_well_supported_motifs,
+        "n_benign_motifs": n_benign_motifs,
+        "n_pathogenic_motifs": n_pathogenic_motifs,
         "canonical_reference_repeat_unit": canonical_reference_motif,
         "call": final_call,
     })
