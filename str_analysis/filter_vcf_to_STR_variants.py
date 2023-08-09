@@ -731,7 +731,7 @@ def process_vcf_line(
         #counters["variant counts: removed * allele and converted to homozygous genotype"] += 1
         # if this variant has 1 regular allele and 1 "*" allele (which represents an overlapping deletion), discard the
         # "*" allele and recode the genotype as haploid
-        star_allele_index = alt_alleles.index("*")
+        star_allele_index = alt_alleles.index("*") + 1
         alt_alleles = [a for a in alt_alleles if a != "*"]
         vcf_genotype_indices = [gi for gi in vcf_genotype_indices if gi != star_allele_index]
         vcf_genotype = vcf_genotype_separator.join(map(str, vcf_genotype_indices))
