@@ -27,6 +27,7 @@ def process_input_record(
     max_distance_between_adjacent_repeats=MAX_DISTANCE_BETWEEN_REPEATS,
     max_total_adjacent_region_size=MAX_TOTAL_ADJACENT_REGION_SIZE,
     max_overlap_between_adjacent_repeats=MAX_OVERLAP_BETWEEN_ADJACENT_REPEATS,
+    max_adjacent_repeats=None,
     add_extra_info_to_locus_id=False,
     add_extra_fields=False,
 ):
@@ -38,12 +39,13 @@ def process_input_record(
             - ReferenceRegion (a string representing 0-based reference coordinates of the repeat locus)
             - LocusStructure (a string containing only one repeat unit - ie. "(CAG)*" )
         reference_fasta (pysam.FastaFile): A pysam.FastaFile object for the reference genome
-        interval_tree (dict): an IntervalTree containing 0-based intervals that represent the reference start and end
-            coordinates of all TR loci found on the same chromosome as the given record. Adjacent repeats will be
-            queried from this data structure.
+        interval_tree (intervaltree.IntervalTree): an IntervalTree containing 0-based intervals that represent the
+            reference start and end coordinates of all TR loci found on the same chromosome as the given record.
+            Adjacent repeats will be queried from this data structure.
         max_distance_between_adjacent_repeats (int)
         max_total_adjacent_region_size (int)
         max_overlap_between_adjacent_repeats (int)
+        max_adjacent_repeats (int) Max adjacent repeats to add.
         add_extra_info_to_locus_id (bool) If True, add info about adjacent loci to the locus id in the output variant
         add_extra_fields (bool) If True, add extra fields to the output record that record the number of base pairs
             between the main repeat and any adjacent repeats.
@@ -71,6 +73,7 @@ def process_input_record(
         max_distance_between_adjacent_repeats=max_distance_between_adjacent_repeats,
         max_total_adjacent_region_size=max_total_adjacent_region_size,
         max_overlap_between_adjacent_repeats=max_overlap_between_adjacent_repeats,
+        max_adjacent_repeats=max_adjacent_repeats,
     )
 
     if adjacent_repeats_left or adjacent_repeats_right:
@@ -221,8 +224,13 @@ def main():
     parser.add_argument("--max-total-adjacent-region-size",
                         type=int,
                         default=MAX_TOTAL_ADJACENT_REGION_SIZE,
-                        help="The maximum size of the region spanning all adjacent repeats that we will load from "
-                             "the adjacent loci bed file")
+                        help="Look for adjacent repeats that are no more than this many base pairs to the left or to "
+                             "the right of the main repeat.")
+    parser.add_argument("--max-adjacent-repeats",
+                        type=int,
+                        help="Add no more than this many of the closest adjacent repeats on either side. For example, "
+                             "if set to 1, no more than 1 adjacent repeat will be added to the left and to the right "
+                             "of the main locus.")
     parser.add_argument("--source-of-adjacent-loci",
                         required=True,
                         default="gs://str-truth-set/hg38/ref/other/"
@@ -336,6 +344,7 @@ def main():
                 max_distance_between_adjacent_repeats=args.max_distance_between_adjacent_repeats,
                 max_total_adjacent_region_size=args.max_total_adjacent_region_size,
                 max_overlap_between_adjacent_repeats=args.max_overlap_between_adjacent_repeats,
+                max_adjacent_repeats=args.max_adjacent_repeats,
                 add_extra_info_to_locus_id=args.add_extra_info_to_locus_id,
                 add_extra_fields=args.add_extra_fields,
             )
