@@ -163,14 +163,19 @@ RUN git clone https://github.com/HipSTR-Tool/HipSTR \
 # install jq
 RUN apt-get update && apt-get install --no-install-recommends --yes  jq  python3-dev
 
-
 # install cloudfuse
 RUN GCSFUSE_REPO=gcsfuse-bullseye \
-	&& echo "deb https://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list \
+	&& echo "deb https://packages.cloud.google.com/apt ${GCSFUSE_REPO} main" | tee /etc/apt/sources.list.d/gcsfuse.list \
 	&& apt-get install --no-install-recommends --yes gnupg \
 	&& curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
 	&& apt-get update && apt-get install --no-install-recommends --yes fuse gcsfuse
 
+
+# install bedtools
+ENV BED_TOOLS_VERSION="2.31.0"
+RUN wget https://github.com/arq5x/bedtools2/releases/download/v${BED_TOOLS_VERSION}/bedtools.static \
+	&& chmod 777 bedtools.static \
+	&& mv bedtools.static /usr/bin/bedtools
 
 #RUN python3 -m pip install --no-cache-dir str-analysis==0.9.8 \
 #    && python3 -m pip freeze \
