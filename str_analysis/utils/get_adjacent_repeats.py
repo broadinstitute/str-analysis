@@ -3,8 +3,8 @@ import intervaltree
 
 from str_analysis.utils.misc_utils import parse_interval
 
-# allow up to 15bp of reference sequence between adjacent repeats
-MAX_DISTANCE_BETWEEN_REPEATS = 15
+# allow up to 20bp of reference sequence between adjacent repeats
+MAX_DISTANCE_BETWEEN_REPEATS = 20
 
 # look for adjacent repeats that are no more than 1000bp to the left or right of the main repeat.
 MAX_TOTAL_ADJACENT_REGION_SIZE = 1000
