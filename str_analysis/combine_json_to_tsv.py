@@ -68,27 +68,37 @@ def parse_args(args_list=None):
     )
     p.add_argument(
         "json_paths",
-        help="json path(s). If not specified, this script will retrieve all json files in the current directory and subdirectories",
+        help="Json file and/or directory path(s) to search. If not specified, this script will search for json files in "
+             "the current directory and subdirectories.",
         type=pathlib.Path,
         nargs="*"
     )
+
     args = p.parse_args(args=args_list)
 
-    if args.json_paths:
+    json_file_paths = []
+    directories_to_search = []
+    if not args.json_paths:
+        directories_to_search.append(".")
+    else:
         # check if files exist
         for json_path in args.json_paths:
-            if not os.path.isfile(json_path):
+            if os.path.isdir(json_path):
+                directories_to_search.append(json_path)
+            elif os.path.isfile(json_path):
+                json_file_paths.append(json_path)
+            else:
                 p.error(f"File not found: {json_path}")
-    else:
-        # find all .json files underneath the current directory
-        args.json_paths = [p for p in pathlib.Path(".").glob("**/*.json")]
-        if args.verbose and len(args.json_paths) > 0:
-            print("Found json files: ")
-            for p in args.json_paths:
-                print(f"  {p}")
-        print(f"Found {len(args.json_paths)} .json files under {os.getcwd()}")
-        if len(args.json_paths) == 0:
-            sys.exit(0)
+
+    for dir_path in directories_to_search:
+        # find all .json files in this directory
+        json_paths = [p for p in pathlib.Path(dir_path).glob("**/*.json")]
+        json_file_paths.extend(json_paths)
+        print(f"Found {len(json_paths)} .json files in directory: {dir_path}")
+
+    args.json_paths = json_file_paths
+    if len(args.json_paths) == 0:
+        sys.exit(0)
 
     if args.sample_metadata_key and not args.sample_metadata:
         p.error("--sample-metadata-key should only be specified along with --sample-metadata")
