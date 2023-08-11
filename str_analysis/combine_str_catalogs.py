@@ -337,6 +337,7 @@ def convert_interval_trees_to_output_records(interval_trees, merge_adjacent_loci
         for interval_tree in interval_trees.values():
             previous_interval = None
             for interval in sorted(interval_tree, key=lambda i: (i.begin, i.end)):
+                counter += 1
                 if previous_interval is None:
                     previous_interval = interval
                     continue
@@ -347,12 +348,10 @@ def convert_interval_trees_to_output_records(interval_trees, merge_adjacent_loci
                     previous_interval = merged_interval
                     continue
 
-                counter += 1
                 yield previous_interval.data
                 previous_interval = interval
 
             if previous_interval is not None:
-                counter += 1
                 yield previous_interval.data
 
         print(f"Merged {merged_counter:,d} out of {counter:,d} ({merged_counter/counter:6.1%}) adjacent loci that "
