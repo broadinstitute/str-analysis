@@ -168,7 +168,7 @@ def get_variant_catalog_iterator(variant_catalog_json_or_bed):
                 motif = fields[3].strip("()*+")
                 record = {
                     "LocusId": f"{chrom}-{start_0based + 1}-{end_1based}-{motif}",
-                    "ReferenceRegion": f"{unmodified_chrom}:{start_0based + 1}-{end_1based}",
+                    "ReferenceRegion": f"{unmodified_chrom}:{start_0based}-{end_1based}",
                     "LocusStructure": f"({motif})*",
                     "VariantType": "Repeat",
                 }
