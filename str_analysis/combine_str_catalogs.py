@@ -401,6 +401,7 @@ def write_output_catalog(output_catalog_record_iter, output_path, output_format)
                         str(start_0based),
                         str(end_1based),
                         motif,
+                        f"{(end_1based - start_0based) / len(motif):0.1f}",
                         ".",
                     ]) + "\n")
 
