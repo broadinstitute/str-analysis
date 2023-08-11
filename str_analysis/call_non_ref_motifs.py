@@ -109,7 +109,7 @@ def parse_args():
         "sample. If specified, the script will skip running STRling.")
     grp.add_argument("--run-strling", action="store_true", help="Optionally run STRling and copy information relevant "
         "to the locus from the STRling results to the json output file.")
-    p.add_argument("--strling-path", help="The path of the STRling executable to use.", default="STRling")
+    p.add_argument("--strling-path", help="The path of the STRling executable to use.", default="strling")
     p.add_argument("--strling-reference-index", help="Optionally provide the path of a pre-computed STRling reference "
         "index file. If provided, it will save a step and allow STRling to complete faster.")
 
