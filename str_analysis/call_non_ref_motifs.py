@@ -147,6 +147,7 @@ def parse_args():
     p.add_argument("-l", "--locus", action="append", help="Generate calls for this specific locus id. "
         "This argument can be specified more than once to call multiple loci.")
 
+    p.add_argument("--output-format", choices={"TSV", "JSON"}, default="TSV")
     p.add_argument("-v", "--verbose", action="store_true", help="Print detailed log messages.")
     p.add_argument("bam_or_cram_path", help="bam or cram path.")
 
@@ -915,6 +916,9 @@ def process_locus(
         expansion_hunter_denovo_json (dict): optional parsed ExpansionHunterDenovo profile json
         normalize_to_coverage (int): Normalize to this mean coverage. For example = 40 means normalize to 40x coverage.
         min_read_support (int): Ignore motifs supported by fewer than this many reads.
+
+    Return:
+        dict: locus results
     """
     locus_coords_1based = locus_info[locus_id]["LocusCoords_1based"][args.genome_version]
     locus_chrom, start_1based, end_1based = parse_interval(locus_coords_1based)
@@ -1139,11 +1143,12 @@ def process_locus(
             })
 
     # Generate output json
-    output_filename = f"{args.output_prefix}.{locus_id}_motifs.json"
-    with open(output_filename, "wt") as f:
-        json.dump(locus_results_json, f, indent=2)
-    print(f"Wrote results to {output_filename}")
-    pprint(locus_results_json)
+    #output_filename = f"{args.output_prefix}.{locus_id}_motifs.json"
+    #with open(output_filename, "wt") as f:
+    #    json.dump(locus_results_json, f, indent=2)
+    #print(f"Wrote results to {output_filename}")
+
+    return locus_results_json
 
 
 def compute_sample_id(bam_or_cram_path, reference_fasta):
@@ -1265,14 +1270,28 @@ def main():
                 "UseOfftargetRegions": False,
             }
 
+    results_list = []
     for locus_id in args.locus or locus_info.keys():
         print(f"Processing {locus_id} in {args.bam_or_cram_path}")
-        process_locus(
+        results = process_locus(
             locus_id,
             args,
             locus_info=locus_info,
             strling_genotype_df=strling_genotype_df,
             expansion_hunter_denovo_json=expansion_hunter_denovo_json)
+        results_list.append(results)
+
+    # Write results to json
+    if args.output_format == "JSON":
+        output_filename = f"{args.output_prefix}.json"
+        with open(output_filename, "wt") as f:
+            json.dump(results_list, f, indent=2)
+    elif args.output_format == "TSV":
+        pd.DataFrame(results_list).to_csv(f"{args.output_prefix}.tsv.gz", sep="\t", index=False)
+    else:
+        raise ValueError(f"Unexpected --output-format value: '{args.output_format}'")
+
+    print(f"Wrote {len(results_list):,} records to {output_filename}")
 
 
 if __name__ == "__main__":
