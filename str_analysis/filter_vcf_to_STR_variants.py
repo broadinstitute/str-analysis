@@ -62,6 +62,8 @@ ALLELE_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
 
 FILTER_MORE_THAN_TWO_ALT_ALLELES = "more than two alt alleles"
 FILTER_UNEXPECTED_GENOTYPE_FORMAT = "unexpected genotype format"
+FILTER_ZERO_ALT_ALLELES = "variant has zero non-* alt alleles"
+FILTER_MULTIALLELIC_VARIANT_WITH_HOMOZYGOUS_GENOTYPE = "multiallelic variant with homozygous genotype"
 
 FILTER_ALLELE_SNV_OR_MNV = "SNV/MNV"
 FILTER_ALLELE_MNV_INDEL = "complex multinucleotide insertion + deletion"
@@ -727,7 +729,7 @@ def process_vcf_line(
                              f"alt alleles {alt_alleles}: {vcf_genotype_indices}")
 
     # handle '*' alleles
-    if len(alt_alleles) == 2 and "*" in alt_alleles:
+    if "*" in alt_alleles:
         #counters["variant counts: removed * allele and converted to homozygous genotype"] += 1
         # if this variant has 1 regular allele and 1 "*" allele (which represents an overlapping deletion), discard the
         # "*" allele and recode the genotype as haploid
@@ -735,6 +737,9 @@ def process_vcf_line(
         alt_alleles = [a for a in alt_alleles if a != "*"]
         vcf_genotype_indices = [gi for gi in vcf_genotype_indices if gi != star_allele_index]
         vcf_genotype = vcf_genotype_separator.join(map(str, vcf_genotype_indices))
+
+    if len(alt_alleles) == 0 or len(vcf_genotype_indices) == 0:
+        return FILTER_ZERO_ALT_ALLELES
 
     # confirm that there are no more "*" alleles
     if "*" in alt_alleles:
@@ -747,7 +752,7 @@ def process_vcf_line(
     # since these variants are from a single sample VCF, a homozygous genotype and multiple alleles are
     # an error of some sort.
     if len(alt_alleles) > 1 and len(set(vcf_genotype_indices)) == 1:
-        raise ValueError(f"Multi-allelic variant is homozygous in row #{vcf_line_i:,d}: {vcf_genotype} ({vcf_ref} {alt_alleles})")
+        return FILTER_MULTIALLELIC_VARIANT_WITH_HOMOZYGOUS_GENOTYPE
 
     str_allele_specs, filter_string = check_if_variant_is_str(
         fasta_obj,
