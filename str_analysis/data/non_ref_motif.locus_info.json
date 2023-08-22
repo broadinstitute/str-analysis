@@ -6,8 +6,8 @@
     },
     "Motifs": {
       "REFERENCE": "AAAAG",
-      "BENIGN": ["AAAAG", "AAAGG"],
-      "PATHOGENIC": ["AAGGG", "ACAGG"]
+      "BENIGN": ["AAAAG", "AAAGGG", "AAGAG"],
+      "PATHOGENIC": ["AAGGG", "ACAGG", "AGGGC", "AAGGC", "AGAGG"]
     },
     "UseOfftargetRegions": false
   },
