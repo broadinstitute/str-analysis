@@ -1287,7 +1287,8 @@ def main():
         with open(output_filename, "wt") as f:
             json.dump(results_list, f, indent=2)
     elif args.output_format == "TSV":
-        pd.DataFrame(results_list).to_csv(f"{args.output_prefix}.tsv.gz", sep="\t", index=False)
+        output_filename = f"{args.output_prefix}.tsv.gz"
+        pd.DataFrame(results_list).to_csv(output_filename, sep="\t", index=False)
     else:
         raise ValueError(f"Unexpected --output-format value: '{args.output_format}'")
 
