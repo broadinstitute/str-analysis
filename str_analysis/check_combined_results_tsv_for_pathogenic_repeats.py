@@ -31,8 +31,6 @@ from tabulate import tabulate
 REQUIRED_COLUMNS = [
     "LocusId",
     "SampleId",
-    "Sample_affected",
-    "Sample_sex",
     "Num Repeats: Allele 1",
     "Num Repeats: Allele 2",
     "CI end: Allele 1",
@@ -97,8 +95,19 @@ def parse_args():
         "combine_str_json_to_tsv.py script. It's assumed that combine_str_json_to_tsv.py "
         "was run with --sample-metadata and --variant-catalog args to add sample-level and locus-level metadata columns")
 
+    p.add_argument("--sample-affected-status-column", default="Sample_affected", help="Name of the column in the "
+        "combined table that contains the sample affected status")
+    p.add_argument("--sample-sex-column", default="Sample_sex", help="Name of the column in the combined table that "
+        "contains the sample sex")
+    p.add_argument("--sample-analysis-status-column", default="Sample_analysis_status", help="Name of the column in "
+                   "the combined table that contains the sample analysis status")
+    p.add_argument("--sample-phenotypes-column", default="Sample_phenotypes", help="Name of the column in the combined "
+                   "table that contains the list of HPO terms for this sample")
+    p.add_argument("--sample-genome-version-column", default="Sample_genome_version", help="Name of the column in the "
+                   "combined table that contains the genome version")
+
     p.add_argument("--results-path", help="Export a .tsv table of rows that pass thresholds to this path",
-        default="pathogenic_and_intermediate_results.tsv")
+                   default="pathogenic_and_intermediate_results.tsv")
 
     # Parse and validate command-line args + read in the combined table(s) from the given command_tsv_path(s)
     args = p.parse_args()
@@ -169,7 +178,7 @@ def load_results_tables(args):
     for combined_tsv_path in args.combined_tsv_path:
 
         # read in table
-        df = pd.read_table(combined_tsv_path, low_memory=False)
+        df = pd.read_table(combined_tsv_path, low_memory=False, dtype=str)
         df.loc[:, "Num Repeats: Allele 1"] = df["Num Repeats: Allele 1"].fillna(0).astype(int)
         df.loc[:, "Num Repeats: Allele 2"] = df["Num Repeats: Allele 2"].fillna(0).astype(int)
 
@@ -184,7 +193,10 @@ def load_results_tables(args):
         df.loc[:, "Num Repeats: Max Allele 1, 2"] = df[["Num Repeats: Allele 1", "Num Repeats: Allele 2"]].max(axis=1)
 
         # check that all required columns are present
-        missing_required_columns = set(REQUIRED_COLUMNS) - set(df.columns)
+        missing_required_columns = (
+            set(REQUIRED_COLUMNS) | {args.sample_sex_column, args.sample_affected_status_column}
+        ) - set(df.columns)
+
         if missing_required_columns:
             raise ValueError(f"{combined_tsv_path} is missing these required columns: {missing_required_columns}")
 
@@ -208,8 +220,8 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
     """Prints the sorted table of results for a single locus"""
 
     for column_name in (
-            "Sample_affected", "Sample_sex", "Sample_analysis_status", "Sample_coded_phenotype",
-            "Sample_genome_version",
+            args.sample_affected_status_column, args.sample_sex_column, args.sample_analysis_status_column,
+            "Sample_coded_phenotype", args.sample_genome_version_column,
     ):
         # split values like a; b; b; and collapse to a; b
         locus_df.loc[:, column_name] = locus_df[column_name].apply(
@@ -217,15 +229,20 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
         # truncate long text so it fits on screen
         locus_df.loc[:, column_name] = locus_df[column_name].str[0:50]
 
+    locus_df[args.sample_affected_status_column] = locus_df[args.sample_affected_status_column].replace({
+        "Unaffected": "Not Affected",
+        "Possibly Affected": "Unknown",
+    })
+
     unexpected_affected_status_values = set(locus_df[
-        ~locus_df["Sample_affected"].isin({"Affected", "Not Affected", "Unknown"})
-    ].Sample_affected)
+        ~locus_df[args.sample_affected_status_column].isin({"Affected", "Not Affected", "Unknown"})
+    ][args.sample_affected_status_column])
     if unexpected_affected_status_values:
         print(f"WARNING: Some rows have unexpected affected value(s): {unexpected_affected_status_values}")
 
     # Sort
     locus_df = locus_df.sort_values(
-        by=["Num Repeats: Allele 2", "Num Repeats: Allele 1", "Sample_affected"],
+        by=["Num Repeats: Allele 2", "Num Repeats: Allele 1", args.sample_affected_status_column],
         ascending=False)
 
     # Get the 1st row and use it to look up metadata values which are the same across all rows for the locus
@@ -252,7 +269,7 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
             print(f"WARNING: {locus_id} couldn't parse PathogenicMin fields from disease_info {disease_info}: {e}")
 
     reference_region = first_row["ReferenceRegion"]
-    genome_version = f"GRCh{first_row['Sample_genome_version']}" if first_row.get('Sample_genome_version') else ""
+    genome_version = f"GRCh{first_row[args.sample_genome_version_column]}" if first_row.get(args.sample_genome_version_column) else ""
     motif = first_row.get("RepeatUnit")
     locus_description = f"{locus_id} ({reference_region}: {genome_version})  https://stripy.org/database/{locus_id}"
     inheritance_mode = first_row.get("VariantCatalog_Inheritance")
@@ -268,8 +285,8 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
     print("**Intermediate Threshold**: >=", intermediate_threshold_min, "x", motif)
 
     # replace NA with "Unknown" strings
-    locus_df.loc[:, "Sample_affected"] = locus_df["Sample_affected"].fillna("Unknown")
-    locus_df.loc[:, "Sample_sex"] = locus_df["Sample_sex"].fillna("Unknown")
+    locus_df.loc[:, args.sample_affected_status_column] = locus_df[args.sample_affected_status_column].fillna("Unknown")
+    locus_df.loc[:, args.sample_sex_column] = locus_df[args.sample_sex_column].fillna("Unknown")
 
     # create a list of dfs that are subsets of locus_df and where rows pass thresholds
     dfs_to_process = []
@@ -359,7 +376,7 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
         for df_to_process in dfs_to_process:
             unaffected_counter = 0
             idx = 0
-            for affected_status in df_to_process["Sample_affected"]:
+            for affected_status in df_to_process[args.sample_affected_status_column]:
                 idx += 1
                 if affected_status and ("Not Affected" in affected_status or "Unknown" in affected_status):
                     unaffected_counter += 1
@@ -381,11 +398,11 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
 
         if inheritance_mode in {"AR", "XR"}:
             df_to_process = df_to_process.sort_values(
-                by=["Num Repeats: Min Allele 1, 2", "Sample_affected"],
+                by=["Num Repeats: Min Allele 1, 2", args.sample_affected_status_column],
                 ascending=False)
         elif inheritance_mode in {"AD", "XD", "Unknown"}:
             df_to_process = df_to_process.sort_values(
-                by=["Num Repeats: Max Allele 1, 2", "Sample_affected"],
+                by=["Num Repeats: Max Allele 1, 2", args.sample_affected_status_column],
                 ascending=False)
         else:
             raise ValueError(f"Unexpected inheritance mode: {inheritance_mode}")
@@ -395,9 +412,9 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
             "SampleId",
             "LocusId",
 
-            "Sample_affected",
-            "Sample_sex",
-            "Sample_genome_version",
+            args.sample_affected_status_column,
+            args.sample_sex_column,
+            args.sample_genome_version_column,
 
             "Genotype",
             "GenotypeConfidenceInterval",
@@ -405,19 +422,19 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
             "VariantCatalog_Inheritance",
             "RepeatUnit",
 
-            "Sample_analysis_status",
+            args.sample_analysis_status_column,
             "Sample_coded_phenotype",
-            "Sample_phenotypes",
+            args.sample_phenotypes_column,
         ]]
 
         # Shorten some column names so more can fit on screen
         df_to_process.rename(columns={
-            "Sample_affected": "affected",
-            "Sample_sex": "sex",
-            "Sample_analysis_status": "analysis_status",
+            args.sample_affected_status_column: "affected",
+            args.sample_sex_column: "sex",
+            args.sample_analysis_status_column: "analysis_status",
             "Sample_coded_phenotype": "coded_phenotype",
-            "Sample_phenotypes": "hpo",
-            "Sample_genome_version": "genome",
+            args.sample_phenotypes_column: "hpo",
+            args.sample_genome_version_column: "genome",
             "GenotypeConfidenceInterval": "GenotypeCI",
             "VariantCatalog_Inheritance": "Mode",
             "RepeatUnit": "Motif",
@@ -532,7 +549,8 @@ def main():
         for i, (full_df, df_source_path) in enumerate(all_dfs):
             print("="*100)  # print a divider
             print(f"** {locus_id} from {df_source_path} **")
-            locus_df = full_df[full_df.LocusId == locus_id]
+            locus_df = full_df[full_df.LocusId == locus_id].copy()
+
             if len(locus_df) == 0:
                 return
 
