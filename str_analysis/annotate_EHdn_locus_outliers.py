@@ -53,18 +53,21 @@ from str_analysis.utils.file_utils import open_file, file_exists
 def parse_args():
     parser = argparse.ArgumentParser(description="Annotate locus outlier results from EHdn")
     parser.add_argument("--known-disease-associated-loci", help="Path or url of ExpansionHunter catalog .json file that "
-                        "contains all known disease-associated loci",
-                        default="~/code/str-analysis/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json")
-                        #default="https://raw.githubusercontent.com/broadinstitute/str-analysis/main/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json")
+                        "contains all known disease-associated loci, such as the catalog available @ "
+                        "https://github.com/broadinstitute/str-analysis/blob/main/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json",
+                        default="variant_catalog_without_offtargets.GRCh38.json")
     parser.add_argument("--genes-gtf", help="Gene models gtf file path or url. This can be specified more than once "
-                                            "to annotate with multiple gene sources (ie. Gencode and MANE)",
-                        action="append", default=[])  #default="~/code/str-truth-set/ref/other/MANE.v1.0.ensembl_genomic.sorted.gtf.gz")
-
+                        "to annotate with multiple gene sources (ie. Gencode and MANE). These gtf files can be "
+                        "downloaded from https://www.gencodegenes.org/human/ and https://www.ncbi.nlm.nih.gov/refseq/MANE/",
+                        action="append", default=[])
     parser.add_argument("--reference-tr-bed-file", help="A catalog of all repeats in the reference genome in BED "
                         "format where the chrom, start, and end represent the repeat interval in 0-based coordinates, "
                         "and the name field (column #4) contains the repeat unit. If an EHdn call overlaps an interval "
                         "in this bed file and shares the same normalized motif, the locus id of this matching interval "
-                        "will be recorded in this column. When no matching interval is found, the value with be N/A.",
+                        "will be recorded in this column. When no matching interval is found, the value with be N/A."
+                        "TandemRepeatFinder reference catalogs of various sizes are publicly available at "
+                        "https://console.cloud.google.com/storage/browser/str-truth-set/hg38/ref/other/ with file names "
+                        "like repeat_specs*.bed.gz",
                         required=True)
     parser.add_argument("--overlap-bed-file", action="append", help="BED file containing regions of interest. "
                         "This option can be specified more than once. For every bed file, a column will be added "
@@ -80,7 +83,7 @@ def parse_args():
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("-o", "--output-dir", help="Output directory")
 
-    parser.add_argument("ehdn_locus_outlier_tsv", nargs="?", help="One or more EHdn locus outlier results .tsv file(s)")
+    parser.add_argument("ehdn_locus_outlier_tsv", nargs="+", help="One or more EHdn locus outlier results .tsv file(s)")
     args = parser.parse_args()
 
     for file_path in args.overlap_bed_file + args.tr_bed_file + args.genes_gtf + [args.known_disease_associated_loci,
