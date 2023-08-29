@@ -30,7 +30,6 @@ from tabulate import tabulate
 
 REQUIRED_COLUMNS = [
     "LocusId",
-    "SampleId",
     "Num Repeats: Allele 1",
     "Num Repeats: Allele 2",
     "CI end: Allele 1",
@@ -95,6 +94,8 @@ def parse_args():
         "combine_str_json_to_tsv.py script. It's assumed that combine_str_json_to_tsv.py "
         "was run with --sample-metadata and --variant-catalog args to add sample-level and locus-level metadata columns")
 
+    p.add_argument("--sample-id-column", default="SampleId", help="Name of the column in the combined table that "
+                   "contains the sample id")
     p.add_argument("--sample-affected-status-column", default="Sample_affected", help="Name of the column in the "
         "combined table that contains the sample affected status")
     p.add_argument("--sample-sex-column", default="Sample_sex", help="Name of the column in the combined table that "
@@ -409,7 +410,7 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
 
         # Print the filtered results for this locus
         df_to_process = df_to_process[[
-            "SampleId",
+            args.sample_id_column,
             "LocusId",
 
             args.sample_affected_status_column,
@@ -455,7 +456,7 @@ def main():
     all_locus_ids = set()
     for df, _ in all_dfs:
         all_locus_ids |= set(df.LocusId)
-        all_sample_ids |= set(df.SampleId)
+        all_sample_ids |= set(df[args.sample_id_column])
 
     all_variant_ids = set()
     for df, _ in all_dfs:
@@ -555,7 +556,7 @@ def main():
                 return
 
             if highlight_sample_ids:
-                locus_df.loc[:, "SampleId"] = locus_df["SampleId"].apply(
+                locus_df.loc[:, args.sample_id_column] = locus_df[args.sample_id_column].apply(
                     lambda s: (s if s not in highlight_sample_ids else f"==> {s}"))
 
             truth_samples_for_this_locus = set()
@@ -568,7 +569,7 @@ def main():
                 previously_seen_samples_for_this_locus = set(
                     previously_seen_samples_df[previously_seen_samples_df.locus_id == locus_id].sample_id)
 
-            locus_df.loc[:, "SampleId"] = locus_df["SampleId"].apply(
+            locus_df.loc[:, args.sample_id_column] = locus_df[args.sample_id_column].apply(
                 lambda s: (
                     f"*T* {s}" if s in truth_samples_for_this_locus else (
                     f"*P* {s}" if s in previously_seen_samples_for_this_locus else s)
@@ -584,7 +585,7 @@ def main():
     final_results_df = final_results_df[final_results_df["Sample_affected"] != SEPARATOR_STRING]
     final_results_df.to_csv(args.results_path, index=False, header=True, sep="\t")
     print(f"Wrote {len(final_results_df)} rows to {args.results_path}")
-    for locus_id, count in sorted(dict(final_results_df.groupby("LocusId").count().SampleId).items()):
+    for locus_id, count in sorted(dict(final_results_df.groupby("LocusId").count()[args.sample_id_column]).items()):
         print(f"{count:10,d}  {locus_id} rows")
 
 
