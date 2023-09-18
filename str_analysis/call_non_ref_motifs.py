@@ -926,7 +926,8 @@ def process_locus(
     locus_end = end_1based
     use_offtarget_regions = args.use_offtarget_regions or locus_info[locus_id]["UseOfftargetRegions"]
 
-    canonical_reference_motif = compute_canonical_motif(locus_info[locus_id]["Motifs"]["REFERENCE"])
+    reference_motif = locus_info[locus_id]["Motifs"]["REFERENCE"]
+    canonical_reference_motif = compute_canonical_motif(reference_motif)
     reference_motif_size = len(canonical_reference_motif)
 
     known_pathogenic_motifs = list(map(compute_canonical_motif, locus_info[locus_id]["Motifs"].get("PATHOGENIC", [])))
@@ -1100,10 +1101,17 @@ def process_locus(
 
     # Run ExpansionHunter if requested
     if args.run_expansion_hunter:
+        if len(selected_motifs) > 0:
+            print(f"Will call ExpansionHunter on well supported repeat unit(s):", ", ".join(selected_motifs))
+            motifs_for_expansion_hunter = selected_motifs
+        else:
+            print(f"Will call ExpansionHunter on the reference repeat unit: {reference_motif}")
+            motifs_for_expansion_hunter = [reference_motif]
+
         run_expansion_hunter(
             locus_id,
             locus_coords_1based,
-            selected_motifs,
+            motifs_for_expansion_hunter,
             args,
             locus_results_json,
             run_reviewer=args.run_reviewer or (
