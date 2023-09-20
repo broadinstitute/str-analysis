@@ -552,6 +552,7 @@ def main():
             print(f"** {locus_id} from {df_source_path} **")
             locus_df = full_df[full_df.LocusId == locus_id].copy()
 
+            print(f"Found {len(locus_df):0.1f} rows for locus {locus_id}")
             if len(locus_df) == 0:
                 return
 
