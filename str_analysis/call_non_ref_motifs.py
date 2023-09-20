@@ -943,7 +943,7 @@ def process_locus(
     locus_results_json.update({
         "sample_id": args.sample_id,
         "locus_id": locus_id,
-        "locus_coords": f"{locus_chrom}:{start_1based}-{end_1based}",
+        "locus_coords_1based": f"{locus_chrom}:{start_1based}-{end_1based}",
         "genome_version": args.genome_version,
         "left_flank_coverage": left_flank_coverage,
         "right_flank_coverage": right_flank_coverage,
