@@ -1,9 +1,8 @@
 import unittest
 
 from check_trios_for_mendelian_violations import (
-    check_for_duplicate_keys, compute_mendelian_violations,
     compute_min_distance_mendelian, compute_min_distance_mendelian_ci,
-    group_rows_by_trio, intervals_overlap)
+    intervals_overlap, determine_transmitted_alleles)
 from intervaltree import Interval
 
 
@@ -26,6 +25,19 @@ class Tests(unittest.TestCase):
         self.assertEqual(compute_min_distance_mendelian_ci(Interval(20, 20), [Interval(25, 50), Interval(24, 30)]), 4)
         self.assertEqual(compute_min_distance_mendelian_ci(Interval(20, 30), [Interval(25, 50), Interval(24, 30)]), 0)
         self.assertEqual(compute_min_distance_mendelian_ci(Interval(20, 30), [Interval(32, 50), Interval(43, 50)]), 2)
+
+    def test_determine_transmitted_alleles(self):
+        father_allele, mother_allele, proband_allele_from_father, proband_allele_from_mother = determine_transmitted_alleles(
+            ["5", "10"], father_alleles=["3", "5"], mother_alleles=["9", "14"], is_chrX_locus=False)
+        self.assertListEqual(
+            [father_allele, mother_allele, proband_allele_from_father, proband_allele_from_mother],
+            ["5", "9", "5", "10"])
+
+        father_allele, mother_allele, proband_allele_from_father, proband_allele_from_mother = determine_transmitted_alleles(
+            ["5", "10"], mother_alleles=["3", "5"], father_alleles=["9", "14"], is_chrX_locus=False)
+        self.assertListEqual(
+            [father_allele, mother_allele, proband_allele_from_father, proband_allele_from_mother],
+            ["9", "5", "10", "5"])
 
     def test_compute_mendelian_violations(self):
         pass

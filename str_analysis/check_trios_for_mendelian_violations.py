@@ -51,6 +51,15 @@ def parse_args(args_list=None):
         default="SampleId",
     )
     p.add_argument(
+        "--output-locus-stats-tsv",
+        action="store_true",
+        help="Output a table of mendelian violation counts for each locus.",
+    )
+    p.add_argument(
+        "--output-prefix",
+        help="Output filename prefix.",
+    )
+    p.add_argument(
         "combined_str_calls_tsv",
         help=".tsv table that contains str calls for all individuals, created by the "
         "combine_expansion_hunter_json_results_to_tsv script",
@@ -101,7 +110,10 @@ def parse_combined_str_calls_tsv_path(combined_str_calls_tsv_path, sample_id_col
         expected_columns += list(EXTRA_INPUT_COLUMNS)
 
     if sample_id_column not in expected_columns:
-        expected_columns += [sample_id_column]
+        # replace "SampleId" with the user-specified sample id column name
+        expected_columns = [sample_id_column] + [c for c in expected_columns if c != "SampleId"]
+
+
     combined_str_calls_df = combined_str_calls_df[expected_columns]
     #combined_str_calls_df = combined_str_calls_df.drop_duplicates()
     combined_str_calls_df.set_index([sample_id_column, "LocusId", "VariantId"], inplace=True)
@@ -145,21 +157,21 @@ def group_rows_by_trio(combined_str_calls_df, sample_id_column="SampleId"):
     print("Caching paternal & maternal genotypes")
     all_rows = {}
     for _, row in tqdm.tqdm(combined_str_calls_df.iterrows(), unit=" table rows", total=len(combined_str_calls_df)):
-        if row.Genotype is not None:
-            all_rows[(row[sample_id_column], row.LocusId, row.VariantId)] = row
+        if row["Genotype"] is not None:
+            all_rows[(row[sample_id_column], row["LocusId"], row["VariantId"])] = row
             #all_rows[(row.Filename, row.LocusId, row.VariantId)] = row
 
     calls_counter = 0
     trio_ids = set()
     trio_rows = []
     other_rows = []
-    print(f"{len(combined_str_calls_df)} total rows")
+    print(f"{len(combined_str_calls_df):,d} total rows")
     combined_str_calls_df = combined_str_calls_df[~combined_str_calls_df.father_id.isna() & ~combined_str_calls_df.mother_id.isna()]
-    print(f"{len(combined_str_calls_df)} rows remaining after filtering to rows that represent full trios")
+    print(f"{len(combined_str_calls_df):,d} rows remaining after filtering to rows that represent full trios")
 
     for _, row in tqdm.tqdm(combined_str_calls_df.iterrows(), unit=" table rows", total=len(combined_str_calls_df)):
-        father_row = all_rows.get((row.father_id, row.LocusId, row.VariantId))
-        mother_row = all_rows.get((row.mother_id, row.LocusId, row.VariantId))
+        father_row = all_rows.get((row["father_id"], row["LocusId"], row["VariantId"]))
+        mother_row = all_rows.get((row["mother_id"], row["LocusId"], row["VariantId"]))
         if father_row is None or mother_row is None:
             print(f"WARNING: skipping {row[sample_id_column]} (father: {row.father_id}, mother: {row.mother_id}) {row.VariantId} because table is missing the "
                   f"{'father genotype' if father_row is None else ''} "
@@ -168,7 +180,7 @@ def group_rows_by_trio(combined_str_calls_df, sample_id_column="SampleId"):
             other_rows.append(row)
             continue
 
-        trio_ids.add((row[sample_id_column], row.father_id, row.mother_id))
+        trio_ids.add((row[sample_id_column], row["father_id"], row["mother_id"]))
         trio_rows.append((row, father_row, mother_row))
         calls_counter += 1
 
@@ -215,6 +227,125 @@ def compute_min_distance_mendelian_ci(proband_CI, parent_CIs):
     return min([abs(proband_CI.distance_to(parent_CI)) for parent_CI in parent_CIs])
 
 
+def is_mendelian_violation(proband_alleles, father_alleles, mother_alleles, is_chrX_locus=False):
+    if len(proband_alleles) == 1:
+        # AFAIK ExpansionHunter only outputs a haploid genotype (eg. len(proband_alleles) == 1) when the proband is male
+        # and the locus is on the X chromosome. In that case, the male chrX allele should always be inherited from the mother.
+        if is_chrX_locus:
+            ok_mendelian = proband_alleles[0] in mother_alleles
+            distance_mendelian = compute_min_distance_mendelian(proband_alleles[0], mother_alleles)
+        else:
+            # not sure if it's possible to have a haploid genotype that's not on chrX, but leave this in just in case
+            ok_mendelian = proband_alleles[0] in father_alleles or proband_alleles[0] in mother_alleles
+            distance_mendelian = min(compute_min_distance_mendelian(proband_alleles[0], father_alleles),
+                                     compute_min_distance_mendelian(proband_alleles[0], mother_alleles))
+
+    elif len(proband_alleles) == 2:
+        ok_mendelian = (
+                (proband_alleles[0] in father_alleles and proband_alleles[1] in mother_alleles) or
+                (proband_alleles[1] in father_alleles and proband_alleles[0] in mother_alleles))
+        distance_mendelian = min(
+            compute_min_distance_mendelian(proband_alleles[0], father_alleles) + compute_min_distance_mendelian(proband_alleles[1], mother_alleles),
+            compute_min_distance_mendelian(proband_alleles[1], father_alleles) + compute_min_distance_mendelian(proband_alleles[0], mother_alleles),
+        )
+
+    else:
+        raise ValueError(f"Unexpected proband_alleles value: {proband_alleles}")
+
+    return ok_mendelian, distance_mendelian
+
+
+def is_mendelian_violation_with_CI(proband_CIs, father_CIs, mother_CIs, is_chrX_locus=False):
+    if len(proband_CIs) == 1:
+        # See comment about male probands and chrX in the is_mendelian_violation method
+        if is_chrX_locus:
+            ok_mendelian_ci = any([intervals_overlap(proband_CIs[0], i) for i in mother_CIs])
+            distance_mendelian_ci = compute_min_distance_mendelian_ci(proband_CIs[0], mother_CIs)
+        else:
+            # not sure if it's possible to have a haploid genotype that's not on chrX, but leave this in just in case
+            ok_mendelian_ci = (
+                any([intervals_overlap(proband_CIs[0], i) for i in father_CIs])) or (
+                any([intervals_overlap(proband_CIs[0], i) for i in mother_CIs]))
+
+            distance_mendelian_ci = min(
+                compute_min_distance_mendelian_ci(proband_CIs[0], father_CIs),
+                compute_min_distance_mendelian_ci(proband_CIs[0], mother_CIs))
+
+    elif len(proband_CIs) == 2:
+        ok_mendelian_ci = (
+                (any([intervals_overlap(proband_CIs[0], i) for i in father_CIs]) and any([intervals_overlap(proband_CIs[1], i)for i in mother_CIs])) or
+                (any([intervals_overlap(proband_CIs[1], i) for i in father_CIs]) and any([intervals_overlap(proband_CIs[0], i) for i in mother_CIs])))
+        distance_mendelian_ci = min(
+            compute_min_distance_mendelian_ci(proband_CIs[0], father_CIs) + compute_min_distance_mendelian_ci(proband_CIs[1], mother_CIs),
+            compute_min_distance_mendelian_ci(proband_CIs[1], father_CIs) + compute_min_distance_mendelian_ci(proband_CIs[0], mother_CIs),
+        )
+    else:
+        raise ValueError(f"Unexpected proband_CIs value: {proband_CIs}")
+
+    return ok_mendelian_ci, distance_mendelian_ci
+
+
+def get_nearest_parental_allele(proband_allele, parent_alleles):
+    """Return the parental allele that's closest in size to the given proband allele.
+
+    Args:
+        proband_allele (int): the proband's allele length.
+        parent_alleles (list of allele sizes): list of parental allele lengths.
+
+    Return:
+        (int, int): the parental allele that's closest in size to the given proband allele.
+    """
+    nearest_parental_allele = min(parent_alleles, key=lambda x: abs(int(proband_allele) - int(x)))
+    difference_between_parent_and_proband_allele_size = abs(int(proband_allele) - int(nearest_parental_allele))
+    return nearest_parental_allele, difference_between_parent_and_proband_allele_size
+
+
+def determine_transmitted_alleles(proband_alleles, father_alleles, mother_alleles, is_chrX_locus=False):
+    father_transmitted_allele = mother_transmitted_allele = proband_num_repeats_from_father = proband_num_repeats_from_mother = None
+    if len(proband_alleles) == 1:
+        # See comment about male probands and chrX in the is_mendelian_violation method
+        if is_chrX_locus:
+            nearest_maternal_allele = get_nearest_parental_allele(proband_alleles[0], mother_alleles)
+            mother_transmitted_allele = nearest_maternal_allele
+            proband_num_repeats_from_mother = proband_alleles[0]
+        else:
+            # not sure if it's possible to have a haploid genotype that's not on chrX, but leave this in just in case
+            nearest_paternal_allele, _ = get_nearest_parental_allele(proband_alleles[0], father_alleles)
+            nearest_maternal_allele, _ = get_nearest_parental_allele(proband_alleles[0], mother_alleles)
+            is_proband_allele_closer_to_paternal_than_to_maternal_allele = abs(int(nearest_paternal_allele) - int(proband_alleles[0])) < abs(int(nearest_maternal_allele) - int(proband_alleles[0]))
+            if is_proband_allele_closer_to_paternal_than_to_maternal_allele:
+                father_transmitted_allele = nearest_paternal_allele
+                proband_num_repeats_from_father = proband_alleles[0]
+            else:
+                mother_transmitted_allele = nearest_paternal_allele
+                proband_num_repeats_from_mother = proband_alleles[0]
+
+    elif len(proband_alleles) == 2:
+        nearest_paternal_allele_to_proband_allele1, diff_p1 = get_nearest_parental_allele(proband_alleles[0], father_alleles)
+        nearest_maternal_allele_to_proband_allele1, diff_m1 = get_nearest_parental_allele(proband_alleles[0], mother_alleles)
+        nearest_paternal_allele_to_proband_allele2, diff_p2 = get_nearest_parental_allele(proband_alleles[1], father_alleles)
+        nearest_maternal_allele_to_proband_allele2, diff_m2 = get_nearest_parental_allele(proband_alleles[1], mother_alleles)
+
+        if diff_m1 + diff_p2 < diff_p1 + diff_m2:
+            # proband allele1 came from the mother
+            mother_transmitted_allele = nearest_maternal_allele_to_proband_allele1
+            proband_num_repeats_from_mother = proband_alleles[0]
+            # proband allele2 came from the father
+            father_transmitted_allele = nearest_paternal_allele_to_proband_allele2
+            proband_num_repeats_from_father = proband_alleles[1]
+        else:
+            # proband allele2 came from the mother
+            mother_transmitted_allele = nearest_maternal_allele_to_proband_allele2
+            proband_num_repeats_from_mother = proband_alleles[1]
+            # proband allele1 came from the father
+            father_transmitted_allele = nearest_paternal_allele_to_proband_allele1
+            proband_num_repeats_from_father = proband_alleles[0]
+    else:
+        raise ValueError(f"Unexpected proband_alleles value: {proband_alleles}")
+
+    return father_transmitted_allele, mother_transmitted_allele, proband_num_repeats_from_father, proband_num_repeats_from_mother
+
+
 def compute_mendelian_violations(trio_rows, sample_id_column="SampleId"):
     """Compute mendelian violations using both exact genotypes and intervals"""
 
@@ -225,50 +356,25 @@ def compute_mendelian_violations(trio_rows, sample_id_column="SampleId"):
 
     results_rows = []
     for proband_row, father_row, mother_row in tqdm.tqdm(trio_rows, unit=" variants with no missing genotypes"):
-        locus_id = proband_row.LocusId
-        proband_alleles = proband_row.Genotype.split("/")   # Num Repeats: Allele 1
-        father_alleles = father_row.Genotype.split("/")
-        mother_alleles = mother_row.Genotype.split("/")
+        locus_id = proband_row["LocusId"]
+        proband_alleles = proband_row["Genotype"].split("/")   # Num Repeats: Allele 1
+        father_alleles = father_row["Genotype"].split("/")
+        mother_alleles = mother_row["Genotype"].split("/")
 
-        assert len(proband_alleles) in [1, 2], proband_alleles
-        assert len(father_alleles) in [1, 2], (father_alleles, father_row)
-        assert len(mother_alleles) in [1, 2], (mother_alleles, mother_row)
+        assert len(proband_alleles) in {1, 2}, proband_alleles
+        assert len(father_alleles) in {1, 2}, (father_alleles, father_row)
+        assert len(mother_alleles) in {1, 2}, (mother_alleles, mother_row)
 
-        proband_CIs = [Interval(*[int(i) for i in ci.split("-")]) for ci in proband_row.GenotypeConfidenceInterval.split("/")]
-        father_CIs = [Interval(*[int(i) for i in ci.split("-")]) for ci in father_row.GenotypeConfidenceInterval.split("/")]
-        mother_CIs = [Interval(*[int(i) for i in ci.split("-")]) for ci in mother_row.GenotypeConfidenceInterval.split("/")]
+        proband_CIs = [Interval(*[int(i) for i in ci.split("-")]) for ci in proband_row["GenotypeConfidenceInterval"].split("/")]
+        father_CIs = [Interval(*[int(i) for i in ci.split("-")]) for ci in father_row["GenotypeConfidenceInterval"].split("/")]
+        mother_CIs = [Interval(*[int(i) for i in ci.split("-")]) for ci in mother_row["GenotypeConfidenceInterval"].split("/")]
 
-        if len(proband_alleles) == 1:
-            # AFAIK ExpansionHunter only outputs len(proband_alleles) == 1 if the proband is male, and the locus is on the X chromosome.
-            # Strictly speaking, this means the X-chrom allele should always be inheritted from the mother. However, since there might be more complicated
-            # scenarios (such as in the PAR region), call it ok (not a mendelian violation) even if it matches the father's allele
-            ok_mendelian = proband_alleles[0] in father_alleles or proband_alleles[0] in mother_alleles
-            distance_mendelian = min(compute_min_distance_mendelian(proband_alleles[0], father_alleles),
-                                     compute_min_distance_mendelian(proband_alleles[0], mother_alleles))
+        is_chrX_locus = "X" in proband_row["ReferenceRegion"]
+        ok_mendelian, distance_mendelian = is_mendelian_violation(proband_alleles, father_alleles, mother_alleles, is_chrX_locus=is_chrX_locus)
+        ok_mendelian_ci, distance_mendelian_ci = is_mendelian_violation_with_CI(proband_CIs, father_CIs, mother_CIs, is_chrX_locus=is_chrX_locus)
 
-            ok_mendelian_ci = any([intervals_overlap(proband_CIs[0], i) for i in father_CIs]) or any([intervals_overlap(proband_CIs[0], i) for i in mother_CIs])
-            distance_mendelian_ci = min(
-                compute_min_distance_mendelian_ci(proband_CIs[0], father_CIs),
-                compute_min_distance_mendelian_ci(proband_CIs[0], mother_CIs))
-
-        elif len(proband_alleles) == 2:
-            ok_mendelian = (
-                    (proband_alleles[0] in father_alleles and proband_alleles[1] in mother_alleles) or
-                    (proband_alleles[1] in father_alleles and proband_alleles[0] in mother_alleles))
-            distance_mendelian = min(
-                compute_min_distance_mendelian(proband_alleles[0], father_alleles) + compute_min_distance_mendelian(proband_alleles[1], mother_alleles),
-                compute_min_distance_mendelian(proband_alleles[1], father_alleles) + compute_min_distance_mendelian(proband_alleles[0], mother_alleles),
-            )
-
-            ok_mendelian_ci = (
-                    (any([intervals_overlap(proband_CIs[0], i) for i in father_CIs]) and any([intervals_overlap(proband_CIs[1], i)for i in mother_CIs])) or
-                    (any([intervals_overlap(proband_CIs[1], i) for i in father_CIs]) and any([intervals_overlap(proband_CIs[0], i) for i in mother_CIs])))
-            distance_mendelian_ci = min(
-                compute_min_distance_mendelian_ci(proband_CIs[0], father_CIs) + compute_min_distance_mendelian_ci(proband_CIs[1], mother_CIs),
-                compute_min_distance_mendelian_ci(proband_CIs[1], father_CIs) + compute_min_distance_mendelian_ci(proband_CIs[0], mother_CIs),
-            )
-        else:
-            raise ValueError(f"Unexpected proband_alleles value: {proband_alleles}")
+        father_transmitted_allele, mother_transmitted_allele, proband_num_repeats_from_father, proband_num_repeats_from_mother = determine_transmitted_alleles(
+            proband_alleles, father_alleles, mother_alleles, is_chrX_locus=is_chrX_locus)
 
         if ok_mendelian:
             assert distance_mendelian == 0, f"{locus_id}  d:{distance_mendelian}  ({father_row.Genotype} + {mother_row.Genotype} => {proband_row.Genotype})"
@@ -284,11 +390,11 @@ def compute_mendelian_violations(trio_rows, sample_id_column="SampleId"):
             counters_ci[f"{locus_id} ({proband_row.RepeatUnit})"] += 1
 
         #assert not (ok_mendelian and not ok_mendelian_ci)  # it should never be the case that mendelian inheritance is consistent for exact genotypes, and not consistent for CI interval-overlap.
-        _, reference_region_start_0based, reference_region_end_1based = parse_interval(proband_row.ReferenceRegion)
-        if (reference_region_end_1based - reference_region_start_0based) % len(proband_row.RepeatUnit):
+        _, reference_region_start_0based, reference_region_end_1based = parse_interval(proband_row["ReferenceRegion"])
+        if (reference_region_end_1based - reference_region_start_0based) % len(proband_row["RepeatUnit"]):
             print(f"WARNING: {proband_row.ReferenceRegion} is not a multiple of the repeat unit size ({len(proband_row.RepeatUnit)})")
 
-        repeats_in_reference = str(int((reference_region_end_1based - reference_region_start_0based) / len(proband_row.RepeatUnit)))
+        repeats_in_reference = str(int((reference_region_end_1based - reference_region_start_0based) / len(proband_row["RepeatUnit"])))
         proband_is_homozygous_reference = all(proband_allele == repeats_in_reference for proband_allele in proband_alleles)
         mother_is_homozygous_reference = all(mother_allele == repeats_in_reference for mother_allele in mother_alleles)
         father_is_homozygous_reference = all(father_allele == repeats_in_reference for father_allele in father_alleles)
@@ -298,10 +404,10 @@ def compute_mendelian_violations(trio_rows, sample_id_column="SampleId"):
 
         results_row = {
             'LocusId': f"{locus_id} ({proband_row.VariantId})",
-            'ReferenceRegion': proband_row.ReferenceRegion,
-            'VariantId': proband_row.VariantId,
-            'RepeatUnit': proband_row.RepeatUnit,
-            'RepeatUnitLength': len(proband_row.RepeatUnit),
+            'ReferenceRegion': proband_row["ReferenceRegion"],
+            'VariantId': proband_row["VariantId"],
+            'RepeatUnit': proband_row["RepeatUnit"],
+            'RepeatUnitLength': len(proband_row["RepeatUnit"]),
             'IsMendelianViolation': not ok_mendelian,
             'IsMendelianViolationCI': not ok_mendelian_ci,
             'MendelianViolationDistance': distance_mendelian,
@@ -309,15 +415,15 @@ def compute_mendelian_violations(trio_rows, sample_id_column="SampleId"):
 
             'MendelianViolationSummary': 'MV-CI!' if not ok_mendelian_ci else ('MV' if not ok_mendelian else 'ok'),
 
-            'ProbandGenotype': proband_row.Genotype,
-            'ProbandGenotypeCI': proband_row.GenotypeConfidenceInterval,
+            'ProbandGenotype': proband_row["Genotype"],
+            'ProbandGenotypeCI': proband_row["GenotypeConfidenceInterval"],
             'ProbandGenotypeCI_size': proband_CIs[-1].length(),
 
-            'FatherGenotype': father_row.Genotype,
-            'FatherGenotypeCI': father_row.GenotypeConfidenceInterval,
+            'FatherGenotype': father_row["Genotype"],
+            'FatherGenotypeCI': father_row["GenotypeConfidenceInterval"],
 
-            'MotherGenotype': mother_row.Genotype,
-            'MotherGenotypeCI': mother_row.GenotypeConfidenceInterval,
+            'MotherGenotype': mother_row["Genotype"],
+            'MotherGenotypeCI': mother_row["GenotypeConfidenceInterval"],
 
             'AllGenotypesAreTheSame': all_genotypes_are_the_same,
             'AllGenotypesAreHomozygousReference': all_genotypes_are_homozygous_reference,
@@ -325,37 +431,42 @@ def compute_mendelian_violations(trio_rows, sample_id_column="SampleId"):
             'ProbandSampleId': proband_row[sample_id_column],
             'FatherSampleId': father_row[sample_id_column],
             'MotherSampleId': mother_row[sample_id_column],
-            'ProbandSex': proband_row.Sex,
+            'ProbandSex': proband_row["Sex"],
 
-            'ProbandNumRepeatsAllele2': proband_row['Num Repeats: Allele 2'],
-            'FatherNumRepeatsAllele2 ': father_row['Num Repeats: Allele 2'],
-            'MotherNumRepeatsAllele2': mother_row['Num Repeats: Allele 2'],
+            'ProbandNumRepeatsAllele2': proband_row["Num Repeats: Allele 2"],
+            'FatherNumRepeatsAllele2 ': father_row["Num Repeats: Allele 2"],
+            'MotherNumRepeatsAllele2': mother_row["Num Repeats: Allele 2"],
 
-            'ProbandCoverage': proband_row.Coverage,
-            'FatherCoverage': father_row.Coverage,
-            'MotherCoverage': mother_row.Coverage,
-            'MinCoverage': min(float(proband_row.Coverage), float(father_row.Coverage), float(mother_row.Coverage)),
+            'ProbandCoverage': proband_row["Coverage"],
+            'FatherCoverage': father_row["Coverage"],
+            'MotherCoverage': mother_row["Coverage"],
+            'MinCoverage': min(float(proband_row["Coverage"]), float(father_row["Coverage"]), float(mother_row["Coverage"])),
 
-            'mendelian_results_string': mendelian_results_string,
-            'mendelian_ci_results_string': mendelian_ci_results_string,
+            'MendelianResultsSummary': mendelian_results_string,
+            'MendelianCIResultsSummary': mendelian_ci_results_string,
+
+            'FatherTransmittedAllele': father_transmitted_allele,
+            'MotherTransmittedAllele': mother_transmitted_allele,
+            'ProbandNumRepeatsFromFather': proband_num_repeats_from_father,
+            'ProbandNumRepeatsFromMother': proband_num_repeats_from_mother,
         }
 
         existing_column_names = set(proband_row.to_dict().keys()) & set(father_row.to_dict().keys()) & set(mother_row.to_dict().keys())
         if all(k in existing_column_names for k in EXTRA_INPUT_COLUMNS):
            results_row.update({
-               'ProbandNumSpanningReads': proband_row.NumSpanningReads,
-               'ProbandNumFlankingReads': proband_row.NumFlankingReads,
-               'ProbandNumInrepeatReads': proband_row.NumInrepeatReads,
-               'FatherNumSpanningReads': father_row.NumSpanningReads,
-               'FatherNumFlankingReads': father_row.NumFlankingReads,
-               'FatherNumInrepeatReads': father_row.NumInrepeatReads,
-               'MotherNumSpanningReads': mother_row.NumSpanningReads,
-               'MotherNumFlankingReads': mother_row.NumFlankingReads,
-               'MotherNumInrepeatReads': mother_row.NumInrepeatReads,
+               'ProbandNumSpanningReads': proband_row["NumSpanningReads"],
+               'ProbandNumFlankingReads': proband_row["NumFlankingReads"],
+               'ProbandNumInrepeatReads': proband_row["NumInrepeatReads"],
+               'FatherNumSpanningReads': father_row["NumSpanningReads"],
+               'FatherNumFlankingReads': father_row["NumFlankingReads"],
+               'FatherNumInrepeatReads': father_row["NumInrepeatReads"],
+               'MotherNumSpanningReads': mother_row["NumSpanningReads"],
+               'MotherNumFlankingReads': mother_row["NumFlankingReads"],
+               'MotherNumInrepeatReads': mother_row["NumInrepeatReads"],
 
-               'ProbandNumAllelesSupportedBySpanningReads': int(proband_row.NumAllelesSupportedBySpanningReads) + int(proband_row.NumAllelesSupportedByFlankingReads) + int(proband_row.NumAllelesSupportedByInrepeatReads),
-               'FatherNumAllelesSupportedByFlankingReads': int(father_row.NumAllelesSupportedBySpanningReads) + int(father_row.NumAllelesSupportedByFlankingReads) + int(father_row.NumAllelesSupportedByInrepeatReads),
-               'MotherNumAllelesSupportedByInrepeatReads': int(mother_row.NumAllelesSupportedBySpanningReads) + int(mother_row.NumAllelesSupportedByFlankingReads) + int(mother_row.NumAllelesSupportedByInrepeatReads),
+               'ProbandNumAllelesSupportedBySpanningReads': int(proband_row["NumAllelesSupportedBySpanningReads"]) + int(proband_row["NumAllelesSupportedByFlankingReads"]) + int(proband_row["NumAllelesSupportedByInrepeatReads"]),
+               'FatherNumAllelesSupportedByFlankingReads': int(father_row["NumAllelesSupportedBySpanningReads"]) + int(father_row["NumAllelesSupportedByFlankingReads"]) + int(father_row["NumAllelesSupportedByInrepeatReads"]),
+               'MotherNumAllelesSupportedByInrepeatReads': int(mother_row["NumAllelesSupportedBySpanningReads"]) + int(mother_row["NumAllelesSupportedByFlankingReads"]) + int(mother_row["NumAllelesSupportedByInrepeatReads"]),
            })
 
         results_rows.append(results_row)
@@ -402,13 +513,28 @@ def main():
     mendelian_violations_df = compute_mendelian_violations(trio_rows, sample_id_column=args.sample_id_column)
     other_rows_df = pd.DataFrame((r.to_dict() for r in other_rows))
 
-    output_tsv_path = re.sub(".tsv$", "", str(args.combined_str_calls_tsv)) + ".mendelian_violations.tsv"
+    if not args.output_prefix:
+        args.output_prefix = re.sub(".tsv(.gz)?$", "", str(args.combined_str_calls_tsv))
+
+    output_tsv_path = f"{args.output_prefix}.mendelian_violations.tsv"
     mendelian_violations_df.to_csv(output_tsv_path, index=False, header=True, sep="\t")
     print(f"Wrote {len(mendelian_violations_df):,d} rows to {output_tsv_path}")
 
-    output_tsv_path = re.sub(".tsv$", "", str(args.combined_str_calls_tsv)) + ".non_trio_rows.tsv"
+    output_tsv_path = f"{args.output_prefix}.non_trio_rows.tsv"
     other_rows_df.to_csv(output_tsv_path, index=False, header=True, sep="\t")
     print(f"Wrote {len(other_rows_df):,d} rows to {output_tsv_path}")
+
+    if args.output_locus_stats_tsv:
+        output_path = f"{args.output_prefix}.locus_stats.tsv"
+        # Count how many times is locus has isMendelianViolation == True and also isMendelianViolationCI == True
+        mendelian_violations_df.groupby(["LocusId", "ReferenceRegion", "VariantId", "RepeatUnit", "RepeatUnitLength"]).agg({
+            "IsMendelianViolation": "sum",
+            "IsMendelianViolationCI": "sum",
+            "MendelianViolationDistance": "sum",
+            "MendelianViolationDistanceCI": "sum",
+            "ProbandSampleId": "count",
+        }).to_csv(output_path, sep="\t")
+        print(f"Wrote locus stats to {output_path}")
 
 
 if __name__ == "__main__":
