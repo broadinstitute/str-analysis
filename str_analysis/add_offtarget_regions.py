@@ -1,6 +1,7 @@
 """This script takes an ExpansionHunter variant catalog and adds off-target regions"""
 
 import argparse
+import collections
 import json
 import os
 import re
@@ -9,7 +10,7 @@ import sqlite3
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from str_analysis.utils.file_utils import open_file, download_local_copy
 
-MIN_FRACTION_SIMULATED_READS_ABSORBED = 0.005
+MIN_FRACTION_SIMULATED_READS_ABSORBED = 0.01
 MIN_SIMULATED_READS_ABSORBED = 1
 MAX_OFFTARGET_REGIONS = 10
 
@@ -72,6 +73,8 @@ def add_offtarget_regions(
             offtarget_regions.append(f"{offtarget_region[0]}:{offtarget_region[1] - 1}-{offtarget_region[2]}")
 
     if offtarget_regions:
+        record = record.copy()
+        record["LocusId"] = f"{record['LocusId']}_WITH_OFFTARGETS"
         record["OfftargetRegions"] = offtarget_regions
         record["VariantType"] = "RareRepeat"
 
@@ -79,6 +82,10 @@ def add_offtarget_regions(
         print(f"Added {len(offtarget_regions)} off-target regions to {record['LocusId']} " +
               (f"where the last off-target region accounted for {results[-1][3]} simulated read(s) "
                f"(which was {results[-1][4]:0.1%} of all simulated reads)" if offtarget_regions else ""))
+
+
+    return record if offtarget_regions else None
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -105,6 +112,9 @@ def main():
                         default=MIN_FRACTION_SIMULATED_READS_ABSORBED,
                         help="Minimum fraction of simulated reads that were absorbed by an off-target region in order "
                              "for it to be included in the off-target region list.")
+    parser.add_argument("-k", "--keep-original-locus-definitions", action="store_true", help="If specified, each locus "
+                              "definition in the input variant catalog will be included in the output catalog twice - "
+                              "once with and and once without off-target regions.")
     parser.add_argument("-o", "--output-catalog",
                         help="Path where to write the output catalog. If not specified, it will be based on the input "
                              "catalog path")
@@ -123,21 +133,7 @@ def main():
     except Exception as e:
         parser.error(f"Unable to parse {args.input_catalog_path}: {e}")
 
-    filtered_input_catalog = [
-        r for r in input_catalog if not isinstance(r.get("ReferenceRegion"), list)]
-    if len(filtered_input_catalog) < len(input_catalog):
-        print(f"Skipping {len(input_catalog) - len(filtered_input_catalog):,d} out of {len(input_catalog):,d} records "
-              f"that have adjacent loci specified")
-        input_catalog = filtered_input_catalog
-
-    filtered_input_catalog = [
-        r for r in input_catalog if len(r.get("LocusStructure", "N").strip("(ACGT)*+?")) == 0]
-    if len(filtered_input_catalog) < len(input_catalog):
-        print(f"Skipping {len(input_catalog) - len(filtered_input_catalog):,d} out of {len(input_catalog):,d} records "
-              f"because they have an unexpected LocusStructure or a repeat unit that includes non-ACGT nucleotides")
-        input_catalog = filtered_input_catalog
-
-    print(f"Processing {len(filtered_input_catalog):,d} loci from {args.input_catalog_path}")
+    print(f"Processing {len(input_catalog):,d} loci from {args.input_catalog_path}")
 
     output_catalog = []
 
@@ -149,8 +145,20 @@ def main():
         local_db_path = download_local_copy(offtarget_db_path)
     offtarget_db_connection = sqlite3.connect(local_db_path)
 
+    counters = collections.defaultdict(int)
     for record in input_catalog:
-        add_offtarget_regions(
+        if isinstance(record.get("ReferenceRegion"), list):
+            counters["adjacent loci filter"] += 1
+            continue
+
+        if len(record.get("LocusStructure", "N").strip("(ACGT)*+?")) > 0:
+            counters["non-ACGT bases filter"] += 1
+            continue
+
+        if args.keep_original_locus_definitions:
+            output_catalog.append(record)
+
+        record_with_offtarget_regions = add_offtarget_regions(
             record,
             offtarget_db_connection,
             args.max_offtarget_regions,
@@ -158,7 +166,20 @@ def main():
             args.min_fraction_of_simulated_reads_absorbed,
             verbose=args.verbose
         )
-        output_catalog.append(record)
+
+        if record_with_offtarget_regions is not None:
+            output_catalog.append(record_with_offtarget_regions)
+
+    total = len(input_catalog)
+    if counters["adjacent loci filter"] > 0:
+        print(f"Skipped {total - counters['adjacent loci filter']:,d} out of {total:,d} records "
+              f"that have adjacent loci specified")
+        total -= counters["adjacent loci filter"]
+
+    if counters["non-ACGT bases filter"] > 0:
+        print(f"Skipped {total - counters['non-ACGT bases filter']:,d} out of {total:,d} records "
+              f"because they have an unexpected LocusStructure or a repeat unit that includes non-ACGT nucleotides")
+        total -= counters["non-ACGT bases filter"]
 
     # write the results to the output catalog
     if args.output_catalog:
