@@ -1,5 +1,27 @@
 [
     {
+        "LocusId": "ABCD3",
+        "ReferenceRegion": "chr1:94883977-94883998",
+        "LocusStructure": "(GCC)*",
+        "VariantType": "Repeat",
+        "RepeatUnit": "GCC",
+        "Gene": "ABCD3",
+        "Inheritance": "AD",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000117528",
+        "DiscoveryMethod": "WGS",
+        "DiscoveryYear": 2023,
+        "Diseases": [
+            {
+                "Symbol": "OPDM",
+                "Name": "Oculopharyngodistal myopathy (OPDM)",
+                "Inheritance": "AD",
+                "PathogenicMin": 124
+            }
+        ],
+        "MainReferenceRegion": "chr1:94883977-94883998"
+    },
+    {
         "LocusId": "AFF2",
         "LocusStructure": "(GCC)*",
         "ReferenceRegion": "chrX:147582151-147582211",
@@ -51,7 +73,7 @@
         "LocusId": "ARX_1",
         "LocusStructure": "(NGC)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "X:25031766-25031814",
+        "ReferenceRegion": "chrX:25031766-25031814",
         "RepeatUnit": "NGC",
         "Gene": "ARX",
         "Inheritance": "XR",
@@ -75,13 +97,13 @@
                 "PathogenicMin": 18
             }
         ],
-        "MainReferenceRegion": "X:25031766-25031814"
+        "MainReferenceRegion": "chrX:25031766-25031814"
     },
     {
         "LocusId": "ARX_2",
         "LocusStructure": "(NGC)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "X:25031646-25031682",
+        "ReferenceRegion": "chrX:25031646-25031682",
         "RepeatUnit": "NGC",
         "Gene": "ARX",
         "Inheritance": "XR",
@@ -113,7 +135,7 @@
                 "PathogenicMin": 23
             }
         ],
-        "MainReferenceRegion": "X:25031646-25031682"
+        "MainReferenceRegion": "chrX:25031646-25031682"
     },
     {
         "LocusId": "ATN1",
@@ -313,7 +335,7 @@
         "LocusId": "BEAN1",
         "LocusStructure": "(TAAAA)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "16:66524301-66524356",
+        "ReferenceRegion": "chr16:66524301-66524356",
         "RepeatUnit": "TAAAA",
         "Gene": "BEAN1",
         "Inheritance": "AD",
@@ -331,7 +353,7 @@
                 "PathogenicMin": 500
             }
         ],
-        "MainReferenceRegion": "16:66524301-66524356"
+        "MainReferenceRegion": "chr16:66524301-66524356"
     },
     {
         "LocusId": "C9ORF72",
@@ -423,7 +445,7 @@
         "LocusId": "COMP",
         "LocusStructure": "(GTC)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "19:18896844-18896859",
+        "ReferenceRegion": "chr19:18896844-18896859",
         "RepeatUnit": "GTC",
         "Gene": "COMP",
         "Inheritance": "AD",
@@ -446,7 +468,7 @@
                 "PathogenicMin": 7
             }
         ],
-        "MainReferenceRegion": "19:18896844-18896859"
+        "MainReferenceRegion": "chr19:18896844-18896859"
     },
     {
         "LocusId": "CSTB",
@@ -475,7 +497,7 @@
         "LocusId": "DAB1",
         "LocusStructure": "(AAAAT)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "1:57832715-57832790",
+        "ReferenceRegion": "chr1:57832715-57832790",
         "RepeatUnit": "AAAAT",
         "Gene": "DAB1",
         "Inheritance": "AD",
@@ -493,7 +515,7 @@
                 "PathogenicMin": 31
             }
         ],
-        "MainReferenceRegion": "1:57832715-57832790"
+        "MainReferenceRegion": "chr1:57832715-57832790"
     },
     {
         "LocusId": "DIP2B",
@@ -521,7 +543,7 @@
         "LocusId": "DMD",
         "LocusStructure": "(TTC)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "X:31302674-31302722",
+        "ReferenceRegion": "chrX:31302674-31302722",
         "RepeatUnit": "TTC",
         "Gene": "DMD",
         "Inheritance": "XR",
@@ -537,7 +559,7 @@
                 "PathogenicMin": 59
             }
         ],
-        "MainReferenceRegion": "X:31302674-31302722"
+        "MainReferenceRegion": "chrX:31302674-31302722"
     },
     {
         "LocusId": "DMPK",
@@ -568,7 +590,7 @@
         "LocusId": "EIF4A3",
         "LocusStructure": "(CCTCGCTGTGCCGCTGCCGA)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "17:78120858-78120938",
+        "ReferenceRegion": "chr17:78120858-78120938",
         "RepeatUnit": "CCTCGCTGTGCCGCTGCCGA",
         "Gene": "EIF4A3",
         "Inheritance": "AR",
@@ -583,7 +605,7 @@
                 "PathogenicMin": 14
             }
         ],
-        "MainReferenceRegion": "17:78120858-78120938"
+        "MainReferenceRegion": "chr17:78120858-78120938"
     },
     {
         "LocusId": "FGF14",
@@ -645,7 +667,7 @@
         "LocusId": "FOXL2",
         "LocusStructure": "(NGC)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "3:138664862-138664904",
+        "ReferenceRegion": "chr3:138664862-138664904",
         "RepeatUnit": "NGC",
         "Gene": "FOXL2",
         "Inheritance": "AD",
@@ -663,7 +685,7 @@
                 "PathogenicMin": 19
             }
         ],
-        "MainReferenceRegion": "3:138664862-138664904"
+        "MainReferenceRegion": "chr3:138664862-138664904"
     },
     {
         "LocusId": "FXN",
@@ -751,7 +773,7 @@
         "LocusId": "HOXA13_1",
         "LocusStructure": "(NGC)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "7:27239543-27239585",
+        "ReferenceRegion": "chr7:27239543-27239585",
         "RepeatUnit": "NGC",
         "Gene": "HOXA13",
         "Inheritance": "AD",
@@ -769,13 +791,13 @@
                 "PathogenicMin": 22
             }
         ],
-        "MainReferenceRegion": "7:27239543-27239585"
+        "MainReferenceRegion": "chr7:27239543-27239585"
     },
     {
         "LocusId": "HOXA13_2",
         "LocusStructure": "(NGC)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "7:27239444-27239480",
+        "ReferenceRegion": "chr7:27239444-27239480",
         "RepeatUnit": "NGC",
         "Gene": "HOXA13",
         "Inheritance": "AD",
@@ -793,13 +815,13 @@
                 "PathogenicMin": 18
             }
         ],
-        "MainReferenceRegion": "7:27239444-27239480"
+        "MainReferenceRegion": "chr7:27239444-27239480"
     },
     {
         "LocusId": "HOXA13_3",
         "LocusStructure": "(NGC)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "7:27239297-27239351",
+        "ReferenceRegion": "chr7:27239297-27239351",
         "RepeatUnit": "NGC",
         "Gene": "HOXA13",
         "Inheritance": "AD",
@@ -817,13 +839,13 @@
                 "PathogenicMin": 24
             }
         ],
-        "MainReferenceRegion": "7:27239297-27239351"
+        "MainReferenceRegion": "chr7:27239297-27239351"
     },
     {
         "LocusId": "HOXD13",
         "LocusStructure": "(GCG)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "2:176957786-176957831",
+        "ReferenceRegion": "chr2:176957786-176957831",
         "RepeatUnit": "GCG",
         "Gene": "HOXD13",
         "Inheritance": "AD",
@@ -841,7 +863,7 @@
                 "PathogenicMin": 22
             }
         ],
-        "MainReferenceRegion": "2:176957786-176957831"
+        "MainReferenceRegion": "chr2:176957786-176957831"
     },
     {
         "LocusId": "HTT",
@@ -906,7 +928,7 @@
         "LocusId": "NUTM2B-AS1",
         "LocusStructure": "(GGC)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "10:81586139-81586160",
+        "ReferenceRegion": "chr10:81586139-81586160",
         "RepeatUnit": "GGC",
         "Gene": "LOC642361",
         "Inheritance": "AD",
@@ -924,13 +946,13 @@
                 "PathogenicMin": 700
             }
         ],
-        "MainReferenceRegion": "10:81586139-81586160"
+        "MainReferenceRegion": "chr10:81586139-81586160"
     },
     {
         "LocusId": "LRP12",
         "LocusStructure": "(CGC)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "8:105601198-105601225",
+        "ReferenceRegion": "chr8:105601198-105601225",
         "RepeatUnit": "CGC",
         "Gene": "LRP12",
         "Inheritance": "AD",
@@ -948,13 +970,13 @@
                 "PathogenicMin": 93
             }
         ],
-        "MainReferenceRegion": "8:105601198-105601225"
+        "MainReferenceRegion": "chr8:105601198-105601225"
     },
     {
         "LocusId": "MARCHF6",
         "LocusStructure": "(ATTTT)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "5:10356458-10356523",
+        "ReferenceRegion": "chr5:10356458-10356523",
         "RepeatUnit": "ATTTT",
         "Gene": "MARCHF6",
         "Inheritance": "AD",
@@ -972,7 +994,7 @@
                 "PathogenicMin": 668
             }
         ],
-        "MainReferenceRegion": "5:10356458-10356523"
+        "MainReferenceRegion": "chr5:10356458-10356523"
     },
     {
         "LocusId": "NIPA1",
@@ -1033,7 +1055,7 @@
     {
         "LocusId": "NOTCH2NLC",
         "LocusStructure": "(GGC)*",
-        "ReferenceRegion": "1:145209323-145209353",
+        "ReferenceRegion": "chr1:145209323-145209353",
         "RepeatUnit": "GGC",
         "VariantType": "Repeat",
         "Gene": "NOTCH2NLC",
@@ -1060,7 +1082,7 @@
                 "PathogenicMin": 60
             }
         ],
-        "MainReferenceRegion": "1:145209323-145209353"
+        "MainReferenceRegion": "chr1:145209323-145209353"
     },
     {
         "LocusId": "PABPN1",
@@ -1138,7 +1160,7 @@
         "LocusId": "PRDM12",
         "LocusStructure": "(GCC)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "9:133556993-133557026",
+        "ReferenceRegion": "chr9:133556993-133557026",
         "RepeatUnit": "GCC",
         "Gene": "PRDM12",
         "Inheritance": "AR",
@@ -1154,7 +1176,7 @@
                 "PathogenicMin": 18
             }
         ],
-        "MainReferenceRegion": "9:133556993-133557026"
+        "MainReferenceRegion": "chr9:133556993-133557026"
     },
     {
         "LocusId": "PRNP",
@@ -1192,7 +1214,7 @@
         "LocusId": "RAPGEF2",
         "LocusStructure": "(TTTTA)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "4:160263678-160263768",
+        "ReferenceRegion": "chr4:160263678-160263768",
         "RepeatUnit": "TTTTA",
         "Gene": "RAPGEF2",
         "Inheritance": "AD",
@@ -1210,7 +1232,7 @@
                 "PathogenicMin": 60
             }
         ],
-        "MainReferenceRegion": "4:160263678-160263768"
+        "MainReferenceRegion": "chr4:160263678-160263768"
     },
     {
         "LocusId": "RFC1",
@@ -1240,7 +1262,7 @@
         "LocusId": "RILPL1",
         "LocusStructure": "(GGC)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "12:124018267-124018297",
+        "ReferenceRegion": "chr12:124018267-124018297",
         "RepeatUnit": "GGC",
         "Gene": "RILPL1",
         "Inheritance": "AD",
@@ -1258,13 +1280,13 @@
                 "PathogenicMin": 139
             }
         ],
-        "MainReferenceRegion": "12:124018267-124018297"
+        "MainReferenceRegion": "chr12:124018267-124018297"
     },
     {
         "LocusId": "RUNX2",
         "LocusStructure": "(GCN)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "6:45390487-45390529",
+        "ReferenceRegion": "chr6:45390487-45390529",
         "RepeatUnit": "GCN",
         "Gene": "RUNX2",
         "Inheritance": "AD",
@@ -1282,13 +1304,13 @@
                 "PathogenicMin": 27
             }
         ],
-        "MainReferenceRegion": "6:45390487-45390529"
+        "MainReferenceRegion": "chr6:45390487-45390529"
     },
     {
         "LocusId": "SAMD12",
         "LocusStructure": "(TAAAA)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "8:119379054-119379119",
+        "ReferenceRegion": "chr8:119379054-119379119",
         "RepeatUnit": "TAAAA",
         "Gene": "SAMD12",
         "Inheritance": "AD",
@@ -1306,13 +1328,13 @@
                 "PathogenicMin": 100
             }
         ],
-        "MainReferenceRegion": "8:119379054-119379119"
+        "MainReferenceRegion": "chr8:119379054-119379119"
     },
     {
         "LocusId": "SOX3",
         "LocusStructure": "(NGC)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "X:139586481-139586526",
+        "ReferenceRegion": "chrX:139586481-139586526",
         "RepeatUnit": "NGC",
         "Gene": "SOX3",
         "Inheritance": "XR",
@@ -1338,13 +1360,13 @@
                 "PathogenicMin": 22
             }
         ],
-        "MainReferenceRegion": "X:139586481-139586526"
+        "MainReferenceRegion": "chrX:139586481-139586526"
     },
     {
         "LocusId": "STARD7",
         "LocusStructure": "(AAAAT)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "2:96862804-96862859",
+        "ReferenceRegion": "chr2:96862804-96862859",
         "RepeatUnit": "AAAAT",
         "Gene": "STARD7",
         "Inheritance": "AD",
@@ -1362,7 +1384,7 @@
                 "PathogenicMin": 274
             }
         ],
-        "MainReferenceRegion": "2:96862804-96862859"
+        "MainReferenceRegion": "chr2:96862804-96862859"
     },
     {
         "LocusId": "TBP",
@@ -1392,7 +1414,7 @@
         "LocusId": "TBX1",
         "LocusStructure": "(GCN)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "22:19754285-19754330",
+        "ReferenceRegion": "chr22:19754285-19754330",
         "RepeatUnit": "GCN",
         "Gene": "TBX1",
         "Inheritance": "AD",
@@ -1408,7 +1430,7 @@
                 "PathogenicMin": 25
             }
         ],
-        "MainReferenceRegion": "22:19754285-19754330"
+        "MainReferenceRegion": "chr22:19754285-19754330"
     },
     {
         "LocusId": "TCF4",
@@ -1438,7 +1460,7 @@
         "LocusId": "TNRC6A",
         "LocusStructure": "(TTTTA)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "16:24624760-24624850",
+        "ReferenceRegion": "chr16:24624760-24624850",
         "RepeatUnit": "TTTTA",
         "Gene": "TNRC6A",
         "Inheritance": "AD",
@@ -1456,13 +1478,13 @@
                 "PathogenicMin": 1100
             }
         ],
-        "MainReferenceRegion": "16:24624760-24624850"
+        "MainReferenceRegion": "chr16:24624760-24624850"
     },
     {
         "LocusId": "VWA1",
         "LocusStructure": "(GGCGCGGAGC)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "1:1371178-1371198",
+        "ReferenceRegion": "chr1:1371178-1371198",
         "RepeatUnit": "GGCGCGGAGC",
         "Gene": "VWA1",
         "Inheritance": "AR",
@@ -1478,13 +1500,13 @@
                 "PathogenicMin": 3
             }
         ],
-        "MainReferenceRegion": "1:1371178-1371198"
+        "MainReferenceRegion": "chr1:1371178-1371198"
     },
     {
         "LocusId": "XYLT1",
         "LocusStructure": "(GCC)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "16:17564764-17564779",
+        "ReferenceRegion": "chr16:17564764-17564779",
         "RepeatUnit": "GCC",
         "Gene": "XYLT1",
         "Inheritance": "AR",
@@ -1502,13 +1524,13 @@
                 "PathogenicMin": 110
             }
         ],
-        "MainReferenceRegion": "16:17564764-17564779"
+        "MainReferenceRegion": "chr16:17564764-17564779"
     },
     {
         "LocusId": "YEATS2",
         "LocusStructure": "(TTTTA)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "3:183429975-183430010",
+        "ReferenceRegion": "chr3:183429975-183430010",
         "RepeatUnit": "TTTTA",
         "Gene": "YEATS2",
         "Inheritance": "AD",
@@ -1526,13 +1548,37 @@
                 "PathogenicMin": 1000
             }
         ],
-        "MainReferenceRegion": "3:183429975-183430010"
+        "MainReferenceRegion": "chr3:183429975-183430010"
+    },
+    {
+        "LocusId": "ZFHX3",
+        "LocusStructure": "(GCC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr16:72821593-72821656",
+        "RepeatUnit": "GCC",
+        "Gene": "ZFHX3",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyglycine",
+        "GeneId": "ENST00000268489",
+        "DiscoveryMethod": "L, WGS",
+        "DiscoveryYear": 2023,
+        "Diseases": [
+            {
+                "Symbol": "SCA4",
+                "Name": "Spinocerebellar ataxia 4",
+                "Inheritance": "AD",
+                "OMIM": "607317",
+                "NormalMax": 26,
+                "PathogenicMin": 46
+            }
+        ],
+        "MainReferenceRegion": "chr16:72821593-72821656"
     },
     {
         "LocusId": "ZIC2",
         "LocusStructure": "(GCN)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "13:100637702-100637747",
+        "ReferenceRegion": "chr13:100637702-100637747",
         "RepeatUnit": "GCN",
         "Gene": "ZIC2",
         "Inheritance": "AD",
@@ -1550,13 +1596,13 @@
                 "PathogenicMin": 25
             }
         ],
-        "MainReferenceRegion": "13:100637702-100637747"
+        "MainReferenceRegion": "chr13:100637702-100637747"
     },
     {
         "LocusId": "ZIC3",
         "LocusStructure": "(GCN)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "X:136648985-136649015",
+        "ReferenceRegion": "chrX:136648985-136649015",
         "RepeatUnit": "GCN",
         "Gene": "ZIC3",
         "Inheritance": "XR",
@@ -1572,6 +1618,6 @@
                 "PathogenicMin": 12
             }
         ],
-        "MainReferenceRegion": "X:136648985-136649015"
+        "MainReferenceRegion": "chrX:136648985-136649015"
     }
 ]

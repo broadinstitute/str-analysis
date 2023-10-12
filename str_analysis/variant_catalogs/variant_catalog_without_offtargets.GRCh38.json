@@ -1,5 +1,27 @@
 [
     {
+        "LocusId": "ABCD3",
+        "ReferenceRegion": "chr1:94418421-94418442",
+        "LocusStructure": "(GCC)*",
+        "VariantType": "Repeat",
+        "RepeatUnit": "GCC",
+        "Gene": "ABCD3",
+        "Inheritance": "AD",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000117528",
+        "DiscoveryMethod": "WGS",
+        "DiscoveryYear": 2023,
+        "Diseases": [
+            {
+                "Symbol": "OPDM",
+                "Name": "Oculopharyngodistal myopathy (OPDM)",
+                "Inheritance": "AD",
+                "PathogenicMin": 124
+            }
+        ],
+        "MainReferenceRegion": "chr1:94418421-94418442"
+    },
+    {
         "LocusId": "AFF2",
         "LocusStructure": "(GCC)*",
         "ReferenceRegion": "chrX:148500631-148500691",
@@ -1528,6 +1550,30 @@
             }
         ],
         "MainReferenceRegion": "chr3:183712187-183712222"
+    },
+    {
+        "LocusId": "ZFHX3",
+        "LocusStructure": "(GCC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr16:72787694-72787757",
+        "RepeatUnit": "GCC",
+        "Gene": "ZFHX3",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyglycine",
+        "GeneId": "ENST00000268489",
+        "DiscoveryMethod": "L, WGS",
+        "DiscoveryYear": 2023,
+        "Diseases": [
+            {
+                "Symbol": "SCA4",
+                "Name": "Spinocerebellar ataxia 4",
+                "Inheritance": "AD",
+                "OMIM": "607317",
+                "NormalMax": 26,
+                "PathogenicMin": 46
+            }
+        ],
+        "MainReferenceRegion": "chr16:72787694-72787757"
     },
     {
         "LocusId": "ZIC2",
