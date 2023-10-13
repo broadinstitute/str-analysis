@@ -546,19 +546,9 @@
         "ReferenceRegion": "chrX:31284557-31284605",
         "RepeatUnit": "TTC",
         "Gene": "DMD",
-        "Inheritance": "XR",
         "GeneRegion": "intron",
         "GeneId": "ENSG00000198947",
-        "Diseases": [
-            {
-                "Symbol": "DMD",
-                "Name": "Duchenne muscular dystrophy",
-                "Inheritance": "XR",
-                "OMIM": "310200",
-                "NormalMax": 33,
-                "PathogenicMin": 59
-            }
-        ],
+        "Diseases": [],
         "MainReferenceRegion": "chrX:31284557-31284605"
     },
     {
