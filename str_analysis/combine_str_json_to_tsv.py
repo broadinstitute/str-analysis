@@ -10,6 +10,7 @@ import re
 
 import numpy as np
 import pandas as pd
+from pprint import pformat
 
 from str_analysis.combine_json_to_tsv import get_sample_id_column_index
 from str_analysis.utils.misc_utils import parse_interval
@@ -57,6 +58,12 @@ def parse_args(args_list=None):
         action="store_true",
         help="If specified, additional fields from HipSTR will be added. The input json files are expected to be the "
              "result of running convert_hipstr_vcf_to_expansion_hunter_json."
+    )
+    p.add_argument(
+        "--include-extra-trgt-fields",
+        action="store_true",
+        help="If specified, additional fields from TRGT will be added. The input json files are expected to be the "
+             "result of running convert_trgt_vcf_to_expansion_hunter_json."
     )
 
     p.add_argument(
@@ -183,6 +190,7 @@ def main():
                 include_extra_expansion_hunter_fields=args.include_extra_expansion_hunter_fields,
                 include_extra_gangstr_fields=args.include_extra_gangstr_fields,
                 include_extra_hipstr_fields=args.include_extra_hipstr_fields,
+                include_extra_trgt_fields=args.include_extra_trgt_fields,
             ):
                 if just_get_header:
                     variant_table_columns.extend([k for k in variant_record.keys() if k not in variant_table_columns])
@@ -330,6 +338,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
     include_extra_expansion_hunter_fields=False,
     include_extra_gangstr_fields=False,
     include_extra_hipstr_fields=False,
+    include_extra_trgt_fields=False,
 ):
     """Converts a dictionary that represents the contents of an ExpansionHunter v3 or v4 json output file to
     a dictionary of tsv column values.
@@ -347,6 +356,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
         include_extra_expansion_hunter_fields (bool): if True, include additional fields provided by ExpansionHunter.
         include_extra_gangstr_fields (bool): if True, include additional fields provided by GangSTR.
         include_extra_hipstr_fields (bool): if True, include additional fields provided by HipSTR.
+        include_extra_trgt_fields (bool): if True, include additional fields provided by TRGT.
     Yields:
         dict: dictionary representing the output tsv row
     """
@@ -358,8 +368,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
         variant_catalog_contents = {c['LocusId']: c for c in variant_catalog_contents}
 
     if json_file_path:
-        variant_info["Dirname"] = os.path.dirname(json_file_path)
-        variant_info["Filename"] = os.path.basename(json_file_path)
+        variant_info["Filename"] = json_file_path
 
     try:
         variant_info["Sex"] = json_contents["SampleParameters"]["Sex"]
@@ -427,7 +436,6 @@ def convert_expansion_hunter_json_to_tsv_columns(
             # docs @ https://github.com/Illumina/ExpansionHunter/blob/master/docs/05_OutputJsonFiles.md
             variant_record = collections.OrderedDict(locus_record)
             variant_record["VariantId"] = variant_json.get("VariantId", "")
-            variant_record["VariantSubtype"] = variant_json.get("VariantSubtype", "")
             variant_record["RepeatUnit"] = variant_json["RepeatUnit"]
             variant_record["RepeatUnitLength"] = len(variant_json["RepeatUnit"])
             variant_record["ReferenceRegion"] = variant_json["ReferenceRegion"]
@@ -473,6 +481,11 @@ def convert_expansion_hunter_json_to_tsv_columns(
                 variant_record["DFLANKINDEL"] = float(variant_json["DFLANKINDEL"])
                 variant_record["DSTUTTER"] = float(variant_json["DSTUTTER"])
 
+            if include_extra_trgt_fields:
+                variant_record["AllelePurity"] = variant_json["AP"]
+                variant_record["MeanMethylation"] = variant_json["AM"]
+                variant_record["SpanningReadsPerAllele"] = variant_json["SD"]
+
             variant_record["Genotype"] = variant_json["Genotype"]
             variant_record["GenotypeConfidenceInterval"] = variant_json["GenotypeConfidenceInterval"]
             genotype_tuples = list(zip(
@@ -488,7 +501,10 @@ def convert_expansion_hunter_json_to_tsv_columns(
                     suffix = f": Allele {i+1}"
                     output_record = variant_record
 
-                confidence_interval_start, confidence_interval_end = genotypeCI.split("-")
+                try:
+                    confidence_interval_start, confidence_interval_end = genotypeCI.split("-")
+                except ValueError as e:
+                    raise ValueError(f"Unexpected confidence interval format: {genotypeCI} in: {pformat(variant_json)}")
                 output_record[f"Allele Number{suffix}"] = i + 1
                 output_record[f"Num Repeats{suffix}"] = int(genotype)
                 output_record[f"Repeat Size (bp){suffix}"] = int(genotype) * len(variant_json.get("RepeatUnit", ""))
