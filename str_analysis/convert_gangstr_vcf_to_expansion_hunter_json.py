@@ -37,7 +37,6 @@ ExpansionHunter output format:
               "ReferenceRegion": "chr12:57610122-57610131",
               "RepeatUnit": "GCA",
               "VariantId": "chr12-57610122-57610131-GCA",
-              "VariantSubtype": "Repeat",
               "VariantType": "Repeat"
             }
           }
@@ -54,15 +53,16 @@ import argparse
 import gzip
 import json
 import os
-from pprint import pprint
 import re
 
 
 def main():
     p = argparse.ArgumentParser()
+    p.add_argument("--sample-id",
+                   help="If not specified, the sample id will be parsed from the last column of the vcf header.")
     p.add_argument("--variant-catalog", help="ExpansionHunter variant catalog. If specified, fields from this"
                                              " variant catalog will be added to the output .json.")
-    p.add_argument("vcf_path", nargs="+", help="GangSTR vcf path(s)")
+    p.add_argument("vcf_path", help="GangSTR vcf path")
     args = p.parse_args()
 
     variant_catalog = None
@@ -73,14 +73,13 @@ def main():
         with open(args.variant_catalog) as f:
             variant_catalog = json.load(f)
 
-    for vcf_path in args.vcf_path:
-        print(f"Processing {vcf_path}")
-        locus_results = process_gangstr_vcf(vcf_path, variant_catalog)
+    print(f"Processing {args.vcf_path}")
+    locus_results = process_gangstr_vcf(args.vcf_path, variant_catalog=variant_catalog, sample_id=args.sample_id)
 
-        output_json_path = vcf_path.replace(".vcf", "").replace(".gz", "") + ".json"
-        print(f"Writing results for", len(locus_results["LocusResults"]), f"loci to {output_json_path}")
-        with open(output_json_path, "wt") as f:
-            json.dump(locus_results, f, indent=3)
+    output_json_path = re.sub(".vcf(.gz)?$", "", args.vcf_path) + ".json"
+    print(f"Writing results for {len(locus_results['LocusResults']):,d} loci to {output_json_path}")
+    with open(output_json_path, "wt") as f:
+        json.dump(locus_results, f, indent=3)
 
 
 def create_variant_catalog_lookup(variant_catalog):
@@ -102,8 +101,7 @@ def create_variant_catalog_lookup(variant_catalog):
     return variant_catalog_lookup
 
 
-def process_gangstr_vcf(vcf_path, variant_catalog=None):
-    sample_id = os.path.basename(vcf_path).replace(".vcf", "").replace(".gz", "").replace("gangstr", "").strip(".")
+def process_gangstr_vcf(vcf_path, variant_catalog=None, sample_id=None):
     locus_results = {
         "LocusResults": {},
         "SampleParameters": {
@@ -130,7 +128,8 @@ def process_gangstr_vcf(vcf_path, variant_catalog=None):
                         locus_results["SampleParameters"]["Sex"] = "Female" if sample_sex.upper().startswith("F") else ("Male" if sample_sex.upper().startswith("M") else None)
                 elif line.startswith("#CHROM"):
                     header_fields = line.strip().split("\t")
-                    if len(header_fields) == 10:
+                    if sample_id is None and len(header_fields) == 10:
+                        print(f"Got sample id '{header_fields[9]}' from the VCF header")
                         locus_results["SampleParameters"]["SampleId"] = header_fields[9]
 
                 continue
@@ -139,8 +138,6 @@ def process_gangstr_vcf(vcf_path, variant_catalog=None):
             fields = line.strip().split("\t")
             chrom = fields[0]
             start_1based = int(fields[1])
-            ref = fields[3]
-            alts = fields[4].split(",")
             info = fields[7]
             if not fields[9] or fields[9] == ".":  # no genotype
                 continue
@@ -190,11 +187,9 @@ def process_gangstr_vcf(vcf_path, variant_catalog=None):
                             "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
                             "RepeatUnit": repeat_unit,
                             "VariantId": variant_id,
-                            "VariantSubtype": "Repeat",
                             "VariantType": "Repeat",
-                            #"CountsOfFlankingReads": "()",
-                            #"CountsOfInrepeatReads": "()",
-                            #"CountsOfSpanningReads": "()",
+                            "Ref": fields[3],
+                            "Alt": fields[4],
                         }
                     }
                 }

@@ -37,7 +37,6 @@ ExpansionHunter output format:
               "ReferenceRegion": "chr12:57610122-57610131",
               "RepeatUnit": "GCA",
               "VariantId": "chr12-57610122-57610131-GCA",
-              "VariantSubtype": "Repeat",
               "VariantType": "Repeat"
             }
           }
@@ -54,25 +53,26 @@ import argparse
 import gzip
 import json
 import os
+import re
 
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("vcf_path", nargs="+", help="HipSTR vcf path(s)")
+    p.add_argument("--sample-id",
+                   help="If not specified, the sample id will be parsed from the last column of the vcf header.")
+    p.add_argument("vcf_path", help="HipSTR vcf path(s)")
     args = p.parse_args()
 
-    for vcf_path in args.vcf_path:
-        print(f"Processing {vcf_path}")
-        locus_results = process_hipstr_vcf(vcf_path)
+    print(f"Processing {args.vcf_path}")
+    locus_results = process_hipstr_vcf(args.vcf_path, sample_id=args.sample_id)
 
-        output_json_path = vcf_path.replace(".vcf", "").replace(".gz", "") + ".json"
-        print(f"Writing results for", len(locus_results["LocusResults"]), f"loci to {output_json_path}")
-        with open(output_json_path, "wt") as f:
-            json.dump(locus_results, f, indent=3)
+    output_json_path = re.sub(".vcf(.gz)?$", "", args.vcf_path) + ".json"
+    print(f"Writing results for {len(locus_results['LocusResults']):,d} loci to {output_json_path}")
+    with open(output_json_path, "wt") as f:
+        json.dump(locus_results, f, indent=3)
 
 
-def process_hipstr_vcf(vcf_path):
-    sample_id = os.path.basename(vcf_path).replace(".vcf", "").replace(".gz", "")
+def process_hipstr_vcf(vcf_path, sample_id=None):
     locus_results = {
         "LocusResults": {},
         "SampleParameters": {
@@ -88,8 +88,10 @@ def process_hipstr_vcf(vcf_path):
             if line.startswith("#"):
                 if line.startswith("#CHROM"):
                     header_fields = line.strip().split("\t")
-                    if len(header_fields) > 9:
+                    if sample_id is None and len(header_fields) > 9:
+                        print(f"Got sample id '{header_fields[9]}' from the VCF header")
                         locus_results["SampleParameters"]["SampleId"] = header_fields[9]
+
                 continue
 
             line_counter += 1
@@ -153,13 +155,9 @@ def process_hipstr_vcf(vcf_path):
                             "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
                             "RepeatUnit": repeat_unit,
                             "VariantId": locus_id,
-                            "VariantSubtype": "Repeat",
                             "VariantType": "Repeat",
                             "Ref": fields[3],
                             "Alt": fields[4],
-                            #"CountsOfFlankingReads": "()",
-                            #"CountsOfInrepeatReads": "()",
-                            #"CountsOfSpanningReads": "()",
                         }
                     }
                 }

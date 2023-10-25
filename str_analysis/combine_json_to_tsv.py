@@ -27,12 +27,6 @@ def parse_args(args_list=None):
 
     p = argparse.ArgumentParser()
     p.add_argument(
-        "-d",
-        "--add-dirname-column",
-        action="store_true",
-        help="Add Dirname column containing the relative path of directory containing the json file."
-    )
-    p.add_argument(
         "-f",
         "--add-filename-column",
         action="store_true",
@@ -141,7 +135,7 @@ class ParseError(Exception):
     pass
 
 
-def parse_json_files(json_paths, add_dirname_column=False, add_filename_column=False):
+def parse_json_files(json_paths, add_filename_column=False):
     """Takes json file paths and yields the contents of each one as a dictionary or list"""
     for json_path in json_paths:
         if not os.path.isfile(json_path):
@@ -154,10 +148,8 @@ def parse_json_files(json_paths, add_dirname_column=False, add_filename_column=F
                 raise ParseError(f"Unable to parse {json_path}: {e}")
 
             if isinstance(json_contents, dict):
-                if add_dirname_column:
-                    json_contents["Dirname"] = os.path.dirname(json_path)
                 if add_filename_column:
-                    json_contents["Filename"] = os.path.basename(json_path)
+                    json_contents["Filename"] = json_path
 
                 json_contents_excluding_complex_values = {
                     key: value for key, value in sorted(json_contents.items()) if isinstance(value, (int, str, bool, float, tuple))
@@ -233,7 +225,6 @@ def main():
 
     df = pd.DataFrame(parse_json_files(
         args.json_paths,
-        add_dirname_column=args.add_dirname_column,
         add_filename_column=args.add_filename_column))
 
     if args.sample_metadata:

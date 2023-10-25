@@ -30,7 +30,6 @@ ExpansionHunter output format:
               "ReferenceRegion": "chr12:57610122-57610131",
               "RepeatUnit": "GCA",
               "VariantId": "chr12-57610122-57610131-GCA",
-              "VariantSubtype": "Repeat",
               "VariantType": "Repeat"
             }
           }
@@ -159,7 +158,6 @@ def process_strling_txt(strling_txt_path):
                     "ReferenceRegion": f"{row.chrom}:{start_1based - 1}-{end_1based}",
                     "RepeatUnit": row.repeatunit,
                     "VariantId": locus_id,
-                    "VariantSubtype": "Repeat",
                     "VariantType": "Repeat",
                     #"CountsOfFlankingReads": "()",
                     #"CountsOfInrepeatReads": "()",
