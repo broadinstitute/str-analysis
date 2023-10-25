@@ -57,7 +57,6 @@ EHv4_JSON = json.loads("""{
           "ReferenceRegion": "chr1:146228799-146228820",
           "RepeatUnit": "CGC",
           "VariantId": "1-146228800-146228820-NOTCH2NLC",
-          "VariantSubtype": "Repeat",
           "VariantType": "Repeat"
         }
       }
@@ -78,7 +77,6 @@ EHv4_JSON = json.loads("""{
           "ReferenceRegion": "chr3:63912684-63912714",
           "RepeatUnit": "GCA",
           "VariantId": "ATXN7",
-          "VariantSubtype": "Repeat",
           "VariantType": "Repeat"
         },
         "ATXN7_GCC_ADJACENT": {
@@ -90,7 +88,6 @@ EHv4_JSON = json.loads("""{
           "ReferenceRegion": "chr3:63912714-63912726",
           "RepeatUnit": "GCC",
           "VariantId": "ATXN7_GCC_ADJACENT",
-          "VariantSubtype": "Repeat",
           "VariantType": "Repeat"
         }
       }
@@ -111,7 +108,6 @@ EHv4_JSON = json.loads("""{
           "ReferenceRegion": "chrX:25013649-25013697",
           "RepeatUnit": "CGC",
           "VariantId": "X-25013650-25013697-ARX",
-          "VariantSubtype": "Repeat",
           "VariantType": "Repeat"
         }
       }
@@ -127,7 +123,6 @@ EHv4_JSON = json.loads("""{
 def get_expected_columns(row, with_allele_records=False, with_json_file_path=False):
     return (
     [] if not with_json_file_path else [
-        'Dirname',
         'Filename',
     ]) + [
         'Sex',
@@ -144,7 +139,6 @@ def get_expected_columns(row, with_allele_records=False, with_json_file_path=Fal
         'VariantCatalog_NumOfftargetRegions',
     ] if row['InVariantCatalog'] else []) + [
         'VariantId',
-        'VariantSubtype',
         'RepeatUnit',
         'RepeatUnitLength',
         'ReferenceRegion',
