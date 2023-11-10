@@ -1,6 +1,4 @@
-"""This script takes a variant catalog either in .json or .bed format and filters it.
-"""
-
+"""This script takes a variant catalog either in .json or .bed format and filters it."""
 
 import argparse
 import collections
@@ -8,6 +6,9 @@ import ijson
 import json
 import os
 import pandas as pd
+from pprint import pformat
+import pyBigWig
+import pysam
 import re
 from tqdm import tqdm
 
@@ -16,30 +17,36 @@ from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from str_analysis.utils.file_utils import open_file, file_exists
 from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval
 from str_analysis.utils.misc_utils import parse_interval
-
+from str_analysis.utils.file_utils import download_local_copy
 
 VALID_GENE_REGIONS = {"CDS", "UTR", "5UTR", "3UTR", "promoter", "exon", "intron", "intergenic"}
 
+# The GEM mappability tracks  are based on 36bp, 50bp, 75bp, or 100bp kmers.
+# These tracks can be viewed @ https://tgg-viewer.broadinstitute.org
+MAPPABILITY_TRACK_KMER_SIZE = 100
+MAPPABILITY_TRACK_BIGWIG_URL = f"gs://tgg-viewer/ref/GRCh38/mappability/" \
+                               f"GRCh38_no_alt_analysis_set_GCA_000001405.15-k{MAPPABILITY_TRACK_KMER_SIZE}_m2.bw"
+FLANK_MAPPABILITY_WINDOW_SIZE = 100
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Annotate and filter an STR variant catalog.")
+    parser.add_argument("-r", "--reference-fasta", required=True, help="Reference fasta file path or url.")
     parser.add_argument("-o", "--output-path", help="Output path")
     parser.add_argument("--verbose", action="store_true", help="Print verbose output.")
 
     annotations_group = parser.add_argument_group("annotations")
     annotations_group.add_argument("--known-disease-associated-loci",
-                        help="ExpansionHunter catalog .json file with all known disease-associated loci",
-                        default="~/code/str-analysis/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json")
+        help="ExpansionHunter catalog .json file with all known disease-associated loci",
+        default="~/code/str-analysis/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json")
     #default="https://raw.githubusercontent.com/broadinstitute/str-analysis/main/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json")
     annotations_group.add_argument("--genes-gtf", help="Gene models gtf file path or url.",
-                        default="~/code/str-truth-set/ref/other/MANE.v1.0.ensembl_genomic.sorted.gtf.gz")
-    annotations_group.add_argument("--gene-models-source", help="Source of the genes-gtf file. If not specified, it will be "
-                                                     "computed based on the filename", choices=["gencode", "mane", "refseq"])
-
+        default="~/code/str-truth-set/ref/other/MANE.v1.0.ensembl_genomic.sorted.gtf.gz")
+    annotations_group.add_argument("--gene-models-source", help="Source of the genes-gtf file. If not specified, "
+        "it will be computed based on the filename", choices=["gencode", "mane", "refseq"])
     annotations_group.add_argument("--skip-gene-annotations", action="store_true", help="Don't addd gene annotations to "
-                                                                                        "the output catalog")
+        "the output catalog")
     annotations_group.add_argument("--skip-disease-loci-annotations", action="store_true", help="Don't annotate known "
-                                   "disease associated loci in the output catalog")
+        "disease associated loci in the output catalog")
 
     filter_group = parser.add_argument_group("filters")
     filter_group.add_argument("--min-motif-size", type=int, help="Minimum motif size to include in the output catalog")
@@ -69,6 +76,13 @@ def parse_args():
     filter_group.add_argument("-l", "--locus-id", action="append", help="Only include the locus with this locus id")
     filter_group.add_argument("-xl", "--exclude-locus-id", action="append", help="Exclude the locus with this locus id")
 
+    filter_group.add_argument("--max-interruptions", type=int, help="Maximum number of interruptions allowed in the "
+                                                                    "reference repeat sequence")
+    filter_group.add_argument("--min-base-purity", type=float, help="Minimum purity of the reference repeat sequence, "
+                              "computed as the fraction of bases that deviate from pure repeats of the given motif")
+    filter_group.add_argument("--min-repeat-purity", type=float, help="Minimum purity of the reference repeat sequence, "
+                              "computed as the fraction of repeats that deviate from pure repeats of the given motif")
+    filter_group.add_argument("--min-mappability", type=float, help="Minimum overall mappability of the repeat region")
     parser.add_argument("variant_catalog_json_or_bed", help="A catalog of repeats to annotate and filter, either "
                         "in JSON or BED format. For BED format, the chrom, start, and end should represent the repeat "
                         "interval in 0-based coordinates, and the name field (column #4) should be the repeat unit.")
@@ -84,6 +98,7 @@ def parse_args():
 
 KNOWN_DISEASE_ASSOCIATED_LOCI_COLUMNS = [
     'LocusId', 'LocusStructure', 'RepeatUnit', 'MainReferenceRegion', 'Gene', 'Inheritance', 'GeneRegion', 'GeneId']
+
 
 
 def parse_known_disease_associated_loci(args, parser):
@@ -165,7 +180,10 @@ def get_variant_catalog_iterator(variant_catalog_json_or_bed):
                 chrom = unmodified_chrom.replace("chr", "")
                 start_0based = int(fields[1])
                 end_1based = int(fields[2])
-                motif = fields[3].strip("()*+")
+                motif = fields[3].strip("()*+").upper()
+                if not re.match("^[ACGTN]+$", motif):
+                    print(f"WARNING: skipping line with invalid motif: {line.strip()}")
+                    continue
                 record = {
                     "LocusId": f"{chrom}-{start_0based + 1}-{end_1based}-{motif}",
                     "ReferenceRegion": f"{unmodified_chrom}:{start_0based}-{end_1based}",
@@ -191,13 +209,19 @@ def main():
             else:
                 print(f"   {key:30s} {str(value)}")
 
+    ref_fasta = pysam.FastaFile(args.reference_fasta)
+
+    # download and open the mappability bigWig file
+    mappability_bigwig_path = download_local_copy(MAPPABILITY_TRACK_BIGWIG_URL)
+    mappability_bigwig = pyBigWig.open(mappability_bigwig_path)
+
     # parse known disease-associated loci
     known_disease_associated_loci_interval_tree, known_disease_associated_motifs = parse_known_disease_associated_loci(
         args, parser)
 
     if not args.output_path:
         filename_prefix = re.sub("(.json|.bed)(.b?gz)?$", "", os.path.basename(args.variant_catalog_json_or_bed))
-        args.output_path = f"{filename_prefix}.filtered.json"
+        args.output_path = f"{filename_prefix}.annotated_and_filtered.json"
 
     output_records = []
     input_variant_catalog_iterator = get_variant_catalog_iterator(args.variant_catalog_json_or_bed)
@@ -316,6 +340,63 @@ def main():
         if args.gene_id and input_variant_catalog_record[f"{args.gene_models_source}GeneId"] not in args.gene_id:
             continue
         if args.exclude_gene_id and input_variant_catalog_record[f"{args.gene_models_source}GeneId"] in args.exclude_gene_id:
+            continue
+
+        # annotate repeat purity in the reference genome
+        interruption_base_count = []
+        fraction_pure_bases = []
+        fraction_pure_repeats = []
+        for (chrom, start_0based, end), motif in zip(chroms_start_0based_ends, motifs):
+            trimmed_end = end - (end - start_0based) % len(motif)
+            ref_fasta_sequence = ref_fasta.fetch(chrom, start_0based, trimmed_end)  # fetch uses 0-based coords
+            ref_fasta_sequence = ref_fasta_sequence.upper()
+
+            pure_sequence = motif.upper() * int(len(ref_fasta_sequence)/len(motif))
+            if len(pure_sequence) != len(ref_fasta_sequence):
+                raise ValueError(f"Invalid input locus spec: {pformat(input_variant_catalog_record)}. Reference "
+                                 f"interval is not a multiple of the motif size")
+
+            num_matching_bases = sum(1 for nuc1, nuc2 in zip(ref_fasta_sequence, pure_sequence) if nuc1 == nuc2)
+
+            interruption_base_count.append( len(ref_fasta_sequence) - num_matching_bases )
+            fraction_pure_bases.append( round(num_matching_bases / len(ref_fasta_sequence), 2) )
+            fraction_pure_repeats.append( round(ref_fasta_sequence.count(motif) / int(len(ref_fasta_sequence) / len(motif)), 2) )
+
+        input_variant_catalog_record["InterruptionBaseCount"] = interruption_base_count[0] if len(chroms_start_0based_ends) == 1 else interruption_base_count
+        input_variant_catalog_record["FractionPureBases"] = fraction_pure_bases[0] if len(chroms_start_0based_ends) == 1 else fraction_pure_bases
+        input_variant_catalog_record["FractionPureRepeats"] = fraction_pure_repeats[0] if len(chroms_start_0based_ends) == 1 else fraction_pure_repeats
+
+        if args.max_interruptions is not None and input_variant_catalog_record["InterruptionBaseCount"] > args.max_interruptions:
+            continue
+        if args.min_base_purity is not None and input_variant_catalog_record["FractionPureBases"] < args.min_base_purity:
+            continue
+        if args.min_repeat_purity is not None and input_variant_catalog_record["FractionPureRepeats"] < args.min_repeat_purity:
+            continue
+
+        # compute mappability of left and right flanking sequence
+        chrom, left_flank_end, _ = chroms_start_0based_ends[0]
+        _, right_flank_start, _ = chroms_start_0based_ends[-1]
+        (mappability_left_flank, ) = mappability_bigwig.stats(
+            chrom,
+            left_flank_end - FLANK_MAPPABILITY_WINDOW_SIZE - MAPPABILITY_TRACK_KMER_SIZE,
+            left_flank_end - MAPPABILITY_TRACK_KMER_SIZE)  # subtract the kmer size so that mappability scores are
+                                                           # retrieved from an interval that doesn't overlap the repeat
+                                                           # region and so only measure mappability of the flank itself
+        (mappability_right_flank, ) = mappability_bigwig.stats(
+            chrom,
+            right_flank_start,
+            right_flank_start + FLANK_MAPPABILITY_WINDOW_SIZE)
+
+        (mappability_overall, ) = mappability_bigwig.stats(
+            chrom,
+            left_flank_end - FLANK_MAPPABILITY_WINDOW_SIZE,
+            right_flank_start + FLANK_MAPPABILITY_WINDOW_SIZE)
+
+        input_variant_catalog_record["LeftFlankMappability"] = round(mappability_left_flank, 2)
+        input_variant_catalog_record["RightFlankMappability"] = round(mappability_right_flank, 2)
+        input_variant_catalog_record["OverallMappability"] = round(mappability_overall, 2)
+
+        if args.min_mappability is not None and input_variant_catalog_record["OverallMappability"] < args.min_mappability:
             continue
 
         # add this record to the output variant catalog
