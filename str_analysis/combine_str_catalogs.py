@@ -34,6 +34,10 @@ def parse_args():
     parser.add_argument("--output-format", choices=("JSON", "BED"), default="BED", help="Output file format.")
     parser.add_argument("--output-path", help="Output file path")
     parser.add_argument("--verbose", action="store_true", help="If specified, then print more stats")
+    parser.add_argument("--save-unique-loci", action="store_true", help="If specified, write a BED file for "
+                        "each input catalog except the 1st one that records the new loci introduced by that catalog "
+                        "which weren't in previous catalogs. This is useful for troubleshooting catalogs and "
+                        "understanding the differences between them.")
     parser.add_argument("variant_catalog_json_or_bed", nargs="+", help="Paths of two or more repeat catalogs "
         "in JSON or BED format. For BED format, the chrom, start, and end should represent the repeat "
         "interval in 0-based coordinates, and the name field (column #4) should be the repeat unit. The order in which "
@@ -74,6 +78,7 @@ def parse_motifs_from_locus_structure(locus_structure):
     return [
         locus_structure_part.split("(")[-1] for locus_structure_part in locus_structure.split(")")[:-1]
     ]
+
 
 def get_variant_catalog_iterator(
         variant_catalog_json_or_bed,
@@ -173,7 +178,9 @@ def add_variant_catalog_to_interval_trees(
         min_overlap_fraction=0.01,
         add_source_field=False,
         add_extra_fields_from_input_catalogs=False,
-        verbose=False):
+        verbose=False,
+        save_unique_loci=False
+):
     """Parses the the given input variant catalog and adds any new unique records to the IntervalTrees.
 
     Args:
@@ -184,9 +191,15 @@ def add_variant_catalog_to_interval_trees(
         add_extra_fields_from_input_catalogs (bool): If False, then only the required fields will be kept in each input
             variant catalog record and any extra fields will be discarded.
         verbose (bool): If True, then print more stats about the number of records added to the output catalog
+        save_unique_loci (bool): If True, then write a BED file for this input catalog which stores the unique loci in it.
     """
     if verbose:
         print("- "*60)
+
+    if save_unique_loci:
+        unqiue_loci_bed_prefix = re.sub("(.json|.bed)(.gz)?$", "", os.path.basename(variant_catalog_json_or_bed))
+        unique_loci_bed_filename = f"{unqiue_loci_bed_prefix}.unique_loci.bed"
+        unique_loci_bed = open(unique_loci_bed_filename, "wt")
 
     variant_catalog_filename = os.path.basename(variant_catalog_json_or_bed)
     counters = collections.defaultdict(int)
@@ -242,6 +255,15 @@ def add_variant_catalog_to_interval_trees(
         if add_source_field:
             new_record["Source"] = variant_catalog_filename
 
+        if save_unique_loci:
+            unique_loci_bed.write("\t".join(map(str, [
+                chrom,
+                start_0based,
+                end_1based,
+                new_record["LocusStructure"].strip("()*+"),
+                ".",
+            ])) + "\n")
+
         counters["added"] += 1
         interval_trees[chrom].add(intervaltree.Interval(start_0based, end_1based, data=new_record))
 
@@ -251,8 +273,13 @@ def add_variant_catalog_to_interval_trees(
         for k, v in sorted(counters.items()):
             if k not in {"added", "total"}:
                 print(" "*3, f"Discarded {counters[k]:7,d} out of {counters['total']:7,d} "
-                      f"({counters[k]/counters['total']:6.1%}) duplicate records since they {k}")
+                      f"({counters[k]/counters['total']:6.1%}) records since they {k}")
 
+    if save_unique_loci:
+        unique_loci_bed.close()
+        os.system(f"bgzip -f {unique_loci_bed_filename}")
+        os.system(f"tabix -f {unique_loci_bed_filename}.gz")
+        print(f"Wrote {counters['added']:,d} unique loci from {variant_catalog_filename} to {unique_loci_bed_filename}.gz")
 
 def check_wheter_to_merge_adjacent_loci(previous_interval, current_interval):
     """Checks whether the two loci should be merged into a single locus.
@@ -437,13 +464,15 @@ def main():
 
     # parse each catalog and add each new unique record to this IntervalTrees dictionary
     interval_trees = collections.defaultdict(intervaltree.IntervalTree)
-    for path, file_type in paths:
+    for i, (path, file_type) in enumerate(paths):
         add_variant_catalog_to_interval_trees(
             interval_trees, path, file_type,
             min_overlap_fraction=args.overlap_fraction,
             add_source_field=args.add_source_field,
             add_extra_fields_from_input_catalogs=args.add_extra_fields_from_input_catalogs,
-            verbose=args.verbose)
+            verbose=args.verbose,
+            save_unique_loci=args.save_unique_loci and i > 0,
+        )
 
     # write the output catalog to a file
     if not args.output_path:
