@@ -3,6 +3,7 @@
 import argparse
 import collections
 import ijson
+from intervaltree import IntervalTree, Interval
 import json
 import os
 import pandas as pd
@@ -12,7 +13,8 @@ import pysam
 import re
 from tqdm import tqdm
 
-from intervaltree import IntervalTree, Interval
+
+from str_analysis.compute_catalog_stats import compute_catalog_stats
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from str_analysis.utils.file_utils import open_file, file_exists
 from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval
@@ -32,6 +34,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Annotate and filter an STR variant catalog.")
     parser.add_argument("-r", "--reference-fasta", required=True, help="Reference fasta file path or url.")
     parser.add_argument("-o", "--output-path", help="Output path")
+    parser.add_argument("--output-tsv", action="store_true", help="Output the catalog as a tab-separated table "
+                        "in addition to the standard ExpansionHunter JSON file format")
+    parser.add_argument("--output-stats", action="store_true", help="Output detailed stats about loci in the catalog")
     parser.add_argument("--verbose", action="store_true", help="Print verbose output.")
 
     annotations_group = parser.add_argument_group("annotations")
@@ -83,6 +88,8 @@ def parse_args():
     filter_group.add_argument("--min-repeat-purity", type=float, help="Minimum purity of the reference repeat sequence, "
                               "computed as the fraction of repeats that deviate from pure repeats of the given motif")
     filter_group.add_argument("--min-mappability", type=float, help="Minimum overall mappability of the repeat region")
+    filter_group.add_argument("--discard-overlapping-intervals-with-similar-motifs", action="store_true",
+                              help="Discard intervals if they overlap another interval with a similar motif")
     parser.add_argument("variant_catalog_json_or_bed", help="A catalog of repeats to annotate and filter, either "
                         "in JSON or BED format. For BED format, the chrom, start, and end should represent the repeat "
                         "interval in 0-based coordinates, and the name field (column #4) should be the repeat unit.")
@@ -98,7 +105,6 @@ def parse_args():
 
 KNOWN_DISEASE_ASSOCIATED_LOCI_COLUMNS = [
     'LocusId', 'LocusStructure', 'RepeatUnit', 'MainReferenceRegion', 'Gene', 'Inheritance', 'GeneRegion', 'GeneId']
-
 
 
 def parse_known_disease_associated_loci(args, parser):
@@ -193,6 +199,25 @@ def get_variant_catalog_iterator(variant_catalog_json_or_bed):
                 yield record
 
 
+def output_tsv(output_path, output_records):
+    output_tsv_rows = []
+    for record in output_records:
+        if not isinstance(record["ReferenceRegion"], list):
+            output_tsv_rows.append(record)
+            continue
+
+        fields_that_are_lists = [
+            "ReferenceRegion", "VariantType", "InterruptionBaseCount", "FractionPureBases", "FractionPureRepeats",
+        ]
+        for i in range(len(record["ReferenceRegion"])):
+            output_row = dict(record)
+            for field in fields_that_are_lists:
+                output_row[field] = record[field][i]
+            output_tsv_rows.append(output_row)
+
+    pd.DataFrame(output_records).to_csv(output_path, sep="\t", index=False, header=True)
+
+
 def main():
     args, parser = parse_args()
 
@@ -226,8 +251,9 @@ def main():
     output_records = []
     input_variant_catalog_iterator = get_variant_catalog_iterator(args.variant_catalog_json_or_bed)
     if args.verbose:
-        input_variant_catalog_iterator = tqdm(input_variant_catalog_iterator, unit=" variant catalog records")
+        input_variant_catalog_iterator = tqdm(input_variant_catalog_iterator, unit=" variant catalog records", unit_scale=True)
 
+    interval_trees = collections.defaultdict(IntervalTree)  # used to check for overlap between records in the catalog
     for i, input_variant_catalog_record in enumerate(input_variant_catalog_iterator):
         # validate input_variant_catalog_record
         error = False
@@ -346,6 +372,8 @@ def main():
         interruption_base_count = []
         fraction_pure_bases = []
         fraction_pure_repeats = []
+        overlaps_other_interval = False
+        overlaps_other_interval_with_similar_motif = False
         for (chrom, start_0based, end), motif in zip(chroms_start_0based_ends, motifs):
             trimmed_end = end - (end - start_0based) % len(motif)
             ref_fasta_sequence = ref_fasta.fetch(chrom, start_0based, trimmed_end)  # fetch uses 0-based coords
@@ -362,9 +390,23 @@ def main():
             fraction_pure_bases.append( round(num_matching_bases / len(ref_fasta_sequence), 2) )
             fraction_pure_repeats.append( round(ref_fasta_sequence.count(motif) / int(len(ref_fasta_sequence) / len(motif)), 2) )
 
+            # check for overlap
+            for overlapping_interval in interval_trees[chrom].overlap(start_0based, end):
+                larger_motif_size = max(len(motif), overlapping_interval.data["motif_size"])
+                if overlapping_interval.overlap_size(start_0based, end) > larger_motif_size:
+                    overlaps_other_interval = True
+                    overlaps_other_interval_with_similar_motif = len(motif) == overlapping_interval.data["motif_size"]
+                    break
+
+            interval_trees[chrom].add(Interval(start_0based, end, data={"motif_size": len(motif)}))
+
         input_variant_catalog_record["InterruptionBaseCount"] = interruption_base_count[0] if len(chroms_start_0based_ends) == 1 else interruption_base_count
         input_variant_catalog_record["FractionPureBases"] = fraction_pure_bases[0] if len(chroms_start_0based_ends) == 1 else fraction_pure_bases
         input_variant_catalog_record["FractionPureRepeats"] = fraction_pure_repeats[0] if len(chroms_start_0based_ends) == 1 else fraction_pure_repeats
+        input_variant_catalog_record["OverlapsOtherInterval"] = overlaps_other_interval
+
+        if args.discard_overlapping_intervals_with_similar_motifs and overlaps_other_interval_with_similar_motif:
+            continue
 
         if args.max_interruptions is not None and input_variant_catalog_record["InterruptionBaseCount"] > args.max_interruptions:
             continue
@@ -404,8 +446,14 @@ def main():
 
     with open(args.output_path, "wt") as f:
         json.dump(output_records, f, indent=4)
-
     print(f"Wrote {len(output_records):,d} records to {args.output_path}")
+
+    output_path_prefix = re.sub("(.json|.bed)(.b?gz)?$", "", args.output_path)
+    if args.output_stats:
+        compute_catalog_stats(args.output_path, output_records)
+
+    if args.output_tsv:
+        output_tsv(f"{output_path_prefix}.tsv.gz", output_records)
 
 
 if __name__ == "__main__":
