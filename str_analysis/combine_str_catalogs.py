@@ -219,14 +219,18 @@ def add_variant_catalog_to_interval_trees(
                          f"and had the exact same LocusStructure"] += 1
                 found_matching_existing_record = True
                 break
-            elif isinstance(new_record["ReferenceRegion"], list):
-                # since loci with multiple adjacent repeats may have multiple motifs, duplicate detection for these loci
-                # is based on exact equality between their LocusStructures. The previous "if" ruled this out, so
-                # include the new locus in the combined catalog.
-                continue
-            else:
+            elif not isinstance(new_record["ReferenceRegion"], list) and not isinstance(existing_record["ReferenceRegion"], list):
                 # check if the existing record's canonical motif is the same as the canonical motif of the new record
+                existing_record_motifs = parse_motifs_from_locus_structure(existing_record["LocusStructure"])
+                if len(existing_record_motifs) != 1:
+                    raise ValueError(f"Unexpected LocusStructure in {existing_record}.")
+                try:
+                    existing_record_canonical_motif = compute_canonical_motif(existing_record_motifs[0])
+                except Exception as e:
+                    raise ValueError(f"Error computing canonical motif for {existing_record}: {e}")
+
                 if new_record_canonical_motif is None:
+                    # compute the new record's canonical motif if it hasn't been computed already
                     new_record_motifs = parse_motifs_from_locus_structure(new_record["LocusStructure"])
                     if len(new_record_motifs) != 1:
                         raise ValueError(f"Unexpected LocusStructure in {new_record}.")
@@ -235,12 +239,7 @@ def add_variant_catalog_to_interval_trees(
                     except Exception as e:
                         raise ValueError(f"Error computing canonical motif for {new_record}: {e}")
 
-                existing_record_motifs = parse_motifs_from_locus_structure(existing_record["LocusStructure"])
-                if len(existing_record_motifs) != 1:
-                    raise ValueError(f"Unexpected LocusStructure in {existing_record}.")
-                existing_record_canonical_motif = compute_canonical_motif(existing_record_motifs[0])
-
-                if new_record_canonical_motif == existing_record_canonical_motif:
+                if existing_record_canonical_motif == new_record_canonical_motif:
                     counters[f"overlapped an existing locus by at least {100*min_overlap_fraction}% " \
                              f"and had the same canonical motif"] += 1
                     found_matching_existing_record = True
