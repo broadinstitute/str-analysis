@@ -41,6 +41,8 @@ def compute_catalog_stats(catalog_name, records):
 
     min_motif_size = min_locus_size = min_num_repeats_in_locus = 10**9
     max_motif_size = max_locus_size = max_num_repeats_in_locus = 0
+    max_locus_size_reference_region = None
+    max_locus_size_motif = None
     min_fraction_pure_bases = 1
     min_fraction_pure_bases_reference_region = None
     min_fraction_pure_bases_motif = None
@@ -95,9 +97,12 @@ def compute_catalog_stats(catalog_name, records):
             max_motif_size = max(max_motif_size, motif_size)
             min_locus_size = min(min_locus_size, locus_size)
             max_locus_size = max(max_locus_size, locus_size)
-            min_num_repeats_in_locus = min(min_num_repeats_in_locus, locus_size // motif_size)
-            max_num_repeats_in_locus = max(max_num_repeats_in_locus, locus_size // motif_size)
+            min_num_repeats_in_locus = min(min_num_repeats_in_locus, int(locus_size / motif_size))
+            max_num_repeats_in_locus = max(max_num_repeats_in_locus, int(locus_size / motif_size))
 
+            if locus_size == max_locus_size:
+                max_locus_size_reference_region = reference_region
+                max_locus_size_motif = motif
             min_fraction_pure_bases = min(min_fraction_pure_bases, fraction_pure_bases)
             if fraction_pure_bases == min_fraction_pure_bases:
                 min_fraction_pure_bases_reference_region = reference_region
@@ -160,6 +165,7 @@ def compute_catalog_stats(catalog_name, records):
     print(f"   Locus size range: {min_locus_size}-{max_locus_size}bp")
     print(f"   Num repeats range: {min_num_repeats_in_locus}-{max_num_repeats_in_locus}x repeats")
     print("")
+    print(f"   Maximum locus size = {max_locus_size}bp               @ {max_locus_size_reference_region} ({max_locus_size_motif})")
     print(f"   Minimum fraction pure bases = {min_fraction_pure_bases:.2f}      @ {min_fraction_pure_bases_reference_region} ({min_fraction_pure_bases_motif})")
     print(f"   Minimum fraction pure repeats = {min_fraction_pure_repeats:.2f}    @ {min_fraction_pure_repeats_reference_region} ({min_fraction_pure_repeats_motif})")
     print(f"   Minimum overall mappability = {min_overall_mappability:.2f}       @ {min_overall_mappability_reference_region} ({min_overall_mappability_motif})")
@@ -184,6 +190,7 @@ def compute_catalog_stats(catalog_name, records):
         print(f"   {mappability_bin:10.1f}: {counters[f'mappability:{mappability_bin:.1f}']:10,d} out of {counters['total']:10,d} ({counters[f'mappability:{mappability_bin:.1f}']/counters['total']:6.1%}) loci")
 
     result = {
+        "Catalog": catalog_name,
         "Total": f"{counters['total_repeat_intervals']:,d}",
         "chrX": f"{counters['chrX']:,d} ({counters['chrX']/counters['total_repeat_intervals']:0.1%})",
         "chrY": f"{counters['chrY']:,d} ({counters['chrY']/counters['total_repeat_intervals']:0.1%})",
@@ -199,7 +206,7 @@ def compute_catalog_stats(catalog_name, records):
         "7+bp motifs": "%0.1f%%" % (100 * (counters["motif_size:7-24bp"] + counters["motif_size:25+bp"])/ counters["total_repeat_intervals"]),
         "Pure repeats": "%0.1f%%" % (100 * counters[f"fraction_pure_bases:1.0"] / counters["total_repeat_intervals"]),
         "Trimmed": "%0.1f%%" % (100 * counters["trimmed"] / counters["total_repeat_intervals"]),
-        "Overlapping": f"{len(overlapping_intervals):,d} ({(100 * len(overlapping_intervals) / counters['total_repeat_intervals']):0.1%})",
+        "Overlapping": f"{len(overlapping_intervals):,d} ({(len(overlapping_intervals) / counters['total_repeat_intervals']):0.1%})",
     }
     """
     "total_loci": counters["total"],
@@ -250,7 +257,7 @@ def main():
     for path in args.annotated_variant_catalog_json:
         print("-"*50)
         print(f"Parsing {path}")
-        catalog_name = os.path.basename(path).replace(".json", "")
+        catalog_name = os.path.basename(path)
         with open_file(path, "rt") as f:
             file_iterator = ijson.items(f, "item")
             if args.verbose:
@@ -261,11 +268,10 @@ def main():
 
     output_path = f"variant_catalog_stats.{len(args.annotated_variant_catalog_json)}_catalogs.tsv"
     df = pd.DataFrame(stat_table_rows)
-    df.drop(columns=[
-        "motif_size_distribution",
-        "fraction_pure_bases_distribution",
-        "mappability_distribution",
-    ], inplace=True)
+    columns_to_drop = ["motif_size_distribution", "fraction_pure_bases_distribution", "mappability_distribution"]
+    for c in columns_to_drop:
+        if c in df.columns:
+            df.drop(columns=c, inplace=True)
     df.to_csv(output_path, sep="\t", index=False)
     print(f"Wrote {len(stat_table_rows):,d} rows to {output_path}")
 
