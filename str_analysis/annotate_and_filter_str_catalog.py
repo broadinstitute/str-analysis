@@ -30,6 +30,8 @@ MAPPABILITY_TRACK_BIGWIG_URL = f"gs://tgg-viewer/ref/GRCh38/mappability/" \
                                f"GRCh38_no_alt_analysis_set_GCA_000001405.15-k{MAPPABILITY_TRACK_KMER_SIZE}_m2.bw"
 FLANK_MAPPABILITY_WINDOW_SIZE = 100
 
+ACGT_REGEX = re.compile("^[ACGT]+$", re.IGNORECASE)
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Annotate and filter an STR variant catalog.")
     parser.add_argument("-r", "--reference-fasta", required=True, help="Reference fasta file path or url.")
@@ -90,6 +92,8 @@ def parse_args():
     filter_group.add_argument("--min-mappability", type=float, help="Minimum overall mappability of the repeat region")
     filter_group.add_argument("--discard-overlapping-intervals-with-similar-motifs", action="store_true",
                               help="Discard intervals if they overlap another interval with a similar motif")
+    filter_group.add_argument("--discard-loci-with-non-acgt-bases", action="store_true", help="Discard loci that have "
+                              "non-ACGT bases within their motif and/or their reference repeat sequence")
     parser.add_argument("variant_catalog_json_or_bed", help="A catalog of repeats to annotate and filter, either "
                         "in JSON or BED format. For BED format, the chrom, start, and end should represent the repeat "
                         "interval in 0-based coordinates, and the name field (column #4) should be the repeat unit.")
@@ -187,7 +191,7 @@ def get_variant_catalog_iterator(variant_catalog_json_or_bed):
                 start_0based = int(fields[1])
                 end_1based = int(fields[2])
                 motif = fields[3].strip("()*+").upper()
-                if not re.match("^[ACGTN]+$", motif):
+                if motif == "N"*len(motif):
                     print(f"WARNING: skipping line with invalid motif: {line.strip()}")
                     continue
                 record = {
@@ -374,10 +378,15 @@ def main():
         fraction_pure_repeats = []
         overlaps_other_interval = False
         overlaps_other_interval_with_similar_motif = False
+        has_non_acgt_bases = False
         for (chrom, start_0based, end), motif in zip(chroms_start_0based_ends, motifs):
             trimmed_end = end - (end - start_0based) % len(motif)
             ref_fasta_sequence = ref_fasta.fetch(chrom, start_0based, trimmed_end)  # fetch uses 0-based coords
             ref_fasta_sequence = ref_fasta_sequence.upper()
+
+            if args.discard_loci_with_non_acgt_bases and not ACGT_REGEX.match(motif + ref_fasta_sequence):
+                has_non_acgt_bases = True
+                break
 
             pure_sequence = motif.upper() * int(len(ref_fasta_sequence)/len(motif))
             if len(pure_sequence) != len(ref_fasta_sequence):
@@ -393,12 +402,15 @@ def main():
             # check for overlap
             for overlapping_interval in interval_trees[chrom].overlap(start_0based, end):
                 larger_motif_size = max(len(motif), overlapping_interval.data["motif_size"])
-                if overlapping_interval.overlap_size(start_0based, end) > larger_motif_size:
+                if overlapping_interval.overlap_size(start_0based, end) >= 2*larger_motif_size:
                     overlaps_other_interval = True
                     overlaps_other_interval_with_similar_motif = len(motif) == overlapping_interval.data["motif_size"]
                     break
 
             interval_trees[chrom].add(Interval(start_0based, end, data={"motif_size": len(motif)}))
+
+        if args.discard_loci_with_non_acgt_bases and has_non_acgt_bases:
+            continue
 
         input_variant_catalog_record["InterruptionBaseCount"] = interruption_base_count[0] if len(chroms_start_0based_ends) == 1 else interruption_base_count
         input_variant_catalog_record["FractionPureBases"] = fraction_pure_bases[0] if len(chroms_start_0based_ends) == 1 else fraction_pure_bases
