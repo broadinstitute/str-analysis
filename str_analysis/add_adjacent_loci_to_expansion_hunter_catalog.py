@@ -310,6 +310,7 @@ def main():
 
             for current_chrom, current_start, current_end in chrom_start_end_tuples:
                 current_start -= args.max_total_adjacent_region_size
+                current_start = max(0, current_start)
                 current_end += args.max_total_adjacent_region_size
                 min_max_coords_for_chrom[current_chrom] = (
                     min(current_start, min_max_coords_for_chrom[current_chrom][0]),
