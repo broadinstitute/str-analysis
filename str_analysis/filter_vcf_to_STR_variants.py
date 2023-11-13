@@ -278,8 +278,8 @@ def check_if_allele_is_str(
         "FilterReason": None,
     }
 
-    if set(alt) - {"A", "C", "G", "T", "N"}:
-        raise ValueError(f"Invalid bases in ALT allele: {alt}")
+    if set(alt.upper()) - {"A", "C", "G", "T"}:
+        counters[f"allele filter: non-ACGT bases"] += 1
 
     if len(ref) == len(alt):
         counters[f"allele filter: "+("SNV" if len(alt) == 1 else "MNV")] += 1
