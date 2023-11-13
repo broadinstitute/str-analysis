@@ -95,8 +95,8 @@ def compute_catalog_stats(catalog_name, records):
             max_motif_size = max(max_motif_size, motif_size)
             min_locus_size = min(min_locus_size, locus_size)
             max_locus_size = max(max_locus_size, locus_size)
-            min_num_repeats_in_locus = min(min_num_repeats_in_locus, locus_size / motif_size)
-            max_num_repeats_in_locus = max(max_num_repeats_in_locus, locus_size / motif_size)
+            min_num_repeats_in_locus = min(min_num_repeats_in_locus, locus_size // motif_size)
+            max_num_repeats_in_locus = max(max_num_repeats_in_locus, locus_size // motif_size)
 
             min_fraction_pure_bases = min(min_fraction_pure_bases, fraction_pure_bases)
             if fraction_pure_bases == min_fraction_pure_bases:
@@ -158,7 +158,7 @@ def compute_catalog_stats(catalog_name, records):
     print("Ranges:")
     print(f"   Motif size range: {min_motif_size}-{max_motif_size}bp")
     print(f"   Locus size range: {min_locus_size}-{max_locus_size}bp")
-    print(f"   Num repeats range: {min_num_repeats_in_locus:0.1f}-{max_num_repeats_in_locus:0.1f} repeats")
+    print(f"   Num repeats range: {min_num_repeats_in_locus}-{max_num_repeats_in_locus}x repeats")
     print("")
     print(f"   Minimum fraction pure bases = {min_fraction_pure_bases:.2f}      @ {min_fraction_pure_bases_reference_region} ({min_fraction_pure_bases_motif})")
     print(f"   Minimum fraction pure repeats = {min_fraction_pure_repeats:.2f}    @ {min_fraction_pure_repeats_reference_region} ({min_fraction_pure_repeats_motif})")
@@ -189,55 +189,56 @@ def compute_catalog_stats(catalog_name, records):
         "chrY": f"{counters['chrY']:,d} ({counters['chrY']/counters['total_repeat_intervals']:0.1%})",
         "Motif size range": f"{min_motif_size}-{max_motif_size}bp",
         "Locus size range": f"{min_locus_size}-{max_locus_size}bp",
-        "Num repeats range": f"{min_num_repeats_in_locus:0.1f}-{max_num_repeats_in_locus:0.1f} repeats",
-        "Homopolymers": "%0.1f" % (100 * counters["motif_size:1bp"] / counters["total_repeat_intervals"]),
-        "2bp motifs": "%0.1f" % (100 * counters["motif_size:2bp"] / counters["total_repeat_intervals"]),
-        "3bp motifs": "%0.1f" % (100 * counters["motif_size:3bp"] / counters["total_repeat_intervals"]),
-        "4bp motifs": "%0.1f" % (100 * counters["motif_size:4bp"] / counters["total_repeat_intervals"]),
-        "5bp motifs": "%0.1f" % (100 * counters["motif_size:5bp"] / counters["total_repeat_intervals"]),
-        "6bp motifs": "%0.1f" % (100 * counters["motif_size:6bp"] / counters["total_repeat_intervals"]),
-        "7+bp motifs": "%0.1f" % (100 * (counters["motif_size:7-24bp"] + counters["motif_size:25+bp"])/ counters["total_repeat_intervals"]),
-        "Pure repeats": "%0.1f" % (100 * counters[f"fraction_pure_bases:1.0"] / counters["total_repeat_intervals"]),
-        "Trimmed": "%0.1f" % (100 * counters["trimmed"] / counters["total_repeat_intervals"]),
+        "Num repeats range": f"{min_num_repeats_in_locus}-{max_num_repeats_in_locus}x repeats",
+        "Homopolymers": "%0.1f%%" % (100 * counters["motif_size:1bp"] / counters["total_repeat_intervals"]),
+        "2bp motifs": "%0.1f%%" % (100 * counters["motif_size:2bp"] / counters["total_repeat_intervals"]),
+        "3bp motifs": "%0.1f%%" % (100 * counters["motif_size:3bp"] / counters["total_repeat_intervals"]),
+        "4bp motifs": "%0.1f%%" % (100 * counters["motif_size:4bp"] / counters["total_repeat_intervals"]),
+        "5bp motifs": "%0.1f%%" % (100 * counters["motif_size:5bp"] / counters["total_repeat_intervals"]),
+        "6bp motifs": "%0.1f%%" % (100 * counters["motif_size:6bp"] / counters["total_repeat_intervals"]),
+        "7+bp motifs": "%0.1f%%" % (100 * (counters["motif_size:7-24bp"] + counters["motif_size:25+bp"])/ counters["total_repeat_intervals"]),
+        "Pure repeats": "%0.1f%%" % (100 * counters[f"fraction_pure_bases:1.0"] / counters["total_repeat_intervals"]),
+        "Trimmed": "%0.1f%%" % (100 * counters["trimmed"] / counters["total_repeat_intervals"]),
         "Overlapping": f"{len(overlapping_intervals):,d} ({(100 * len(overlapping_intervals) / counters['total_repeat_intervals']):0.1%})",
-
-        "": "",
-        "total_loci": counters["total"],
-        "loci_with_adjacent_repeats": counters["loci_with_adjacent_repeats"],
-        "total_repeats": counters["total_repeat_intervals"],
-        "homopolymer_repeats": counters["homopolymers"],
-        "trimmed_repeats": counters["trimmed"],
-        "overlapping_repeat_intervals": len(overlapping_intervals),
-        "chrX_repeats": counters["chrX"],
-        "chrY_repeats": counters["chrY"],
-        "chrM_repeats": counters["chrM"],
-        "min_motif_size": min_motif_size,
-        "max_motif_size": max_motif_size,
-        "min_locus_size": min_locus_size,
-        "max_locus_size": max_locus_size,
-        "min_fraction_pure_bases": min_fraction_pure_bases,
-        "min_fraction_pure_bases_reference_region": min_fraction_pure_bases_reference_region,
-        "min_fraction_pure_bases_motif": min_fraction_pure_bases_motif,
-        "min_fraction_pure_repeats": min_fraction_pure_repeats,
-        "min_fraction_pure_repeats_reference_region": min_fraction_pure_repeats_reference_region,
-        "min_fraction_pure_repeats_motif": min_fraction_pure_repeats_motif,
-        "motif_size_distribution": {
-            "1bp": counters["motif_size:1bp"],
-            "2bp": counters["motif_size:2bp"],
-            "3bp": counters["motif_size:3bp"],
-            "4bp": counters["motif_size:4bp"],
-            "5bp": counters["motif_size:5bp"],
-            "6bp": counters["motif_size:6bp"],
-            "7-24bp": counters["motif_size:7-24bp"],
-            "25+bp": counters["motif_size:25+bp"],
-        },
-        "fraction_pure_bases_distribution": {},
-        "mappability_distribution": {},
     }
+    """
+    "total_loci": counters["total"],
+    "loci_with_adjacent_repeats": counters["loci_with_adjacent_repeats"],
+    "total_repeats": counters["total_repeat_intervals"],
+    "homopolymer_repeats": counters["homopolymers"],
+    "trimmed_repeats": counters["trimmed"],
+    "overlapping_repeat_intervals": len(overlapping_intervals),
+    "chrX_repeats": counters["chrX"],
+    "chrY_repeats": counters["chrY"],
+    "chrM_repeats": counters["chrM"],
+    "min_motif_size": min_motif_size,
+    "max_motif_size": max_motif_size,
+    "min_locus_size": min_locus_size,
+    "max_locus_size": max_locus_size,
+    "min_fraction_pure_bases": min_fraction_pure_bases,
+    "min_fraction_pure_bases_reference_region": min_fraction_pure_bases_reference_region,
+    "min_fraction_pure_bases_motif": min_fraction_pure_bases_motif,
+    "min_fraction_pure_repeats": min_fraction_pure_repeats,
+    "min_fraction_pure_repeats_reference_region": min_fraction_pure_repeats_reference_region,
+    "min_fraction_pure_repeats_motif": min_fraction_pure_repeats_motif,
+    "motif_size_distribution": {
+        "1bp": counters["motif_size:1bp"],
+        "2bp": counters["motif_size:2bp"],
+        "3bp": counters["motif_size:3bp"],
+        "4bp": counters["motif_size:4bp"],
+        "5bp": counters["motif_size:5bp"],
+        "6bp": counters["motif_size:6bp"],
+        "7-24bp": counters["motif_size:7-24bp"],
+        "25+bp": counters["motif_size:25+bp"],
+    },
+    "fraction_pure_bases_distribution": {},
+    "mappability_distribution": {},
+    """
+    #}
 
-    for fraction in 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1:
-        result["fraction_pure_bases_distribution"][f"{fraction:.1f}"] = counters[f"fraction_pure_bases:{fraction:.1f}"]
-        result["mappability_distribution"][f"{fraction:.1f}"] = counters[f"mappability:{fraction:.1f}"]
+    #for fraction in 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1:
+    #    result["fraction_pure_bases_distribution"][f"{fraction:.1f}"] = counters[f"fraction_pure_bases:{fraction:.1f}"]
+    #    result["mappability_distribution"][f"{fraction:.1f}"] = counters[f"mappability:{fraction:.1f}"]
 
     return result
 
