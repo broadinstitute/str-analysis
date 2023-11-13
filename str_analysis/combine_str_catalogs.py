@@ -31,8 +31,9 @@ def parse_args():
         "pair interruption in a reference repeat sequence will cause that repeat locus to be split into 2 adjacent "
         "loci with the same motif (under cyclic shift). This option enables detection of these adjacent loci (separated "
         "by 1 base pair and having the same motif) and merges them into a single locus in the output catalog.")
-    parser.add_argument("--output-format", choices=("JSON", "BED"), default="BED", help="Output file format.")
-    parser.add_argument("--output-path", help="Output file path")
+    parser.add_argument("--output-format", choices=("JSON", "BED"), help="Output file format. If not specified, both "
+                                                                         "a JSON and a BED file will be generated.")
+    parser.add_argument("--output-prefix", help="Output filename prefix")
     parser.add_argument("--verbose", action="store_true", help="If specified, then print more stats")
     parser.add_argument("--save-unique-loci", action="store_true", help="If specified, write a BED file for "
                         "each input catalog except the 1st one that records the new loci introduced by that catalog "
@@ -196,19 +197,15 @@ def add_variant_catalog_to_interval_trees(
     if verbose:
         print("- "*60)
 
-    if save_unique_loci:
-        unqiue_loci_bed_prefix = re.sub("(.json|.bed)(.gz)?$", "", os.path.basename(variant_catalog_json_or_bed))
-        unique_loci_bed_filename = f"{unqiue_loci_bed_prefix}.unique_loci.bed"
-        unique_loci_bed = open(unique_loci_bed_filename, "wt")
-
     variant_catalog_filename = os.path.basename(variant_catalog_json_or_bed)
     counters = collections.defaultdict(int)
-    for chrom, start_0based, end_1based, new_record in get_variant_catalog_iterator(
+    unique_loci = set()
+    for unmodified_chrom, start_0based, end_1based, new_record in get_variant_catalog_iterator(
             variant_catalog_json_or_bed, file_type,
             add_extra_fields_from_input_catalogs=add_extra_fields_from_input_catalogs,
             verbose=verbose):
 
-        chrom = chrom.replace("chr", "")
+        chrom = unmodified_chrom.replace("chr", "")
         # check for overlap with existing loci
         counters["total"] += 1
         new_record_canonical_motif = None
@@ -256,13 +253,11 @@ def add_variant_catalog_to_interval_trees(
             new_record["Source"] = variant_catalog_filename
 
         if save_unique_loci:
-            unique_loci_bed.write("\t".join(map(str, [
-                chrom,
-                start_0based,
-                end_1based,
-                new_record["LocusStructure"].strip("()*+"),
-                ".",
-            ])) + "\n")
+            motif = new_record["LocusStructure"].strip("()*+")
+            if "(" in motif:
+                print(f"Unexpected LocusStructure in {new_record}: {new_record['LocusStructure']}. Will not save to unique loci...")
+            else:
+                unique_loci.add((unmodified_chrom, start_0based, end_1based, motif))
 
         counters["added"] += 1
         interval_trees[chrom].add(intervaltree.Interval(start_0based, end_1based, data=new_record))
@@ -276,7 +271,18 @@ def add_variant_catalog_to_interval_trees(
                       f"({counters[k]/counters['total']:6.1%}) records since they {k}")
 
     if save_unique_loci:
-        unique_loci_bed.close()
+        unqiue_loci_bed_prefix = re.sub("(.json|.bed)(.gz)?$", "", os.path.basename(variant_catalog_json_or_bed))
+        unique_loci_bed_filename = f"{unqiue_loci_bed_prefix}.unique_loci.bed"
+        with open(unique_loci_bed_filename, "wt") as unique_loci_bed:
+            for chrom, start_0based, end_1based, motif in sorted(unique_loci):
+                unique_loci_bed.write("\t".join(map(str, [
+                    chrom,
+                    start_0based,
+                    end_1based,
+                    motif,
+                    ".",
+                ])) + "\n")
+
         os.system(f"bgzip -f {unique_loci_bed_filename}")
         os.system(f"tabix -f {unique_loci_bed_filename}.gz")
         print(f"Wrote {counters['added']:,d} unique loci from {variant_catalog_filename} to {unique_loci_bed_filename}.gz")
@@ -475,15 +481,18 @@ def main():
         )
 
     # write the output catalog to a file
-    if not args.output_path:
-        args.output_path = f"combined.{len(paths)}_catalogs.{args.output_format.lower()}"
+    output_formats = [args.output_format] if args.output_format else ["JSON", "BED"]
+    if not args.output_prefix:
+        args.output_prefix = f"combined.{len(paths)}_catalogs"
 
-    output_catalog_record_generator = convert_interval_trees_to_output_records(
-        interval_trees, args.merge_adjacent_loci_with_same_motif)
+    for output_format in output_formats:
+        output_catalog_record_generator = convert_interval_trees_to_output_records(
+            interval_trees, args.merge_adjacent_loci_with_same_motif)
 
-    if args.verbose:
-        print(f"Writing combined catalog to {args.output_path}")
-    write_output_catalog(output_catalog_record_generator, args.output_path, args.output_format)
+        output_path = f"{args.output_prefix}.{output_format.lower()}"
+        if args.verbose:
+            print(f"Writing combined catalog to {output_path}")
+        write_output_catalog(output_catalog_record_generator, output_path, output_format)
 
     if args.verbose:
         print_catalog_stats(interval_trees, has_source_field=args.add_source_field)
