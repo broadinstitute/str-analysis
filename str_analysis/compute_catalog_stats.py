@@ -3,10 +3,13 @@ import collections
 import ijson
 import os
 import pandas as pd
+import re
 import tqdm
 from intervaltree import IntervalTree, Interval
 from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.file_utils import open_file, file_exists
+
+ACGT_REGEX = re.compile("^[ACGT]+$", re.IGNORECASE)
 
 
 def parse_args():
@@ -36,8 +39,8 @@ def compute_catalog_stats(catalog_name, records):
         dict: dictionary of summary stats for this catalog
     """
 
-    min_motif_size = min_locus_size = 10**9
-    max_motif_size = max_locus_size = 0
+    min_motif_size = min_locus_size = min_num_repeats_in_locus = 10**9
+    max_motif_size = max_locus_size = max_num_repeats_in_locus = 0
     min_fraction_pure_bases = 1
     min_fraction_pure_bases_reference_region = None
     min_fraction_pure_bases_motif = None
@@ -92,6 +95,9 @@ def compute_catalog_stats(catalog_name, records):
             max_motif_size = max(max_motif_size, motif_size)
             min_locus_size = min(min_locus_size, locus_size)
             max_locus_size = max(max_locus_size, locus_size)
+            min_num_repeats_in_locus = min(min_num_repeats_in_locus, locus_size / motif_size)
+            max_num_repeats_in_locus = max(max_num_repeats_in_locus, locus_size / motif_size)
+
             min_fraction_pure_bases = min(min_fraction_pure_bases, fraction_pure_bases)
             if fraction_pure_bases == min_fraction_pure_bases:
                 min_fraction_pure_bases_reference_region = reference_region
@@ -106,6 +112,9 @@ def compute_catalog_stats(catalog_name, records):
             if locus_size % motif_size == 0:
                 counters["trimmed"] += 1
 
+            if not ACGT_REGEX.match(motif):
+                counters["non_acgt_motifs"] += 1
+
             motif_size_bin = f"{motif_size}bp" if motif_size <= 6 else "7-24bp" if motif_size <= 24 else "25+bp"
             fraction_pure_bases_bin = round(int(fraction_pure_repeats*10)/10, 1)
 
@@ -115,7 +124,7 @@ def compute_catalog_stats(catalog_name, records):
             # check for overlap
             for overlapping_interval in interval_trees[chrom].overlap(start_0based, end):
                 larger_motif_size = max(motif_size, overlapping_interval.data["motif_size"])
-                if overlapping_interval.overlap_size(start_0based, end) > larger_motif_size:
+                if overlapping_interval.overlap_size(start_0based, end) >= 2*larger_motif_size:
                     overlapping_intervals.add((chrom, start_0based, end))
                     overlapping_intervals.add((chrom, overlapping_interval.begin, overlapping_interval.end))
                     break
@@ -136,7 +145,10 @@ def compute_catalog_stats(catalog_name, records):
     print(f"   {counters['total_repeat_intervals']:10,d} total repeat intervals")
     print(f"   {counters['trimmed']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['trimmed']/counters['total_repeat_intervals']:6.1%}) repeat interval size is an integer multiple of the motif size (aka. trimmed)")
     print(f"   {counters['homopolymers']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['homopolymers']/counters['total_repeat_intervals']:6.1%}) repeat intervals are homopolymers")
-    print(f"   {len(overlapping_intervals):10,d} out of {counters['total_repeat_intervals']:10,d} ({len(overlapping_intervals)/counters['total_repeat_intervals']:6.1%}) repeat intervals overlap each other by more than one motif length")
+    print(f"   {len(overlapping_intervals):10,d} out of {counters['total_repeat_intervals']:10,d} ({len(overlapping_intervals)/counters['total_repeat_intervals']:6.1%}) repeat intervals overlap each other by at least two motif lengths")
+    if counters["non_acgt_motifs"]:
+        print(f"   {counters['non_acgt_motifs']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['non_acgt_motifs']/counters['total_repeat_intervals']:6.1%}) repeat intervals have non-ACGT motifs")
+
     if len(overlapping_intervals) > 0:
         examples = list(overlapping_intervals)
         examples = ", ".join(f"{chrom}:{start}-{end}" for chrom, start, end in examples[:10])
@@ -144,17 +156,18 @@ def compute_catalog_stats(catalog_name, records):
 
     print("")
     print("Ranges:")
+    print(f"   Motif size range: {min_motif_size}-{max_motif_size}bp")
+    print(f"   Locus size range: {min_locus_size}-{max_locus_size}bp")
+    print(f"   Num repeats range: {min_num_repeats_in_locus:0.1f}-{max_num_repeats_in_locus:0.1f} repeats")
+    print("")
+    print(f"   Minimum fraction pure bases = {min_fraction_pure_bases:.2f}      @ {min_fraction_pure_bases_reference_region} ({min_fraction_pure_bases_motif})")
+    print(f"   Minimum fraction pure repeats = {min_fraction_pure_repeats:.2f}    @ {min_fraction_pure_repeats_reference_region} ({min_fraction_pure_repeats_motif})")
+    print(f"   Minimum overall mappability = {min_overall_mappability:.2f}       @ {min_overall_mappability_reference_region} ({min_overall_mappability_motif})")
+    print("")
     print(f"          chrX: {counters['chrX']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['chrX']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
     print(f"          chrY: {counters['chrY']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['chrY']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
     print(f"          chrM: {counters['chrM']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['chrM']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
     print(f"   alt contigs: {counters['alt_contigs']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['alt_contigs']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
-    print("")
-    print(f"   Motif size range: {min_motif_size:,d}-{max_motif_size:,d}bp")
-    print(f"   Locus size range: {min_locus_size:,d}-{max_locus_size:,d}bp")
-    print(f"   Minimum fraction pure bases = {min_fraction_pure_bases:.2f}      @ {min_fraction_pure_bases_reference_region} ({min_fraction_pure_bases_motif})")
-    print(f"   Minimum fraction pure repeats = {min_fraction_pure_repeats:.2f}    @ {min_fraction_pure_repeats_reference_region} ({min_fraction_pure_repeats_motif})")
-    print(f"   Minimum overall mappability = {min_overall_mappability:.2f}       @ {min_overall_mappability_reference_region} ({min_overall_mappability_motif})")
-
     print("")
     print("Motif size distribution:")
     for motif_size_bin in "1bp", "2bp", "3bp", "4bp", "5bp", "6bp", "7-24bp", "25+bp":
@@ -171,6 +184,24 @@ def compute_catalog_stats(catalog_name, records):
         print(f"   {mappability_bin:10.1f}: {counters[f'mappability:{mappability_bin:.1f}']:10,d} out of {counters['total']:10,d} ({counters[f'mappability:{mappability_bin:.1f}']/counters['total']:6.1%}) loci")
 
     result = {
+        "Total": f"{counters['total_repeat_intervals']:,d}",
+        "chrX": f"{counters['chrX']:,d} ({counters['chrX']/counters['total_repeat_intervals']:0.1%})",
+        "chrY": f"{counters['chrY']:,d} ({counters['chrY']/counters['total_repeat_intervals']:0.1%})",
+        "Motif size range": f"{min_motif_size}-{max_motif_size}bp",
+        "Locus size range": f"{min_locus_size}-{max_locus_size}bp",
+        "Num repeats range": f"{min_num_repeats_in_locus:0.1f}-{max_num_repeats_in_locus:0.1f} repeats",
+        "Homopolymers": "%0.1f" % (100 * counters["motif_size:1bp"] / counters["total_repeat_intervals"]),
+        "2bp motifs": "%0.1f" % (100 * counters["motif_size:2bp"] / counters["total_repeat_intervals"]),
+        "3bp motifs": "%0.1f" % (100 * counters["motif_size:3bp"] / counters["total_repeat_intervals"]),
+        "4bp motifs": "%0.1f" % (100 * counters["motif_size:4bp"] / counters["total_repeat_intervals"]),
+        "5bp motifs": "%0.1f" % (100 * counters["motif_size:5bp"] / counters["total_repeat_intervals"]),
+        "6bp motifs": "%0.1f" % (100 * counters["motif_size:6bp"] / counters["total_repeat_intervals"]),
+        "7+bp motifs": "%0.1f" % (100 * (counters["motif_size:7-24bp"] + counters["motif_size:25+bp"])/ counters["total_repeat_intervals"]),
+        "Pure repeats": "%0.1f" % (100 * counters[f"fraction_pure_bases:1.0"] / counters["total_repeat_intervals"]),
+        "Trimmed": "%0.1f" % (100 * counters["trimmed"] / counters["total_repeat_intervals"]),
+        "Overlapping": f"{len(overlapping_intervals):,d} ({(100 * len(overlapping_intervals) / counters['total_repeat_intervals']):0.1%})",
+
+        "": "",
         "total_loci": counters["total"],
         "loci_with_adjacent_repeats": counters["loci_with_adjacent_repeats"],
         "total_repeats": counters["total_repeat_intervals"],
