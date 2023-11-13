@@ -9,6 +9,7 @@ import re
 import tqdm
 
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
+from str_analysis.utils.eh_catalog_utils import parse_motifs_from_locus_structure
 from str_analysis.utils.file_utils import open_file, file_exists
 from str_analysis.utils.misc_utils import parse_interval
 
@@ -72,13 +73,6 @@ def parse_variant_catalog_paths_arg(variant_catalog_json_or_bed, argparser):
             argparser.error(f"Unrecognized file extension: {path}")
 
     return paths
-
-
-def parse_motifs_from_locus_structure(locus_structure):
-    """Takes an ExpansionHunter LocusStructure like "(CAG)*AGAC(GCC)+" and returns a list of motifs ["CAG", "GCC"]"""
-    return [
-        locus_structure_part.split("(")[-1] for locus_structure_part in locus_structure.split(")")[:-1]
-    ]
 
 
 def get_variant_catalog_iterator(
@@ -227,18 +221,25 @@ def add_variant_catalog_to_interval_trees(
                 break
             elif isinstance(new_record["ReferenceRegion"], list):
                 # since loci with multiple adjacent repeats may have multiple motifs, duplicate detection for these loci
-                # is based on exact equality between their LocusStructures. The previous if statement ruled this out.
+                # is based on exact equality between their LocusStructures. The previous "if" ruled this out, so
+                # include the new locus in the combined catalog.
                 continue
             else:
                 # check if the existing record's canonical motif is the same as the canonical motif of the new record
                 if new_record_canonical_motif is None:
-                    motif = new_record["LocusStructure"].strip("()*+")
+                    new_record_motifs = parse_motifs_from_locus_structure(new_record["LocusStructure"])
+                    if len(new_record_motifs) != 1:
+                        raise ValueError(f"Unexpected LocusStructure in {new_record}.")
                     try:
-                        new_record_canonical_motif = compute_canonical_motif(motif)
+                        new_record_canonical_motif = compute_canonical_motif(new_record_motifs[0])
                     except Exception as e:
                         raise ValueError(f"Error computing canonical motif for {new_record}: {e}")
-                existing_record_motif = new_record["LocusStructure"].strip("()*+")
-                existing_record_canonical_motif = compute_canonical_motif(existing_record_motif)
+
+                existing_record_motifs = parse_motifs_from_locus_structure(existing_record["LocusStructure"])
+                if len(existing_record_motifs) != 1:
+                    raise ValueError(f"Unexpected LocusStructure in {existing_record}.")
+                existing_record_canonical_motif = compute_canonical_motif(existing_record_motifs[0])
+
                 if new_record_canonical_motif == existing_record_canonical_motif:
                     counters[f"overlapped an existing locus by at least {100*min_overlap_fraction}% " \
                              f"and had the same canonical motif"] += 1
@@ -253,11 +254,11 @@ def add_variant_catalog_to_interval_trees(
             new_record["Source"] = variant_catalog_filename
 
         if save_unique_loci:
-            motif = new_record["LocusStructure"].strip("()*+")
-            if "(" in motif:
+            motifs = parse_motifs_from_locus_structure(new_record["LocusStructure"])
+            if len(motifs) > 1:
                 print(f"Unexpected LocusStructure in {new_record}: {new_record['LocusStructure']}. Will not save to unique loci...")
             else:
-                unique_loci.add((unmodified_chrom, start_0based, end_1based, motif))
+                unique_loci.add((unmodified_chrom, start_0based, end_1based, motifs[0]))
 
         counters["added"] += 1
         interval_trees[chrom].add(intervaltree.Interval(start_0based, end_1based, data=new_record))
@@ -411,7 +412,6 @@ def write_output_catalog(output_catalog_record_iter, output_path, output_format)
 
     elif output_format == "BED":
         output_path = re.sub(".b?gz$", "", output_path)
-
         with open(output_path, "wt") as output_catalog:
             total = 0
             for record in output_catalog_record_iter:
@@ -490,6 +490,9 @@ def main():
             interval_trees, args.merge_adjacent_loci_with_same_motif)
 
         output_path = f"{args.output_prefix}.{output_format.lower()}"
+        if output_format == "JSON":
+            output_path += ".gz"
+
         if args.verbose:
             print(f"Writing combined catalog to {output_path}")
         write_output_catalog(output_catalog_record_generator, output_path, output_format)

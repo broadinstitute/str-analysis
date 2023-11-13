@@ -2,6 +2,7 @@
 
 import argparse
 import collections
+import gzip
 import ijson
 from intervaltree import IntervalTree, Interval
 import json
@@ -13,13 +14,12 @@ import pysam
 import re
 from tqdm import tqdm
 
-
 from str_analysis.compute_catalog_stats import compute_catalog_stats
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
-from str_analysis.utils.file_utils import open_file, file_exists
+from str_analysis.utils.eh_catalog_utils import parse_motifs_from_locus_structure
+from str_analysis.utils.file_utils import open_file, file_exists, download_local_copy
 from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval
 from str_analysis.utils.misc_utils import parse_interval
-from str_analysis.utils.file_utils import download_local_copy
 
 VALID_GENE_REGIONS = {"CDS", "UTR", "5UTR", "3UTR", "promoter", "exon", "intron", "intergenic"}
 
@@ -37,6 +37,8 @@ def parse_args():
     parser.add_argument("-r", "--reference-fasta", required=True, help="Reference fasta file path or url.")
     parser.add_argument("-o", "--output-path", help="Output path")
     parser.add_argument("--output-tsv", action="store_true", help="Output the catalog as a tab-separated table "
+                        "in addition to the standard ExpansionHunter JSON file format")
+    parser.add_argument("--output-bed", action="store_true", help="Output the catalog as a BED file "
                         "in addition to the standard ExpansionHunter JSON file format")
     parser.add_argument("--output-stats", action="store_true", help="Output detailed stats about loci in the catalog")
     parser.add_argument("--verbose", action="store_true", help="Print verbose output.")
@@ -191,9 +193,10 @@ def get_variant_catalog_iterator(variant_catalog_json_or_bed):
                 start_0based = int(fields[1])
                 end_1based = int(fields[2])
                 motif = fields[3].strip("()*+").upper()
-                if motif == "N"*len(motif):
+                if not ACGT_REGEX.match(motif):
                     print(f"WARNING: skipping line with invalid motif: {line.strip()}")
                     continue
+
                 record = {
                     "LocusId": f"{chrom}-{start_0based + 1}-{end_1based}-{motif}",
                     "ReferenceRegion": f"{unmodified_chrom}:{start_0based}-{end_1based}",
@@ -250,7 +253,7 @@ def main():
 
     if not args.output_path:
         filename_prefix = re.sub("(.json|.bed)(.b?gz)?$", "", os.path.basename(args.variant_catalog_json_or_bed))
-        args.output_path = f"{filename_prefix}.annotated_and_filtered.json"
+        args.output_path = f"{filename_prefix}.annotated_and_filtered.json.gz"
 
     output_records = []
     input_variant_catalog_iterator = get_variant_catalog_iterator(args.variant_catalog_json_or_bed)
@@ -276,16 +279,11 @@ def main():
         if args.exclude_locus_id and locus_id in args.exclude_locus_id:
             continue
 
+        motifs = parse_motifs_from_locus_structure(input_variant_catalog_record["LocusStructure"])
         if isinstance(input_variant_catalog_record["ReferenceRegion"], list):
-            motifs = []
-            for m in input_variant_catalog_record["LocusStructure"].strip("()*+").split(")"):
-                if "(" in m:
-                    m = m.split("(")[1]
-                motifs.append(m.strip("()*+"))
             reference_regions = input_variant_catalog_record["ReferenceRegion"]
             variant_types = input_variant_catalog_record["VariantType"]
         else:
-            motifs = [input_variant_catalog_record["LocusStructure"].strip("()*+")]
             reference_regions = [input_variant_catalog_record["ReferenceRegion"]]
             variant_types = [input_variant_catalog_record["VariantType"]]
 
@@ -401,13 +399,14 @@ def main():
 
             # check for overlap
             for overlapping_interval in interval_trees[chrom].overlap(start_0based, end):
-                larger_motif_size = max(len(motif), overlapping_interval.data["motif_size"])
+                overlapping_interval_motif_size = overlapping_interval.data
+                larger_motif_size = max(len(motif), overlapping_interval_motif_size)
                 if overlapping_interval.overlap_size(start_0based, end) >= 2*larger_motif_size:
                     overlaps_other_interval = True
-                    overlaps_other_interval_with_similar_motif = len(motif) == overlapping_interval.data["motif_size"]
+                    overlaps_other_interval_with_similar_motif = len(motif) == overlapping_interval_motif_size
                     break
 
-            interval_trees[chrom].add(Interval(start_0based, end, data={"motif_size": len(motif)}))
+            interval_trees[chrom].add(Interval(start_0based, end, data=len(motif)))
 
         if args.discard_loci_with_non_acgt_bases and has_non_acgt_bases:
             continue
@@ -456,15 +455,50 @@ def main():
         # add this record to the output variant catalog
         output_records.append(input_variant_catalog_record)
 
-    with open(args.output_path, "wt") as f:
+    fopen = gzip.open if args.output_path.endswith(".gz") else open
+    with fopen(args.output_path, "wt") as f:
         json.dump(output_records, f, indent=4)
     print(f"Wrote {len(output_records):,d} records to {args.output_path}")
 
     output_path_prefix = re.sub("(.json|.bed)(.b?gz)?$", "", args.output_path)
     if args.output_stats:
+        if args.verbose: print("Calculating catalog stats..")
         compute_catalog_stats(args.output_path, output_records)
 
+    if args.output_bed:
+        output_path = f"{output_path_prefix}.bed"
+        if args.verbose: print(f"Writing to {output_path}")
+        with open(output_path, "wt") as output_bed:
+            total = 0
+            for record in output_records:
+                locus_structure = record["LocusStructure"]
+                reference_regions = record["ReferenceRegion"]
+                if not isinstance(reference_regions, list):
+                    reference_regions = [reference_regions]
+
+                motifs = parse_motifs_from_locus_structure(locus_structure)
+                if len(motifs) != len(reference_regions):
+                    print(f"ERROR: Number of motifs ({len(motifs)}) != number of reference regions "
+                          f"({len(reference_regions)}) in record: {record}. Skipping...")
+
+                for reference_region, motif in zip(reference_regions, motifs):
+                    chrom, start_0based, end_1based = parse_interval(reference_region)
+                    total += 1
+                    output_bed.write("\t".join([
+                        chrom,
+                        str(start_0based),
+                        str(end_1based),
+                        motif,
+                        f"{(end_1based - start_0based) / len(motif):0.1f}",
+                        ".",
+                    ]) + "\n")
+
+        os.system(f"bgzip -f {output_path}")
+        os.system(f"tabix -f -p bed {output_path}.gz")
+        print(f"Done writing {total:,d} output records to {output_path}.gz")
+
     if args.output_tsv:
+        if args.verbose: print(f"Writing to {output_path_prefix}.tsv.gz")
         output_tsv(f"{output_path_prefix}.tsv.gz", output_records)
 
 

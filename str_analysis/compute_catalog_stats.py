@@ -7,6 +7,7 @@ import re
 import tqdm
 from intervaltree import IntervalTree, Interval
 from str_analysis.utils.misc_utils import parse_interval
+from str_analysis.utils.eh_catalog_utils import parse_motifs_from_locus_structure
 from str_analysis.utils.file_utils import open_file, file_exists
 
 ACGT_REGEX = re.compile("^[ACGT]+$", re.IGNORECASE)
@@ -58,12 +59,8 @@ def compute_catalog_stats(catalog_name, records):
     counters = collections.defaultdict(int)
     for record in records:
         counters["total"] += 1
+        motifs = parse_motifs_from_locus_structure(record["LocusStructure"])
         if isinstance(record["ReferenceRegion"], list):
-            motifs = []
-            for m in record["LocusStructure"].strip("()*+").split(")"):
-                if "(" in m:
-                    m = m.split("(")[1]
-                motifs.append(m.strip("()*+"))
             reference_regions = record["ReferenceRegion"]
             variant_types = record["VariantType"]
             fraction_pure_bases = record["FractionPureBases"]
@@ -71,7 +68,6 @@ def compute_catalog_stats(catalog_name, records):
 
             counters["loci_with_adjacent_repeats"] += 1
         else:
-            motifs = [record["LocusStructure"].strip("()*+")]
             reference_regions = [record["ReferenceRegion"]]
             variant_types = [record["VariantType"]]
             fraction_pure_bases = [record["FractionPureBases"]]
@@ -128,13 +124,14 @@ def compute_catalog_stats(catalog_name, records):
 
             # check for overlap
             for overlapping_interval in interval_trees[chrom].overlap(start_0based, end):
-                larger_motif_size = max(motif_size, overlapping_interval.data["motif_size"])
+                overlapping_interval_motif_size = overlapping_interval.data
+                larger_motif_size = max(motif_size, overlapping_interval_motif_size)
                 if overlapping_interval.overlap_size(start_0based, end) >= 2*larger_motif_size:
                     overlapping_intervals.add((chrom, start_0based, end))
                     overlapping_intervals.add((chrom, overlapping_interval.begin, overlapping_interval.end))
                     break
 
-            interval_trees[chrom].add(Interval(start_0based, end, data={"motif_size": len(motif)}))
+            interval_trees[chrom].add(Interval(start_0based, end, data=len(motif)))
 
         min_overall_mappability = min(min_overall_mappability, record["OverallMappability"])
         if record["OverallMappability"] == min_overall_mappability:
