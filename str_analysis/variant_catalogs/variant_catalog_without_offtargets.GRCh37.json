@@ -1394,6 +1394,7 @@
         "LocusId": "THAP11",
         "LocusStructure": "(CAG)*",
         "ReferenceRegion": "chr16:67876766-67876853",
+        "RepeatUnit": "CAG",
         "VariantType": "Repeat",
         "Gene": "THAP11",
         "Inheritance": "AD",
@@ -1409,7 +1410,8 @@
                 "NormalMax": 38,
                 "PathogenicMin": 45
             }
-        ]
+        ],
+        "MainReferenceRegion": "chr16:67876766-67876853"
     }, {
         "LocusId": "TNRC6A",
         "LocusStructure": "(TTTTA)*",
