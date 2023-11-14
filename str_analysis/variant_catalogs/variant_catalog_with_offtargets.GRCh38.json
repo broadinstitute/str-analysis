@@ -1,5 +1,26 @@
 [
     {
+        "LocusId": "ABCD3",
+        "ReferenceRegion": "chr1:94418421-94418442",
+        "LocusStructure": "(GCC)*",
+        "VariantType": "Repeat",
+        "RepeatUnit": "GCC",
+        "Gene": "ABCD3",
+        "Inheritance": "AD",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000117528",
+        "DiscoveryMethod": "WGS",
+        "DiscoveryYear": 2023,
+        "Diseases": [
+            {
+                "Symbol": "OPDM",
+                "Name": "Oculopharyngodistal myopathy (OPDM)",
+                "Inheritance": "AD",
+                "PathogenicMin": 124
+            }
+        ],
+        "MainReferenceRegion": "chr1:94418421-94418442"
+    }, {
         "LocusId": "AFF2",
         "LocusStructure": "(GCC)*",
         "ReferenceRegion": "chrX:148500631-148500691",
@@ -36,8 +57,7 @@
             "chrX:19990766-19991128"
         ],
         "MainReferenceRegion": "chrX:148500631-148500691"
-    },
-    {
+    }, {
         "LocusId": "AR",
         "LocusStructure": "(GCA)*",
         "ReferenceRegion": "chrX:67545316-67545385",
@@ -78,8 +98,7 @@
             "chrX:24364087-24364601"
         ],
         "MainReferenceRegion": "chrX:67545316-67545385"
-    },
-    {
+    }, {
         "LocusId": "ARX_1",
         "LocusStructure": "(NGC)*",
         "VariantType": "RareRepeat",
@@ -139,8 +158,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chrX:25013649-25013697"
-    },
-    {
+    }, {
         "LocusId": "ARX_2",
         "LocusStructure": "(NGC)*",
         "VariantType": "RareRepeat",
@@ -158,16 +176,14 @@
                 "OMIM": "308350",
                 "NormalMax": 12,
                 "PathogenicMin": 20
-            },
-            {
+            }, {
                 "Symbol": "PRTS",
                 "Name": "Partington syndrome",
                 "Inheritance": "XR",
                 "OMIM": "309510",
                 "NormalMax": 12,
                 "PathogenicMin": 20
-            },
-            {
+            }, {
                 "Symbol": "MRXARX",
                 "Name": "X-linked mental retardation with or without seizures",
                 "Inheritance": "XR",
@@ -208,8 +224,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chrX:25013529-25013565"
-    },
-    {
+    }, {
         "LocusId": "ATN1",
         "LocusStructure": "(CAG)*",
         "ReferenceRegion": "chr12:6936716-6936773",
@@ -294,8 +309,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr6:16327633-16327723"
-    },
-    {
+    }, {
         "LocusId": "ATXN10",
         "LocusStructure": "(ATTCT)*",
         "ReferenceRegion": "chr22:45795354-45795424",
@@ -323,8 +337,7 @@
             "chrX:9791816-9792313"
         ],
         "MainReferenceRegion": "chr22:45795354-45795424"
-    },
-    {
+    }, {
         "LocusId": "ATXN2",
         "LocusStructure": "(GCT)*",
         "ReferenceRegion": "chr12:111598949-111599018",
@@ -367,8 +380,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr12:111598949-111599018"
-    },
-    {
+    }, {
         "LocusId": "ATXN3",
         "LocusStructure": "(CTG)*",
         "ReferenceRegion": "chr14:92071010-92071040",
@@ -411,8 +423,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr14:92071010-92071040"
-    },
-    {
+    }, {
         "LocusId": "ATXN7",
         "LocusStructure": "(GCA)*(GCC)+",
         "ReferenceRegion": [
@@ -465,8 +476,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr3:63912684-63912714"
-    },
-    {
+    }, {
         "LocusId": "ATXN8OS",
         "LocusStructure": "(CTA)*(CTG)*",
         "ReferenceRegion": [
@@ -519,8 +529,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr13:70139383-70139428"
-    },
-    {
+    }, {
         "LocusId": "BEAN1",
         "LocusStructure": "(TAAAA)*",
         "VariantType": "RareRepeat",
@@ -561,8 +570,7 @@
             "chrX:6802782-6803290"
         ],
         "MainReferenceRegion": "chr16:66490398-66490453"
-    },
-    {
+    }, {
         "LocusId": "C9ORF72",
         "LocusStructure": "(GGCCCC)*",
         "OfftargetRegions": [
@@ -593,8 +601,7 @@
             }
         ],
         "MainReferenceRegion": "chr9:27573528-27573546"
-    },
-    {
+    }, {
         "LocusId": "CACNA1A",
         "LocusStructure": "(CTG)*",
         "ReferenceRegion": "chr19:13207858-13207897",
@@ -636,8 +643,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr19:13207858-13207897"
-    },
-    {
+    }, {
         "LocusId": "CNBP",
         "LocusStructure": "(CAGG)*(CAGA)*(CA)*",
         "ReferenceRegion": [
@@ -696,8 +702,7 @@
             "chrY:11850780-11851136"
         ],
         "MainReferenceRegion": "chr3:129172576-129172656"
-    },
-    {
+    }, {
         "LocusId": "COMP",
         "LocusStructure": "(GTC)*",
         "VariantType": "RareRepeat",
@@ -731,8 +736,7 @@
             "chr2:169845336-169845695"
         ],
         "MainReferenceRegion": "chr19:18786034-18786049"
-    },
-    {
+    }, {
         "LocusId": "CSTB",
         "LocusStructure": "(CGCGGGGCGGGG)*",
         "ReferenceRegion": "chr21:43776443-43776479",
@@ -759,8 +763,7 @@
             "chr8_KI270926v1_alt:175889-176474"
         ],
         "MainReferenceRegion": "chr21:43776443-43776479"
-    },
-    {
+    }, {
         "LocusId": "DAB1",
         "LocusStructure": "(AAAAT)*",
         "VariantType": "RareRepeat",
@@ -801,8 +804,7 @@
             "chrX:6802782-6803290"
         ],
         "MainReferenceRegion": "chr1:57367043-57367118"
-    },
-    {
+    }, {
         "LocusId": "DIP2B",
         "LocusStructure": "(GGC)*",
         "ReferenceRegion": "chr12:50505001-50505022",
@@ -867,8 +869,7 @@
             "chrY:8465308-8465815"
         ],
         "MainReferenceRegion": "chrX:31284557-31284605"
-    },
-    {
+    }, {
         "LocusId": "DMPK",
         "LocusStructure": "(CAG)*",
         "ReferenceRegion": "chr19:45770204-45770264",
@@ -911,8 +912,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr19:45770204-45770264"
-    },
-    {
+    }, {
         "LocusId": "EIF4A3",
         "LocusStructure": "(CCTCGCTGTGCCGCTGCCGA)*",
         "VariantType": "Repeat",
@@ -932,8 +932,29 @@
             }
         ],
         "MainReferenceRegion": "chr17:80147059-80147139"
-    },
+    }, {
+        "LocusId": "FGF14",
+        "LocusStructure": "(AAG)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr13:102161574-102161724",
+        "RepeatUnit": "AAG",
+        "Gene": "FGF14",
+        "Inheritance": "AD",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000102466",
+        "Diseases": [
     {
+                "Symbol": "SCA50",
+                "Name": "Spinocerebellar ataxia 50",
+                "Inheritance": "AD",
+                "OMIM": "620158",
+                "PathogenicMin": 335,
+                "IntermediateRange": "250-335",
+                "NormalMax": 250
+            }
+        ],
+        "MainReferenceRegion": "chr13:102161574-102161724"
+    }, {
         "LocusId": "FMR1",
         "LocusStructure": "(CGG)*",
         "OfftargetRegions": [
@@ -979,8 +1000,7 @@
             }
         ],
         "MainReferenceRegion": "chrX:147912050-147912110"
-    },
-    {
+    }, {
         "LocusId": "FOXL2",
         "LocusStructure": "(NGC)*",
         "VariantType": "RareRepeat",
@@ -1034,8 +1054,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr3:138946020-138946062"
-    },
-    {
+    }, {
         "LocusId": "FXN",
         "LocusStructure": "(A)*(GAA)*",
         "ReferenceRegion": [
@@ -1086,8 +1105,7 @@
             "chrY:8465308-8465815"
         ],
         "MainReferenceRegion": "chr9:69037286-69037304"
-    },
-    {
+    }, {
         "LocusId": "GIPC1",
         "LocusStructure": "(CCG)*",
         "ReferenceRegion": "chr19:14496041-14496074",
@@ -1124,8 +1142,7 @@
             "chrX:19990766-19991128"
         ],
         "MainReferenceRegion": "chr19:14496041-14496074"
-    },
-    {
+    }, {
         "LocusId": "GLS",
         "LocusStructure": "(GCA)*",
         "ReferenceRegion": "chr2:190880872-190880920",
@@ -1167,8 +1184,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr2:190880872-190880920"
-    },
-    {
+    }, {
         "LocusId": "HOXA13_1",
         "LocusStructure": "(NGC)*",
         "VariantType": "RareRepeat",
@@ -1222,8 +1238,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr7:27199924-27199966"
-    },
-    {
+    }, {
         "LocusId": "HOXA13_2",
         "LocusStructure": "(NGC)*",
         "VariantType": "RareRepeat",
@@ -1277,8 +1292,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr7:27199825-27199861"
-    },
-    {
+    }, {
         "LocusId": "HOXA13_3",
         "LocusStructure": "(NGC)*",
         "VariantType": "RareRepeat",
@@ -1332,8 +1346,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr7:27199678-27199732"
-    },
-    {
+    }, {
         "LocusId": "HOXD13",
         "LocusStructure": "(GCG)*",
         "VariantType": "RareRepeat",
@@ -1370,8 +1383,7 @@
             "chrX:19990766-19991128"
         ],
         "MainReferenceRegion": "chr2:176093058-176093103"
-    },
-    {
+    }, {
         "LocusId": "HTT",
         "LocusStructure": "(CAG)*CAACAG(CCG)*",
         "ReferenceRegion": [
@@ -1424,8 +1436,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr4:3074876-3074933"
-    },
-    {
+    }, {
         "LocusId": "JPH3",
         "LocusStructure": "(CTG)*",
         "ReferenceRegion": "chr16:87604287-87604329",
@@ -1467,8 +1478,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr16:87604287-87604329"
-    },
-    {
+    }, {
         "LocusId": "NUTM2B-AS1",
         "LocusStructure": "(GGC)*",
         "VariantType": "RareRepeat",
@@ -1505,8 +1515,7 @@
             "chrX:19990766-19991128"
         ],
         "MainReferenceRegion": "chr10:79826383-79826404"
-    },
-    {
+    }, {
         "LocusId": "LRP12",
         "LocusStructure": "(CGC)*",
         "VariantType": "RareRepeat",
@@ -1543,8 +1552,7 @@
             "chrX:19990766-19991128"
         ],
         "MainReferenceRegion": "chr8:104588970-104588997"
-    },
-    {
+    }, {
         "LocusId": "MARCHF6",
         "LocusStructure": "(ATTTT)*",
         "VariantType": "RareRepeat",
@@ -1585,8 +1593,7 @@
             "chrX:6802782-6803290"
         ],
         "MainReferenceRegion": "chr5:10356346-10356411"
-    },
-    {
+    }, {
         "LocusId": "NIPA1",
         "LocusStructure": "(GCG)*",
         "ReferenceRegion": "chr15:22786677-22786701",
@@ -1621,8 +1628,7 @@
             "chrX:19990766-19991128"
         ],
         "MainReferenceRegion": "chr15:22786677-22786701"
-    },
-    {
+    }, {
         "LocusId": "NOP56",
         "LocusStructure": "(GGCCTG)*(CGCCTG)*",
         "ReferenceRegion": [
@@ -1658,8 +1664,7 @@
             "chr5:146458827-146459346"
         ],
         "MainReferenceRegion": "chr20:2652733-2652757"
-    },
-    {
+    }, {
         "LocusId": "NOTCH2NLC",
         "LocusStructure": "(GGC)*",
         "ReferenceRegion": "chr1:149390802-149390841",
@@ -1679,8 +1684,7 @@
                 "OMIM": "603472",
                 "NormalMax": 39,
                 "PathogenicMin": 90
-            },
-            {
+            }, {
                 "Symbol": "ETM6",
                 "Name": "Hereditary essential tremor type 6",
                 "Inheritance": "AD",
@@ -1704,8 +1708,7 @@
             "chrX:19990766-19991128"
         ],
         "MainReferenceRegion": "chr1:149390802-149390841"
-    },
-    {
+    }, {
         "LocusId": "PABPN1",
         "LocusStructure": "(GCG)*",
         "ReferenceRegion": "chr14:23321472-23321490",
@@ -1742,8 +1745,7 @@
             "chrX:19990766-19991128"
         ],
         "MainReferenceRegion": "chr14:23321472-23321490"
-    },
-    {
+    }, {
         "LocusId": "PHOX2B",
         "LocusStructure": "(GCN)*",
         "ReferenceRegion": "chr4:41745972-41746032",
@@ -1797,8 +1799,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr4:41745972-41746032"
-    },
-    {
+    }, {
         "LocusId": "PPP2R2B",
         "LocusStructure": "(GCT)*",
         "ReferenceRegion": "chr5:146878727-146878757",
@@ -1840,8 +1841,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr5:146878727-146878757"
-    },
-    {
+    }, {
         "LocusId": "PRDM12",
         "LocusStructure": "(GCC)*",
         "VariantType": "RareRepeat",
@@ -1876,8 +1876,7 @@
             "chrX:19990766-19991128"
         ],
         "MainReferenceRegion": "chr9:130681606-130681639"
-    },
-    {
+    }, {
         "LocusId": "PRNP",
         "LocusStructure": "(CCTCAGGGCGGTGGTGGCTGGGGGCAG)*(CCTCATGGTGGTGGCTGGGGGCAG)*",
         "VariantType": [
@@ -1908,8 +1907,7 @@
             }
         ],
         "MainReferenceRegion": "chr20:4699397-4699493"
-    },
-    {
+    }, {
         "LocusId": "RAPGEF2",
         "LocusStructure": "(TTTTA)*",
         "VariantType": "RareRepeat",
@@ -1950,8 +1948,7 @@
             "chrX:6802782-6803290"
         ],
         "MainReferenceRegion": "chr4:159342526-159342616"
-    },
-    {
+    }, {
         "LocusId": "RFC1",
         "LocusStructure": "(AARRG)*",
         "ReferenceRegion": "chr4:39348424-39348479",
@@ -1991,8 +1988,7 @@
             "chrUn_JTFH01001554v1_decoy:487-852"
         ],
         "MainReferenceRegion": "chr4:39348424-39348479"
-    },
-    {
+    }, {
         "LocusId": "RILPL1",
         "LocusStructure": "(GGC)*",
         "VariantType": "RareRepeat",
@@ -2029,8 +2025,7 @@
             "chrX:19990766-19991128"
         ],
         "MainReferenceRegion": "chr12:123533720-123533750"
-    },
-    {
+    }, {
         "LocusId": "RUNX2",
         "LocusStructure": "(GCN)*",
         "VariantType": "RareRepeat",
@@ -2083,8 +2078,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr6:45422750-45422792"
-    },
-    {
+    }, {
         "LocusId": "SAMD12",
         "LocusStructure": "(TAAAA)*",
         "VariantType": "RareRepeat",
@@ -2125,8 +2119,7 @@
             "chrX:6802782-6803290"
         ],
         "MainReferenceRegion": "chr8:118366815-118366880"
-    },
-    {
+    }, {
         "LocusId": "SOX3",
         "LocusStructure": "(NGC)*",
         "VariantType": "RareRepeat",
@@ -2188,8 +2181,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chrX:140504316-140504361"
-    },
-    {
+    }, {
         "LocusId": "STARD7",
         "LocusStructure": "(AAAAT)*",
         "VariantType": "RareRepeat",
@@ -2230,8 +2222,7 @@
             "chrX:6802782-6803290"
         ],
         "MainReferenceRegion": "chr2:96197066-96197121"
-    },
-    {
+    }, {
         "LocusId": "TBP",
         "LocusStructure": "(GCA)*",
         "ReferenceRegion": "chr6:170561906-170562017",
@@ -2272,8 +2263,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr6:170561906-170562017"
-    },
-    {
+    }, {
         "LocusId": "TBX1",
         "LocusStructure": "(GCN)*",
         "VariantType": "RareRepeat",
@@ -2325,8 +2315,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr22:19766762-19766807"
-    },
-    {
+    }, {
         "LocusId": "TCF4",
         "LocusStructure": "(CAG)*",
         "ReferenceRegion": "chr18:55586155-55586227",
@@ -2367,8 +2356,27 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr18:55586155-55586227"
-    },
+    }, {
+        "LocusId": "THAP11",
+        "LocusStructure": "(CAG)*",
+        "ReferenceRegion": "chr16:67842863-67842950",
+        "VariantType": "Repeat",
+        "Gene": "THAP11",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyglutamine",
+        "GeneId": "ENSG00000168286",
+        "DiscoveryMethod": "L, LRS",
+        "DiscoveryYear": 2023,
+        "Diseases": [
     {
+                "Symbol": "SCA",
+                "Name": "Spinocerebellar Ataxia",
+                "Inheritance": "AD",
+                "NormalMax": 38,
+                "PathogenicMin": 45
+            }
+        ]
+    }, {
         "LocusId": "TNRC6A",
         "LocusStructure": "(TTTTA)*",
         "VariantType": "RareRepeat",
@@ -2409,8 +2417,7 @@
             "chrX:6802782-6803290"
         ],
         "MainReferenceRegion": "chr16:24613439-24613529"
-    },
-    {
+    }, {
         "LocusId": "VWA1",
         "LocusStructure": "(GGCGCGGAGC)*",
         "VariantType": "Repeat",
@@ -2431,8 +2438,7 @@
             }
         ],
         "MainReferenceRegion": "chr1:1435798-1435818"
-    },
-    {
+    }, {
         "LocusId": "XYLT1",
         "LocusStructure": "(GCC)*",
         "VariantType": "RareRepeat",
@@ -2469,8 +2475,7 @@
             "chrX:19990766-19991128"
         ],
         "MainReferenceRegion": "chr16:17470907-17470922"
-    },
-    {
+    }, {
         "LocusId": "YEATS2",
         "LocusStructure": "(TTTTA)*",
         "VariantType": "RareRepeat",
@@ -2511,8 +2516,30 @@
             "chrX:6802782-6803290"
         ],
         "MainReferenceRegion": "chr3:183712187-183712222"
-    },
+    }, {
+        "LocusId": "ZFHX3",
+        "LocusStructure": "(GCC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr16:72787694-72787757",
+        "RepeatUnit": "GCC",
+        "Gene": "ZFHX3",
+        "Inheritance": "AD",
+        "GeneRegion": "coding: polyglycine",
+        "GeneId": "ENST00000268489",
+        "DiscoveryMethod": "L, WGS",
+        "DiscoveryYear": 2023,
+        "Diseases": [
     {
+                "Symbol": "SCA4",
+                "Name": "Spinocerebellar ataxia 4",
+                "Inheritance": "AD",
+                "OMIM": "607317",
+                "NormalMax": 26,
+                "PathogenicMin": 46
+            }
+        ],
+        "MainReferenceRegion": "chr16:72787694-72787757"
+    }, {
         "LocusId": "ZIC2",
         "LocusStructure": "(GCN)*",
         "VariantType": "RareRepeat",
