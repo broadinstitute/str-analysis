@@ -424,7 +424,7 @@ def write_output_catalog(output_catalog_record_iter, output_path, output_format)
                     raise ValueError(f"Number of motifs ({len(motifs)}) != number of reference regions "
                                      f"({len(reference_regions)}) in record: {record}")
 
-                for reference_region, motif in zip(reference_regions, motifs):
+                for reference_region, motif in sorted(zip(reference_regions, motifs)):
                     chrom, start_0based, end_1based = parse_interval(reference_region)
                     total += 1
                     output_catalog.write("\t".join([
