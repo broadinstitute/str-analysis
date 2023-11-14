@@ -382,7 +382,7 @@ def main():
             else:
                 output_catalog_path = args.output_catalog
         else:
-            output_catalog_path = re.sub(".json$", "", input_catalog_path) + ".with_adjacent_loci.json"
+            output_catalog_path = re.sub(".json(.gz)?$", "", input_catalog_path) + ".with_adjacent_loci.json"
 
         if args.output_dir:
             output_catalog_path = os.path.join(args.output_dir, os.path.basename(output_catalog_path))
