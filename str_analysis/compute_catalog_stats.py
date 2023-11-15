@@ -28,7 +28,7 @@ def parse_args():
     return args, parser
 
 
-def compute_catalog_stats(catalog_name, records):
+def compute_catalog_stats(catalog_name, records, verbose=False):
     """This script takes a TR catalog in BED format or in ExpansionHunter JSON format and outputs statistics about the
     distribution of the TRs in the catalog.
 
@@ -53,6 +53,9 @@ def compute_catalog_stats(catalog_name, records):
     min_overall_mappability = 1
     min_overall_mappability_reference_region = None
     min_overall_mappability_motif = None
+
+    if verbose:
+        records = tqdm.tqdm(records, unit=" records", unit_scale=True)
 
     interval_trees = collections.defaultdict(IntervalTree)  # used to check for overlap between records in the catalog
     overlapping_intervals = set()
@@ -257,10 +260,7 @@ def main():
         catalog_name = os.path.basename(path)
         with open_file(path, "rt") as f:
             file_iterator = ijson.items(f, "item")
-            if args.verbose:
-                file_iterator = tqdm.tqdm(file_iterator, unit=" records", unit_scale=True)
-
-            stats = compute_catalog_stats(catalog_name, file_iterator)
+            stats = compute_catalog_stats(catalog_name, file_iterator, verbose=args.verbose)
         stat_table_rows.append(stats)
 
     output_path = f"variant_catalog_stats.{len(args.annotated_variant_catalog_json)}_catalogs.tsv"

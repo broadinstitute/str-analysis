@@ -466,7 +466,7 @@ def main():
     output_path_prefix = re.sub("(.json|.bed)(.b?gz)?$", "", args.output_path)
     if args.output_stats:
         if args.verbose: print("Calculating catalog stats..")
-        compute_catalog_stats(args.output_path, output_records)
+        compute_catalog_stats(args.output_path, output_records, verbose=args.verbose)
 
     if args.output_bed:
         output_path = f"{output_path_prefix}.bed"
