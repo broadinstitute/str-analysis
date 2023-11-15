@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 from str_analysis.compute_catalog_stats import compute_catalog_stats
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
-from str_analysis.utils.eh_catalog_utils import parse_motifs_from_locus_structure
+from str_analysis.utils.eh_catalog_utils import parse_motifs_from_locus_structure, convert_json_records_to_bed_format_tuples
 from str_analysis.utils.file_utils import open_file, file_exists, download_local_copy
 from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval
 from str_analysis.utils.misc_utils import parse_interval
@@ -473,28 +473,9 @@ def main():
         if args.verbose: print(f"Writing to {output_path}")
         with open(output_path, "wt") as output_bed:
             total = 0
-            for record in output_records:
-                locus_structure = record["LocusStructure"]
-                reference_regions = record["ReferenceRegion"]
-                if not isinstance(reference_regions, list):
-                    reference_regions = [reference_regions]
-
-                motifs = parse_motifs_from_locus_structure(locus_structure)
-                if len(motifs) != len(reference_regions):
-                    print(f"ERROR: Number of motifs ({len(motifs)}) != number of reference regions "
-                          f"({len(reference_regions)}) in record: {record}. Skipping...")
-
-                for reference_region, motif in zip(reference_regions, motifs):
-                    chrom, start_0based, end_1based = parse_interval(reference_region)
-                    total += 1
-                    output_bed.write("\t".join([
-                        chrom,
-                        str(start_0based),
-                        str(end_1based),
-                        motif,
-                        f"{(end_1based - start_0based) / len(motif):0.1f}",
-                        ".",
-                    ]) + "\n")
+            for bed_record in sorted(convert_json_records_to_bed_format_tuples(output_records)):
+                total += 1
+                output_bed.write("\t".join(map(str, bed_record)) + "\n")
 
         os.system(f"bgzip -f {output_path}")
         os.system(f"tabix -f -p bed {output_path}.gz")
