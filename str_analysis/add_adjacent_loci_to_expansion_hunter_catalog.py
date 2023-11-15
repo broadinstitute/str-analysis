@@ -7,6 +7,7 @@ into a single spec with multiple adjacent repeats inorder to improve genotyping 
 
 import argparse
 import collections
+import gzip
 import intervaltree
 import simplejson as json
 import ijson
@@ -395,11 +396,14 @@ def main():
                 output_catalog_path = args.output_catalog
         else:
             output_catalog_path = re.sub(".json(.gz)?$", "", input_catalog_path) + ".with_adjacent_loci.json"
+            if input_catalog_path.endswith("gz"):
+                output_catalog_path += ".gz"
 
         if args.output_dir:
             output_catalog_path = os.path.join(args.output_dir, os.path.basename(output_catalog_path))
 
-        with open(output_catalog_path, "wt") as f:
+        fopen = gzip.open if output_catalog_path.endswith("gz") else open
+        with fopen(output_catalog_path, "wt") as f:
             json.dump(output_catalog, f, indent=1)
 
         print(f"Wrote {len(output_catalog):,d} total records to {output_catalog_path}")
