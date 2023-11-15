@@ -8,7 +8,8 @@ into a single spec with multiple adjacent repeats inorder to improve genotyping 
 import argparse
 import collections
 import intervaltree
-import json
+import simplejson as json
+import ijson
 import os
 import pybedtools
 import pysam
@@ -210,6 +211,7 @@ def get_min_and_max_coords_for_chrom(input_catalog, chrom):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ref-fasta", help="Reference fasta path", required=True)
+    parser.add_argument("-n", type=int, help="Process at most this many loci. Useful for testing.")
     parser.add_argument("-d", "--max-distance-between-adjacent-repeats",
                         type=int,
                         default=MAX_DISTANCE_BETWEEN_REPEATS,
@@ -270,8 +272,16 @@ def main():
     # parse the input catalog(s)
     input_catalogs = []
     for input_catalog_path in args.input_catalog_paths:
+        print(f"Loading input catalog {input_catalog_path}")
         with open_file(input_catalog_path) as f:
-            input_catalog = json.load(f)
+            if args.n:
+                input_catalog = []
+                for record in ijson.items(f, "item"):
+                    if len(input_catalog) > args.n:
+                        break
+                    input_catalog.append(record)
+            else:
+                input_catalog = json.load(f)
 
         # sort the input catalog by its ReferenceRegion chromosome
         input_catalog.sort(key=lambda record: (
@@ -328,6 +338,8 @@ def main():
         output_catalog = []
         already_added_to_output_catalog = set()  # avoid duplicate records in the output catalog
         for record_i, record in enumerate(input_catalog):
+            if args.n and record_i >= args.n:
+                break
             counters["total records"] += 1
             # handle input catalog recordsd that already have adjacent loci
             if isinstance(record["ReferenceRegion"], list):
