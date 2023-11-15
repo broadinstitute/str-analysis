@@ -12,7 +12,7 @@ import argparse
 import ast
 import collections
 import gzip
-import json
+import simplejson as json
 import os
 import pkgutil
 import re

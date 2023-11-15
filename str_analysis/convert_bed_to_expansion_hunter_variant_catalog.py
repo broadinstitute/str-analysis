@@ -5,7 +5,7 @@ the 'name' field (column 4) to contain the repeat motif.
 import argparse
 import collections
 import gzip
-import json
+import simplejson as json
 import os
 import re
 import tqdm

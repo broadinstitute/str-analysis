@@ -2,7 +2,7 @@
 
 import argparse
 import collections
-import json
+import simplejson as json
 import os
 import re
 import sqlite3

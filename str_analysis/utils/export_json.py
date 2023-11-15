@@ -1,5 +1,5 @@
 import gzip
-import json
+import simplejson as json
 import os
 
 

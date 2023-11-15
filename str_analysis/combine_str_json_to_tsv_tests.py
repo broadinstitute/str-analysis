@@ -1,4 +1,4 @@
-import json
+import simplejson as json
 import unittest
 
 from combine_str_json_to_tsv import convert_expansion_hunter_json_to_tsv_columns, parse_read_count_tuples

@@ -4,7 +4,7 @@ This makes it easier to pass STRling results to downstream scripts.
 
 import argparse
 import collections
-import json
+import simplejson as json
 import os
 import re
 import pandas as pd

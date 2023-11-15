@@ -5,7 +5,7 @@ switching from GangSTR to ExpansionHunter to genotype a set of loci previously g
 import argparse
 import collections
 import gzip
-import json
+import simplejson as json
 import os
 from pprint import pformat
 import re

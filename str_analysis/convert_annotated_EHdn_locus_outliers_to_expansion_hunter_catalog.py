@@ -1,6 +1,6 @@
 """This script takes an ExpansionHunter catalog and outputs a new catalog where adjacent loci have been combined.
 """
-import json
+import simplejson as json
 from pprint import pformat
 import re
 

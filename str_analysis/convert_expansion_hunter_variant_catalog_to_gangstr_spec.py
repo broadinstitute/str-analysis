@@ -5,7 +5,7 @@ specs - one per repeat.
 
 import argparse
 import gzip
-import json
+import simplejson as json
 import re
 import tqdm
 

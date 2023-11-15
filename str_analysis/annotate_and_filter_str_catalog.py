@@ -5,7 +5,7 @@ import collections
 import gzip
 import ijson
 from intervaltree import IntervalTree, Interval
-import json
+import simplejson as json
 import os
 import pandas as pd
 from pprint import pformat

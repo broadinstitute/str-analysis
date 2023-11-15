@@ -3,7 +3,7 @@ import collections
 import ijson
 import intervaltree
 import gzip
-import json
+import simplejson as json
 import os
 import re
 import tqdm
