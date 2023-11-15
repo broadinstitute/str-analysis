@@ -256,6 +256,9 @@ def main():
         args.output_path = f"{filename_prefix}.annotated_and_filtered.json.gz"
 
     output_records = []
+    if args.verbose:
+        print(f"Parsing {args.variant_catalog_json_or_bed}")
+
     input_variant_catalog_iterator = get_variant_catalog_iterator(args.variant_catalog_json_or_bed)
     if args.verbose:
         input_variant_catalog_iterator = tqdm(input_variant_catalog_iterator, unit=" variant catalog records", unit_scale=True)
