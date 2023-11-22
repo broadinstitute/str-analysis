@@ -192,6 +192,56 @@ class GetAdjacentRepeatsTests(unittest.TestCase):
                     "chr1:57367043-57367118",
                     "chr1:57367118-57367126",
                 ],
+            },
+            {
+                "LocusId": "FXN",
+                "LocusStructure": "(GAA)*",
+                "ReferenceRegion": "chr9:69037286-69037304",
+                "ExpectedLocusStructure": "(A)*(GAA)*",
+                "ExpectedReferenceRegion": [
+                    "chr9:69037270-69037286",
+                    "chr9:69037286-69037304",
+                ],
+            },
+            {
+                "LocusId": "HTT",
+                "LocusStructure": "(CAG)*",
+                "ReferenceRegion": "chr4:3074876-3074933",
+                "ExpectedLocusStructure": "(CAG)*CAACAGCCGCCA(CCG)*",
+                "ExpectedReferenceRegion": [
+                    "chr4:3074876-3074933",
+                    "chr4:3074945-3074966",
+                ],
+            },
+            {
+                "LocusId": "NOP56",
+                "LocusStructure": "(GGCCTG)*",
+                "ReferenceRegion": "chr20:2652733-2652757",
+                "ExpectedLocusStructure": "(GGCCTG)*(CGCCTG)*",
+                "ExpectedReferenceRegion": [
+                    "chr20:2652733-2652757",
+                    "chr20:2652757-2652775",
+                ],
+            },
+            {
+                "LocusId": "FRA10AC1",
+                "LocusStructure": "(CCG)*",
+                "ReferenceRegion": "chr10:93702522-93702546",
+                "ExpectedLocusStructure": "(CCA)*(CCG)*",
+                "ExpectedReferenceRegion": [
+                    "chr10:93702516-93702522",
+                    "chr10:93702522-93702546",
+                ],
+            },
+            {
+                "LocusId": "TMEM185A",
+                "LocusStructure": "(CGC)*",
+                "ReferenceRegion": "chrX:149631735-149631780",
+                "ExpectedLocusStructure": "(CGCCGT)*(CGC)*",
+                "ExpectedReferenceRegion": [
+                    "chrX:149631723-149631735",
+                    "chrX:149631735-149631780",
+                ],
             }
         ]
 
@@ -232,7 +282,7 @@ class GetAdjacentRepeatsTests(unittest.TestCase):
                 record,
                 self.pysam_fasta_file,
                 current_interval_tree,
-                max_distance_between_adjacent_repeats=MAX_DISTANCE_BETWEEN_REPEATS,
+                max_distance_between_adjacent_repeats=15,
                 max_total_adjacent_region_size=MAX_TOTAL_ADJACENT_REGION_SIZE,
                 max_overlap_between_adjacent_repeats=MAX_OVERLAP_BETWEEN_ADJACENT_REPEATS,
             )
