@@ -76,7 +76,7 @@ def main():
         output_json_path = re.sub(".txt$", "", strling_txt_path) + ".json"
         print(f"Writing results for {len(locus_results['LocusResults'])} loci to {output_json_path}")
         with open(output_json_path, "wt") as f:
-            json.dump(locus_results, f, indent=3)
+            json.dump(locus_results, f, indent=4)
 
 
 def compute_CI(allele_size, repeat_unit_length):

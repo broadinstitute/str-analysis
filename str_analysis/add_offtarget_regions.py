@@ -3,7 +3,6 @@
 import argparse
 import collections
 import simplejson as json
-import os
 import re
 import sqlite3
 
@@ -188,7 +187,7 @@ def main():
         output_catalog_path = re.sub(".json$", "", args.input_catalog_path) + ".with_offtarget_regions.json"
 
     with open(output_catalog_path, "wt") as f:
-        json.dump(output_catalog, f, indent=1)
+        json.dump(output_catalog, f, indent=4)
 
     print(f"Wrote {len(output_catalog):,d} records to {output_catalog_path}")
 

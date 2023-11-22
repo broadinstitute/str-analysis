@@ -406,7 +406,7 @@ def write_output_catalog(output_catalog_record_iter, output_path, output_format)
         fopen = gzip.open if output_path.endswith("gz") else open
         with fopen(output_path, "wt") as output_catalog:
             output_records_list = list(output_catalog_record_iter)
-            json.dump(output_records_list, output_catalog, indent=1)
+            json.dump(output_records_list, output_catalog, indent=4)
         print(f"Done writing {len(output_records_list):,d} output records to {output_path}")
 
     elif output_format == "BED":
