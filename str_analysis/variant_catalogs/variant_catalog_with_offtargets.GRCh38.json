@@ -3,7 +3,7 @@
         "LocusId": "ABCD3",
         "ReferenceRegion": "chr1:94418421-94418442",
         "LocusStructure": "(GCC)*",
-        "VariantType": "Repeat",
+        "VariantType": "RareRepeat",
         "RepeatUnit": "GCC",
         "Gene": "ABCD3",
         "GeneRegion": "5'-UTR",
@@ -17,6 +17,20 @@
                 "Inheritance": "AD",
                 "PathogenicMin": 124
             }
+        ],
+        "OfftargetRegions": [
+            "chr16:24729510-24729868",
+            "chr1:21176412-21176763",
+            "chr2:224585004-224585351",
+            "chr2:86914126-86914735",
+            "chr5:443060-443432",
+            "chr6:117907024-117907372",
+            "chr6:45422595-45422950",
+            "chr7:100694148-100694545",
+            "chr7:105013999-105014347",
+            "chrX:147911890-147912265",
+            "chrX:150983240-150983612",
+            "chrX:19990766-19991128"
         ],
         "MainReferenceRegion": "chr1:94418421-94418442"
     }, {
@@ -112,8 +126,7 @@
                 "OMIM": "308350",
                 "NormalMax": 16,
                 "PathogenicMin": 23
-            },
-            {
+            }, {
                 "Symbol": "MRXARX",
                 "Name": "X-linked mental retardation with or without seizures",
                 "Inheritance": "XR",
@@ -261,8 +274,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr12:6936716-6936773"
-    },
-    {
+    }, {
         "LocusId": "ATXN1",
         "LocusStructure": "(TGC)*",
         "ReferenceRegion": "chr6:16327633-16327723",
@@ -753,8 +765,7 @@
                 "Inheritance": "AD",
                 "OMIM": "132400",
                 "PathogenicMin": 6
-            },
-            {
+            }, {
                 "Symbol": "PSACH",
                 "Name": "Pseudoachondroplasia",
                 "Inheritance": "AD",
@@ -870,8 +881,7 @@
             "chrX:19990766-19991128"
         ],
         "MainReferenceRegion": "chr12:50505001-50505022"
-    },
-    {
+    }, {
         "LocusId": "DMD",
         "LocusStructure": "(TTC)*",
         "VariantType": "RareRepeat",
@@ -963,9 +973,15 @@
         "MainReferenceRegion": "chr17:80147059-80147139"
     }, {
         "LocusId": "FGF14",
-        "LocusStructure": "(AAG)*",
-        "VariantType": "Repeat",
-        "ReferenceRegion": "chr13:102161574-102161724",
+        "LocusStructure": "(AAGA)*(AAG)*",
+        "VariantType": [
+            "Repeat",
+            "RareRepeat"
+        ],
+        "ReferenceRegion": [
+            "chr13:102161566-102161574",
+            "chr13:102161574-102161724"
+        ],
         "RepeatUnit": "AAG",
         "Gene": "FGF14",
         "GeneRegion": "intron",
@@ -981,7 +997,29 @@
                 "NormalMax": 250
             }
         ],
-        "MainReferenceRegion": "chr13:102161574-102161724"
+        "OfftargetRegions": [
+            "chr13:102161416-102161881",
+            "chr15:38681095-38681583",
+            "chr1:101657701-101658187",
+            "chr20:22538626-22539223",
+            "chr2:220546033-220546610",
+            "chr5:127247161-127247640",
+            "chr6:50708070-50708556",
+            "chr7:20765163-20765529",
+            "chr7:37848005-37848522",
+            "chr7:84690949-84691442",
+            "chrUn_KN707747v1_decoy:1062-2074",
+            "chrX:30539802-30540285",
+            "chrX:51621350-51621856",
+            "chrY:24024122-24024600",
+            "chrY:25645531-25646013",
+            "chrY:8465308-8465815"
+        ],    
+        "MainReferenceRegion": "chr13:102161574-102161724",
+        "VariantId": [
+            "FGF14_AAGA",
+            "FGF14"
+        ]
     }, {
         "LocusId": "FMR1",
         "LocusStructure": "(CGG)*",
@@ -1015,8 +1053,7 @@
                 "NormalMax": 40,
                 "PathogenicMin": 55,
                 "IntermediateRange": "41-54"
-            },
-            {
+            }, {
                 "Symbol": "FXS",
                 "Name": "Fragile X Syndrome",
                 "Inheritance": "XD",
@@ -1082,10 +1119,16 @@
         "MainReferenceRegion": "chr3:138946020-138946062"
     }, {
         "LocusId": "FRA10AC1",
-        "LocusStructure": "(CCG)*",
-        "ReferenceRegion": "chr10:93702522-93702546",
+        "LocusStructure": "(CCA)*(CCG)*",
+        "ReferenceRegion": [
+            "chr10:93702516-93702522",
+            "chr10:93702522-93702546"
+        ],
         "RepeatUnit": "CCG",
-        "VariantType": "RareRepeat",
+        "VariantType": [
+            "Repeat",
+            "RareRepeat"
+        ],
         "Gene": "FRA10AC1",
         "GeneRegion": "5'-UTR",
         "GeneId": "ENSG00000148690",
@@ -1104,7 +1147,11 @@
             "chrX:150983240-150983612",
             "chrX:19990766-19991128"
         ],
-        "MainReferenceRegion": "chr10:93702522-93702546"
+        "MainReferenceRegion": "chr10:93702522-93702546",
+        "VariantId": [
+            "FRA10AC1_CCA",
+            "FRA10AC1"
+        ]
     }, {
         "LocusId": "FXN",
         "LocusStructure": "(A)*(GAA)*",
@@ -2189,8 +2236,7 @@
                 "OMIM": "300123",
                 "NormalMax": 15,
                 "PathogenicMin": 26
-            },
-            {
+            }, {
                 "Symbol": "PHPX",
                 "Name": "X-linked panhypopituitarism",
                 "Inheritance": "XR",
@@ -2425,10 +2471,16 @@
         "MainReferenceRegion":  "chr16:67842863-67842950"
     }, {
         "LocusId": "TMEM185A",
-        "LocusStructure": "(CGC)*",
-        "ReferenceRegion": "chrX:149631735-149631780",
+        "LocusStructure": "(CGCCGT)*(CGC)*",
+        "ReferenceRegion": [
+            "chrX:149631723-149631735",
+            "chrX:149631735-149631780"
+        ],
         "RepeatUnit": "CGC",
-        "VariantType": "RareRepeat",
+        "VariantType": [
+            "Repeat",
+            "RareRepeat"
+        ],
         "Gene": "TMEM185A",
         "GeneRegion": "5'-UTR",
         "GeneId": "ENSG00000269556",
@@ -2447,7 +2499,11 @@
             "chrX:150983240-150983612",
             "chrX:19990766-19991128"
         ],
-        "MainReferenceRegion": "chrX:149631735-149631780"
+        "MainReferenceRegion": "chrX:149631735-149631780",
+        "VariantId": [
+            "TMEM185A_CGCCGT",
+            "TMEM185A"
+        ]
     }, {
         "LocusId": "TNRC6A",
         "LocusStructure": "(TTTTA)*",
@@ -2659,8 +2715,7 @@
             "chrX:67545156-67545569"
         ],
         "MainReferenceRegion": "chr13:99985448-99985493"
-    },
-    {
+    }, {
         "LocusId": "ZIC3",
         "LocusStructure": "(GCN)*",
         "VariantType": "RareRepeat",
@@ -2716,7 +2771,7 @@
         "LocusStructure": "(GCG)*",
         "ReferenceRegion": "chr7:55887600-55887639",
         "RepeatUnit": "GCG",
-        "VariantType": "Repeat",
+        "VariantType": "RareRepeat",
         "Gene": "ZNF713",
         "GeneRegion": "5'-UTR",
         "GeneId": "ENSG00000178665",
