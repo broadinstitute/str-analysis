@@ -587,12 +587,12 @@
         "GeneId": "ENSG00000102466",
         "Diseases": [
             {
-                "Symbol": "SCA50",
-                "Name": "Spinocerebellar ataxia 50",
+                "Symbol": "SCA27B",
+                "Name": "Spinocerebellar ataxia 27B",
                 "Inheritance": "AD",
-                "OMIM": "620158",
-                "PathogenicMin": 335,
-                "IntermediateRange": "250-335",
+                "OMIM": "620174",
+                "PathogenicMin": 300,
+                "IntermediateRange": "250-300",
                 "NormalMax": 250
             }
         ],
