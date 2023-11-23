@@ -70,6 +70,31 @@
         ],
         "MainReferenceRegion": "chrX:148500631-148500691"
     }, {
+        "LocusId": "AFF3",
+        "LocusStructure": "(GCC)*",
+        "ReferenceRegion": "chr2:100104798-100104822",
+        "RepeatUnit": "GCC",
+        "VariantType": "RareRepeat",
+        "Gene": "AFF3",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000144218",
+        "Diseases": [],
+        "OfftargetRegions": [
+            "chr16:24729510-24729868",
+            "chr1:21176412-21176763",
+            "chr2:224585004-224585351",
+            "chr2:86914126-86914735",
+            "chr5:443060-443432",
+            "chr6:117907024-117907372",
+            "chr6:45422595-45422950",
+            "chr7:100694148-100694545",
+            "chr7:105013999-105014347",
+            "chrX:147911890-147912265",
+            "chrX:150983240-150983612",
+            "chrX:19990766-19991128"
+        ],
+        "MainReferenceRegion": "chr2:100104798-100104822"
+    },{
         "LocusId": "AR",
         "LocusStructure": "(GCA)*",
         "ReferenceRegion": "chrX:67545316-67545385",

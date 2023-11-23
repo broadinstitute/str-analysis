@@ -42,6 +42,17 @@
         ],
         "MainReferenceRegion": "chrX:148500631-148500691"
     }, {
+        "LocusId": "AFF3",
+        "LocusStructure": "(GCC)*",
+        "ReferenceRegion": "chr2:100104798-100104822",
+        "RepeatUnit": "GCC",
+        "VariantType": "Repeat",
+        "Gene": "AFF3",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000144218",
+        "Diseases": [],
+        "MainReferenceRegion": "chr2:100104798-100104822"
+    }, {
         "LocusId": "AR",
         "LocusStructure": "(GCA)*",
         "ReferenceRegion": "chrX:67545316-67545385",
