@@ -242,6 +242,16 @@ class GetAdjacentRepeatsTests(unittest.TestCase):
                     "chrX:149631723-149631735",
                     "chrX:149631735-149631780",
                 ],
+            },
+            {
+                "LocusId": "AFF3",
+                "LocusStructure": "(GCC)*",
+                "ReferenceRegion": "chr2:100104798-100104822",
+                "ExpectedLocusStructure": "(GCC)*GCGGTGCTCTG(CGCC)*",
+                "ExpectedReferenceRegion": [
+                    "chr2:100104798-100104822",
+                    "chr2:100104833-100104849",
+                ],
             }
         ]
 
