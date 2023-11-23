@@ -7,6 +7,7 @@ import logging
 import os
 import pathlib
 import re
+import sys
 
 import numpy as np
 import pandas as pd
@@ -170,6 +171,8 @@ def main():
             json_paths = args.json_paths
 
         for json_path in json_paths:
+            json_path = str(json_path)  # convert from pathlib.Path to str
+
             try:
                 json_contents = parse_json_file(json_path)
             except Exception as e:
@@ -233,14 +236,14 @@ def main():
         if len(sample_metadata_lookup) != len(sample_metadata_df):
             logging.info(f"{len(sample_metadata_df) - len(sample_metadata_lookup)} duplicate sample ids in {args.sample_metadata}")
 
-    logging.info(f"Wrote {variant_records_counter} records to {output_prefix}.variants.tsv")
-    logging.info(f"Wrote {allele_records_counter} records to {output_prefix}.alleles.tsv")
+    logging.info(f"Wrote {variant_records_counter:,d} records to {output_prefix}.variants.tsv")
+    logging.info(f"Wrote {allele_records_counter:,d} records to {output_prefix}.alleles.tsv")
 
     with open(f"{output_prefix}.bed", "wt") as f:
         for bed_record in sorted(bed_file_records, key=lambda r: tuple(r[0:2])):
             f.write("\t".join(map(str, bed_record)) + "\n")
 
-    logging.info(f"Wrote {len(bed_file_records)} records to {output_prefix}.bed")
+    logging.info(f"Wrote {len(bed_file_records):,d} records to {output_prefix}.bed")
 
 
 class ParseError(Exception):
