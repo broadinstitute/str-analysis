@@ -80,8 +80,7 @@
                 "OMIM": "308350",
                 "NormalMax": 16,
                 "PathogenicMin": 23
-            },
-            {
+            }, {
                 "Symbol": "MRXARX",
                 "Name": "X-linked mental retardation with or without seizures",
                 "Inheritance": "XR",
@@ -98,6 +97,7 @@
         "ReferenceRegion": "chrX:25031646-25031682",
         "RepeatUnit": "NGC",
         "Gene": "ARX",
+        "Inheritance": "XR",
         "GeneRegion": "coding: polyalanine",
         "GeneId": "ENSG00000004848",
         "Diseases": [
@@ -108,16 +108,14 @@
                 "OMIM": "308350",
                 "NormalMax": 12,
                 "PathogenicMin": 20
-            },
-            {
+            }, {
                 "Symbol": "PRTS",
                 "Name": "Partington syndrome",
                 "Inheritance": "XR",
                 "OMIM": "309510",
                 "NormalMax": 12,
                 "PathogenicMin": 20
-            },
-            {
+            }, {
                 "Symbol": "MRXARX",
                 "Name": "X-linked mental retardation with or without seizures",
                 "Inheritance": "XR",
@@ -425,8 +423,7 @@
                 "Inheritance": "AD",
                 "OMIM": "132400",
                 "PathogenicMin": 6
-            },
-            {
+            }, {
                 "Symbol": "PSACH",
                 "Name": "Pseudoachondroplasia",
                 "Inheritance": "AD",
@@ -554,24 +551,35 @@
         "MainReferenceRegion": "chr17:78120858-78120938"
     }, {
         "LocusId": "FGF14",
-        "LocusStructure": "(AAG)*",
-        "VariantType": "Repeat",
-        "ReferenceRegion": "chr13:102813924-102814074",
+        "LocusStructure": "(AAGA)*(AAG)*",
+        "VariantType": [
+            "Repeat",
+            "Repeat"
+        ],
+        "ReferenceRegion": [
+            "chr13:102813916-102813924",
+            "chr13:102813924-102814074"
+        ],
+        "RepeatUnit": "AAG",
         "Gene": "FGF14",
         "GeneRegion": "intron",
         "GeneId": "ENSG00000102466",
         "Diseases": [
             {
-                "Symbol": "SCA50",
-                "Name": "Spinocerebellar ataxia 50",
+                "Symbol": "SCA27B",
+                "Name": "Spinocerebellar ataxia 27B",
                 "Inheritance": "AD",
-                "OMIM": "620158",
-                "PathogenicMin": 335,
-                "IntermediateRange": "250-335",
+                "OMIM": "620174",
+                "PathogenicMin": 300,
+                "IntermediateRange": "250-300",
                 "NormalMax": 250
             }
         ],
-        "MainReferenceRegion": "chr13:102813924-102814074"
+        "MainReferenceRegion": "chr13:102813924-102814074",
+        "VariantId": [
+            "FGF14_AAGA",
+            "FGF14"
+        ]
     }, {
         "LocusId": "FMR1",
         "LocusStructure": "(CGG)*",
@@ -592,8 +600,7 @@
                 "NormalMax": 40,
                 "PathogenicMin": 55,
                 "IntermediateRange": "41-54"
-            },
-            {
+            }, {
                 "Symbol": "FXS",
                 "Name": "Fragile X Syndrome",
                 "Inheritance": "XD",
@@ -982,8 +989,7 @@
                 "OMIM": "603472",
                 "NormalMax": 39,
                 "PathogenicMin": 90
-            },
-            {
+            }, {
                 "Symbol": "ETM6",
                 "Name": "Hereditary essential tremor type 6",
                 "Inheritance": "AD",
@@ -1238,8 +1244,7 @@
                 "OMIM": "300123",
                 "NormalMax": 15,
                 "PathogenicMin": 26
-            },
-            {
+            }, {
                 "Symbol": "PHPX",
                 "Name": "X-linked panhypopituitarism",
                 "Inheritance": "XR",
@@ -1378,8 +1383,7 @@
             }
         ],
         "MainReferenceRegion": "chr16:24624760-24624850"
-    },
-    {
+    }, {
         "LocusId": "VWA1",
         "LocusStructure": "(GGCGCGGAGC)*",
         "VariantType": "Repeat",
