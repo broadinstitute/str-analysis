@@ -900,7 +900,8 @@ def process_vcf_line(
             "RepeatSize (bp)": alt_STR_allele_spec["NumRepeatsAlt"] * len(repeat_unit),
             "NumPureRepeats": alt_STR_allele_spec["NumPureRepeatsAlt"],
             "PureRepeatSize (bp)": alt_STR_allele_spec["NumPureRepeatsAlt"] * len(repeat_unit),
-            "FractionPureRepeats": "%0.3f" % alt_STR_allele_spec["FractionPureRepeatsAlt"],
+            "FractionPureRepeats": ("%0.3f" % alt_STR_allele_spec["FractionPureRepeatsAlt"])
+                                   if alt_STR_allele_spec["FractionPureRepeatsAlt"] is not None else "",
         })
 
         alleles_tsv_writer.write("\t".join([str(allele_tsv_record.get(c, "")) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
