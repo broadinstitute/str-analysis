@@ -398,7 +398,8 @@ def check_if_allele_is_str(
         "NumRepeatsRightFlank": num_total_repeats_right_flank,
         "NumRepeatsInVariant": num_total_repeats_within_variant_bases,
         "IsPureRepeat": num_pure_repeats_in_variant_plus_flanks == num_total_repeats_in_variant_plus_flanks,
-        "FractionPureRepeats": num_pure_repeats_in_variant_plus_flanks / num_total_repeats_in_variant_plus_flanks,
+        "FractionPureRepeatsRef": num_pure_repeats_ref / num_total_repeats_ref if num_total_repeats_ref > 0 else None,
+        "FractionPureRepeatsAlt": num_pure_repeats_alt / num_total_repeats_alt if num_total_repeats_alt > 0 else None,
         "MotifInterruptionIndex": repeat_unit_interruption_index,
         "PureStart1Based": pure_start_1based,
         "PureEnd1Based": pure_end_1based,
@@ -899,7 +900,7 @@ def process_vcf_line(
             "RepeatSize (bp)": alt_STR_allele_spec["NumRepeatsAlt"] * len(repeat_unit),
             "NumPureRepeats": alt_STR_allele_spec["NumPureRepeatsAlt"],
             "PureRepeatSize (bp)": alt_STR_allele_spec["NumPureRepeatsAlt"] * len(repeat_unit),
-            "FractionPureRepeats": "%0.3f" % alt_STR_allele_spec["FractionPureRepeats"],
+            "FractionPureRepeats": "%0.3f" % alt_STR_allele_spec["FractionPureRepeatsAlt"],
         })
 
         alleles_tsv_writer.write("\t".join([str(allele_tsv_record.get(c, "")) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
