@@ -279,7 +279,7 @@ def check_if_allele_is_str(
         "FilterReason": None,
     }
 
-    if "N" in alt.upper():
+    if "N" in ref.upper() or "N" in alt.upper():
         counters[f"allele filter: N bases"] += 1
         null_result["FilterReason"] = FILTER_ALLELE_WITH_N_BASES
         return null_result
