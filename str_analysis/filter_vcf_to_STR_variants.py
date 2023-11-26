@@ -65,6 +65,7 @@ FILTER_UNEXPECTED_GENOTYPE_FORMAT = "unexpected genotype format"
 FILTER_ZERO_ALT_ALLELES = "variant has zero non-* alt alleles"
 FILTER_MULTIALLELIC_VARIANT_WITH_HOMOZYGOUS_GENOTYPE = "multiallelic variant with homozygous genotype"
 
+FILTER_ALLELE_WITH_N_BASES = "contains N"
 FILTER_ALLELE_SNV_OR_MNV = "SNV/MNV"
 FILTER_ALLELE_MNV_INDEL = "complex multinucleotide insertion + deletion"
 FILTER_ALLELE_NON_STR_INDEL = "INDEL without repeats"
@@ -277,6 +278,11 @@ def check_if_allele_is_str(
         "RepeatUnit": None,
         "FilterReason": None,
     }
+
+    if "N" in alt.upper():
+        counters[f"allele filter: N bases"] += 1
+        null_result["FilterReason"] = FILTER_ALLELE_WITH_N_BASES
+        return null_result
 
     if set(alt.upper()) - {"A", "C", "G", "T"}:
         counters[f"allele filter: non-ACGT bases"] += 1
@@ -635,7 +641,9 @@ def compute_variant_summary_string(str_allele_specs, het_or_hom_or_multi):
     ])
     summary_string += ":" + het_or_hom_or_multi
 
-    if not str_allele_specs[0]["IsPureRepeat"]:
+    if str_allele_specs[0]["IsPureRepeat"]:
+        summary_string += ":pure"
+    else:
         summary_string += ":not-pure"
 
     return ":".join(ins_or_del), summary_string
