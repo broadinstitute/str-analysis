@@ -190,38 +190,41 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
         print(f"   {mappability_bin:10.1f}: {counters[f'mappability:{mappability_bin:.1f}']:10,d} out of {counters['total']:10,d} ({counters[f'mappability:{mappability_bin:.1f}']/counters['total']:6.1%}) loci")
 
     result = {
-        "Catalog": catalog_name,
-        "Total": f"{counters['total_repeat_intervals']:,d}",
-        "chrX": f"{counters['chrX']:,d} ({counters['chrX']/counters['total_repeat_intervals']:0.1%})",
-        "chrY": f"{counters['chrY']:,d} ({counters['chrY']/counters['total_repeat_intervals']:0.1%})",
-        "Motif size range": f"{min_motif_size}-{max_motif_size}bp",
-        "Locus size range": f"{min_locus_size}-{max_locus_size}bp",
-        "Num repeats range": f"{min_num_repeats_in_locus}-{max_num_repeats_in_locus}x repeats",
-        "Homopolymers": "%0.1f%%" % (100 * counters["motif_size:1bp"] / counters["total_repeat_intervals"]),
-        "2bp motifs": "%0.1f%%" % (100 * counters["motif_size:2bp"] / counters["total_repeat_intervals"]),
-        "3bp motifs": "%0.1f%%" % (100 * counters["motif_size:3bp"] / counters["total_repeat_intervals"]),
-        "4bp motifs": "%0.1f%%" % (100 * counters["motif_size:4bp"] / counters["total_repeat_intervals"]),
-        "5bp motifs": "%0.1f%%" % (100 * counters["motif_size:5bp"] / counters["total_repeat_intervals"]),
-        "6bp motifs": "%0.1f%%" % (100 * counters["motif_size:6bp"] / counters["total_repeat_intervals"]),
-        "7+bp motifs": "%0.1f%%" % (100 * (counters["motif_size:7-24bp"] + counters["motif_size:25+bp"])/ counters["total_repeat_intervals"]),
-        "Pure repeats": "%0.1f%%" % (100 * counters[f"fraction_pure_bases:1.0"] / counters["total_repeat_intervals"]),
-        "Trimmed": "%0.1f%%" % (100 * counters["trimmed"] / counters["total_repeat_intervals"]),
-        "Overlapping": f"{len(overlapping_intervals):,d} ({(len(overlapping_intervals) / counters['total_repeat_intervals']):0.1%})",
+        "catalog": catalog_name,
+        "total": f"{counters['total_repeat_intervals']:,d}",
+        "count_chrX": counters['chrX'],
+        "count_chrY": counters['chrY'],
+        "count_chrM": counters["chrM"],
+        "motif_size_range": f"{min_motif_size}-{max_motif_size}bp",
+        "locus_size_range": f"{min_locus_size}-{max_locus_size}bp",
+        "num_repeats_range": f"{min_num_repeats_in_locus}-{max_num_repeats_in_locus}x repeats",
+        "percent_homopolymers": "%0.1f%%" % (100 * counters["motif_size:1bp"] / counters["total_repeat_intervals"]),
+        "percent_2bp_motifs": "%0.1f%%" % (100 * counters["motif_size:2bp"] / counters["total_repeat_intervals"]),
+        "percent_3bp motifs": "%0.1f%%" % (100 * counters["motif_size:3bp"] / counters["total_repeat_intervals"]),
+        "percent_4bp_motifs": "%0.1f%%" % (100 * counters["motif_size:4bp"] / counters["total_repeat_intervals"]),
+        "percent_5bp_motifs": "%0.1f%%" % (100 * counters["motif_size:5bp"] / counters["total_repeat_intervals"]),
+        "percent_6bp_motifs": "%0.1f%%" % (100 * counters["motif_size:6bp"] / counters["total_repeat_intervals"]),
+        "percent_7+bp_motifs": "%0.1f%%" % (100 * (counters["motif_size:7-24bp"] + counters["motif_size:25+bp"])/ counters["total_repeat_intervals"]),
+        "percent_pure_repeats": "%0.1f%%" % (100 * counters[f"fraction_pure_bases:1.0"] / counters["total_repeat_intervals"]),
+        "percent_trimmed": "%0.1f%%" % (100 * counters["trimmed"] / counters["total_repeat_intervals"]),
+        "percent_overlapping": "%0.1f%%" % (100 * len(overlapping_intervals) / counters['total_repeat_intervals']),
+        "count_homopolymers": counters["motif_size:1bp"],
+        "count_2bp_motifs": counters["motif_size:2bp"],
+        "count_3bp motifs":  counters["motif_size:3bp"],
+        "count_4bp_motifs":  counters["motif_size:4bp"],
+        "count_5bp_motifs":  counters["motif_size:5bp"],
+        "count_6bp_motifs":  counters["motif_size:6bp"],
+        "count_7+bp_motifs": counters["motif_size:7-24bp"] + counters["motif_size:25+bp"],
+        "count_pure_repeats": counters[f"fraction_pure_bases:1.0"],
+        "count_trimmed": "%0.1f%%" % counters["trimmed"],
+        "count_overlapping": len(overlapping_intervals),
+        "min_motif_size": min_motif_size,
+        "max_motif_size": max_motif_size,
+        "min_locus_size": min_locus_size,
+        "max_locus_size": max_locus_size,
     }
+
     """
-    "total_loci": counters["total"],
-    "loci_with_adjacent_repeats": counters["loci_with_adjacent_repeats"],
-    "total_repeats": counters["total_repeat_intervals"],
-    "homopolymer_repeats": counters["homopolymers"],
-    "trimmed_repeats": counters["trimmed"],
-    "overlapping_repeat_intervals": len(overlapping_intervals),
-    "chrX_repeats": counters["chrX"],
-    "chrY_repeats": counters["chrY"],
-    "chrM_repeats": counters["chrM"],
-    "min_motif_size": min_motif_size,
-    "max_motif_size": max_motif_size,
-    "min_locus_size": min_locus_size,
-    "max_locus_size": max_locus_size,
     "min_fraction_pure_bases": min_fraction_pure_bases,
     "min_fraction_pure_bases_reference_region": min_fraction_pure_bases_reference_region,
     "min_fraction_pure_bases_motif": min_fraction_pure_bases_motif,
@@ -241,11 +244,6 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
     "fraction_pure_bases_distribution": {},
     "mappability_distribution": {},
     """
-    #}
-
-    #for fraction in 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1:
-    #    result["fraction_pure_bases_distribution"][f"{fraction:.1f}"] = counters[f"fraction_pure_bases:{fraction:.1f}"]
-    #    result["mappability_distribution"][f"{fraction:.1f}"] = counters[f"mappability:{fraction:.1f}"]
 
     return result
 
