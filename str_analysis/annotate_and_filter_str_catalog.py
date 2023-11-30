@@ -110,7 +110,7 @@ def parse_args():
 
 
 KNOWN_DISEASE_ASSOCIATED_LOCI_COLUMNS = [
-    'LocusId', 'LocusStructure', 'RepeatUnit', 'MainReferenceRegion', 'Gene', 'Inheritance', 'GeneRegion', 'GeneId']
+    'LocusId', 'LocusStructure', 'RepeatUnit', 'MainReferenceRegion', 'Gene', 'GeneRegion', 'GeneId']
 
 
 def parse_known_disease_associated_loci(args, parser):

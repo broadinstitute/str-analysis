@@ -1,3 +1,5 @@
+from str_analysis.utils.misc_utils import parse_interval
+
 
 def parse_motifs_from_locus_structure(locus_structure):
     """Takes an ExpansionHunter LocusStructure like "(CAG)*AGAC(GCC)+" and returns a list of motifs ["CAG", "GCC"]"""
@@ -12,7 +14,7 @@ def convert_json_records_to_bed_format_tuples(json_records):
     Yield:
         5-tuples: (chrom, start_0based, end_1based, motif, repeat_count)
     """
-    for record in output_catalog_record_iter:
+    for record in json_records:
         locus_structure = record["LocusStructure"]
         reference_regions = record["ReferenceRegion"]
         if not isinstance(reference_regions, list):
