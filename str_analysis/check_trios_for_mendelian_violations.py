@@ -415,31 +415,38 @@ def compute_mendelian_violations(trio_rows, sample_id_column="SampleId"):
 
             'MendelianViolationSummary': 'MV-CI!' if not ok_mendelian_ci else ('MV' if not ok_mendelian else 'ok'),
 
-            'ProbandGenotype': proband_row["Genotype"],
-            'ProbandGenotypeCI': proband_row["GenotypeConfidenceInterval"],
-            'ProbandGenotypeCI_size': proband_CIs[-1].length(),
+            'Genotype_Proband': proband_row["Genotype"],
+            'GenotypeCI_Proband': proband_row["GenotypeConfidenceInterval"],
+            'GenotypeCISize_Proband': proband_CIs[-1].length(),
 
-            'FatherGenotype': father_row["Genotype"],
-            'FatherGenotypeCI': father_row["GenotypeConfidenceInterval"],
+            'Genotype_Father': father_row["Genotype"],
+            'GenotypeCI_Father': father_row["GenotypeConfidenceInterval"],
 
-            'MotherGenotype': mother_row["Genotype"],
-            'MotherGenotypeCI': mother_row["GenotypeConfidenceInterval"],
+            'Genotype_Mother': mother_row["Genotype"],
+            'GenotypeCI_Mother': mother_row["GenotypeConfidenceInterval"],
 
             'AllGenotypesAreTheSame': all_genotypes_are_the_same,
             'AllGenotypesAreHomozygousReference': all_genotypes_are_homozygous_reference,
 
-            'ProbandSampleId': proband_row[sample_id_column],
-            'FatherSampleId': father_row[sample_id_column],
-            'MotherSampleId': mother_row[sample_id_column],
-            'ProbandSex': proband_row["Sex"],
+            'SampleId_Proband': proband_row[sample_id_column],
+            'SampleId_Father': father_row[sample_id_column],
+            'SampleId_Mother': mother_row[sample_id_column],
+            'Sex_Proband': proband_row["Sex"],
 
-            'ProbandNumRepeatsAllele2': proband_row["Num Repeats: Allele 2"],
-            'FatherNumRepeatsAllele2 ': father_row["Num Repeats: Allele 2"],
-            'MotherNumRepeatsAllele2': mother_row["Num Repeats: Allele 2"],
+            'NumRepeatsAllele2_Proband': proband_row["Num Repeats: Allele 2"],
+            'NumRepeatsAllele2_Father ': father_row["Num Repeats: Allele 2"],
+            'NumRepeatsAllele2_Mother': mother_row["Num Repeats: Allele 2"],
 
-            'ProbandCoverage': proband_row["Coverage"],
-            'FatherCoverage': father_row["Coverage"],
-            'MotherCoverage': mother_row["Coverage"],
+            'Filter_Proband': proband_row.get("Filter", ""),
+            'Filter_Father': father_row.get("Filter", ""),
+            'Filter_Mother': mother_row.get("Filter", ""),
+            'Filter_Any': "PASS" if all([proband_row.get("Filter", "") == "PASS",
+                                         father_row.get("Filter", "") == "PASS",
+                                         mother_row.get("Filter", "") == "PASS"]) else "FAIL",
+
+            'Coverage_Proband': proband_row["Coverage"],
+            'Coverage_Father': father_row["Coverage"],
+            'Coverage_Mother': mother_row["Coverage"],
             'MinCoverage': min(float(proband_row["Coverage"]), float(father_row["Coverage"]), float(mother_row["Coverage"])),
 
             'MendelianResultsSummary': mendelian_results_string,
@@ -454,19 +461,19 @@ def compute_mendelian_violations(trio_rows, sample_id_column="SampleId"):
         existing_column_names = set(proband_row.to_dict().keys()) & set(father_row.to_dict().keys()) & set(mother_row.to_dict().keys())
         if all(k in existing_column_names for k in EXTRA_INPUT_COLUMNS):
            results_row.update({
-               'ProbandNumSpanningReads': proband_row["NumSpanningReads"],
-               'ProbandNumFlankingReads': proband_row["NumFlankingReads"],
-               'ProbandNumInrepeatReads': proband_row["NumInrepeatReads"],
-               'FatherNumSpanningReads': father_row["NumSpanningReads"],
-               'FatherNumFlankingReads': father_row["NumFlankingReads"],
-               'FatherNumInrepeatReads': father_row["NumInrepeatReads"],
-               'MotherNumSpanningReads': mother_row["NumSpanningReads"],
-               'MotherNumFlankingReads': mother_row["NumFlankingReads"],
-               'MotherNumInrepeatReads': mother_row["NumInrepeatReads"],
+               'NumSpanningReads_Proband': proband_row["NumSpanningReads"],
+               'NumFlankingReads_Proband': proband_row["NumFlankingReads"],
+               'NumInrepeatReads_Proband': proband_row["NumInrepeatReads"],
+               'NumSpanningReads_Father': father_row["NumSpanningReads"],
+               'NumFlankingReads_Father': father_row["NumFlankingReads"],
+               'NumInrepeatReads_Father': father_row["NumInrepeatReads"],
+               'NumSpanningReads_Mother': mother_row["NumSpanningReads"],
+               'NumFlankingReads_Mother': mother_row["NumFlankingReads"],
+               'NumInrepeatReads_Mother': mother_row["NumInrepeatReads"],
 
-               'ProbandNumAllelesSupportedBySpanningReads': int(proband_row["NumAllelesSupportedBySpanningReads"]) + int(proband_row["NumAllelesSupportedByFlankingReads"]) + int(proband_row["NumAllelesSupportedByInrepeatReads"]),
-               'FatherNumAllelesSupportedByFlankingReads': int(father_row["NumAllelesSupportedBySpanningReads"]) + int(father_row["NumAllelesSupportedByFlankingReads"]) + int(father_row["NumAllelesSupportedByInrepeatReads"]),
-               'MotherNumAllelesSupportedByInrepeatReads': int(mother_row["NumAllelesSupportedBySpanningReads"]) + int(mother_row["NumAllelesSupportedByFlankingReads"]) + int(mother_row["NumAllelesSupportedByInrepeatReads"]),
+               'NumAllelesSupportedBySpanningReads_Proband': int(proband_row["NumAllelesSupportedBySpanningReads"]) + int(proband_row["NumAllelesSupportedByFlankingReads"]) + int(proband_row["NumAllelesSupportedByInrepeatReads"]),
+               'NumAllelesSupportedByFlankingReads_Father': int(father_row["NumAllelesSupportedBySpanningReads"]) + int(father_row["NumAllelesSupportedByFlankingReads"]) + int(father_row["NumAllelesSupportedByInrepeatReads"]),
+               'NumAllelesSupportedByInrepeatReads_Mother': int(mother_row["NumAllelesSupportedBySpanningReads"]) + int(mother_row["NumAllelesSupportedByFlankingReads"]) + int(mother_row["NumAllelesSupportedByInrepeatReads"]),
            })
 
         results_rows.append(results_row)
@@ -532,7 +539,7 @@ def main():
             "IsMendelianViolationCI": "sum",
             "MendelianViolationDistance": "sum",
             "MendelianViolationDistanceCI": "sum",
-            "ProbandSampleId": "count",
+            "SampleId_Proband": "count",
         }).to_csv(output_path, sep="\t")
         print(f"Wrote locus stats to {output_path}")
 
