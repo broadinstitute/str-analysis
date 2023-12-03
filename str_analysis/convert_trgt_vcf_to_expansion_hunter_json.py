@@ -66,8 +66,6 @@ ExpansionHunter output format:
 import argparse
 import gzip
 import simplejson as json
-import os
-from pprint import pprint
 import re
 
 
@@ -82,7 +80,7 @@ def main():
     locus_results = process_trgt_vcf(args.vcf_path, sample_id=args.sample_id)
 
     output_json_path = re.sub(".vcf(.gz)?$", "", args.vcf_path) + ".json"
-    print(f"Writing results for {len(locus_results['LocusResults']):,d} loci to {output_json_path}")
+    print(f"Writing {len(locus_results['LocusResults']):,d} loci to {output_json_path}")
     with open(output_json_path, "wt") as f:
         json.dump(locus_results, f, indent=3)
 
@@ -134,6 +132,12 @@ def process_trgt_vcf(vcf_path, sample_id=None):
                 end_1based = int(info_dict["END"])
 
                 locus_id = f"{chrom}-{start_1based - 1}-{end_1based}-{repeat_unit}"
+
+                allele_sizes_bp = [int(allele_size_bp) for allele_size_bp in genotype_dict["AL"].split(",")]
+                flip_alleles = len(allele_sizes_bp) == 2 and allele_sizes_bp[0] > allele_sizes_bp[1]
+                if flip_alleles:
+                    for key in "AL", "ALLR", "SD", "MC", "MS", "AP", "AM":
+                        genotype_dict[key] = ",".join(genotype_dict[key].split(",")[::-1])
 
                 genotype = []
                 for allele_size_bp in genotype_dict["AL"].split(","):

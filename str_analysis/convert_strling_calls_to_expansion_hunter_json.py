@@ -74,7 +74,7 @@ def main():
         locus_results = process_strling_txt(strling_txt_path)
 
         output_json_path = re.sub(".txt$", "", strling_txt_path) + ".json"
-        print(f"Writing results for {len(locus_results['LocusResults'])} loci to {output_json_path}")
+        print(f"Writing {len(locus_results['LocusResults'])} loci to {output_json_path}")
         with open(output_json_path, "wt") as f:
             json.dump(locus_results, f, indent=4)
 

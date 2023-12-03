@@ -77,7 +77,7 @@ def main():
     locus_results = process_gangstr_vcf(args.vcf_path, variant_catalog=variant_catalog, sample_id=args.sample_id)
 
     output_json_path = re.sub(".vcf(.gz)?$", "", args.vcf_path) + ".json"
-    print(f"Writing results for {len(locus_results['LocusResults']):,d} loci to {output_json_path}")
+    print(f"Writing {len(locus_results['LocusResults']):,d} loci to {output_json_path}")
     with open(output_json_path, "wt") as f:
         json.dump(locus_results, f, indent=4)
 
