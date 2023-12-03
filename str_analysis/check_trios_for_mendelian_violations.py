@@ -106,6 +106,8 @@ def parse_combined_str_calls_tsv_path(combined_str_calls_tsv_path, sample_id_col
     combined_str_calls_df = pd.read_table(combined_str_calls_tsv_path, dtype=str)
     combined_str_calls_df_columns = set(combined_str_calls_df.columns)
     expected_columns = list(BASIC_INPUT_COLUMNS)
+    if "Filter" in combined_str_calls_df_columns:
+        expected_columns.append("Filter")
     if all(k in combined_str_calls_df_columns for k in EXTRA_INPUT_COLUMNS):
         expected_columns += list(EXTRA_INPUT_COLUMNS)
 
@@ -159,7 +161,6 @@ def group_rows_by_trio(combined_str_calls_df, sample_id_column="SampleId"):
     for _, row in tqdm.tqdm(combined_str_calls_df.iterrows(), unit=" table rows", total=len(combined_str_calls_df)):
         if row["Genotype"] is not None:
             all_rows[(row[sample_id_column], row["LocusId"], row["VariantId"])] = row
-            #all_rows[(row.Filename, row.LocusId, row.VariantId)] = row
 
     calls_counter = 0
     trio_ids = set()
@@ -437,12 +438,12 @@ def compute_mendelian_violations(trio_rows, sample_id_column="SampleId"):
             'NumRepeatsAllele2_Father ': father_row["Num Repeats: Allele 2"],
             'NumRepeatsAllele2_Mother': mother_row["Num Repeats: Allele 2"],
 
-            'Filter_Proband': proband_row.get("Filter", ""),
-            'Filter_Father': father_row.get("Filter", ""),
-            'Filter_Mother': mother_row.get("Filter", ""),
-            'Filter_Any': "PASS" if all([proband_row.get("Filter", "") == "PASS",
-                                         father_row.get("Filter", "") == "PASS",
-                                         mother_row.get("Filter", "") == "PASS"]) else "FAIL",
+            'Filter_Proband': proband_row.get("Filter", "").upper(),
+            'Filter_Father': father_row.get("Filter", "").upper(),
+            'Filter_Mother': mother_row.get("Filter", "").upper(),
+            'Filter_Any': "PASS" if all([proband_row.get("Filter", "").upper() == "PASS",
+                                         father_row.get("Filter", "").upper() == "PASS",
+                                         mother_row.get("Filter", "").upper() == "PASS"]) else "FAIL",
 
             'Coverage_Proband': proband_row["Coverage"],
             'Coverage_Father': father_row["Coverage"],
