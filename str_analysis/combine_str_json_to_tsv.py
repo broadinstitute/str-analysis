@@ -420,7 +420,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
             locus_record[key] = locus_json[key]
 
         if "Filter" in locus_json:
-            # copy optional Filter field from locus. These are expected to be added to ExpansionHunter output by 3rd party tools
+            # A "Filter" field can be optionally added to ExpansionHunter output by experimental 3rd-party tools
             locus_record["Filter"] = locus_json["Filter"]
 
         # if variant catalog specified, transfer info from it
@@ -494,6 +494,12 @@ def convert_expansion_hunter_json_to_tsv_columns(
                 variant_record["SpanningReadsPerAllele"] = variant_json["SD"]
 
             variant_record["Genotype"] = variant_json["Genotype"]
+
+            # check that genotypes are in the expected order
+            allele_sizes = [int(allele_size) for allele_size in variant_json["Genotype"].split("/")]
+            if len(allele_sizes) == 2 and allele_sizes[0] > allele_sizes[1]:
+                raise ValueError(f"Unexpected genotype format: {variant_json['Genotype']} in: {pformat(variant_json)}")
+
             variant_record["GenotypeConfidenceInterval"] = variant_json["GenotypeConfidenceInterval"]
             genotype_tuples = list(zip(
                 variant_json["Genotype"].split("/"),
