@@ -15,6 +15,7 @@ import os
 import pybedtools
 import pysam
 import re
+import tqdm
 
 from str_analysis.utils.file_utils import open_file, file_exists
 from str_analysis.utils.get_adjacent_repeats import get_adjacent_repeats, \
@@ -131,7 +132,7 @@ def process_input_record(
     return output_record
 
 
-def get_interval_tree_for_chrom(adjacent_loci_bed_file_path, chrom, start, end):
+def get_interval_tree_for_chrom(adjacent_loci_bed_file_path, chrom, start, end, verbose=False):
     """Load intervals from the given bed file into an IntervalTree for faster overlap queries. The bed file should
     contain all TR loci found in the reference genome.
 
@@ -140,6 +141,7 @@ def get_interval_tree_for_chrom(adjacent_loci_bed_file_path, chrom, start, end):
         chrom (str): Chromosome name
         start (int): Start coordinate of the chromosome region that spans all adjacent repeats that we want to load
         end (int): End coordinate of the chromosome region that spans all adjacent repeats that we want to load
+        verbose (bool): If True, show progress bar
 
     Return:
         intervaltree.IntervalTree: An IntervalTree containing 0-based intervals that represent the reference start and
@@ -153,7 +155,12 @@ def get_interval_tree_for_chrom(adjacent_loci_bed_file_path, chrom, start, end):
     t = pybedtools.BedTool(os.path.expanduser(adjacent_loci_bed_file_path))
     print(f"Parsing potential adjacent repeats from a {end-start+1:,d}bp region ({chrom}:{start:,d}-{end:,d}) in "
           f"{adjacent_loci_bed_file_path}...")
-    for bed_record in t.all_hits(pybedtools.Interval(chrom, start, end)):
+
+    bed_iterator = t.all_hits(pybedtools.Interval(chrom, start, end))
+    if verbose:
+        bed_iterator = add_progress_bar(bed_iterator, unit=" rows")
+
+    for bed_record in bed_iterator:
         start_0based = bed_record.start
         end_1based = bed_record.end
         repeat_unit = bed_record.name
@@ -220,6 +227,11 @@ def get_min_and_max_coords_for_chrom(input_catalog, chrom):
     return min_coord, max_coord
 
 
+def add_progress_bar(iterable, unit=" loci"):
+    for record in tqdm.tqdm(iterable, unit=unit, unit_scale=True):
+        yield record
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ref-fasta", help="Reference fasta path", required=True)
@@ -269,6 +281,7 @@ def main():
     parser.add_argument("-o", "--output-catalog",
                         help="Path where to write the output catalog. If not specified, it will be based on the input "
                              "catalog path")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Print more logging output and show progress bars")
     parser.add_argument("input_catalog_paths",
                         nargs="+",
                         help="ExpansionHunter catalog json file path. If more than one catalog path is specified, the "
@@ -298,16 +311,13 @@ def main():
             else:
                 input_catalog = json.load(f)
 
-        input_catalogs[input_catalog_path]["original_locus_id_sort_order"] = [
-            record["LocusId"] for record in input_catalog]
-
         # sort the input catalog by its ReferenceRegion chromosome
         input_catalog.sort(key=lambda record: (
             record["ReferenceRegion"][0].split(":")[0]
             if isinstance(record["ReferenceRegion"], list) else
             record["ReferenceRegion"].split(":")[0]))
 
-        input_catalogs[input_catalog_path]["input_catalog_records"] = input_catalog
+        input_catalogs[input_catalog_path] = input_catalog
         print(f"Loaded {len(input_catalog):,d} records from {input_catalog_path}")
 
     print(f"Processing {len(input_catalogs)} input variant catalog" + ("s" if len(input_catalogs) > 1 else f": {args.input_catalog_paths[0]}"))
@@ -315,7 +325,11 @@ def main():
     # validate input catalog records and get the min and max coordinates of the TR loci for each chromosome
     min_max_coords_for_chrom = collections.defaultdict(lambda: (10**10, 0))
     for input_catalog in input_catalogs.values():
-        for record_i, record in enumerate(input_catalog["input_catalog_records"]):
+        if args.verbose:
+            print(f"Validating records in {input_catalog_path}")
+            input_catalog = add_progress_bar(input_catalog, unit=" loci")
+
+        for record_i, record in enumerate(input_catalog):
             missing_keys = {"ReferenceRegion", "LocusStructure", "LocusId"} - set(record.keys())
             if missing_keys:
                 print(f"WARNING: record {record} is missing keys: {missing_keys}. Skipping...")
@@ -349,19 +363,24 @@ def main():
     interval_trees_by_chrom = collections.defaultdict(intervaltree.IntervalTree)
     for chrom, (min_start, max_end) in min_max_coords_for_chrom.items():
         interval_trees_by_chrom[chrom] = get_interval_tree_for_chrom(
-            args.source_of_adjacent_loci, chrom, min_start, max_end)
+            args.source_of_adjacent_loci, chrom, min_start, max_end, verbose=args.verbose)
 
     # process the records from the input catalog(s) to add adjacent loci
     counters = collections.defaultdict(int)
     locus_ids_with_existing_adjacent_repeats = []
     locus_ids_with_new_adjacent_repeats = []
     for input_catalog_path, input_catalog in input_catalogs.items():
+        if args.verbose:
+            print(f"Processing {input_catalog_path}")
+            input_catalog = add_progress_bar(input_catalog, unit=" loci")
+
         output_catalog = []
         already_added_to_output_catalog = set()  # avoid duplicate records in the output catalog
-        for record_i, record in enumerate(input_catalog["input_catalog_records"]):
+        for record_i, record in enumerate(input_catalog):
             if args.n and record_i >= args.n:
                 break
             counters["total records"] += 1
+            record["original_sort_order"] = record_i
 
             if args.dont_add_adjacent_loci_to_this_locus_id and record["LocusId"] in args.dont_add_adjacent_loci_to_this_locus_id:
                 print(f"Adding {record['LocusId']} without modification as requested by -x arg")
@@ -433,8 +452,14 @@ def main():
             output_catalog_path = os.path.join(args.output_dir, os.path.basename(output_catalog_path))
 
         # restore original sort order to match  loci in the input catalog
-        output_catalog.sort(key=lambda record:
-            input_catalog["original_locus_id_sort_order"].index(record["LocusId"]))
+        if args.verbose:
+            print(f"Sorting {len(output_catalog):,d} output records")
+        output_catalog.sort(key=lambda r: r["original_sort_order"])
+        for output_record in output_catalog:
+            del output_record["original_sort_order"]
+
+        if args.verbose:
+            print(f"Writing {len(output_catalog):,d} records to {output_catalog_path}")
 
         fopen = gzip.open if output_catalog_path.endswith("gz") else open
         with fopen(output_catalog_path, "wt") as f:
@@ -472,7 +497,6 @@ def main():
             print(f"{value:8,d} out of {total:8,d} {label} ({value / total:6.1%}) had {key}")
 
         print(f"Wrote {len(output_catalog):,d} total records to {output_catalog_path}")
-
 
 
 if __name__ == '__main__':
