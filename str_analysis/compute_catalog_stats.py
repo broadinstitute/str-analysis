@@ -216,7 +216,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
         "count_6bp_motifs":  counters["motif_size:6bp"],
         "count_7+bp_motifs": counters["motif_size:7-24bp"] + counters["motif_size:25+bp"],
         "count_pure_repeats": counters[f"fraction_pure_bases:1.0"],
-        "count_trimmed": "%0.1f%%" % counters["trimmed"],
+        "count_trimmed": counters["trimmed"],
         "count_overlapping": len(overlapping_intervals),
         "min_motif_size": min_motif_size,
         "max_motif_size": max_motif_size,
