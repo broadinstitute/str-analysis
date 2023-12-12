@@ -170,7 +170,7 @@ def get_strchive_dict():
 	)
 
 	strchive_id_to_gnomad_map = {
-		#"OPDM_ABCD3": "ABCD3",
+		"OPDM_ABCD3": "ABCD3",
 		"FRA2A_AFF3": "AFF3",
 		"JBS_CBL": "CBL",
 		"SCA27B_FGF14": "FGF14",
@@ -181,12 +181,16 @@ def get_strchive_dict():
 		"FRA7A_ZNF713": "ZNF713",
 	}
 
+	previously_seen_gnomad_genes = set()
 	for d in strchive_data:
 		if not d["gnomAD_gene"] or not d["gnomAD_gene"].strip():
 			if d["id"] in strchive_id_to_gnomad_map:
 				d["gnomAD_gene"] = strchive_id_to_gnomad_map[d["id"]]
 			else:
 				print(f"WARNING: STRchive gnomAD_gene field not set for {d['id']}: {d['chrom']}:{d['start_hg38']}-{d['stop_hg38']}")
+		if d["gnomAD_gene"] in previously_seen_gnomad_genes:
+			print(f"WARNING: Duplicate gnomAD_gene field: {d['gnomAD_gene']}")
+		previously_seen_gnomad_genes.add(d["gnomAD_gene"])
 
 	strchive_lookup = {
 		r["gnomAD_gene"]: r for r in strchive_data
@@ -195,7 +199,6 @@ def get_strchive_dict():
 	for d in strchive_lookup.values():
 		d["CanonicalMotif"] = compute_canonical_motif(d["reference_motif_reference_orientation"])
 
-	assert len(strchive_lookup) < len(strchive_data), "Duplicate values in the gnomAD_gene field"
 
 	return strchive_lookup
 

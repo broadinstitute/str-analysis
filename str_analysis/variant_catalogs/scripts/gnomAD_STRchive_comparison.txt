@@ -1,16 +1,20 @@
  is in STRchive but not in gnomAD
 ------
-NOTCH2NLA is in gnomAD but not in STRchive
+BCLAF3 is in gnomAD but not in STRchive
+FRA10AC1 is in gnomAD but not in STRchive
 CSNK1E is in gnomAD but not in STRchive
 TMEM185A is in gnomAD but not in STRchive
-ABCD3 is in gnomAD but not in STRchive
+NOTCH2NLA is in gnomAD but not in STRchive
 C11ORF80 is in gnomAD but not in STRchive
-FRA10AC1 is in gnomAD but not in STRchive
-BCLAF3 is in gnomAD but not in STRchive
 ------
 Canonical motifs differ between gnomAD and STRchive for HOXD13: CCG vs CNG
 Canonical motifs differ between gnomAD and STRchive for PABPN1: CCG vs CNG
 ------
+------
+ABCD3 hg38 ReferenceRegion isn't the same between gnomAD and STRchive
+    chr1:94418421-94418442  ( 7.0 x GCC     21bp) gnomAD    118 = pathogenic.min.  hg38 seq:            GCCGCCGCCGCCGCCGCCGCC
+    chr1:94418421-94418442  ( 7.0 x GCC     21bp) STRipy    118 = pathogenic.min.  hg38 seq:            GCCGCCGCCGCCGCCGCCGCC
+    chr1:94418422-94418444  ( 7.3 x GCC     22bp) STRchive  118 = pathogenic.min.  hg38 seq:             CCGCCGCCGCCGCCGCCGCCGC
 ------
 AFF2 hg38 ReferenceRegion isn't the same between gnomAD and STRchive
     chrX:148500631-148500691  (20.0 x GCC     60bp) official catalog from EH repo
@@ -185,4 +189,4 @@ ZNF713 hg38 ReferenceRegion isn't the same between gnomAD and STRchive
     chr7:55887600-55887639  (13.0 x GCG     39bp) gnomAD     = pathogenic.min.  hg38 seq:               GCGGCGGCGGCGGCGGCGGCGGCGGCGGCGGCGGCGGCG
     chr7:55887601-55887639  (12.7 x GCG     38bp) STRchive  450 = pathogenic.min.  hg38 seq:             CGGCGGCGGCGGCGGCGGCGGCGGCGGCGGCGGCGGCG
 
-32 out of 66 loci have different hg38 ReferenceRegions in gnomAD and STRchive
+33 out of 67 loci have different hg38 ReferenceRegions in gnomAD and STRchive
