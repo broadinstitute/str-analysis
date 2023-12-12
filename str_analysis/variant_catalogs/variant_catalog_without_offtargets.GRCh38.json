@@ -1292,10 +1292,10 @@
         "MainReferenceRegion": "chr6:45422750-45422792"
     }, {
         "LocusId": "SAMD12",
-        "LocusStructure": "(TAAAA)*",
+        "LocusStructure": "(AAAAT)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "chr8:118366815-118366880",
-        "RepeatUnit": "TAAAA",
+        "ReferenceRegion": "chr8:118366812-118366918",
+        "RepeatUnit": "AAAAT",
         "Gene": "SAMD12",
         "GeneRegion": "intron",
         "GeneId": "ENSG00000177570",
