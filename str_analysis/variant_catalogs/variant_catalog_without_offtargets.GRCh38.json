@@ -15,7 +15,7 @@
                 "Symbol": "OPDM",
                 "Name": "Oculopharyngodistal myopathy (OPDM)",
                 "Inheritance": "AD",
-                "PathogenicMin": 124
+                "PathogenicMin": 118
             }
         ],
         "MainReferenceRegion": "chr1:94418421-94418442"
@@ -316,6 +316,17 @@
         ],
         "MainReferenceRegion": "chr13:70139383-70139428"
     }, {
+        "LocusId": "BCLAF3",
+        "LocusStructure": "(CCG)*",
+        "ReferenceRegion": "chrX:19990922-19990973",
+        "RepeatUnit": "CCG",
+        "VariantType": "Repeat",
+        "Gene": "BCLAF3",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENST00000379682",
+        "Diseases": [],
+        "MainReferenceRegion": "chrX:19990922-19990973"
+    }, {
         "LocusId": "BEAN1",
         "LocusStructure": "(TAAAA)*",
         "VariantType": "Repeat",
@@ -487,6 +498,17 @@
         ],
         "MainReferenceRegion": "chr21:43776443-43776479"
     }, {
+        "LocusId": "CSNK1E",
+        "LocusStructure": "(GCC)*",
+        "ReferenceRegion": "chr22:38317282-38317306",
+        "RepeatUnit": "GCC",
+        "VariantType": "Repeat",
+        "Gene": "CSNK1E",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENST00000396832",
+        "Diseases": [],
+        "MainReferenceRegion": "chr22:38317282-38317306"
+    }, {
         "LocusId": "DAB1",
         "LocusStructure": "(AAAAT)*",
         "VariantType": "Repeat",
@@ -577,6 +599,7 @@
                 "Name": "Richieri-Costa-Pereira syndrome",
                 "Inheritance": "AR",
                 "OMIM": "268305",
+                "NormalMax": 11,
                 "PathogenicMin": 14
             }
         ],
@@ -602,8 +625,8 @@
                 "Name": "Spinocerebellar ataxia 27B",
                 "Inheritance": "AD",
                 "OMIM": "620174",
-                "PathogenicMin": 300,
-                "IntermediateRange": "250-300",
+                "PathogenicMin": 335,
+                "IntermediateRange": "250-335",
                 "NormalMax": 250
             }
         ],
@@ -1175,7 +1198,7 @@
                 "Inheritance": "AD",
                 "OMIM": "123400",
                 "NormalMax": 4,
-                "PathogenicMin": 5
+                "PathogenicMin": 9
             }
         ],
         "MainReferenceRegion": "chr20:4699397-4699493"
@@ -1241,7 +1264,7 @@
                 "Inheritance": "AD",
                 "OMIM": "619790",
                 "NormalMax": 20,
-                "PathogenicMin": 139
+                "PathogenicMin": 135
             }
         ],
         "MainReferenceRegion": "chr12:123533720-123533750"
@@ -1548,9 +1571,9 @@
                 "Symbol": "SCA4",
                 "Name": "Spinocerebellar ataxia 4",
                 "Inheritance": "AD",
-                "OMIM": "607317",
-                "NormalMax": 26,
-                "PathogenicMin": 46
+                "OMIM": "600223",
+                "NormalMax": 21,
+                "PathogenicMin": 41
             }
         ],
         "MainReferenceRegion": "chr16:72787694-72787757"

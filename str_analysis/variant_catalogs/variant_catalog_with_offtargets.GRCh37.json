@@ -15,7 +15,7 @@
                 "Symbol": "OPDM",
                 "Name": "Oculopharyngodistal myopathy (OPDM)",
                 "Inheritance": "AD",
-                "PathogenicMin": 124
+                "PathogenicMin": 118
             }
         ],
         "OfftargetRegions": [
@@ -919,6 +919,7 @@
                 "Name": "Richieri-Costa-Pereira syndrome",
                 "Inheritance": "AR",
                 "OMIM": "268305",
+                "NormalMax": 11,
                 "PathogenicMin": 14
             }
         ],
@@ -944,8 +945,8 @@
                 "Name": "Spinocerebellar ataxia 27B",
                 "Inheritance": "AD",
                 "OMIM": "620174",
-                "PathogenicMin": 300,
-                "IntermediateRange": "250-300",
+                "PathogenicMin": 335,
+                "IntermediateRange": "250-335",
                 "NormalMax": 250
             }
         ],
@@ -1893,7 +1894,7 @@
                 "Inheritance": "AD",
                 "OMIM": "123400",
                 "NormalMax": 4,
-                "PathogenicMin": 5
+                "PathogenicMin": 9
             }
         ],
         "MainReferenceRegion": "chr20:4680043-4680139"
@@ -1981,7 +1982,7 @@
                 "Inheritance": "AD",
                 "OMIM": "619790",
                 "NormalMax": 20,
-                "PathogenicMin": 139
+                "PathogenicMin": 135
             }
         ],
         "OfftargetRegions": [
@@ -2487,9 +2488,9 @@
                 "Symbol": "SCA4",
                 "Name": "Spinocerebellar ataxia 4",
                 "Inheritance": "AD",
-                "OMIM": "607317",
-                "NormalMax": 26,
-                "PathogenicMin": 46
+                "OMIM": "600223",
+                "NormalMax": 21,
+                "PathogenicMin": 41
             }
         ],
         "MainReferenceRegion": "chr16:72821593-72821656"
