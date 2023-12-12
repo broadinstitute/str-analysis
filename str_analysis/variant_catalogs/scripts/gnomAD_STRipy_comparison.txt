@@ -1,14 +1,18 @@
 ------
-FRA10AC1 is in gnomAD but not in STRipy
-ZNF713 is in gnomAD but not in STRipy
-NOTCH2NLA is in gnomAD but not in STRipy
 AFF3 is in gnomAD but not in STRipy
-TMEM185A is in gnomAD but not in STRipy
+BCLAF3 is in gnomAD but not in STRipy
 C11ORF80 is in gnomAD but not in STRipy
 CSNK1E is in gnomAD but not in STRipy
-BCLAF3 is in gnomAD but not in STRipy
+FRA10AC1 is in gnomAD but not in STRipy
+NOTCH2NLA is in gnomAD but not in STRipy
+TMEM185A is in gnomAD but not in STRipy
+ZNF713 is in gnomAD but not in STRipy
 ------
 Canonical motifs for HOXD13 differ between gnomAD (CCG) and STRipy (CNG)
+------
+Inheritance mode for CBL    differ between gnomAD () and STRipy (Not inherited)
+Inheritance mode for DMD    differ between gnomAD () and STRipy (XR)
+Inheritance mode for PABPN1 differ between gnomAD (AD) and STRipy (Autosomal dominant or Autosomal recessive)
 ------
 ------
 AFF2 hg38 ReferenceRegion isn't the same between gnomAD and STRipy

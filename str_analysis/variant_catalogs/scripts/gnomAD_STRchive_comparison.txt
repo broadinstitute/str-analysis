@@ -1,15 +1,22 @@
  is in STRchive but not in gnomAD
 ------
+BCLAF3 is in gnomAD but not in STRchive
+C11ORF80 is in gnomAD but not in STRchive
+CSNK1E is in gnomAD but not in STRchive
 FRA10AC1 is in gnomAD but not in STRchive
 NOTCH2NLA is in gnomAD but not in STRchive
 TMEM185A is in gnomAD but not in STRchive
-C11ORF80 is in gnomAD but not in STRchive
-CSNK1E is in gnomAD but not in STRchive
-BCLAF3 is in gnomAD but not in STRchive
 ------
 Canonical motifs for HOXD13 differ between gnomAD (CCG) and STRchive (CNG)
 Canonical motifs for PABPN1 differ between gnomAD (CCG) and STRchive (CNG)
 Canonical motifs for ZIC3   differ between gnomAD (CCG) and STRchive (CNG)
+------
+Inheritance mode for AFF3   differ between gnomAD () and STRchive (AD)
+Inheritance mode for ATXN2  differ between gnomAD (AD) and STRchive (AD,AR)
+Inheritance mode for CBL    differ between gnomAD () and STRchive (AD)
+Inheritance mode for DMD    differ between gnomAD () and STRchive (XR)
+Inheritance mode for PABPN1 differ between gnomAD (AD) and STRchive (AD,AR)
+Inheritance mode for ZNF713 differ between gnomAD () and STRchive (AD)
 ------
 ------
 ABCD3 hg38 ReferenceRegion isn't the same between gnomAD and STRchive

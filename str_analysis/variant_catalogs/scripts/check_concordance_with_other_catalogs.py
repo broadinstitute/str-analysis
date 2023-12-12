@@ -201,6 +201,15 @@ def get_strchive_dict():
 	for d in strchive_lookup.values():
 		d["CanonicalMotif"] = compute_canonical_motif(d["reference_motif_reference_orientation"])
 
+		d["Diseases"] = [{
+			"Name": d["disease"],
+			"Symbol": d["disease_id"],
+			"Inheritance": d["Inheritance"],
+			"Onset": d["age_onset"],
+			"NormalMax": d["normal_max"],
+			"IntermediateRange": d["intermediate"],
+			"PathogenicMin": d["pathogenic_min"],
+		}]
 
 	return strchive_lookup
 
@@ -255,12 +264,11 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 
 	# check which loci are only in one of the catalogs
 	gnomad_records = [d for d in gnomad_catalog if d["LocusId"] in other_catalog_lookup]
-	for locus_id in other_catalog_locus_ids - gnomad_locus_ids:
+	for locus_id in sorted(other_catalog_locus_ids - gnomad_locus_ids):
 		output(output_file, f"{locus_id} is in {other_catalog_name} but not in gnomAD")
 	output(output_file, "------")
-	for locus_id in gnomad_locus_ids - other_catalog_locus_ids:
+	for locus_id in sorted(gnomad_locus_ids - other_catalog_locus_ids):
 		output(output_file, f"{locus_id} is in gnomAD but not in {other_catalog_name}")
-
 	output(output_file, "------")
 
 	# compare motifs for loci that are in both catalogs
@@ -269,6 +277,26 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 		canonical_motif = compute_canonical_motif(d["RepeatUnit"])
 		if canonical_motif != other_catalog_lookup[locus_id]["CanonicalMotif"] and len(canonical_motif) != 5:
 			output(output_file, f"Canonical motifs for {locus_id:<6s} differ between gnomAD ({canonical_motif}) and {other_catalog_name} ({other_catalog_lookup[locus_id]['CanonicalMotif']})")
+
+	output(output_file, "------")
+
+	# compare inheritance mode
+	for d in gnomad_records:
+		locus_id = d["LocusId"]
+		gnomad_inheritance = set([disease_info.get("Inheritance", "") for disease_info in d.get("Diseases", [])])
+		other_catalog_inheritance = set([
+			disease_info.get("Inheritance", "") for disease_info in other_catalog_lookup[locus_id].get("Diseases", [])
+		])
+		other_catalog_inheritance = {i for i_list in other_catalog_inheritance for i in i_list.split("/")}
+		other_catalog_inheritance = {{
+			"Autosomal dominant": "AD",
+			"Autosomal recessive": "AR",
+			"X-linked recessive": "XR",
+			"X-linked dominant": "XD",
+		}.get(i, i) for i in other_catalog_inheritance}
+
+		if gnomad_inheritance != other_catalog_inheritance:
+			output(output_file, f"Inheritance mode for {locus_id:<6s} differ between gnomAD ({','.join(sorted(gnomad_inheritance))}) and {other_catalog_name} ({','.join(sorted(other_catalog_inheritance))})")
 
 	output(output_file, "------")
 
@@ -369,6 +397,7 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 		with open("STRipy_definitions.json", "wt") as f:
 			json.dump(output_stripy_variant_catalog, f, indent=4)
 			print(f"Wrote {len(output_stripy_variant_catalog):,d} loci to STRipy_definitions.json")
+
 	if output_strchive_variant_catalog and compare_with == OTHER_CATALOG_NAME_STRCHIVE:
 		with open("STRchive_definitions.json", "wt") as f:
 			json.dump(output_strchive_variant_catalog, f, indent=4)
