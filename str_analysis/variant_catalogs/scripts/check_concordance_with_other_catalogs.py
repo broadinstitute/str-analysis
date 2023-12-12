@@ -5,12 +5,14 @@ import argparse
 import json
 import os
 import pandas as pd
+from pprint import pformat
 import pysam
 import re
 import requests
 
 from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
+from str_analysis.combine_str_catalogs import parse_motifs_from_locus_structure
 
 OTHER_CATALOG_NAME_STRCHIVE = "STRchive"
 OTHER_CATALOG_NAME_STRIPY = "STRipy"
@@ -207,9 +209,23 @@ def get_gnomad_catalog():
 	"""Download the gnomAD catalog from the str-analysis github repo"""
 
 	print("Downloading the gnomAD catalog from the str-analysis github repo")
-	return get_json_from_url(
+	gnomad_catalog = get_json_from_url(
 		"https://raw.githubusercontent.com/broadinstitute/str-analysis/main/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json"
 	)
+
+	# check internal consistency
+	for d in gnomad_catalog:
+		if isinstance(d["ReferenceRegion"], list):
+			motifs = parse_motifs_from_locus_structure(d["LocusStructure"])
+			assert len(motifs) == len(d["ReferenceRegion"]), pformat(d)
+			assert len(motifs) == len(d["VariantType"]), pformat(d)
+			assert len(motifs) == len(d["VariantId"]), pformat(d)
+		else:
+			if d["LocusId"] != "RFC1":
+				assert d["LocusStructure"] == "(" + d["RepeatUnit"] + ")*", pformat(d)
+			assert d["ReferenceRegion"] == d["MainReferenceRegion"], pformat(d)
+
+	return gnomad_catalog
 
 
 def output(file, line):
@@ -252,7 +268,7 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 		locus_id = d["LocusId"]
 		canonical_motif = compute_canonical_motif(d["RepeatUnit"])
 		if canonical_motif != other_catalog_lookup[locus_id]["CanonicalMotif"] and len(canonical_motif) != 5:
-			output(output_file, f"Canonical motifs differ between gnomAD and {other_catalog_name} for {locus_id:<6s}: {canonical_motif} vs {other_catalog_lookup[locus_id]['CanonicalMotif']}")
+			output(output_file, f"Canonical motifs for {locus_id:<6s} differ between gnomAD ({canonical_motif}) and {other_catalog_name} ({other_catalog_lookup[locus_id]['CanonicalMotif']})")
 
 	output(output_file, "------")
 
@@ -266,6 +282,7 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 		gnomad_chrom, gnomad_start, gnomad_end = parse_interval(gnomad_reference_region)
 		gnomad_repeats = (gnomad_end - gnomad_start)/motif_size
 		gnomad_motif = d["RepeatUnit"]
+		gnomad_canonical_motif = compute_canonical_motif(gnomad_motif)
 		gnomad_pathogenic_min = ", ".join(map(str, [disease_info.get("PathogenicMin") for disease_info in d.get("Diseases", [])]))
 		gnomad_ref = fasta_file.fetch(gnomad_chrom, gnomad_start, gnomad_end)
 
@@ -277,11 +294,13 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 			stripy_chrom, stripy_start, stripy_end = parse_interval(stripy_info["ReferenceRegion_hg38"])
 			stripy_repeats = (stripy_end - stripy_start)/motif_size
 			stripy_motif = stripy_info["Motif"]
+			stripy_canonical_motif = compute_canonical_motif(stripy_motif)
 			stripy_pathogenic_min = ", ".join(map(str, [disease_info.get("PathogenicMin") for disease_info in stripy_info.get("Diseases", [])]))
 			stripy_ref = fasta_file.fetch(stripy_chrom, stripy_start, stripy_end)
 
 			gnomad_vs_stripy_distance = max(abs(gnomad_start - stripy_start), abs(gnomad_end - stripy_end))
 			gnomad_differs_from_stripy = gnomad_reference_region != stripy_reference_region and (gnomad_vs_stripy_distance >= motif_size or gnomad_repeats != stripy_repeats)
+			gnomad_differs_from_stripy = gnomad_differs_from_stripy or (len(gnomad_motif) != 5 and gnomad_canonical_motif != stripy_canonical_motif)
 
 		strchive_reference_region = None
 		gnomad_differs_from_strchive = False
@@ -292,15 +311,18 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 			strchive_repeats = (strchive_end - strchive_start)/motif_size
 			strchive_pathogenic_min = strchive_info.get("pathogenic_min")
 			strchive_motif = strchive_info["reference_motif_reference_orientation"]
+			strchive_canonical_motif = compute_canonical_motif(strchive_motif)
 			strchive_ref = fasta_file.fetch(strchive_chrom, strchive_start, strchive_end)
 
 			gnomad_vs_strchive_distance = max(abs(gnomad_start - strchive_start), abs(gnomad_end - strchive_end))
 			gnomad_differs_from_strchive = gnomad_reference_region != strchive_reference_region and (gnomad_vs_strchive_distance >= motif_size or gnomad_repeats != strchive_repeats)
+			gnomad_differs_from_strchive = gnomad_differs_from_strchive or (len(gnomad_motif) != 5 and gnomad_canonical_motif != strchive_canonical_motif)
 
 		if (gnomad_differs_from_stripy and compare_with == OTHER_CATALOG_NAME_STRIPY) or (gnomad_differs_from_strchive and compare_with == OTHER_CATALOG_NAME_STRCHIVE):
 			counter += 1
 			output(output_file, "------")
-			output(output_file, f"{locus_id} hg38 ReferenceRegion isn't the same between gnomAD and {other_catalog_name}")
+			whats_different = "ReferenceRegion" if (gnomad_reference_region != stripy_reference_region and compare_with == OTHER_CATALOG_NAME_STRIPY) or (gnomad_reference_region != strchive_reference_region and compare_with == OTHER_CATALOG_NAME_STRCHIVE) else "motif"
+			output(output_file, f"{locus_id} hg38 {whats_different} isn't the same between gnomAD and {other_catalog_name}")
 
 			if locus_id in official_EH_catalog_loci and not isinstance(official_EH_catalog_loci[locus_id]['ReferenceRegion'], list):
 				official_EH_reference_region = official_EH_catalog_loci[locus_id]['ReferenceRegion']
@@ -339,7 +361,7 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 					})
 
 
-	output(output_file, f"\n{counter:,d} out of {len(gnomad_records):,d} loci have different hg38 ReferenceRegions in gnomAD and {OTHER_CATALOG_NAME_STRCHIVE}")
+	output(output_file, f"\n{counter:,d} out of {len(gnomad_records):,d} loci have a different hg38 ReferenceRegion or motif in gnomAD and {other_catalog_name}")
 
 	output_file.close()
 
