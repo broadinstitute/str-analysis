@@ -1311,7 +1311,7 @@
                 "PathogenicMin": 100
             }
         ],
-        "MainReferenceRegion": "chr8:118366815-118366880"
+        "MainReferenceRegion": "chr8:118366812-118366918"
     }, {
         "LocusId": "SOX3",
         "LocusStructure": "(NGC)*",
