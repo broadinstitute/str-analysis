@@ -2549,10 +2549,10 @@
         "MainReferenceRegion": "chr13:100637702-100637747"
     }, {
         "LocusId": "ZIC3",
-        "LocusStructure": "(GCN)*",
+        "LocusStructure": "(GCC)*",
         "VariantType": "RareRepeat",
         "ReferenceRegion": "chrX:136648985-136649015",
-        "RepeatUnit": "GCN",
+        "RepeatUnit": "GCC",
         "Gene": "ZIC3",
         "GeneRegion": "coding: polyalanine",
         "GeneId": "ENSG00000156925",
