@@ -1,12 +1,12 @@
 ------
-CSNK1E is in gnomAD but not in STRipy
-NOTCH2NLA is in gnomAD but not in STRipy
-C11ORF80 is in gnomAD but not in STRipy
-TMEM185A is in gnomAD but not in STRipy
 ZNF713 is in gnomAD but not in STRipy
-AFF3 is in gnomAD but not in STRipy
-BCLAF3 is in gnomAD but not in STRipy
+NOTCH2NLA is in gnomAD but not in STRipy
+CSNK1E is in gnomAD but not in STRipy
+TMEM185A is in gnomAD but not in STRipy
+C11ORF80 is in gnomAD but not in STRipy
 FRA10AC1 is in gnomAD but not in STRipy
+BCLAF3 is in gnomAD but not in STRipy
+AFF3 is in gnomAD but not in STRipy
 ------
 Canonical motifs differ between gnomAD and STRipy for HOXD13: CCG vs CNG
 Canonical motifs differ between gnomAD and STRipy for ZIC3  : CNG vs CCG

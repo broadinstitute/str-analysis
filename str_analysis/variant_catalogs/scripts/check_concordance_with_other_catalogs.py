@@ -169,9 +169,24 @@ def get_strchive_dict():
 		"https://raw.githubusercontent.com/hdashnow/STRchive/main/data/STR-disease-loci.processed.json"
 	)
 
+	strchive_id_to_gnomad_map = {
+		#"OPDM_ABCD3": "ABCD3",
+		"FRA2A_AFF3": "AFF3",
+		"JBS_CBL": "CBL",
+		"SCA27B_FGF14": "FGF14",
+		#"CPEO_POLG": "POLG",
+		"OPDM4_RILPL1": "RILPL1",
+		"SCA_THAP11": "THAP11",
+		"SCA4_ZFHX3": "ZFHX3",
+		"FRA7A_ZNF713": "ZNF713",
+	}
+
 	for d in strchive_data:
 		if not d["gnomAD_gene"] or not d["gnomAD_gene"].strip():
-			print(f"WARNING: STRchive gnomAD_gene field not set for {d['id']}: {d['chrom']}:{d['start_hg38']}-{d['stop_hg38']}")
+			if d["id"] in strchive_id_to_gnomad_map:
+				d["gnomAD_gene"] = strchive_id_to_gnomad_map[d["id"]]
+			else:
+				print(f"WARNING: STRchive gnomAD_gene field not set for {d['id']}: {d['chrom']}:{d['start_hg38']}-{d['stop_hg38']}")
 
 	strchive_lookup = {
 		r["gnomAD_gene"]: r for r in strchive_data
