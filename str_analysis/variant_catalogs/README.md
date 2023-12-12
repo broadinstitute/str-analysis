@@ -1,5 +1,5 @@
 This folder contains variant catalog files that can be passed to [ExpansionHunter](https://github.com/Illumina/ExpansionHunter) to 
-genotype 59 disease-associated loci. There are four variant catalogs - for GRCh38 with and without including off-target regions, and same thing for GRCh37.
+genotype disease-associated loci. There are four variant catalogs - for GRCh38 with and without including off-target regions, and same thing for GRCh37.
 
 [ExpansionHunter docs](https://github.com/Illumina/ExpansionHunter/blob/master/docs/04_VariantCatalogFiles.md) describe the `LocusId`, `LocusStructure`, `ReferenceRegion`, `VariantType`, `VariantId` and `OfftargetRegions` fields in more detail. 
 These fields modify ExpansionHunter behavior for each locus. 
@@ -31,6 +31,7 @@ ExpansionHunter ignores fields not listed above, so we added extra reference inf
   * `Note` - any additional notes about this disease association
 * `RepeatUnit` - the main repeat motif 
 * `PathogenicMotif` - for loci such as RFC1 or DAB1 at which the reference genome motif is not the same as the pathogenic motif, this field reports the subset of  motif(s) that are known to be pathogenic when expanded
+* `MainReferenceRegion` - some loci have adjacent repeat regions specified to improve genotyping accuracy. For example, the FXN locus definition includes an adjacent poly-A repeat. The MainReferenceRegion field provides the reference coordinates of the main disease-associated region. 
 
 These variant catalogs were used to generate the [gnomAD STR callset](https://gnomad.broadinstitute.org/short-tandem-repeats?dataset=gnomad_r3)
 described in more detail in this [blog post](https://gnomad.broadinstitute.org/news/2022-01-the-addition-of-short-tandem-repeat-calls-to-gnomad/).
