@@ -242,6 +242,37 @@ def output(file, line):
 	print(line)
 	file.write(line + "\n")
 
+def compare_threshold(output_file, gnomad_records, other_catalog_lookup, other_catalog_name,
+					  threshold_field="PathogenicMin", aggregator_func=min):
+
+	for d in gnomad_records:
+		locus_id = d["LocusId"]
+		gnomad_threshold = list(filter(None, [
+			disease_info.get(threshold_field, None) for disease_info in d.get("Diseases", [])
+		]))
+		try:
+			gnomad_threshold = aggregator_func(map(int, gnomad_threshold))
+		except:
+			pass
+
+		other_catalog_threshold = list(filter(None, [
+			disease_info.get(threshold_field, None) for disease_info in other_catalog_lookup[locus_id].get("Diseases", [])
+		]))
+		try:
+			other_catalog_threshold = aggregator_func(map(int, other_catalog_threshold))
+		except:
+			pass
+
+		if not gnomad_threshold and not other_catalog_threshold:
+			continue
+		elif not gnomad_threshold:
+			output(output_file, f"{threshold_field} for {locus_id:<6s} is set to {other_catalog_threshold} in {other_catalog_name} but not in gnomAD")
+		elif not other_catalog_threshold:
+			output(output_file, f"{threshold_field} for {locus_id:<6s} is set to {gnomad_threshold} in gnomAD but not in {other_catalog_name}")
+		elif gnomad_threshold != other_catalog_threshold:
+			output(output_file, f"{threshold_field} for {locus_id:<6s} differs between gnomAD ({gnomad_threshold}) and {other_catalog_name} ({other_catalog_threshold})")
+
+
 
 def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_lookup, strchive_lookup, compare_with=OTHER_CATALOG_NAME_STRIPY):
 	"""Compare the gnomAD catalog with the other catalog"""
@@ -300,35 +331,10 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 
 	output(output_file, "------")
 
-	# compare pathogenic min
-	for d in gnomad_records:
-		locus_id = d["LocusId"]
-		gnomad_pathogenic_min = list(filter(None, [
-			disease_info.get("PathogenicMin", None) for disease_info in d.get("Diseases", [])
-		]))
-		try:
-			gnomad_pathogenic_min = min(map(int, gnomad_pathogenic_min))
-		except:
-			pass
-
-		other_catalog_pathogenic_min = list(filter(None, [
-			disease_info.get("PathogenicMin", None) for disease_info in other_catalog_lookup[locus_id].get("Diseases", [])
-		]))
-		try:
-			other_catalog_pathogenic_min = min(map(int, other_catalog_pathogenic_min))
-		except:
-			pass
-
-		if not gnomad_pathogenic_min and not other_catalog_pathogenic_min:
-			continue
-		elif not gnomad_pathogenic_min:
-			output(output_file, f"Pathogenic min for {locus_id:<6s} is set to {other_catalog_pathogenic_min} in {other_catalog_name} but not in gnomAD")
-		elif not other_catalog_pathogenic_min:
-			output(output_file, f"Pathogenic min for {locus_id:<6s} is set to {gnomad_pathogenic_min} in gnomAD but not in {other_catalog_name}")
-		elif gnomad_pathogenic_min != other_catalog_pathogenic_min:
-			output(output_file, f"Pathogenic min for {locus_id:<6s} differs between gnomAD ({gnomad_pathogenic_min}) and {other_catalog_name} ({other_catalog_pathogenic_min})")
-
+	# compare thresholds between catalogs (normal max, pathogenic min)
+	compare_threshold(output_file, gnomad_records, other_catalog_lookup, other_catalog_name, threshold_field="PathogenicMin", aggregator_func=min)
 	output(output_file, "------")
+	compare_threshold(output_file, gnomad_records, other_catalog_lookup, other_catalog_name, threshold_field="NormalMax", aggregator_func=max)
 
 	# compare other fields across loci that are in both catalogs
 	counter = 0

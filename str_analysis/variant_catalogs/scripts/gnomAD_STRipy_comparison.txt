@@ -14,17 +14,27 @@ Inheritance mode for CBL    differ between gnomAD () and STRipy (Not inherited)
 Inheritance mode for DMD    differ between gnomAD () and STRipy (XR)
 Inheritance mode for PABPN1 differ between gnomAD (AD) and STRipy (Autosomal dominant or Autosomal recessive)
 ------
-Pathogenic min for ATXN7  differs between gnomAD (37) and STRipy (36)
-Pathogenic min for C9ORF72 differs between gnomAD (31) and STRipy (24)
-Pathogenic min for CBL    is set to 101 in STRipy but not in gnomAD
-Pathogenic min for DIP2B  differs between gnomAD (350) and STRipy (273)
-Pathogenic min for DMD    is set to 59 in STRipy but not in gnomAD
-Pathogenic min for EIF4A3 differs between gnomAD (14) and STRipy (15)
-Pathogenic min for NOP56  differs between gnomAD (650) and STRipy (25)
-Pathogenic min for PRNP   differs between gnomAD (9) and STRipy (10)
-Pathogenic min for RUNX2  differs between gnomAD (27) and STRipy (20)
-Pathogenic min for THAP11 differs between gnomAD (45) and STRipy (47)
+PathogenicMin for ATXN7  differs between gnomAD (37) and STRipy (36)
+PathogenicMin for C9ORF72 differs between gnomAD (31) and STRipy (24)
+PathogenicMin for CBL    is set to 101 in STRipy but not in gnomAD
+PathogenicMin for DIP2B  differs between gnomAD (350) and STRipy (273)
+PathogenicMin for DMD    is set to 59 in STRipy but not in gnomAD
+PathogenicMin for EIF4A3 differs between gnomAD (14) and STRipy (15)
+PathogenicMin for NOP56  differs between gnomAD (650) and STRipy (25)
+PathogenicMin for PRNP   differs between gnomAD (9) and STRipy (10)
+PathogenicMin for RUNX2  differs between gnomAD (27) and STRipy (20)
+PathogenicMin for THAP11 differs between gnomAD (45) and STRipy (47)
 ------
+NormalMax for ATXN7  differs between gnomAD (33) and STRipy (35)
+NormalMax for C9ORF72 differs between gnomAD (23) and STRipy (19)
+NormalMax for CBL    is set to 80 in STRipy but not in gnomAD
+NormalMax for CNBP   differs between gnomAD (54) and STRipy (29)
+NormalMax for COMP   is set to 5 in STRipy but not in gnomAD
+NormalMax for CSTB   is set to 3 in STRipy but not in gnomAD
+NormalMax for DMD    is set to 33 in STRipy but not in gnomAD
+NormalMax for EIF4A3 differs between gnomAD (11) and STRipy (12)
+NormalMax for FGF14  differs between gnomAD (250) and STRipy (249)
+NormalMax for PRNP   differs between gnomAD (4) and STRipy (5)
 ------
 AFF2 hg38 ReferenceRegion isn't the same between gnomAD and STRipy
     chrX:148500631-148500691  (20.0 x GCC     60bp) official catalog from EH repo

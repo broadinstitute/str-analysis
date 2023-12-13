@@ -18,42 +18,75 @@ Inheritance mode for DMD    differ between gnomAD () and STRchive (XR)
 Inheritance mode for PABPN1 differ between gnomAD (AD) and STRchive (AD,AR)
 Inheritance mode for ZNF713 differ between gnomAD () and STRchive (AD)
 ------
-Pathogenic min for AFF3   is set to 300 in STRchive but not in gnomAD
-Pathogenic min for AR     differs between gnomAD (40) and STRchive (38)
-Pathogenic min for ARX_1  differs between gnomAD (18) and STRchive (17)
-Pathogenic min for ATN1   differs between gnomAD (49) and STRchive (48)
-Pathogenic min for ATXN2  differs between gnomAD (35) and STRchive (33)
-Pathogenic min for ATXN3  differs between gnomAD (56) and STRchive (60)
-Pathogenic min for ATXN7  differs between gnomAD (37) and STRchive (34)
-Pathogenic min for ATXN8OS differs between gnomAD (80) and STRchive (71)
-Pathogenic min for BEAN1  differs between gnomAD (500) and STRchive (110)
-Pathogenic min for C9ORF72 differs between gnomAD (31) and STRchive (250)
-Pathogenic min for CACNA1A differs between gnomAD (21) and STRchive (20)
-Pathogenic min for CBL    is set to 100 in STRchive but not in gnomAD
-Pathogenic min for CNBP   differs between gnomAD (55) and STRchive (75)
-Pathogenic min for DIP2B  differs between gnomAD (350) and STRchive (273)
-Pathogenic min for DMD    is set to 59 in STRchive but not in gnomAD
-Pathogenic min for FGF14  differs between gnomAD (335) and STRchive (300)
-Pathogenic min for FMR1   differs between gnomAD (55) and STRchive (200)
-Pathogenic min for FOXL2  differs between gnomAD (19) and STRchive (15)
-Pathogenic min for FXN    differs between gnomAD (70) and STRchive (66)
-Pathogenic min for GIPC1  differs between gnomAD (73) and STRchive (70)
-Pathogenic min for GLS    differs between gnomAD (680) and STRchive (90)
-Pathogenic min for HTT    differs between gnomAD (36) and STRchive (40)
-Pathogenic min for JPH3   differs between gnomAD (41) and STRchive (40)
-Pathogenic min for LRP12  differs between gnomAD (93) and STRchive (90)
-Pathogenic min for MARCHF6 differs between gnomAD (668) and STRchive (791)
-Pathogenic min for NOTCH2NLC differs between gnomAD (60) and STRchive (66)
-Pathogenic min for PABPN1 differs between gnomAD (7) and STRchive (12)
-Pathogenic min for PHOX2B differs between gnomAD (24) and STRchive (25)
-Pathogenic min for PRNP   differs between gnomAD (9) and STRchive (5)
-Pathogenic min for RILPL1 differs between gnomAD (135) and STRchive (139)
-Pathogenic min for SAMD12 differs between gnomAD (100) and STRchive (105)
-Pathogenic min for TBP    differs between gnomAD (43) and STRchive (49)
-Pathogenic min for XYLT1  differs between gnomAD (110) and STRchive (72)
-Pathogenic min for ZFHX3  differs between gnomAD (41) and STRchive (46)
-Pathogenic min for ZNF713 is set to 450 in STRchive but not in gnomAD
+PathogenicMin for AFF3   is set to 300 in STRchive but not in gnomAD
+PathogenicMin for AR     differs between gnomAD (40) and STRchive (38)
+PathogenicMin for ARX_1  differs between gnomAD (18) and STRchive (17)
+PathogenicMin for ATN1   differs between gnomAD (49) and STRchive (48)
+PathogenicMin for ATXN2  differs between gnomAD (35) and STRchive (33)
+PathogenicMin for ATXN3  differs between gnomAD (56) and STRchive (60)
+PathogenicMin for ATXN7  differs between gnomAD (37) and STRchive (34)
+PathogenicMin for ATXN8OS differs between gnomAD (80) and STRchive (71)
+PathogenicMin for BEAN1  differs between gnomAD (500) and STRchive (110)
+PathogenicMin for C9ORF72 differs between gnomAD (31) and STRchive (250)
+PathogenicMin for CACNA1A differs between gnomAD (21) and STRchive (20)
+PathogenicMin for CBL    is set to 100 in STRchive but not in gnomAD
+PathogenicMin for CNBP   differs between gnomAD (55) and STRchive (75)
+PathogenicMin for DIP2B  differs between gnomAD (350) and STRchive (273)
+PathogenicMin for DMD    is set to 59 in STRchive but not in gnomAD
+PathogenicMin for FGF14  differs between gnomAD (335) and STRchive (300)
+PathogenicMin for FMR1   differs between gnomAD (55) and STRchive (200)
+PathogenicMin for FOXL2  differs between gnomAD (19) and STRchive (15)
+PathogenicMin for FXN    differs between gnomAD (70) and STRchive (66)
+PathogenicMin for GIPC1  differs between gnomAD (73) and STRchive (70)
+PathogenicMin for GLS    differs between gnomAD (680) and STRchive (90)
+PathogenicMin for HTT    differs between gnomAD (36) and STRchive (40)
+PathogenicMin for JPH3   differs between gnomAD (41) and STRchive (40)
+PathogenicMin for LRP12  differs between gnomAD (93) and STRchive (90)
+PathogenicMin for MARCHF6 differs between gnomAD (668) and STRchive (791)
+PathogenicMin for NOTCH2NLC differs between gnomAD (60) and STRchive (66)
+PathogenicMin for PABPN1 differs between gnomAD (7) and STRchive (12)
+PathogenicMin for PHOX2B differs between gnomAD (24) and STRchive (25)
+PathogenicMin for PRNP   differs between gnomAD (9) and STRchive (5)
+PathogenicMin for RILPL1 differs between gnomAD (135) and STRchive (139)
+PathogenicMin for SAMD12 differs between gnomAD (100) and STRchive (105)
+PathogenicMin for TBP    differs between gnomAD (43) and STRchive (49)
+PathogenicMin for XYLT1  differs between gnomAD (110) and STRchive (72)
+PathogenicMin for ZFHX3  differs between gnomAD (41) and STRchive (46)
+PathogenicMin for ZNF713 is set to 450 in STRchive but not in gnomAD
 ------
+NormalMax for ABCD3  is set to 44 in STRchive but not in gnomAD
+NormalMax for AFF2   differs between gnomAD (25) and STRchive (39)
+NormalMax for AFF3   is set to 20 in STRchive but not in gnomAD
+NormalMax for AR     differs between gnomAD (35) and STRchive (34)
+NormalMax for ATN1   differs between gnomAD (23) and STRchive (35)
+NormalMax for ATXN1  differs between gnomAD (32) and STRchive (35)
+NormalMax for ATXN10 differs between gnomAD (29) and STRchive (32)
+NormalMax for ATXN7  differs between gnomAD (33) and STRchive (19)
+NormalMax for ATXN8OS differs between gnomAD (37) and STRchive (50)
+NormalMax for BEAN1  is set to 10 in STRchive but not in gnomAD
+NormalMax for C9ORF72 differs between gnomAD (23) and STRchive (20)
+NormalMax for CBL    is set to 79 in STRchive but not in gnomAD
+NormalMax for CNBP   differs between gnomAD (54) and STRchive (26)
+NormalMax for COMP   is set to 5 in STRchive but not in gnomAD
+NormalMax for CSTB   is set to 3 in STRchive but not in gnomAD
+NormalMax for DAB1   is set to 16 in STRchive but not in gnomAD
+NormalMax for DMD    is set to 33 in STRchive but not in gnomAD
+NormalMax for EIF4A3 differs between gnomAD (11) and STRchive (9)
+NormalMax for FGF14  differs between gnomAD (250) and STRchive (249)
+NormalMax for FMR1   differs between gnomAD (40) and STRchive (44)
+NormalMax for FXN    differs between gnomAD (30) and STRchive (33)
+NormalMax for GIPC1  differs between gnomAD (32) and STRchive (29)
+NormalMax for JPH3   differs between gnomAD (27) and STRchive (28)
+NormalMax for NOTCH2NLC differs between gnomAD (41) and STRchive (39)
+NormalMax for PABPN1 differs between gnomAD (6) and STRchive (10)
+NormalMax for PPP2R2B differs between gnomAD (31) and STRchive (32)
+NormalMax for RAPGEF2 is set to 1 in STRchive but not in gnomAD
+NormalMax for RFC1   is set to 11 in STRchive but not in gnomAD
+NormalMax for RILPL1 differs between gnomAD (20) and STRchive (16)
+NormalMax for TBP    differs between gnomAD (42) and STRchive (40)
+NormalMax for TCF4   differs between gnomAD (31) and STRchive (40)
+NormalMax for ZFHX3  differs between gnomAD (21) and STRchive (26)
+NormalMax for ZNF713 is set to 22 in STRchive but not in gnomAD
 ------
 ABCD3 hg38 ReferenceRegion isn't the same between gnomAD and STRchive
     chr1:94418421-94418442  ( 7.0 x GCC     21bp) gnomAD    118 = pathogenic.min.  hg38 seq:            GCCGCCGCCGCCGCCGCCGCC
