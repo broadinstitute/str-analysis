@@ -18,6 +18,74 @@ Inheritance mode for DMD    differ between gnomAD () and STRchive (XR)
 Inheritance mode for PABPN1 differ between gnomAD (AD) and STRchive (AD,AR)
 Inheritance mode for ZNF713 differ between gnomAD () and STRchive (AD)
 ------
+Age of Onset:
+             LocusId                              STRipy       STRchive                                                                                            
+               ABCD3                               Adult       average age of onset was 26.7 years (range: 10-50 years)                                            
+                AFF2                          Paediatric       2-10                                                                                                
+                  AR                               Adult       20-49                                                                                               
+               ARX_1                          Paediatric       0                                                                                                   
+               ARX_2                          Paediatric       1-3                                                                                                 
+                ATN1                    Paediatric/Adult       1-72                                                                                                
+               ATXN1                               Adult       20-40 typical                                                                                       
+              ATXN10                               Adult       12-48                                                                                               
+               ATXN2                    Paediatric/Adult       30-40 typical                                                                                       
+               ATXN3                    Paediatric/Adult       10-50 typical                                                                                       
+               ATXN7                               Adult       0-50                                                                                                
+             ATXN8OS                               Adult       20-50 typical                                                                                       
+               BEAN1                               Adult       20-72                                                                                               
+             C9ORF72                               Adult       27-85                                                                                               
+             CACNA1A                               Adult       19-73                                                                                               
+                 CBL                          Paediatric                                                                                                           
+                CNBP                               Adult       ~30-40                                                                                              
+                COMP                          Paediatric       13                                                                                                  
+                CSTB                          Paediatric       6-15                                                                                                
+                DAB1                               Adult       18-64                                                                                               
+               DIP2B                          Paediatric                                                                                                           
+                 DMD                    Paediatric/Adult       dependent on repeat number (birth to adulthood)                                                     
+                DMPK                    Paediatric/Adult       0-30, mild up to 70                                                                                 
+              EIF4A3                          Paediatric       0                                                                                                   
+               FGF14                               Adult       mean 55±13 for episodic symptoms, 59±11 for progressive ataxia                                      
+                FMR1                   Paediatric, Adult       FXS 2, FXTAS 60-65                                                                                  
+               FOXL2                          Paediatric       0, can have infertility in childbearing age                                                         
+                 FXN                          Paediatric       5-25                                                                                                
+               GIPC1                               Adult       10-29                                                                                               
+                 GLS                          Paediatric       Early childhood                                                                                     
+            HOXA13_1                          Paediatric       0                                                                                                   
+            HOXA13_2                          Paediatric       0                                                                                                   
+            HOXA13_3                          Paediatric       0                                                                                                   
+              HOXD13                          Paediatric       0                                                                                                   
+                 HTT                               Adult       35-44                                                                                               
+                JPH3                               Adult       12-66                                                                                               
+          NUTM2B-AS1                               Adult                                                                                                           
+               LRP12                               Adult       Adult onset, variable (mean 22.1 in one study)                                                      
+             MARCHF6                               Adult       10-40                                                                                               
+               NIPA1                               Adult       Variable, 19-46 familial                                                                            
+               NOP56                               Adult       ~52 (mean)                                                                                          
+           NOTCH2NLC                               Adult       16-76                                                                                               
+              PABPN1                               Adult       26-65                                                                                               
+              PHOX2B                          Paediatric       0-20                                                                                                
+             PPP2R2B                    Paediatric/Adult       8-55                                                                                                
+              PRDM12                          Paediatric       0                                                                                                   
+                PRNP                               Adult       middle age                                                                                          
+             RAPGEF2                               Adult       ~18, 23-37                                                                                          
+                RFC1                               Adult       33-71                                                                                               
+              RILPL1                               Adult                                                                                                           
+               RUNX2                          Paediatric       0                                                                                                   
+              SAMD12                               Adult       18-50                                                                                               
+                SOX3                          Paediatric       Infancy - childhood                                                                                 
+              STARD7                               Adult       mean 25                                                                                             
+                 TBP                    Paediatric/Adult       Most >30                                                                                            
+                TBX1                          Paediatric       0                                                                                                   
+                TCF4                               Adult       ~40                                                                                                 
+              THAP11                               Adult       Median age of onset was 34 (range, 4–51)                                                            
+              TNRC6A                               Adult       20s-70s                                                                                             
+                VWA1                          Paediatric       <10                                                                                                 
+               XYLT1                          Paediatric       0                                                                                                   
+              YEATS2                               Adult       19.5 years (range 10-33) for tremor and 25 years (range 19-33) for seizures                         
+               ZFHX3                               Adult       Average 56.4 years. Range 20-60 years                                                               
+                ZIC2                          Paediatric       0                                                                                                   
+                ZIC3                          Paediatric       0                                                                                                   
+------
 PathogenicMin for AFF3   is set to 300 in STRchive but not in gnomAD
 PathogenicMin for AR     differs between gnomAD (40) and STRchive (38)
 PathogenicMin for ARX_1  differs between gnomAD (18) and STRchive (17)

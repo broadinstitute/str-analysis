@@ -331,6 +331,22 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 
 	output(output_file, "------")
 
+	# compare STRipy, STRchive age of onset
+	output(output_file, "Age of Onset:")
+	output(output_file, "%20s %35s       %-100s" % ("LocusId", "STRipy", "STRchive"))
+
+	for d in gnomad_records:
+		locus_id = d["LocusId"]
+		if locus_id not in stripy_lookup or locus_id not in strchive_lookup:
+			continue
+		stripy_info = stripy_lookup[locus_id]
+		strchive_info = strchive_lookup[locus_id]
+		stripy_age_of_onset = ", ".join(set([disease_info.get("Onset", "") for disease_info in stripy_info.get("Diseases", [])]))
+		strchive_age_of_onset = ", ".join(set([disease_info.get("Onset", "") for disease_info in strchive_info.get("Diseases", [])]))
+		output(output_file, "%20s %35s       %-100s" % (locus_id, stripy_age_of_onset, strchive_age_of_onset))
+
+	output(output_file, "------")
+
 	# compare thresholds between catalogs (normal max, pathogenic min)
 	compare_threshold(output_file, gnomad_records, other_catalog_lookup, other_catalog_name, threshold_field="PathogenicMin", aggregator_func=min)
 	output(output_file, "------")
