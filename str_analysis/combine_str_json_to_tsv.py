@@ -446,6 +446,9 @@ def convert_expansion_hunter_json_to_tsv_columns(
             variant_record["RepeatUnit"] = variant_json["RepeatUnit"]
             variant_record["RepeatUnitLength"] = len(variant_json["RepeatUnit"])
             variant_record["ReferenceRegion"] = variant_json["ReferenceRegion"]
+            if "Filter" in variant_json:
+                # A "Filter" field can be optionally added to ExpansionHunter output by experimental 3rd-party tools
+                variant_record["Filter"] = variant_json["Filter"]
 
             if include_extra_expansion_hunter_fields:
                 variant_record["CountsOfSpanningReads"] = variant_json["CountsOfSpanningReads"]
