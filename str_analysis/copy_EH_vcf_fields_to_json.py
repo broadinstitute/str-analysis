@@ -70,7 +70,6 @@ def main():
 			for key in "SO", "ADSP", "ADFL", "ADIR", "LC":
 				variant_results[key] = genotype_dict[key]
 
-
 	if len(vcf_row_lookup) > 0:
 		raise ValueError(f"VCF variant id(s) not found in the ExpansionHunter json: {', '.join(sorted(vcf_row_lookup.keys()))}")
 

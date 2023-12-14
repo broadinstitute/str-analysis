@@ -507,9 +507,14 @@ def convert_expansion_hunter_json_to_tsv_columns(
             genotype_tuples = list(zip(
                 variant_json["Genotype"].split("/"),
                 variant_json["GenotypeConfidenceInterval"].split("/"),
+                variant_json.get("SO", "/").split("/"),    # this field is added by copy_EH_vcf_fields_to_json.py
+                variant_json.get("ADSP", "/").split("/"),  # this field is added by copy_EH_vcf_fields_to_json.py
+                variant_json.get("ADFL", "/").split("/"),  # this field is added by copy_EH_vcf_fields_to_json.py
+                variant_json.get("ADIR", "/").split("/"),  # this field is added by copy_EH_vcf_fields_to_json.py
             ))
 
-            for i, (genotype, genotypeCI) in enumerate(genotype_tuples):
+            for i, (genotype, genotypeCI, vcf_SO_field, vcf_ADSP_field, vcf_ADFL_field, vcf_ADIR_field) in enumerate(
+                    genotype_tuples):
                 if yield_allele_records:
                     suffix = ""
                     output_record = collections.OrderedDict(variant_record)
@@ -521,6 +526,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
                     confidence_interval_start, confidence_interval_end = genotypeCI.split("-")
                 except ValueError as e:
                     raise ValueError(f"Unexpected confidence interval format: {genotypeCI} in: {pformat(variant_json)}")
+
                 output_record[f"Allele Number{suffix}"] = i + 1
                 output_record[f"Num Repeats{suffix}"] = int(genotype)
                 output_record[f"Repeat Size (bp){suffix}"] = int(genotype) * len(variant_json.get("RepeatUnit", ""))
@@ -528,6 +534,13 @@ def convert_expansion_hunter_json_to_tsv_columns(
                 output_record[f"CI end{suffix}"] = int(confidence_interval_end)
                 output_record[f"CI size{suffix}"] = int(confidence_interval_end) - int(confidence_interval_start)
                 output_record[f"CI ratio{suffix}"] = output_record[f"CI size{suffix}"]/(output_record[f"Num Repeats{suffix}"] or 1)
+                # ExpansionHunter Q score based on EnsemblTR https://github.com/gymrek-lab/EnsembleTR/blob/main/ensembletr/utils.py#L53-L59
+                output_record[f"Q{suffix}"] = 1/np.exp(4*output_record[f"CI ratio{suffix}"])
+                if vcf_SO_field and vcf_ADSP_field and vcf_ADFL_field and vcf_ADIR_field:
+                    output_record[f"SO{suffix}"] = vcf_SO_field
+                    output_record[f"ADSP{suffix}"] = int(vcf_ADSP_field)
+                    output_record[f"ADFL{suffix}"] = int(vcf_ADFL_field)
+                    output_record[f"ADIR{suffix}"] = int(vcf_ADIR_field)
 
                 if include_extra_expansion_hunter_fields:
                     is_homozygous = len(genotype_tuples) > 1 and genotype_tuples[0][0] == genotype_tuples[1][0]
@@ -548,9 +561,6 @@ def convert_expansion_hunter_json_to_tsv_columns(
                     output_record[f"FractionOfReadsThatSupportsGenotype{suffix}"] = (
                         output_record[f"NumReadsTotalThatSupportGenotype{suffix}"] / float(output_record["NumReadsTotal"]) if int(output_record["NumReadsTotal"]) > 0 else 0
                     )
-
-                    # ExpansionHunter Q score based on EnsemblTR https://github.com/gymrek-lab/EnsembleTR/blob/main/ensembletr/utils.py#L53-L59
-                    output_record[f"Q{suffix}"] = 1/np.exp(4*output_record[f"CI ratio{suffix}"])
 
                 if include_extra_gangstr_fields:
                     # ex. "2,10|3,7|4,14"
