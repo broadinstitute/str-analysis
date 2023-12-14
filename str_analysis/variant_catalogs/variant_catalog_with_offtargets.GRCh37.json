@@ -32,7 +32,8 @@
             "X:20008884-20009246"
         ],
         "MainReferenceRegion": "chr1:94883977-94883998"
-    }, {
+    },
+    {
         "LocusId": "AFF2",
         "LocusStructure": "(GCC)*",
         "ReferenceRegion": "chrX:147582151-147582211",
@@ -67,7 +68,8 @@
             "X:20008884-20009246"
         ],
         "MainReferenceRegion": "chrX:147582151-147582211"
-    }, {
+    },
+    {
         "LocusId": "AR",
         "LocusStructure": "(GCA)*",
         "ReferenceRegion": "chrX:66765158-66765227",
@@ -108,7 +110,8 @@
             "X:24382204-24382718"
         ],
         "MainReferenceRegion": "chrX:66765158-66765227"
-    }, {
+    },
+    {
         "LocusId": "ARX_1",
         "LocusStructure": "(NGC)*",
         "VariantType": "RareRepeat",
@@ -125,7 +128,8 @@
                 "OMIM": "308350",
                 "NormalMax": 16,
                 "PathogenicMin": 23
-            }, {
+            },
+            {
                 "Symbol": "MRXARX",
                 "Name": "X-linked mental retardation with or without seizures",
                 "Inheritance": "XR",
@@ -166,7 +170,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chrX:25031766-25031814"
-    }, {
+    },
+    {
         "LocusId": "ARX_2",
         "LocusStructure": "(NGC)*",
         "VariantType": "RareRepeat",
@@ -184,14 +189,16 @@
                 "OMIM": "308350",
                 "NormalMax": 12,
                 "PathogenicMin": 20
-            }, {
+            },
+            {
                 "Symbol": "PRTS",
                 "Name": "Partington syndrome",
                 "Inheritance": "XR",
                 "OMIM": "309510",
                 "NormalMax": 12,
                 "PathogenicMin": 20
-            }, {
+            },
+            {
                 "Symbol": "MRXARX",
                 "Name": "X-linked mental retardation with or without seizures",
                 "Inheritance": "XR",
@@ -232,7 +239,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chrX:25031646-25031682"
-    }, {
+    },
+    {
         "LocusId": "ATN1",
         "LocusStructure": "(CAG)*",
         "ReferenceRegion": "chr12:7045879-7045936",
@@ -274,7 +282,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr12:7045879-7045936"
-    }, {
+    },
+    {
         "LocusId": "ATXN1",
         "LocusStructure": "(TGC)*",
         "ReferenceRegion": "chr6:16327864-16327954",
@@ -316,7 +325,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr6:16327864-16327954"
-    }, {
+    },
+    {
         "LocusId": "ATXN10",
         "LocusStructure": "(ATTCT)*",
         "ReferenceRegion": "chr22:46191234-46191304",
@@ -343,7 +353,8 @@
             "X:9759856-9760354"
         ],
         "MainReferenceRegion": "chr22:46191234-46191304"
-    }, {
+    },
+    {
         "LocusId": "ATXN2",
         "LocusStructure": "(GCT)*",
         "ReferenceRegion": "chr12:112036753-112036822",
@@ -386,7 +397,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr12:112036753-112036822"
-    }, {
+    },
+    {
         "LocusId": "ATXN3",
         "LocusStructure": "(CTG)*",
         "ReferenceRegion": "chr14:92537354-92537384",
@@ -429,7 +441,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr14:92537354-92537384"
-    }, {
+    },
+    {
         "LocusId": "ATXN7",
         "LocusStructure": "(GCA)*(GCC)+",
         "ReferenceRegion": [
@@ -482,7 +495,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr3:63898360-63898390"
-    }, {
+    },
+    {
         "LocusId": "ATXN8OS",
         "LocusStructure": "(CTA)*(CTG)*",
         "ReferenceRegion": [
@@ -535,7 +549,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr13:70713515-70713560"
-    }, {
+    },
+    {
         "LocusId": "BEAN1",
         "LocusStructure": "(TAAAA)*",
         "VariantType": "RareRepeat",
@@ -546,7 +561,6 @@
         "GeneId": "ENSG00000166546",
         "DiscoveryMethod": "L",
         "DiscoveryYear": 2009,
-        "PathogenicMotif": "TGGAA  (+TAGAA)",
         "Diseases": [
             {
                 "Symbol": "SCA31",
@@ -572,8 +586,16 @@
             "9:113463787-113464361",
             "X:6720818-6721331"
         ],
-        "MainReferenceRegion": "chr16:66524301-66524356"
-    }, {
+        "MainReferenceRegion": "chr16:66524301-66524356",
+        "PathogenicMotifs": [
+            "TAGAA",
+            "TGGAA"
+        ],
+        "BenignMotifs": [
+            "TAAAA"
+        ]
+    },
+    {
         "LocusId": "C9ORF72",
         "LocusStructure": "(GGCCCC)*",
         "OfftargetRegions": [
@@ -609,7 +631,8 @@
             }
         ],
         "MainReferenceRegion": "chr9:27573526-27573544"
-    }, {
+    },
+    {
         "LocusId": "CACNA1A",
         "LocusStructure": "(CTG)*",
         "ReferenceRegion": "chr19:13318672-13318711",
@@ -651,7 +674,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr19:13318672-13318711"
-    }, {
+    },
+    {
         "LocusId": "CNBP",
         "LocusStructure": "(CAGG)*(CAGA)*(CA)*",
         "ReferenceRegion": [
@@ -703,7 +727,8 @@
             "GL000229.1:15064-15412"
         ],
         "MainReferenceRegion": "chr3:128891419-128891499"
-    }, {
+    },
+    {
         "LocusId": "COMP",
         "LocusStructure": "(GTC)*",
         "VariantType": "RareRepeat",
@@ -719,7 +744,8 @@
                 "Inheritance": "AD",
                 "OMIM": "132400",
                 "PathogenicMin": 6
-            }, {
+            },
+            {
                 "Symbol": "PSACH",
                 "Name": "Pseudoachondroplasia",
                 "Inheritance": "AD",
@@ -735,7 +761,8 @@
             "2:170701846-170702205"
         ],
         "MainReferenceRegion": "chr19:18896844-18896859"
-    }, {
+    },
+    {
         "LocusId": "CSTB",
         "LocusStructure": "(CGCGGGGCGGGG)*",
         "ReferenceRegion": "chr21:45196324-45196360",
@@ -760,7 +787,8 @@
             "8:1711398-1711982"
         ],
         "MainReferenceRegion": "chr21:45196324-45196360"
-    }, {
+    },
+    {
         "LocusId": "DAB1",
         "LocusStructure": "(AAAAT)*",
         "VariantType": "RareRepeat",
@@ -771,7 +799,6 @@
         "GeneId": "ENSG00000173406",
         "DiscoveryMethod": "L, ExScr",
         "DiscoveryYear": 2017,
-        "PathogenicMotif": "ATTTC",
         "Diseases": [
             {
                 "Symbol": "SCA37",
@@ -797,8 +824,15 @@
             "9:113463787-113464361",
             "X:6720818-6721331"
         ],
-        "MainReferenceRegion": "chr1:57832715-57832790"
-    }, {
+        "MainReferenceRegion": "chr1:57832715-57832790",
+        "PathogenicMotifs": [
+            "GAAAT"
+        ],
+        "BenignMotifs": [
+            "AAAAT"
+        ]
+    },
+    {
         "LocusId": "DIP2B",
         "LocusStructure": "(GGC)*",
         "ReferenceRegion": "chr12:50898784-50898805",
@@ -831,7 +865,8 @@
             "X:20008884-20009246"
         ],
         "MainReferenceRegion": "chr12:50898784-50898805"
-    }, {
+    },
+    {
         "LocusId": "DMD",
         "LocusStructure": "(TTC)*",
         "VariantType": "RareRepeat",
@@ -861,7 +896,8 @@
             "Y:8333344-8333856"
         ],
         "MainReferenceRegion": "chrX:31302674-31302722"
-    }, {
+    },
+    {
         "LocusId": "DMPK",
         "LocusStructure": "(CAG)*",
         "ReferenceRegion": "chr19:46273462-46273522",
@@ -904,7 +940,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr19:46273462-46273522"
-    }, {
+    },
+    {
         "LocusId": "EIF4A3",
         "LocusStructure": "(CCTCGCTGTGCCGCTGCCGA)*",
         "VariantType": "RareRepeat",
@@ -924,7 +961,8 @@
             }
         ],
         "MainReferenceRegion": "chr17:78120858-78120938"
-    }, {
+    },
+    {
         "LocusId": "FGF14",
         "LocusStructure": "(AAGA)*(AAG)*",
         "VariantType": [
@@ -974,7 +1012,8 @@
             "FGF14_AAGA",
             "FGF14"
         ]
-    }, {
+    },
+    {
         "LocusId": "FMR1",
         "LocusStructure": "(CGG)*",
         "OfftargetRegions": [
@@ -1006,7 +1045,8 @@
                 "NormalMax": 40,
                 "PathogenicMin": 55,
                 "IntermediateRange": "41-54"
-            }, {
+            },
+            {
                 "Symbol": "FXS",
                 "Name": "Fragile X Syndrome",
                 "Inheritance": "XD",
@@ -1017,7 +1057,8 @@
             }
         ],
         "MainReferenceRegion": "chrX:146993568-146993628"
-    }, {
+    },
+    {
         "LocusId": "FOXL2",
         "LocusStructure": "(NGC)*",
         "VariantType": "RareRepeat",
@@ -1070,7 +1111,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr3:138664862-138664904"
-    }, {
+    },
+    {
         "LocusId": "FXN",
         "LocusStructure": "(A)*(GAA)*",
         "ReferenceRegion": [
@@ -1121,7 +1163,8 @@
             "Y:8333344-8333856"
         ],
         "MainReferenceRegion": "chr9:71652202-71652220"
-    }, {
+    },
+    {
         "LocusId": "GIPC1",
         "LocusStructure": "(CCG)*",
         "ReferenceRegion": "chr19:14606853-14606886",
@@ -1156,7 +1199,8 @@
             "X:20008884-20009246"
         ],
         "MainReferenceRegion": "chr19:14606853-14606886"
-    }, {
+    },
+    {
         "LocusId": "GLS",
         "LocusStructure": "(GCA)*",
         "ReferenceRegion": "chr2:191745598-191745646",
@@ -1198,7 +1242,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr2:191745598-191745646"
-    }, {
+    },
+    {
         "LocusId": "HOXA13_1",
         "LocusStructure": "(NGC)*",
         "VariantType": "RareRepeat",
@@ -1251,7 +1296,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr7:27239543-27239585"
-    }, {
+    },
+    {
         "LocusId": "HOXA13_2",
         "LocusStructure": "(NGC)*",
         "VariantType": "RareRepeat",
@@ -1304,7 +1350,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr7:27239444-27239480"
-    }, {
+    },
+    {
         "LocusId": "HOXA13_3",
         "LocusStructure": "(NGC)*",
         "VariantType": "RareRepeat",
@@ -1357,7 +1404,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr7:27239297-27239351"
-    }, {
+    },
+    {
         "LocusId": "HOXD13",
         "LocusStructure": "(GCG)*",
         "VariantType": "RareRepeat",
@@ -1392,7 +1440,8 @@
             "X:20008884-20009246"
         ],
         "MainReferenceRegion": "chr2:176957786-176957831"
-    }, {
+    },
+    {
         "LocusId": "HTT",
         "LocusStructure": "(CAG)*CAACAG(CCG)*",
         "ReferenceRegion": [
@@ -1445,7 +1494,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr4:3076603-3076660"
-    }, {
+    },
+    {
         "LocusId": "JPH3",
         "LocusStructure": "(CTG)*",
         "ReferenceRegion": "chr16:87637893-87637935",
@@ -1487,7 +1537,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr16:87637893-87637935"
-    }, {
+    },
+    {
         "LocusId": "NUTM2B-AS1",
         "LocusStructure": "(GGC)*",
         "VariantType": "RareRepeat",
@@ -1522,7 +1573,8 @@
             "X:20008884-20009246"
         ],
         "MainReferenceRegion": "chr10:81586139-81586160"
-    }, {
+    },
+    {
         "LocusId": "LRP12",
         "LocusStructure": "(CGC)*",
         "VariantType": "RareRepeat",
@@ -1557,7 +1609,8 @@
             "X:20008884-20009246"
         ],
         "MainReferenceRegion": "chr8:105601198-105601225"
-    }, {
+    },
+    {
         "LocusId": "MARCHF6",
         "LocusStructure": "(ATTTT)*",
         "VariantType": "RareRepeat",
@@ -1568,7 +1621,6 @@
         "GeneId": "ENSG00000145495",
         "DiscoveryMethod": "L, ExScr",
         "DiscoveryYear": 2019,
-        "PathogenicMotif": "ATTTC",
         "Diseases": [
             {
                 "Symbol": "FAME3",
@@ -1594,8 +1646,15 @@
             "9:113463787-113464361",
             "X:6720818-6721331"
         ],
-        "MainReferenceRegion": "chr5:10356458-10356523"
-    }, {
+        "MainReferenceRegion": "chr5:10356458-10356523",
+        "PathogenicMotifs": [
+            "ATTTC"
+        ],
+        "BenignMotifs": [
+            "ATTTT"
+        ]
+    },
+    {
         "LocusId": "NIPA1",
         "LocusStructure": "(CGC)*",
         "ReferenceRegion": "chr15:23086366-23086390",
@@ -1628,7 +1687,8 @@
             "X:20008884-20009246"
         ],
         "MainReferenceRegion": "chr15:23086366-23086390"
-    }, {
+    },
+    {
         "LocusId": "NOP56",
         "LocusStructure": "(GGCCTG)*(CGCCTG)*",
         "ReferenceRegion": [
@@ -1663,7 +1723,8 @@
             "5:145838390-145838909"
         ],
         "MainReferenceRegion": "chr20:2633379-2633403"
-    }, {
+    },
+    {
         "LocusId": "NOTCH2NLC",
         "LocusStructure": "(GGC)*",
         "ReferenceRegion": "chr1:145209323-145209353",
@@ -1682,7 +1743,8 @@
                 "OMIM": "603472",
                 "NormalMax": 39,
                 "PathogenicMin": 90
-            }, {
+            },
+            {
                 "Symbol": "ETM6",
                 "Name": "Hereditary essential tremor type 6",
                 "Inheritance": "AD",
@@ -1705,7 +1767,8 @@
             "X:20008884-20009246"
         ],
         "MainReferenceRegion": "chr1:145209323-145209353"
-    }, {
+    },
+    {
         "LocusId": "PABPN1",
         "LocusStructure": "(GCG)*",
         "ReferenceRegion": "chr14:23790681-23790699",
@@ -1740,7 +1803,8 @@
             "X:20008884-20009246"
         ],
         "MainReferenceRegion": "chr14:23790681-23790699"
-    }, {
+    },
+    {
         "LocusId": "PHOX2B",
         "LocusStructure": "(GCN)*",
         "ReferenceRegion": "chr4:41747989-41748049",
@@ -1793,7 +1857,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr4:41747989-41748049"
-    }, {
+    },
+    {
         "LocusId": "PPP2R2B",
         "LocusStructure": "(GCT)*",
         "ReferenceRegion": "chr5:146258290-146258320",
@@ -1835,7 +1900,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr5:146258290-146258320"
-    }, {
+    },
+    {
         "LocusId": "PRDM12",
         "LocusStructure": "(GCC)*",
         "VariantType": "RareRepeat",
@@ -1868,12 +1934,13 @@
             "X:20008884-20009246"
         ],
         "MainReferenceRegion": "chr9:133556993-133557026"
-    }, {
+    },
+    {
         "LocusId": "PRNP",
         "LocusStructure": "(CCTCAGGGCGGTGGTGGCTGGGGGCAG)*(CCTCATGGTGGTGGCTGGGGGCAG)*",
         "VariantType": [
             "Repeat",
-            "Repeat"
+            "RareRepeat"
         ],
         "ReferenceRegion": [
             "chr20:4680016-4680043",
@@ -1898,7 +1965,8 @@
             }
         ],
         "MainReferenceRegion": "chr20:4680043-4680139"
-    }, {
+    },
+    {
         "LocusId": "RAPGEF2",
         "LocusStructure": "(TTTTA)*",
         "VariantType": "RareRepeat",
@@ -1909,7 +1977,6 @@
         "GeneId": "ENSG00000109756",
         "DiscoveryMethod": "TRhist",
         "DiscoveryYear": 2018,
-        "PathogenicMotif": "ATTTC",
         "Diseases": [
             {
                 "Symbol": "FAME7",
@@ -1934,8 +2001,15 @@
             "9:113463787-113464361",
             "X:6720818-6721331"
         ],
-        "MainReferenceRegion": "chr4:160263678-160263768"
-    }, {
+        "MainReferenceRegion": "chr4:160263678-160263768",
+        "PathogenicMotifs": [
+            "TTTCA"
+        ],
+        "BenignMotifs": [
+            "TTTTA"
+        ]
+    },
+    {
         "LocusId": "RFC1",
         "LocusStructure": "(AARRG)*",
         "ReferenceRegion": "chr4:39350044-39350099",
@@ -1946,7 +2020,6 @@
         "GeneId": "ENSG00000035928",
         "DiscoveryMethod": "L, WGS",
         "DiscoveryYear": 2019,
-        "PathogenicMotif": "AAGGG",
         "Diseases": [
             {
                 "Symbol": "CANVAS",
@@ -1963,8 +2036,21 @@
             "6:51418689-51419033",
             "9:102221065-102221412"
         ],
-        "MainReferenceRegion": "chr4:39350044-39350099"
-    }, {
+        "MainReferenceRegion": "chr4:39350044-39350099",
+        "PathogenicMotifs": [
+            "AAGGC",
+            "AAGGG",
+            "ACAGG",
+            "AGAGG",
+            "AGGGC"
+        ],
+        "BenignMotifs": [
+            "AAAAG",
+            "AAAGGG",
+            "AAGAG"
+        ]
+    },
+    {
         "LocusId": "RILPL1",
         "LocusStructure": "(GGC)*",
         "VariantType": "RareRepeat",
@@ -1999,7 +2085,8 @@
             "X:20008884-20009246"
         ],
         "MainReferenceRegion": "chr12:124018267-124018297"
-    }, {
+    },
+    {
         "LocusId": "RUNX2",
         "LocusStructure": "(GCN)*",
         "VariantType": "RareRepeat",
@@ -2051,7 +2138,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr6:45390487-45390529"
-    }, {
+    },
+    {
         "LocusId": "SAMD12",
         "LocusStructure": "(AAAAT)*",
         "VariantType": "RareRepeat",
@@ -2062,7 +2150,6 @@
         "GeneId": "ENSG00000177570",
         "DiscoveryMethod": "L, ExScr",
         "DiscoveryYear": 2018,
-        "PathogenicMotif": "ATTTC",
         "Diseases": [
             {
                 "Symbol": "FAME1",
@@ -2088,8 +2175,16 @@
             "9:113463787-113464361",
             "X:6720818-6721331"
         ],
-        "MainReferenceRegion": "chr8:119379051-119379157"
-    }, {
+        "MainReferenceRegion": "chr8:119379051-119379157",
+        "PathogenicMotifs": [
+            "TCAAA",
+            "TGAAA"
+        ],
+        "BenignMotifs": [
+            "TAAAA"
+        ]
+    },
+    {
         "LocusId": "SOX3",
         "LocusStructure": "(NGC)*",
         "VariantType": "RareRepeat",
@@ -2108,7 +2203,8 @@
                 "OMIM": "300123",
                 "NormalMax": 15,
                 "PathogenicMin": 26
-            }, {
+            },
+            {
                 "Symbol": "PHPX",
                 "Name": "X-linked panhypopituitarism",
                 "Inheritance": "XR",
@@ -2149,7 +2245,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chrX:139586481-139586526"
-    }, {
+    },
+    {
         "LocusId": "STARD7",
         "LocusStructure": "(AAAAT)*",
         "VariantType": "RareRepeat",
@@ -2160,7 +2257,6 @@
         "GeneId": "ENSG00000084090",
         "DiscoveryMethod": "L, ExScr",
         "DiscoveryYear": 2019,
-        "PathogenicMotif": "ATTTC",
         "Diseases": [
             {
                 "Symbol": "FAME2",
@@ -2186,8 +2282,15 @@
             "9:113463787-113464361",
             "X:6720818-6721331"
         ],
-        "MainReferenceRegion": "chr2:96862804-96862859"
-    }, {
+        "MainReferenceRegion": "chr2:96862804-96862859",
+        "PathogenicMotifs": [
+            "GAAAT"
+        ],
+        "BenignMotifs": [
+            "AAAAT"
+        ]
+    },
+    {
         "LocusId": "TBP",
         "LocusStructure": "(GCA)*",
         "ReferenceRegion": "chr6:170870994-170871105",
@@ -2228,7 +2331,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr6:170870994-170871105"
-    }, {
+    },
+    {
         "LocusId": "TBX1",
         "LocusStructure": "(GCN)*",
         "VariantType": "RareRepeat",
@@ -2279,7 +2383,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr22:19754285-19754330"
-    }, {
+    },
+    {
         "LocusId": "TCF4",
         "LocusStructure": "(CAG)*",
         "ReferenceRegion": "chr18:53253386-53253458",
@@ -2320,7 +2425,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr18:53253386-53253458"
-    }, {
+    },
+    {
         "LocusId": "THAP11",
         "LocusStructure": "(CAG)*",
         "ReferenceRegion": "chr16:67876766-67876853",
@@ -2360,7 +2466,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr16:67876766-67876853"
-    }, {
+    },
+    {
         "LocusId": "TNRC6A",
         "LocusStructure": "(TTTTA)*",
         "VariantType": "RareRepeat",
@@ -2371,7 +2478,6 @@
         "GeneId": "ENSG00000090905",
         "DiscoveryMethod": "TRhist",
         "DiscoveryYear": 2018,
-        "PathogenicMotif": "ATTTC",
         "Diseases": [
             {
                 "Symbol": "FAME6",
@@ -2397,8 +2503,15 @@
             "9:113463787-113464361",
             "X:6720818-6721331"
         ],
-        "MainReferenceRegion": "chr16:24624760-24624850"
-    }, {
+        "MainReferenceRegion": "chr16:24624760-24624850",
+        "PathogenicMotifs": [
+            "TTTCA"
+        ],
+        "BenignMotifs": [
+            "TTTTA"
+        ]
+    },
+    {
         "LocusId": "VWA1",
         "LocusStructure": "(GGCGCGGAGC)*",
         "VariantType": "RareRepeat",
@@ -2418,7 +2531,8 @@
             }
         ],
         "MainReferenceRegion": "chr1:1371178-1371198"
-    }, {
+    },
+    {
         "LocusId": "XYLT1",
         "LocusStructure": "(GCC)*",
         "VariantType": "RareRepeat",
@@ -2453,7 +2567,8 @@
             "X:20008884-20009246"
         ],
         "MainReferenceRegion": "chr16:17564764-17564779"
-    }, {
+    },
+    {
         "LocusId": "YEATS2",
         "LocusStructure": "(TTTTA)*",
         "VariantType": "RareRepeat",
@@ -2464,7 +2579,6 @@
         "GeneId": "ENSG00000163872",
         "DiscoveryMethod": "L, ExScr",
         "DiscoveryYear": 2019,
-        "PathogenicMotif": "ATTTC",
         "Diseases": [
             {
                 "Symbol": "FAME4",
@@ -2490,8 +2604,15 @@
             "9:113463787-113464361",
             "X:6720818-6721331"
         ],
-        "MainReferenceRegion": "chr3:183429975-183430010"
-    }, {
+        "MainReferenceRegion": "chr3:183429975-183430010",
+        "PathogenicMotifs": [
+            "TTTCA"
+        ],
+        "BenignMotifs": [
+            "TTTTA"
+        ]
+    },
+    {
         "LocusId": "ZFHX3",
         "LocusStructure": "(GCC)*",
         "VariantType": "RareRepeat",
@@ -2526,7 +2647,8 @@
             "X:20008884-20009246"
         ],
         "MainReferenceRegion": "chr16:72821593-72821656"
-    }, {
+    },
+    {
         "LocusId": "ZIC2",
         "LocusStructure": "(GCN)*",
         "VariantType": "RareRepeat",
@@ -2579,7 +2701,8 @@
             "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr13:100637702-100637747"
-    }, {
+    },
+    {
         "LocusId": "ZIC3",
         "LocusStructure": "(GCC)*",
         "VariantType": "RareRepeat",
