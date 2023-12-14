@@ -560,7 +560,7 @@
         "LocusStructure": "(CCG)*",
         "ReferenceRegion": "chrX:19990922-19990973",
         "RepeatUnit": "CCG",
-        "VariantType": "Repeat",
+        "VariantType": "RareRepeat",
         "Gene": "BCLAF3",
         "GeneRegion": "5'-UTR",
         "GeneId": "ENST00000379682",
@@ -862,7 +862,7 @@
         "LocusStructure": "(GCC)*",
         "ReferenceRegion": "chr22:38317282-38317306",
         "RepeatUnit": "GCC",
-        "VariantType": "Repeat",
+        "VariantType": "RareRepeat",
         "Gene": "CSNK1E",
         "GeneRegion": "5'-UTR",
         "GeneId": "ENST00000396832",
@@ -1030,7 +1030,7 @@
     }, {
         "LocusId": "EIF4A3",
         "LocusStructure": "(CCTCGCTGTGCCGCTGCCGA)*",
-        "VariantType": "Repeat",
+        "VariantType": "RareRepeat",
         "ReferenceRegion": "chr17:80147059-80147139",
         "RepeatUnit": "CCTCGCTGTGCCGCTGCCGA",
         "Gene": "EIF4A3",
@@ -2256,7 +2256,7 @@
     }, {
         "LocusId": "SAMD12",
         "LocusStructure": "(AAAAT)*",
-        "VariantType": "Repeat",
+        "VariantType": "RareRepeat",
         "ReferenceRegion": "chr8:118366812-118366918",
         "RepeatUnit": "AAAAT",
         "Gene": "SAMD12",
@@ -2529,20 +2529,38 @@
         "LocusStructure": "(CAG)*",
         "ReferenceRegion": "chr16:67842863-67842950",
         "RepeatUnit": "CAG",
-        "VariantType": "Repeat",
+        "VariantType": "RareRepeat",
         "Gene": "THAP11",
         "GeneRegion": "coding: polyglutamine",
         "GeneId": "ENSG00000168286",
         "DiscoveryMethod": "L, LRS",
         "DiscoveryYear": 2023,
         "Diseases": [
-    {
+            {
                 "Symbol": "SCA",
                 "Name": "Spinocerebellar Ataxia",
                 "Inheritance": "AD",
                 "NormalMax": 38,
                 "PathogenicMin": 45
             }
+        ],
+        "OfftargetRegions": [
+            "chr12:65563559-65563902",
+            "chr16:24776892-24777296",
+            "chr16:56815697-56816082",
+            "chr16:73546509-73546894",
+            "chr17:10995550-10995927",
+            "chr17:51831513-51831885",
+            "chr19:13207704-13208051",
+            "chr5:166979020-166979397",
+            "chr6:104019162-104019520",
+            "chr6:16327473-16327876",
+            "chr6:170561754-170562172",
+            "chr7:122288035-122288404",
+            "chr9:20414125-20414554",
+            "chrX:21367060-21367421",
+            "chrX:24364087-24364601",
+            "chrX:67545156-67545569"
         ],
         "MainReferenceRegion":  "chr16:67842863-67842950"
     }, {
@@ -2623,7 +2641,7 @@
     }, {
         "LocusId": "VWA1",
         "LocusStructure": "(GGCGCGGAGC)*",
-        "VariantType": "Repeat",
+        "VariantType": "RareRepeat",
         "ReferenceRegion": "chr1:1435798-1435818",
         "RepeatUnit": "GGCGCGGAGC",
         "Gene": "VWA1",
@@ -2719,7 +2737,7 @@
     }, {
         "LocusId": "ZFHX3",
         "LocusStructure": "(GCC)*",
-        "VariantType": "Repeat",
+        "VariantType": "RareRepeat",
         "ReferenceRegion": "chr16:72787694-72787757",
         "RepeatUnit": "GCC",
         "Gene": "ZFHX3",
@@ -2736,6 +2754,20 @@
                 "NormalMax": 21,
                 "PathogenicMin": 41
             }
+        ],
+        "OfftargetRegions": [
+            "chr16:24729510-24729868",
+            "chr1:21176412-21176763",
+            "chr2:224585004-224585351",
+            "chr2:86914126-86914735",
+            "chr5:443060-443432",
+            "chr6:117907024-117907372",
+            "chr6:45422595-45422950",
+            "chr7:100694148-100694545",
+            "chr7:105013999-105014347",
+            "chrX:147911890-147912265",
+            "chrX:150983240-150983612",
+            "chrX:19990766-19991128"
         ],
         "MainReferenceRegion": "chr16:72787694-72787757"
     }, {

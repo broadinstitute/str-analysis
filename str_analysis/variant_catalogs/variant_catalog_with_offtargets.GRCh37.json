@@ -907,7 +907,7 @@
     }, {
         "LocusId": "EIF4A3",
         "LocusStructure": "(CCTCGCTGTGCCGCTGCCGA)*",
-        "VariantType": "Repeat",
+        "VariantType": "RareRepeat",
         "ReferenceRegion": "chr17:78120858-78120938",
         "RepeatUnit": "CCTCGCTGTGCCGCTGCCGA",
         "Gene": "EIF4A3",
@@ -2054,7 +2054,7 @@
     }, {
         "LocusId": "SAMD12",
         "LocusStructure": "(AAAAT)*",
-        "VariantType": "Repeat",
+        "VariantType": "RareRepeat",
         "ReferenceRegion": "chr8:119379051-119379157",
         "RepeatUnit": "AAAAT",
         "Gene": "SAMD12",
@@ -2325,7 +2325,7 @@
         "LocusStructure": "(CAG)*",
         "ReferenceRegion": "chr16:67876766-67876853",
         "RepeatUnit": "CAG",
-        "VariantType": "Repeat",
+        "VariantType": "RareRepeat",
         "Gene": "THAP11",
         "GeneRegion": "coding: polyglutamine",
         "GeneId": "ENSG00000168286",
@@ -2339,6 +2339,25 @@
                 "NormalMax": 38,
                 "PathogenicMin": 45
             }
+        ],
+        "OfftargetRegions": [
+            "12:65957339-65957682",
+            "16:24788215-24788616",
+            "16:56849613-56849994",
+            "16:73580408-73580794",
+            "17:10898867-10899244",
+            "17:49908873-49909245",
+            "19:13318521-13318866",
+            "1:53793354-53793697",
+            "5:137929768-137930128",
+            "5:166406025-166406402",
+            "6:104467037-104467394",
+            "6:16327703-16328107",
+            "6:170870842-170871263",
+            "7:121928089-121928459",
+            "X:21385178-21385539",
+            "X:24382204-24382718",
+            "X:66764998-66765411"
         ],
         "MainReferenceRegion": "chr16:67876766-67876853"
     }, {
@@ -2382,7 +2401,7 @@
     }, {
         "LocusId": "VWA1",
         "LocusStructure": "(GGCGCGGAGC)*",
-        "VariantType": "Repeat",
+        "VariantType": "RareRepeat",
         "ReferenceRegion": "chr1:1371178-1371198",
         "RepeatUnit": "GGCGCGGAGC",
         "Gene": "VWA1",
@@ -2475,7 +2494,7 @@
     }, {
         "LocusId": "ZFHX3",
         "LocusStructure": "(GCC)*",
-        "VariantType": "Repeat",
+        "VariantType": "RareRepeat",
         "ReferenceRegion": "chr16:72821593-72821656",
         "RepeatUnit": "GCC",
         "Gene": "ZFHX3",
@@ -2492,6 +2511,19 @@
                 "NormalMax": 21,
                 "PathogenicMin": 41
             }
+        ],
+        "OfftargetRegions": [
+            "16:24740836-24741193",
+            "1:21502905-21503255",
+            "2:225449721-225450068",
+            "2:87141244-87141858",
+            "5:443175-443544",
+            "6:45390332-45390683",
+            "7:100291772-100292165",
+            "7:104654446-104654794",
+            "X:146993408-146993783",
+            "X:150151713-150152085",
+            "X:20008884-20009246"
         ],
         "MainReferenceRegion": "chr16:72821593-72821656"
     }, {
