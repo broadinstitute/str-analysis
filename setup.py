@@ -57,6 +57,7 @@ setup(
             'convert_annotated_EHdn_locus_outliers_to_expansion_hunter_catalog = str_analysis.convert_annotated_EHdn_locus_outliers_to_expansion_hunter_catalog:main',
             'combine_str_json_to_tsv = str_analysis.combine_str_json_to_tsv:main',
             'combine_json_to_tsv = str_analysis.combine_json_to_tsv:main',
+            'copy_EH_vcf_fields_to_json = str_analysis.copy_EH_vcf_fields_to_json:main',
         ],
     },
     long_description_content_type="text/markdown",
