@@ -4,8 +4,9 @@ syncs the duplicated data between them and reports any inconsistencies.
 """
 
 import json
+import os
 
-from utils.eh_catalog_utils import parse_motifs_from_locus_structure
+from str_analysis.utils.eh_catalog_utils import parse_motifs_from_locus_structure
 
 #%%
 
@@ -21,6 +22,7 @@ json_path_pairs = [
     (json_paths[1], json_paths[3]),
 ]
 
+json_path_without_offtargets_GRCh38 = json_paths[1]
 
 data = {}
 for json_path in json_paths:
@@ -140,5 +142,20 @@ for json_path_without_offtargets, json_path_with_offtargets in json_path_pairs:
             elif record_without_offtargets[key] != record_with_offtargets[key]:
                 print(f"ERROR: {key} mismatch in {json_path_without_offtargets} {locus_id}: {record_without_offtargets[key]} != {record_with_offtargets[key]}")
                 continue
+
+#%%
+
+os.chdir("../gnomad_notes")
+
+# generate gnomad notes files if they don't exist already
+for record in data[json_path_without_offtargets_GRCh38]:
+    locus_id = record["LocusId"]
+    filename = f"{locus_id}.md"
+    if os.path.isfile(filename):
+        continue
+    print(f"Creating {filename}")
+    with open(filename, "wt") as f:
+        f.write("\n")
+
 
 #%%
