@@ -35,6 +35,18 @@
     },
     "UseOfftargetRegions": false
   },
+  "EIF4A3": {
+    "LocusCoords_1based": {
+      "38": "chr17:80147059-80147139",
+      "37": "17:78120858-78120938"
+    },
+    "Motifs": {
+      "REFERENCE": "CCTCGCTGTGCCGCTGCCGA",
+      "BENIGN": ["CCTCGCTGTGCCGCTGCCGA"],
+      "PATHOGENIC": ["CCTCGCTGCGCCGCTGCCGA"]
+    },
+    "UseOfftargetRegions": false
+  },
   "MARCHF6": {
     "LocusCoords_1based": {
       "38": "chr5:10356347-10356411",
