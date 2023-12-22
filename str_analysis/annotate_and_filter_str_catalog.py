@@ -449,7 +449,7 @@ def main():
             right_flank_start + FLANK_MAPPABILITY_WINDOW_SIZE)
 
         input_variant_catalog_record[f"LeftFlank{MAPPABILITY_TRACK_KMER_SIZE}merMappability"] = round(mappability_left_flank, 2)
-        input_variant_catalog_record[f"Overall{MAPPABILITY_TRACK_KMER_SIZE}merMappability"] = round(mappability_overall, 2)
+        input_variant_catalog_record[f"EntireLocus{MAPPABILITY_TRACK_KMER_SIZE}merMappability"] = round(mappability_overall, 2)
         input_variant_catalog_record[f"RightFlank{MAPPABILITY_TRACK_KMER_SIZE}merMappability"] = round(mappability_right_flank, 2)
 
         if args.min_mappability is not None and input_variant_catalog_record["OverallMappability"] < args.min_mappability:
