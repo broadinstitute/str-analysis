@@ -25,10 +25,10 @@ VALID_GENE_REGIONS = {"CDS", "UTR", "5UTR", "3UTR", "promoter", "exon", "intron"
 
 # The GEM mappability tracks  are based on 36bp, 50bp, 75bp, or 100bp kmers.
 # These tracks can be viewed @ https://tgg-viewer.broadinstitute.org
-MAPPABILITY_TRACK_KMER_SIZE = 100
+MAPPABILITY_TRACK_KMER_SIZE = 36
 MAPPABILITY_TRACK_BIGWIG_URL = f"gs://tgg-viewer/ref/GRCh38/mappability/" \
                                f"GRCh38_no_alt_analysis_set_GCA_000001405.15-k{MAPPABILITY_TRACK_KMER_SIZE}_m2.bw"
-FLANK_MAPPABILITY_WINDOW_SIZE = 100
+FLANK_MAPPABILITY_WINDOW_SIZE = 200
 
 ACGT_REGEX = re.compile("^[ACGT]+$", re.IGNORECASE)
 
@@ -431,7 +431,7 @@ def main():
 
         # compute mappability of left and right flanking sequence
         chrom, left_flank_end, _ = chroms_start_0based_ends[0]
-        _, right_flank_start, _ = chroms_start_0based_ends[-1]
+        _, _, right_flank_start = chroms_start_0based_ends[-1]
         (mappability_left_flank, ) = mappability_bigwig.stats(
             chrom,
             left_flank_end - FLANK_MAPPABILITY_WINDOW_SIZE - MAPPABILITY_TRACK_KMER_SIZE,
@@ -445,12 +445,12 @@ def main():
 
         (mappability_overall, ) = mappability_bigwig.stats(
             chrom,
-            left_flank_end - FLANK_MAPPABILITY_WINDOW_SIZE,
+            left_flank_end - FLANK_MAPPABILITY_WINDOW_SIZE - MAPPABILITY_TRACK_KMER_SIZE,
             right_flank_start + FLANK_MAPPABILITY_WINDOW_SIZE)
 
-        input_variant_catalog_record["LeftFlankMappability"] = round(mappability_left_flank, 2)
-        input_variant_catalog_record["RightFlankMappability"] = round(mappability_right_flank, 2)
-        input_variant_catalog_record["OverallMappability"] = round(mappability_overall, 2)
+        input_variant_catalog_record[f"LeftFlank{MAPPABILITY_TRACK_KMER_SIZE}merMappability"] = round(mappability_left_flank, 2)
+        input_variant_catalog_record[f"Overall{MAPPABILITY_TRACK_KMER_SIZE}merMappability"] = round(mappability_overall, 2)
+        input_variant_catalog_record[f"RightFlank{MAPPABILITY_TRACK_KMER_SIZE}merMappability"] = round(mappability_right_flank, 2)
 
         if args.min_mappability is not None and input_variant_catalog_record["OverallMappability"] < args.min_mappability:
             continue
