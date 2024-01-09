@@ -56,7 +56,7 @@ RUN wget -q https://github.com/samtools/htslib/releases/download/${SAMTOOLS_VERS
 	&& tar xjf htslib-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& rm htslib-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& cd htslib-${SAMTOOLS_VERSION} \
-	&& ./configure \
+	&& ./configure --enable-libcurl --enable-gcs --enable-s3 \
 	&& make \
 	&& make install \
 	&& make clean
