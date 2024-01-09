@@ -66,7 +66,7 @@ RUN wget -q https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VE
 	&& tar xjf samtools-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& rm samtools-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& cd samtools-${SAMTOOLS_VERSION} \
-	&& ./configure \
+	&& ./configure --enable-libcurl --enable-gcs --enable-s3 \
 	&& make \
 	&& make install \
 	&& make clean
@@ -88,7 +88,7 @@ RUN wget -q https://github.com/gymreklab/GangSTR/releases/download/v2.5/GangSTR-
 
 WORKDIR /GangSTR-${GANGSTR_VERSION}
 
-RUN python3 -m pip install --upgrade cmake pip crcmod \
+RUN python3 -m pip install --no-cache-dir --upgrade cmake pip crcmod \
     && install_packages git autoconf automake libtool
 
 RUN mkdir build \
@@ -102,6 +102,8 @@ RUN mkdir build \
 
 WORKDIR /
 
+RUN git clone https://github.com/oscarlr-TRs/EH-expansion-evaluator.git
+
 # STRLing
 ENV STRLING_VERSION="v0.5.2"
 RUN curl -L https://github.com/quinlan-lab/STRling/releases/download/${STRLING_VERSION}/strling -o /usr/local/bin/strling \
@@ -114,19 +116,8 @@ RUN wget -q https://github.com/Illumina/ExpansionHunterDenovo/releases/download/
     && mv ExpansionHunterDenovo-${EH_DENOVO_VERSION}-linux_x86_64/bin/ExpansionHunterDenovo /usr/local/bin/ExpansionHunterDenovo \
     && rm -r ExpansionHunterDenovo-${EH_DENOVO_VERSION}-linux_x86_64 ExpansionHunterDenovo-${EH_DENOVO_VERSION}-linux_x86_64.tar.gz
 
-# install original version of ExpansionHunter
-RUN wget -q https://github.com/Illumina/ExpansionHunter/archive/refs/heads/master.zip \
-	&& unzip master.zip \
-	&& cd ExpansionHunter-master \
-	&& mkdir build \
-	&& cd build \
-	&& cmake .. \
-	&& make \
-	&& cp install/bin/ExpansionHunter /usr/local/bin/IlluminaExpansionHunter \
-	&& cd / \
-	&& rm -r ExpansionHunter-master master.zip
 
-# install optimized version of ExpansionHunter
+# install ExpansionHunter fork with optimizations
 RUN wget -q https://github.com/bw2/ExpansionHunter/archive/refs/heads/master.zip \
 	&& unzip master.zip \
 	&& cd ExpansionHunter-master \
@@ -139,7 +130,7 @@ RUN wget -q https://github.com/bw2/ExpansionHunter/archive/refs/heads/master.zip
 	&& rm -r ExpansionHunter-master master.zip
 
 
-# install REViewer
+# install REViewer fork
 RUN wget -q https://github.com/bw2/REViewer/archive/refs/heads/master.zip \
     && unzip master.zip \
     && cd REViewer-master \
@@ -181,7 +172,7 @@ RUN wget https://github.com/arq5x/bedtools2/releases/download/v${BED_TOOLS_VERSI
 #    && python3 -m pip freeze \
 #    && sleep 2
 
-RUN python3 -m pip install --upgrade \
+RUN python3 -m pip install --no-cache-dir --upgrade \
 	hail>=0.2.115 \
     ijson>=3.2.2 \
     intervaltree>=3.1.0 \
@@ -199,7 +190,7 @@ COPY str_analysis /str_analysis
 COPY README.md .
 COPY setup.py .
 COPY requirements.txt .
-RUN python3 -m pip install -r requirements.txt
+RUN python3 -m pip install --no-cache-dir -r requirements.txt
 RUN python3 setup.py test
 RUN python3 setup.py install
 
