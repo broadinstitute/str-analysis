@@ -35,7 +35,8 @@ ACGT_REGEX = re.compile("^[ACGT]+$", re.IGNORECASE)
 def parse_args():
     parser = argparse.ArgumentParser(description="Annotate and filter an STR variant catalog.")
     parser.add_argument("-r", "--reference-fasta", required=True, help="Reference fasta file path or url.")
-    parser.add_argument("-o", "--output-path", help="Output path")
+    parser.add_argument("-o", "--output-path", help="Output json path. Any additional output paths such as tsv or bed "
+                                                    "will be computed based on this path.")
     parser.add_argument("--output-tsv", action="store_true", help="Output the catalog as a tab-separated table "
                         "in addition to the standard ExpansionHunter JSON file format")
     parser.add_argument("--output-bed", action="store_true", help="Output the catalog as a BED file "
@@ -61,7 +62,8 @@ def parse_args():
     filter_group.add_argument("--min-motif-size", type=int, help="Minimum motif size to include in the output catalog")
     filter_group.add_argument("--max-motif-size", type=int, help="Maximum motif size to include in the output catalog")
     filter_group.add_argument("-ms", "--motif-size", type=int, action="append", help="Only include loci with these motif sizes")
-    filter_group.add_argument("-m", "--motif", action="append", help="Only include loci whose canonical motif matched this motif")
+    filter_group.add_argument("-m", "--motif", action="append", help="Only include loci whose canonical motif matched "
+                                                                     "the canonical motif version of the given motif")
 
     filter_group.add_argument("-t", "--region-type", action="append", help="Gene region(s) to include in the output "
                               "catalog", choices=VALID_GENE_REGIONS)
@@ -241,7 +243,10 @@ def main():
             else:
                 print(f"   {key:30s} {str(value)}")
 
+    # get fasta chrom sizes
     ref_fasta = pysam.FastaFile(args.reference_fasta)
+
+    ref_fasta_chromosome_sizes = dict(zip(ref_fasta.references, ref_fasta.lengths))
 
     # download and open the mappability bigWig file
     mappability_bigwig_path = download_local_copy(MAPPABILITY_TRACK_BIGWIG_URL)
@@ -309,8 +314,10 @@ def main():
             continue
         if args.motif_size and all(len(motif) not in args.motif_size for motif in motifs):
             continue
-        if args.motif and all(motif not in args.motif for motif in motifs):
-            continue
+        if args.motif:
+            args_canonical_motif_set = {compute_canonical_motif(motif) for motif in args.motif}
+            if all(canonical_motif not in args_canonical_motif_set for canonical_motif in canonical_motifs):
+                continue
 
         if len(canonical_motifs) == 1:
             input_variant_catalog_record["CanonicalMotif"] = canonical_motifs[0]
@@ -432,27 +439,43 @@ def main():
         # compute mappability of left and right flanking sequence
         chrom, left_flank_end, _ = chroms_start_0based_ends[0]
         _, _, right_flank_start = chroms_start_0based_ends[-1]
-        (mappability_left_flank, ) = mappability_bigwig.stats(
-            chrom,
-            left_flank_end - FLANK_MAPPABILITY_WINDOW_SIZE - MAPPABILITY_TRACK_KMER_SIZE,
-            left_flank_end - MAPPABILITY_TRACK_KMER_SIZE)  # subtract the kmer size so that mappability scores are
-                                                           # retrieved from an interval that doesn't overlap the repeat
-                                                           # region and so only measure mappability of the flank itself
-        (mappability_right_flank, ) = mappability_bigwig.stats(
-            chrom,
-            right_flank_start,
-            right_flank_start + FLANK_MAPPABILITY_WINDOW_SIZE)
 
-        (mappability_overall, ) = mappability_bigwig.stats(
-            chrom,
-            left_flank_end - FLANK_MAPPABILITY_WINDOW_SIZE - MAPPABILITY_TRACK_KMER_SIZE,
-            right_flank_start + FLANK_MAPPABILITY_WINDOW_SIZE)
+        mappability_left_flank = None
+        left_flank_mappability_interval_start = max(1, left_flank_end - FLANK_MAPPABILITY_WINDOW_SIZE - MAPPABILITY_TRACK_KMER_SIZE)
+        # subtract the kmer size so that mappability scores are retrieved from an interval that doesn't overlap the repeat
+        # region and so only measure mappability of the flank itself
+        left_flank_mappability_interval_end = max(2, left_flank_end - MAPPABILITY_TRACK_KMER_SIZE)
+        try:
 
-        input_variant_catalog_record[f"LeftFlank{MAPPABILITY_TRACK_KMER_SIZE}merMappability"] = round(mappability_left_flank, 2)
-        input_variant_catalog_record[f"EntireLocus{MAPPABILITY_TRACK_KMER_SIZE}merMappability"] = round(mappability_overall, 2)
-        input_variant_catalog_record[f"RightFlank{MAPPABILITY_TRACK_KMER_SIZE}merMappability"] = round(mappability_right_flank, 2)
+            (mappability_left_flank, ) = mappability_bigwig.stats(chrom,
+                                                                  left_flank_mappability_interval_start,
+                                                                  left_flank_mappability_interval_end)
+        except Exception as e:
+            print(f"WARNING: Couldn't compute mappability of left flank interval: {chrom}:{left_flank_mappability_interval_start}-{left_flank_mappability_interval_end}: {e}")
 
-        if args.min_mappability is not None and input_variant_catalog_record["OverallMappability"] < args.min_mappability:
+        mappability_right_flank = None
+        right_flank_mappability_interval_start = right_flank_start
+        right_flank_mappability_interval_end = min(ref_fasta_chromosome_sizes[chrom], right_flank_start + FLANK_MAPPABILITY_WINDOW_SIZE)
+        try:
+            (mappability_right_flank, ) = mappability_bigwig.stats(chrom,
+                                                                   right_flank_start,
+                                                                   right_flank_mappability_interval_end)
+        except Exception as e:
+            print(f"WARNING: Couldn't compute mappability of right flank interval: {chrom}:{right_flank_start}-{right_flank_mappability_interval_end}: {e}")
+
+        mappability_overall = None
+        try:
+            (mappability_overall, ) = mappability_bigwig.stats(chrom,
+                                                               left_flank_mappability_interval_start,
+                                                               right_flank_mappability_interval_end)
+        except Exception as e:
+            print(f"WARNING: Couldn't compute mappability of overall interval: {chrom}:{left_flank_mappability_interval_start}-{right_flank_mappability_interval_end}: {e}")
+
+        input_variant_catalog_record[f"LeftFlankMappability"] = round(mappability_left_flank, 2)
+        input_variant_catalog_record[f"EntireLocusMappability"] = round(mappability_overall, 2)
+        input_variant_catalog_record[f"RightFlankMappability"] = round(mappability_right_flank, 2)
+
+        if args.min_mappability is not None and input_variant_catalog_record["EntireLocusMappability"] < args.min_mappability:
             continue
 
         # add this record to the output variant catalog
