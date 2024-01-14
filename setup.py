@@ -37,7 +37,7 @@ def test_suite():
 
 setup(
     name='str_analysis',
-    version="1.2.6",
+    version="1.2.7",
     description="Utilities for analyzing short tandem repeats (STRs)",
     install_requires=requirements,
     cmdclass={
@@ -58,6 +58,7 @@ setup(
             'combine_str_json_to_tsv = str_analysis.combine_str_json_to_tsv:main',
             'combine_json_to_tsv = str_analysis.combine_json_to_tsv:main',
             'copy_EH_vcf_fields_to_json = str_analysis.copy_EH_vcf_fields_to_json:main',
+            'run_reviewer = str_analysis.run_reviewer:main',
         ],
     },
     long_description_content_type="text/markdown",

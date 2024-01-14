@@ -43,10 +43,11 @@ This repo contains scripts and utilities for analyzing tandem repeats (TRs).
     available for [download on the gnomAD website](https://gnomad.broadinstitute.org/downloads#v3-short-tandem-repeats).
 
 
-* combine ExpansionHunter or other .json results files into a .tsv table:
+* post-process and combine ExpansionHunter outputs:
   * **combine_str_json_to_tsv** - takes a set of ExpansionHunter json output files and combines them into a single tsv table.
   * **combine_json_to_tsv** - takes a set of arbitrary json files that share the same schema and combines their top-level fields into a single tsv file.
-  * **copy_EH_vcf_fields_to_json** - takes the ExpansionHunter output vcf and json file for a given sample and copies fields that are only present in the vcf to the json file. 
+  * **copy_EH_vcf_fields_to_json** - takes the ExpansionHunter output vcf and json file for a given sample and copies fields that are only present in the vcf to the json file.
+  * **run_reviewer** - takes ExpansionHunter output files for a single sample and runs REViewer on the subset of loci where the genotypes exceed locus-specific thresholds specified in the variant catalog. 
 
 * format converters:
   * **convert_bed_to_expansion_hunter_variant_catalog** 
