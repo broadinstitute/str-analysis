@@ -3,6 +3,7 @@ some info (like the 'LowDepth' filter) are only available in the VCF and not in 
 """
 
 import argparse
+import collections
 import json
 import os
 
@@ -54,11 +55,11 @@ def main():
 
 	print(f"Parsed {vcf_row_counter:,d} rows from {args.expansion_hunter_output_vcf}")
 
-	variant_counter = 0
+	variant_counters = collections.Counter()
 	all_locus_results = expansion_hunter_output_json.get("LocusResults", [])
 	for locus_id, locus_results in all_locus_results.items():
 		for variant_id, variant_results in locus_results["Variants"].items():
-			variant_counter += 1
+			variant_counters["total"] += 1
 			if variant_id not in vcf_row_lookup:
 				raise ValueError(f"Variant id {variant_id} not found in VCF")
 
@@ -67,6 +68,8 @@ def main():
 			del vcf_row_lookup[variant_id]
 
 			variant_results["Filter"] = filter_field
+			if filter_field == "PASS":
+				variant_counters["PASS"] += 1
 			for key in "SO", "ADSP", "ADFL", "ADIR", "LC":
 				variant_results[key] = genotype_dict[key]
 
@@ -76,7 +79,9 @@ def main():
 	with open(args.output_json, "wt") as f:
 		json.dump(expansion_hunter_output_json, f, indent=4)
 
-	print(f"Wrote {variant_counter:,d} variants at {len(all_locus_results):,d} loci to {args.output_json}")
+	print(f"{variant_counters['PASS']:,d} out of {variant_counters['total']:,d} "
+		  f"({variant_counters['PASS'] / variant_counters['total']:.1%}) of variants passed the ExpansionHunter filters")
+	print(f"Wrote {variant_counters['total']:,d} variants at {len(all_locus_results):,d} loci to {args.output_json}")
 
 
 if __name__ == "__main__":
