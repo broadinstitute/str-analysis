@@ -35,11 +35,14 @@ def parse_args():
 			 "confidence interval")
 
 	g = parser.add_mutually_exclusive_group(required=True)
-	g.add_argument("--use-pathogenic-threshold", action="store_true", help="Only run REViewer for loci where the "
-				   "genotype is above the pathogenic threshold.")
-	g.add_argument("--use-custom-threshold-field", help="Name of variant catalog field that contains the threshold")
+	g.add_argument("--use-threshold", type=int, help="Specify a single threshold on the command line to be used for all loci")
+	g.add_argument("--use-custom-threshold-field", help="Specify the name of the variant catalog field that contains the threshold for each locus")
+	g.add_argument("--use-pathogenic-threshold", action="store_true", help="Parse thresholds from the variant catalog's "
+				   "Diseases > PathogenicMin fields for each locus. See https://github.com/broadinstitute/str-analysis/blob/main/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json "
+				   "for an example catalog where these fields are defined.")
+
 	parser.add_argument("--run-reviewer-if-threshold-not-available", help="By default, loci will be skipped if a "
-						"threshold for them is not provided in the variant catalog. If this flag is specified, the "
+						"threshold is not provided in the variant catalog. If this flag is specified, the "
 					    "script will instead run REViewer for such loci.")
 	args = parser.parse_args()
 
@@ -60,7 +63,7 @@ def run(c):
 def compute_loci_to_process(args):
 	loci_to_process = []
 
-	# compute a threshold lookup dictionary
+	# populate the threshold_lookup and main_reference_region_lookup from fields in the provided variant catalog
 	with open(args.catalog) as f:
 		variant_catalog = json.load(f)
 
@@ -79,7 +82,16 @@ def compute_loci_to_process(args):
 			# see https://github.com/broadinstitute/str-analysis/blob/main/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json
 			main_reference_region_lookup[locus_id] = record["MainReferenceRegion"]
 
-		if args.use_pathogenic_threshold:
+		if args.use_threshold:
+			# no need to parse the threshold from the variant catalog since it was explicitly set on the command-line
+			continue
+		elif args.use_custom_threshold_field:
+			try:
+				threshold_lookup[locus_id] = int(record[args.use_custom_threshold_field])
+			except Exception as e:
+				print(f"WARNING: Unable to parse '{args.use_custom_threshold_field}' field for {locus_id}: {e}")
+				continue
+		elif args.use_pathogenic_threshold:
 			try:
 				pathogenic_min_thresholds = [
 					int(disease_record["PathogenicMin"]) for disease_record in record.get("Diseases", []) if "PathogenicMin" in disease_record
@@ -93,15 +105,8 @@ def compute_loci_to_process(args):
 			except Exception as e:
 				print(f"WARNING: Unable to parse pathogenic threshold for {locus_id}: {e}")
 				continue
-
-		elif args.use_custom_threshold_field:
-			try:
-				threshold_lookup[locus_id] = int(record[args.use_custom_threshold_field])
-			except Exception as e:
-				print(f"WARNING: Unable to parse '{args.use_custom_threshold_field}' field for {locus_id}: {e}")
-				continue
 		else:
-			raise ValueError("Either --use-pathogenic-threshold or --use-custom-threshold-field must be specified")
+			raise ValueError("Either --use-threshold or --use-pathogenic-threshold or --use-custom-threshold-field must be specified")
 
 	# parse ExpansionHunter output json and determine which loci have genotypes above the threshold
 	with open(args.json) as f:
@@ -111,15 +116,20 @@ def compute_loci_to_process(args):
 		raise ValueError(f"'LocusResults' key not found in {args.json}")
 
 	for locus_id, locus_results in expansion_hunter_output_json["LocusResults"].items():
-		# check if the variant catalog had a threshold for this locus
-		threshold = threshold_lookup.get(locus_id)
-		if locus_id not in threshold_lookup:
-			if args.run_reviewer_if_threshold_not_available:
-				loci_to_process.append(locus_id)
-			else:
-				if args.verbose:
-					print(f"Skipping {locus_id} because no threshold was provided in the variant catalog")
-				continue
+		if args.use_threshold:
+			threshold = args.use_threshold
+		else:
+			# check if the variant catalog had a threshold for this locus
+			if locus_id not in threshold_lookup:
+				if args.run_reviewer_if_threshold_not_available:
+					loci_to_process.append(locus_id)
+					continue
+				else:
+					if args.verbose:
+						print(f"Skipping {locus_id} because no threshold was provided in the variant catalog")
+					continue
+
+			threshold = threshold_lookup[locus_id]
 
 		# get the main variant results dictionary for this locus
 		if len(locus_results.get("Variants", [])) == 1:
@@ -197,15 +207,17 @@ def main():
 	loci_to_process = compute_loci_to_process(args)
 
 	if not loci_to_process:
-		print("No need to run REViewer since all genotypes are below thresholds. Exiting...")
+		print("No loci need REViewer to be run since all genotypes are below thresholds. Exiting...")
 		return
 
-	print("Running REViewer for loci:", ", ".join(loci_to_process))
+
+	print(f"Running REViewer for {len(loci_to_process)} loci")
 	run(f"{args.samtools_path} sort {args.bam} -o {args.output_prefix}.sorted.bam")
 	run(f"{args.samtools_path} index {args.output_prefix}.sorted.bam")
 
 	for locus in loci_to_process:
-		print(f"Running REViewer on locus {locus}")
+		print("-"*20)
+		print(f"Running REViewer for {locus}")
 		run(" ".join([
 			args.reviewer_path, 
 			f"--reads {args.output_prefix}.sorted.bam",
