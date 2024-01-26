@@ -1140,7 +1140,7 @@
                 "Inheritance": "AR",
                 "OMIM": "229300",
                 "NormalMax": 30,
-                "PathogenicMin": 70
+                "PathogenicMin": 66
             }
         ],
         "OfftargetRegions": [

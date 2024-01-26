@@ -704,7 +704,7 @@
                 "Inheritance": "AR",
                 "OMIM": "229300",
                 "NormalMax": 30,
-                "PathogenicMin": 70
+                "PathogenicMin": 66
             }
         ],
         "MainReferenceRegion": "chr9:71652202-71652220"
