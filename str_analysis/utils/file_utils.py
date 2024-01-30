@@ -6,7 +6,7 @@ import requests
 import tempfile
 
 
-def open_file(path, download_local_copy_before_opening=False):
+def open_file(path, download_local_copy_before_opening=False, gunzip=False, is_text_file=False):
     if path.startswith("gs://") and download_local_copy_before_opening:
         path = download_local_copy(path)
 
@@ -14,13 +14,16 @@ def open_file(path, download_local_copy_before_opening=False):
     mode = "r"
     if path.startswith("gs://"):
         file = hfs.open(path, f"{mode}b")
-        if path.endswith("gz"):
+        if gunzip or path.endswith("gz"):
             file = gzip.GzipFile(fileobj=file, mode=mode)
     else:
-        if path.endswith("gz"):
+        if gunzip or path.endswith("gz"):
             file = gzip.open(path, mode=mode)
         else:
-            file = open(path, f"{mode}t", encoding="utf-8")
+            if is_text_file:
+                file = open(path, f"{mode}t", encoding="utf-8")
+            else:
+                file = open(path, mode="rb")
             return file
 
     return io.TextIOWrapper(file, encoding="utf-8")
@@ -32,6 +35,13 @@ def file_exists(path):
 
     path = os.path.expanduser(path)
     return os.path.isfile(path)
+
+
+def get_file_size(path):
+    if path.startswith("gs://"):
+        return hfs.stat(path).size
+    else:
+        return os.path.getsize(os.path.expanduser(path))
 
 
 def download_local_copy(url_or_google_storage_path):
