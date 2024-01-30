@@ -57,8 +57,9 @@ def jump_for_mates(bam, chrom, start, end, read_names_set):
     return [alignment for read_pair_list in read_pairs.values() for alignment in read_pair_list]
 
 
-def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=1000):
-    print(f"Fetching region: {chrom}:{start}-{end}")
+def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=1000, verbose=False):
+    if verbose:
+        print(f"Fetching region: {chrom}:{start}-{end}")
 
     genomic_regions_to_fetch = [
         (chrom, start, end)
@@ -74,7 +75,8 @@ def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=
 
         read_pairs[alignment.query_name].append(alignment)
 
-    print(f"Found {len(read_pairs)} read pairs with {sum(len(read_pair) for read_pair in read_pairs.values())} reads")
+    if verbose:
+        print(f"Found {len(read_pairs)} read pairs with {sum(len(read_pair) for read_pair in read_pairs.values())} reads")
 
     # compute a dictionary that maps (chrom, start, end) to a set of read names that need to be fetched from that region
     mate_regions = collections.defaultdict(set)
@@ -125,6 +127,7 @@ def main():
                         "this parameter, or decrease it to reduce the total number of bytes read.")
     parser.add_argument("-R", "--reference-fasta", required=True, help="Reference genome FASTA file to use when reading from CRAM")
     parser.add_argument("-o", "--bamlet", required=True, help="Output file path prefix")
+    parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("input_bam_or_cram", help="Input BAM or CRAM file")
     parser.add_argument("region", nargs="+", help="Region(s) for which to extract reads (chr:start-end). For example, "
                                                   "for the HTT repeat locus on hg38, specify chr4:3074877-3074933")
@@ -142,7 +145,8 @@ def main():
             chrom, start - 2000, end + 2000,
             input_bam=input_bam_file,
             bamlet=bamlet_file,
-            merge_regions_distance=args.merge_regions_distance)
+            merge_regions_distance=args.merge_regions_distance,
+            verbose=args.verbose)
 
     bamlet_file.close()
     input_bam_file.close()

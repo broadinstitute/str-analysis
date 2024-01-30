@@ -134,7 +134,7 @@ def parse_crai_index(crai_index_path, cram_path):
 
 class GoogleStorageCramReader:
 
-	def __init__(self, local_cram_header_path, cram_path, crai_path, gcloud_project):
+	def __init__(self, local_cram_header_path, cram_path, crai_path, gcloud_project, verbose=False):
 		self.total_cram_containers_loaded_from_google_storage = 0
 		self.total_bytes_read_from_google_storage = 0
 
@@ -143,6 +143,7 @@ class GoogleStorageCramReader:
 		self._crai_path = crai_path
 		self._gcloud_project = gcloud_project
 		self._client = storage.Client()
+		self._verbose = verbose
 
 		self._cram_data_containers_cache = {}
 
@@ -175,14 +176,15 @@ class GoogleStorageCramReader:
 			print(f"WARNING: None of the {len(interval_tree)} CRAM containers on {chrom} overlap {chrom}:{start}-{end}")
 			return
 
-		print(f"Found {len(overlapping_intervals):4,d} CRAM containers that overlap {chrom}:{start}-{end}")
+		if self._verbose:
+			print(f"Found {len(overlapping_intervals):4,d} CRAM containers that overlap {chrom}:{start}-{end}")
 		containers_loaded_counter = 0
 		for interval in overlapping_intervals:
 			bytes_start, bytes_end = interval.data.start, interval.data.end
 			if bytes_start in self._cram_data_containers_cache:
 				cram_container_bytes = self._cram_data_containers_cache[bytes_start]
 			else:
-				if not dry_run:
+				if not dry_run and self._verbose:
 					print(f"Loading CRAM container with {bytes_end - bytes_start:,d} bytes for {chrom}:{start}-{end}")
 				cram_container_bytes = self._get_byte_range(bytes_start, bytes_end, dry_run=dry_run)
 				self._cram_data_containers_cache[bytes_start] = cram_container_bytes
@@ -256,6 +258,7 @@ def main():
 					    "given input cram and exit. This output file can then be used as the argument to --cram-header.")
 	parser.add_argument("--dry-run", action="store_true", help="Only compute stats for mate regions without actually loading them")
 	parser.add_argument("--max-containers-to-load", type=int, help="Maximum number of CRAM containers to load from Google Storage")
+	parser.add_argument("--verbose", action="store_true")
 	parser.add_argument("input_cram", help="Input CRAM file gs:// path")
 	parser.add_argument("region", nargs="+", help="Region(s) for which to extract reads (chr:start-end). For example, "
 												  "for the HTT repeat locus on hg38, specify chr4:3074877-3074933")
@@ -282,7 +285,8 @@ def main():
 		args.cramlet += ".cramlet.cram" if not args.save_cram_header_and_exit else ".header.cram"
 
 	# initialize the CRAM reader
-	cram_reader = GoogleStorageCramReader(args.cram_header, args.input_cram, crai_index_path, args.gcloud_project)
+	cram_reader = GoogleStorageCramReader(
+		args.cram_header, args.input_cram, crai_index_path, args.gcloud_project, verbose=args.verbose)
 
 	# write a temp file with just the cram header
 	if args.save_cram_header_and_exit:
@@ -308,7 +312,8 @@ def main():
 	input_bam_file = pysam.AlignmentFile(temporary_cram_file.name, "rc", reference_filename=args.reference_fasta)
 
 	for region in args.region:
-		print("-"*100)
+		if args.verbose:
+            print("-"*100)
 		chrom, start, end = parse_interval(region)
 		window_start = start - 2000
 		window_end = end + 2000
@@ -317,7 +322,8 @@ def main():
 			chrom, window_start, window_end,
 			input_bam=input_bam_file,
 			bamlet=None,
-			merge_regions_distance=args.merge_regions_distance)
+			merge_regions_distance=args.merge_regions_distance,
+			verbose=args.verbose)
 
 		for genomic_region in genomic_regions:
 			cram_reader.load_cram_containers_for_interval(
