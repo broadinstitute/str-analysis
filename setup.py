@@ -59,6 +59,7 @@ setup(
             'combine_json_to_tsv = str_analysis.combine_json_to_tsv:main',
             'copy_EH_vcf_fields_to_json = str_analysis.copy_EH_vcf_fields_to_json:main',
             'run_reviewer = str_analysis.run_reviewer:main',
+            'make_cramlet_from_cram_in_google_storage = str_analysis.make_cramlet_from_cram_in_google_storage:main',
         ],
     },
     long_description_content_type="text/markdown",
