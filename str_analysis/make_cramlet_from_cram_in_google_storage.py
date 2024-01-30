@@ -211,6 +211,8 @@ class GoogleStorageCramReader:
 		if local_path:
 			fileobj.close()
 
+		pysam.index(fileobj.name)
+
 	def _init_chrom_index_lookup(self):
 
 		# write a temp file with just the cram header
@@ -305,7 +307,6 @@ def main():
 
 	cram_reader.save_cram_to_file(fileobj=temporary_cram_file)
 	temporary_cram_file.flush()
-	pysam.index(temporary_cram_file.name)
 
 	# parse the temp CRAM file and get byte ranges for mates
 	temporary_cram_file.seek(0)
