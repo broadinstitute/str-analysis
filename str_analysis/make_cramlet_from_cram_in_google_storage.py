@@ -327,8 +327,10 @@ def main():
 
 	cram_reader.save_cram_to_file(args.cramlet)
 
-	total_megabytes_read = cram_reader.total_bytes_read_from_google_storage/10**6
-	print(f"Read {cram_reader.total_cram_containers_loaded_from_google_storage:,d} containers ({total_megabytes_read:0.1f}Mb) from Google Storage, with {total_megabytes_read/cram_reader.total_cram_containers_loaded_from_google_storage:0.2f}Mb/container")
+	total_megabytes_loaded = cram_reader.total_bytes_read_from_google_storage/10**6
+	print(f"Loaded {cram_reader.total_cram_containers_loaded_from_google_storage:,d} containers "
+		  f"({total_megabytes_loaded:0.1f}Mb) from Google Storage, with "
+		  f"{total_megabytes_loaded/cram_reader.total_cram_containers_loaded_from_google_storage:0.2f}Mb/container")
 
 
 if __name__ == "__main__":

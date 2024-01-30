@@ -56,7 +56,7 @@ def main():
 					chrom, start, end = parse_interval(i)
 					if record.chrom.replace("chr", "").upper() != chrom.replace("chr", "").upper():
 						continue
-						
+
 					# check if current interval contains this record
 					if record.start_0based >= start and record.end_1based <= end:
 						break
