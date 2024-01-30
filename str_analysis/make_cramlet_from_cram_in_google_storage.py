@@ -26,7 +26,7 @@ from google.cloud import storage
 import hailtop.fs as hfs
 
 from str_analysis.make_bamlet import extract_region
-from str_analysis.utils.file_utils import open_file, get_file_size
+from str_analysis.utils.file_utils import set_requester_pays_project, file_exists, open_file, get_file_size
 from str_analysis.utils.misc_utils import parse_interval
 
 pysam.set_verbosity(0)
@@ -273,9 +273,10 @@ def main():
     if not args.input_cram.startswith("gs://"):
         parser.error(f"CRAM path {args.input_cram} must be on Google Storage (ie. start with 'gs://')")
 
+    set_requester_pays_project(args.gcloud_project)
+
     crai_index_path = args.crai_index_path if args.crai_index_path else f"{args.input_cram}.crai"
-    fexists = hfs.exists if crai_index_path.startswith("gs://") else os.path.isfile
-    if not fexists(crai_index_path):
+    if not file_exists(crai_index_path):
         parser.error(f"CRAM index path {crai_index_path} not found")
 
     for path in args.reference_fasta, args.cram_header:
