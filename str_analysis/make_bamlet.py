@@ -68,7 +68,7 @@ def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=
     # cache all read pairs that overlap the region
     read_pairs = collections.defaultdict(list)
     for alignment in input_bam.fetch(chrom, start, end):
-        if alignment.is_secondary: # or alignment.is_supplementary:
+        if alignment.is_secondary or alignment.is_supplementary:
             # skip secondary and supplementary alignments as in
             # https://github.com/bw2/ExpansionHunter/blob/master/ehunter/sample/MateExtractor.cpp#L143
             continue
@@ -81,26 +81,27 @@ def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=
     # compute a dictionary that maps (chrom, start, end) to a set of read names that need to be fetched from that region
     mate_regions = collections.defaultdict(set)
     for read_name, read_pair in read_pairs.items():
-        if len(read_pair) == 2:
+        if len(read_pair) >= 2:
             continue
 
         # see if mate is close to other mates that need to be fetched
         mate_chrom = read_pair[0].next_reference_name
         mate_pos = int(read_pair[0].next_reference_start)
 
-        if mate_chrom == chrom and min(abs(mate_pos - start), abs(mate_pos - end)) <= 1000:
-            # skip mates that are close to the ends of the region
-            continue
+        #if mate_chrom == chrom and min(abs(mate_pos - start), abs(mate_pos - end)) <= 1000:
+        #    # skip mates that are close to the ends of the region
+        #    continue
 
         for mate_region in mate_regions:
             if is_close(mate_chrom, mate_pos, mate_region, max_dist=merge_regions_distance):
                 previous_read_names_set = mate_regions.pop(mate_region)
                 previous_read_names_set.add(read_name)
-                mate_regions[
-                    mate_chrom, min(mate_pos, mate_region[1]), max(mate_pos + 1, mate_region[2])] = previous_read_names_set
+                key = (mate_chrom, min(mate_pos - 1, mate_region[1]), max(mate_pos + 1, mate_region[2]))
+                mate_regions[key] = previous_read_names_set
                 break
         else:
-            mate_regions[mate_chrom, mate_pos, mate_pos + 1].add(read_name)
+            key = mate_chrom, mate_pos - 1, mate_pos + 1
+            mate_regions[key].add(read_name)
 
     genomic_regions_to_fetch.extend(mate_regions.keys())
 

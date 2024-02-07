@@ -73,15 +73,16 @@ def main():
 
     # create a CramIntervalRreader and use it to generate a temp CRAM file containing the CRAM header and any reads
     # overlapping the user-specified region interval(s)
-    print("Retrieving reads that overlap", ", ".join(args.region))
+    window_size = 2000
+    print(f"Retrieving reads that are within {window_size:,d}bp of", ", ".join(args.region))
     cram_reader = CramIntervalReader(args.input_cram, input_crai_path, verbose=args.verbose, cache_byte_ranges=True)
 
     temporary_cram_file = tempfile.NamedTemporaryFile(suffix=".cram")
     #temporary_cram_file = open("temp_file.cram", "wb")
     for region in args.region:
         chrom, start, end = parse_interval(region)
-        window_start = start - 2000
-        window_end = end + 2000
+        window_start = start - window_size
+        window_end = end + window_size
 
         cram_reader.add_interval(chrom, window_start, window_end)
 
@@ -97,8 +98,8 @@ def main():
         if args.verbose:
             print("-"*100)
         chrom, start, end = parse_interval(region)
-        window_start = start - 2000
-        window_end = end + 2000
+        window_start = start - window_size
+        window_end = end + window_size
 
         genomic_regions = extract_region(
             chrom, window_start, window_end,
