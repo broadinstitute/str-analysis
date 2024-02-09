@@ -15,6 +15,7 @@ import sys
 import os
 import pandas as pd
 import pysam
+import re
  
 from str_analysis.utils.misc_utils import parse_interval
 
@@ -114,7 +115,7 @@ def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=
             for read in read_pair:
                 read_counter += 1
                 bamlet.write(read)
-        print(f"Wrote {read_counter:,d} reads to bamlet")
+        print(f"Wrote {read_counter:,d} reads to {getattr(bamlet, 'filename', b'bamlet').decode()}")
 
     return genomic_regions_to_fetch
 
@@ -127,13 +128,17 @@ def main():
                         "and retrieved using a single disk read operation. To reduce number of the disk reads, increase "
                         "this parameter, or decrease it to reduce the total number of bytes read.")
     parser.add_argument("-R", "--reference-fasta", required=True, help="Reference genome FASTA file to use when reading from CRAM")
-    parser.add_argument("-o", "--bamlet", required=True, help="Output file path prefix")
+    parser.add_argument("-o", "--bamlet", help="Output file path prefix")
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("input_bam_or_cram", help="Input BAM or CRAM file")
     parser.add_argument("region", nargs="+", help="Region(s) for which to extract reads (chr:start-end). For example, "
                                                   "for the HTT repeat locus on hg38, specify chr4:3074877-3074933")
 
     args = parser.parse_args()
+
+    if args.bamlet is None:
+        args.bamlet = re.sub("(.bam|.cram)$", "", os.path.basename(args.input_bam_or_cram)) + ".bamlet.bam"
+
 
     input_bam_file = pysam.AlignmentFile(args.input_bam_or_cram, "r", reference_filename=args.reference_fasta)
     bamlet_file = pysam.AlignmentFile(args.bamlet, "wc" if args.bamlet.endswith(".cram") else "wb", template=input_bam_file)
