@@ -1,6 +1,6 @@
 import unittest
 
-from check_trios_for_mendelian_violations import (
+from str_analysis.check_trios_for_mendelian_violations import (
     compute_min_distance_mendelian, compute_min_distance_mendelian_ci,
     intervals_overlap, determine_transmitted_alleles)
 from intervaltree import Interval

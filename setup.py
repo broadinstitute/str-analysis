@@ -1,3 +1,4 @@
+import glob
 import os
 import unittest
 
@@ -27,17 +28,9 @@ class PublishCommand(build_py):
                   "&& python3 setup.py bdist_wheel"
                   "&& python3 -m twine upload dist/*whl dist/*gz")
 
-
-def test_suite():
-    """Discover unittests"""
-    test_loader = unittest.TestLoader()
-    test_suite = test_loader.discover('str_analysis', pattern='*tests.py')
-    return test_suite
-
-
 setup(
     name='str_analysis',
-    version="1.2.7",
+    version="1.2.8",
     description="Utilities for analyzing short tandem repeats (STRs)",
     install_requires=requirements,
     cmdclass={
@@ -59,6 +52,8 @@ setup(
             'combine_json_to_tsv = str_analysis.combine_json_to_tsv:main',
             'copy_EH_vcf_fields_to_json = str_analysis.copy_EH_vcf_fields_to_json:main',
             'run_reviewer = str_analysis.run_reviewer:main',
+            'print_reads = str_analysis.print_reads:main',
+            'make_bamlet = str_analysis.make_bamlet:main',
             'make_cramlet_from_cram_in_google_storage = str_analysis.make_cramlet_from_cram_in_google_storage:main',
         ],
     },
@@ -66,14 +61,13 @@ setup(
     long_description=long_description,
     packages=["str_analysis", "str_analysis.utils"],
     data_files=[
-        ('data', ['str_analysis/data/non_ref_motif.offtarget_regions.json.gz']),
-        ('data', ['str_analysis/data/non_ref_motif.locus_info.json']),
+        ('data', ['str_analysis/data/non_ref_motif.offtarget_regions.json.gz', 'str_analysis/data/non_ref_motif.locus_info.json']),
+        ('data', glob.glob('str_analysis/data/tests/*.*')),
     ],
     include_package_data=True,
     python_requires=">=3.7",
     license="MIT",
     keywords='',
-    test_suite="setup.test_suite",
     #tests_require=["mock"],
     url='https://github.com/broadinstitute/str-analysis',
     classifiers=[

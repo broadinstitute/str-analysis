@@ -14,7 +14,7 @@ from google.cloud import storage
 
 from str_analysis.utils.file_utils import set_requester_pays_project, file_exists
 from str_analysis.utils.misc_utils import parse_interval
-from str_analysis.utils.cram_bam_utils import BamIntervalReader, CramIntervalReader
+from str_analysis.utils.cram_bam_utils import IntervalReader
 pysam.set_verbosity(0)
 
 
@@ -36,30 +36,19 @@ def main():
 		if path and not file_exists(path):
 			parser.error(f"{path} not found")
 
-	output_path = args.output
-	if args.input_bam_or_cram.endswith(".bam"):
-		if args.read_index is None:
-			args.read_index = f"{args.input_bam_or_cram}.bai"
-		if output_path is None:
-			output_path = re.sub(".bam$", "", os.path.basename(args.input_bam_or_cram))
-			output_path += ".print_reads.bam"
-		elif not output_path.endswith(".bam"):
-			parser.error(f"Output path {output_path} must end with .bam")
+	if args.output is None:
+		if args.input_bam_or_cram.endswith(".cram"):
+			args.output = re.sub(".cram$", "", os.path.basename(args.input_bam_or_cram))
+			args.output += ".print_reads.cram"
+		else:
+			args.output = re.sub(".bam$", "", os.path.basename(args.input_bam_or_cram))
+			args.output += ".print_reads.bam"
 
-		reader = BamIntervalReader(args.input_bam_or_cram, args.read_index, verbose=args.verbose)
-
-	elif args.input_bam_or_cram.endswith(".cram"):
-		if args.read_index is None:
-			args.read_index = f"{args.input_bam_or_cram}.crai"
-		if output_path is None:
-			output_path = re.sub(".cram$", "", os.path.basename(args.input_bam_or_cram))
-			output_path += ".print_reads.cram"
-		elif not output_path.endswith(".cram"):
-			parser.error(f"Output path {output_path} must end with .cram")
-
-		reader = CramIntervalReader(args.input_bam_or_cram, args.read_index, verbose=args.verbose)
-	else:
-		parser.error(f"Input {args.input_bam_or_cram} must be a .bam or a .cram file")
+	reader = IntervalReader(
+		args.input_bam_or_cram,
+		crai_or_bai_path=args.read_index,
+		retrieve_cram_containers_from_google_storage=True,
+		verbose=args.verbose)
 
 	# write out a temp CRAM file with just the cram header and region intervals
 	for interval in args.interval:
@@ -69,7 +58,7 @@ def main():
 		except ValueError:
 			parser.error(f"Invalid interval {interval}")
 
-	reader.save_to_file(output_path)
+	read_counts = reader.save_to_file(args.output)
 
 if __name__ == "__main__":
 	main()

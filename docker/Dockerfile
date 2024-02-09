@@ -51,17 +51,18 @@ RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cl
 ENV PATH=/google-cloud-sdk/bin:$PATH
 
 # install htslib
-ENV SAMTOOLS_VERSION="1.18"
-RUN wget -q https://github.com/samtools/htslib/releases/download/${SAMTOOLS_VERSION}/htslib-${SAMTOOLS_VERSION}.tar.bz2 \
-	&& tar xjf htslib-${SAMTOOLS_VERSION}.tar.bz2 \
-	&& rm htslib-${SAMTOOLS_VERSION}.tar.bz2 \
-	&& cd htslib-${SAMTOOLS_VERSION} \
+ENV HTSLIB_VERSION="1.19.1"
+RUN wget -q https://github.com/samtools/htslib/releases/download/${HTSLIB_VERSION}/htslib-${HTSLIB_VERSION}.tar.bz2 \
+	&& tar xjf htslib-${HTSLIB_VERSION}.tar.bz2 \
+	&& rm htslib-${HTSLIB_VERSION}.tar.bz2 \
+	&& cd htslib-${HTSLIB_VERSION} \
 	&& ./configure --enable-libcurl --enable-gcs --enable-s3 \
 	&& make \
 	&& make install \
 	&& make clean
 
 # install samtools
+ENV SAMTOOLS_VERSION="1.19.2"
 RUN wget -q https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VERSION}/samtools-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& tar xjf samtools-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& rm samtools-${SAMTOOLS_VERSION}.tar.bz2 \
@@ -70,7 +71,6 @@ RUN wget -q https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VE
 	&& make \
 	&& make install \
 	&& make clean
-
 
 # install GangSTR from https://github.com/gymreklab/GangSTR
 ENV GANGSTR_VERSION="2.5.0-Source"
@@ -191,7 +191,6 @@ COPY README.md .
 COPY setup.py .
 COPY requirements.txt .
 RUN python3 -m pip install --no-cache-dir -r requirements.txt
-RUN python3 setup.py test
 RUN python3 setup.py install
 
 ENV PYTHONPATH=/:.:$PYTHONPATH

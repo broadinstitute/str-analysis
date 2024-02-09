@@ -12,6 +12,7 @@ import binascii
 import collections
 import gzip
 import sys
+import os
 import pandas as pd
 import pysam
  
@@ -58,9 +59,6 @@ def jump_for_mates(bam, chrom, start, end, read_names_set):
 
 
 def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=1000, verbose=False):
-    if verbose:
-        print(f"Fetching region: {chrom}:{start}-{end}")
-
     genomic_regions_to_fetch = [
         (chrom, start, end)
     ]
@@ -75,8 +73,8 @@ def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=
 
         read_pairs[alignment.query_name].append(alignment)
 
-    if verbose:
-        print(f"Found {len(read_pairs)} read pairs with {sum(len(read_pair) for read_pair in read_pairs.values())} reads")
+    if verbose and len(read_pairs) > 0:
+        print(f"Extracted {len(read_pairs)} read pairs cotaining {sum(len(read_pair) for read_pair in read_pairs.values())} reads from region {chrom}:{start}-{end}")
 
     # compute a dictionary that maps (chrom, start, end) to a set of read names that need to be fetched from that region
     mate_regions = collections.defaultdict(set)
@@ -105,11 +103,12 @@ def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=
 
     genomic_regions_to_fetch.extend(mate_regions.keys())
 
+    print(f"Need to fetch {len(read_pairs)} mates from {len(mate_regions)} regions")
     if bamlet is not None:
-        print(f"Need to fetch {len(read_pairs)} mates from {len(mate_regions)} regions")
         for (mate_chrom, mate_start, mate_end), read_names_set in mate_regions.items():
             for alignment in jump_for_mates(input_bam, mate_chrom, mate_start, mate_end, read_names_set):
                 read_pairs[alignment.query_name].append(alignment)
+
         read_counter = 0
         for read_name, read_pair in read_pairs.items():
             for read in read_pair:
@@ -118,6 +117,7 @@ def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=
         print(f"Wrote {read_counter:,d} reads to bamlet")
 
     return genomic_regions_to_fetch
+
 
 
 def main():
@@ -135,8 +135,8 @@ def main():
 
     args = parser.parse_args()
 
-    input_bam_file = pysam.AlignmentFile(args.input_bam_or_cram, "rb", reference_filename=args.reference_fasta)
-    bamlet_file = pysam.AlignmentFile(args.bamlet, "wb", template=input_bam_file)
+    input_bam_file = pysam.AlignmentFile(args.input_bam_or_cram, "r", reference_filename=args.reference_fasta)
+    bamlet_file = pysam.AlignmentFile(args.bamlet, "wc" if args.bamlet.endswith(".cram") else "wb", template=input_bam_file)
 
     for region in args.region:
         chrom, start, end = parse_interval(region)
@@ -152,7 +152,12 @@ def main():
     bamlet_file.close()
     input_bam_file.close()
 
-
+    try:
+        pysam.sort("-o", f"{args.bamlet}.sorted.bam", args.bamlet)
+        os.rename(f"{args.bamlet}.sorted.bam", args.bamlet)
+        pysam.index(args.bamlet)
+    except Exception as e:
+        print(f"WARNING: Failed to sort and index {args.bamlet}: {e}")
 
 if __name__ == "__main__":
     main()

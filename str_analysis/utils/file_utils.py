@@ -1,3 +1,6 @@
+import logging
+logging.getLogger('asyncio').setLevel(logging.CRITICAL)
+
 import gzip
 import hailtop.fs as hfs
 import io

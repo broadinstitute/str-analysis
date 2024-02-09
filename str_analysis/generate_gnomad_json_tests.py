@@ -1,7 +1,7 @@
 import pandas as pd
 import unittest
 
-from generate_gnomad_json import compute_most_common_motif_lookup_dict
+from str_analysis.generate_gnomad_json import compute_most_common_motif_lookup_dict
 
 
 class Tests(unittest.TestCase):
