@@ -251,6 +251,54 @@ class IntervalReader:
 			read_count = self.save_to_file(temp_cram_file.name, create_index=False)
 		return read_count
 
+	def compute_read_stats(self):
+		"""Returns a dictionary of read stats for the added genomic intervals. The dictionary contains the following
+		keys:
+			"coverage": The average coverage across all the added intervals.
+			"read_length": The read length.
+			"read_count": The total number of reads across all the added intervals.
+		"""
+
+		stats = {}
+		read_length = None
+		read_count = 0
+		coverage = []
+
+		with tempfile.NamedTemporaryFile(suffix=".cram") as temp_cram_file:
+			self.save_to_file(temp_cram_file.name, create_index=True)
+
+			with pysam.AlignmentFile(temp_cram_file.name) as input_file:
+				for chrom, start_0based, end in self._get_merged_intervals():
+					bases_in_interval = 0
+					for read in input_file.fetch(chrom, start_0based, end):
+						if read.is_unmapped or read.is_secondary:
+							continue
+
+						current_read_length = read.infer_query_length()
+						if current_read_length is None:
+							continue
+
+						if read_length is None or read_length < current_read_length:
+							read_length = current_read_length
+
+						read_start_1based = read.reference_start + 1
+						read_end_1based = read.reference_start + current_read_length
+
+						if read_end_1based < start_0based + 1 or read_start_1based > end:
+							continue
+
+						read_count += 1
+						bases_in_interval += min(read_end_1based, end) - max(read_start_1based, start_0based + 1) + 1
+
+					if end - start_0based > 0:
+						coverage.append(bases_in_interval/float(end - start_0based))
+
+		stats["coverage"] = sum(coverage)/len(coverage) if coverage else 0
+		stats["read_length"] = read_length
+		stats["read_count"] = read_count
+
+		return stats
+
 	def _download_cram_containers(self, cram_container_file):
 		"""Download all CRAM containers that overlap the genomic intervals added so far to the given file handle.
 		Args:
