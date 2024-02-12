@@ -113,6 +113,7 @@ def main():
         for genomic_region in genomic_regions:
             cram_reader.add_interval(*genomic_region)
 
+    print(f"Exporting data for {len(intervals)} intervals to {args.cramlet}")
     cram_reader.save_to_file(args.cramlet)
 
     input_bam_file.close()

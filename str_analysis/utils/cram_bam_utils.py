@@ -214,9 +214,11 @@ class IntervalReader:
 		else:
 			temp_cram_container_file = tempfile.NamedTemporaryFile(suffix=local_path_suffix)
 			self._download_cram_containers(temp_cram_container_file)
+			print("Seeking to 0")
 			temp_cram_container_file.seek(0)
-
+			print("Indexing", temp_cram_container_file.name)
 			pysam.index(temp_cram_container_file.name)
+			print("Creating alignment file", temp_cram_container_file.name, "reference_filename=", self._reference_fasta_path)
 			pysam_input_file = pysam.AlignmentFile(
 				temp_cram_container_file, require_index=True, reference_filename=self._reference_fasta_path)
 
@@ -224,11 +226,12 @@ class IntervalReader:
 		pysam_output_file = pysam.AlignmentFile(local_path, mode="wc" if local_path.endswith(".cram") else "wb",
 												template=pysam_input_file, reference_filename=self._reference_fasta_path)
 		read_counter = 0
+		print("Writing reads to ", local_path)
 		for chrom, start, end in sorted(self._get_merged_intervals(chrom_sort_order=lambda chrom: chom_order.index(normalize_chromosome_name(chrom)))):
 			for read in pysam_input_file.fetch(chrom, start, end):
 				read_counter += 1
 				pysam_output_file.write(read)
-
+		print("Done")
 		pysam_input_file.close()
 		pysam_output_file.close()
 
