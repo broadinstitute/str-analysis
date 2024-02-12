@@ -144,7 +144,10 @@ def main():
                 round(total_duration_seconds, 2),
             ])) + "\n")
 
-        print(f"Wrote stats to {stats_tsv_path}: {total_containers:,d} containers, {total_bytes:,d} bytes downloaded")
+        if args.verbose:
+            print(f"Wrote stats to {stats_tsv_path}: Downloaded {total_containers:,d} containers, "
+                  f"{total_bytes:,d} bytes in {round(total_duration_seconds, 2)} seconds")
+            
     input_bam_file.close()
 
 if __name__ == "__main__":
