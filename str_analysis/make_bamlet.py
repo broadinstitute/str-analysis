@@ -130,6 +130,8 @@ def main():
     parser.add_argument("-R", "--reference-fasta", required=True, help="Reference genome FASTA file to use when reading from CRAM")
     parser.add_argument("-o", "--bamlet", help="Output file path prefix")
     parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("--read-index", help="Optional path of the input BAM or CRAM index file. This can be a local "
+                                             "or a gs:// path")
     parser.add_argument("input_bam_or_cram", help="Input BAM or CRAM file")
     parser.add_argument("region", nargs="+", help="Region(s) for which to extract reads (chr:start-end). For example, "
                                                   "for the HTT repeat locus on hg38, specify chr4:3074877-3074933")
@@ -140,7 +142,7 @@ def main():
         args.bamlet = re.sub("(.bam|.cram)$", "", os.path.basename(args.input_bam_or_cram)) + ".bamlet.bam"
 
 
-    input_bam_file = pysam.AlignmentFile(args.input_bam_or_cram, "r", reference_filename=args.reference_fasta)
+    input_bam_file = pysam.AlignmentFile(args.input_bam_or_cram, "r", index_filename=args.read_index, reference_filename=args.reference_fasta)
     bamlet_file = pysam.AlignmentFile(args.bamlet, "wc" if args.bamlet.endswith(".cram") else "wb", template=input_bam_file)
 
     for region in args.region:
