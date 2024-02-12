@@ -85,6 +85,7 @@ def main():
     # overlapping the user-specified region interval(s)
     print(f"Retrieving reads within {window_size:,d}bp of", ", ".join(args.region))
     cram_reader = IntervalReader(args.input_cram, input_crai_path, verbose=args.verbose,
+                                 reference_fasta_path=args.reference_fasta,
                                  retrieve_cram_containers_from_google_storage=True,
                                  cache_byte_ranges=True)
 
