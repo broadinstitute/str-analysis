@@ -57,19 +57,21 @@ def get_file_size(path):
         return os.path.getsize(os.path.expanduser(path))
 
 
-def download_local_copy(url_or_google_storage_path):
+def download_local_copy(url_or_google_storage_path, verbose=False):
     """Downloads the given URL or gs:// path to a local temp file and returns the path to the local file."""
 
     temp_dir = tempfile.gettempdir()
     if url_or_google_storage_path.startswith("gs://"):
         path = os.path.join(temp_dir, os.path.basename(url_or_google_storage_path))
         if not os.path.isfile(path):
-            print(f"Downloading {url_or_google_storage_path} to {path}")
+            if verbose:
+                print(f"Downloading {url_or_google_storage_path} to {path}")
             hfs.copy(url_or_google_storage_path, path, requester_pays_config=gcloud_requester_pays_project)
     else:
         path = os.path.join(temp_dir, os.path.basename(url_or_google_storage_path))
         if not os.path.isfile(path):
-            print(f"Downloading {url_or_google_storage_path} to {path}")
+            if verbose:
+                print(f"Downloading {url_or_google_storage_path} to {path}")
             r = requests.get(url_or_google_storage_path)
             with open(path, "wb") as f:
                 f.write(r.content)
