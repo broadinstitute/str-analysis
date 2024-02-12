@@ -262,7 +262,7 @@ class IntervalReader:
 		pysam_output_file.close()
 
 		if create_index:
-			if args._verbose:
+			if self._verbose:
 				print("Creating index for", local_path)
 
 			try:
