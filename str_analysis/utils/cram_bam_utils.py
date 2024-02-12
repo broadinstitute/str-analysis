@@ -191,10 +191,25 @@ class IntervalReader:
 
 		interval_tree.add(merged_interval)
 
+	def get_total_containers_loaded_from_cram(self):
+		"""Returns the total number of CRAM containers that were downloaded from the input CRAM so far."""
+		return self._total_containers_loaded_from_cram
+
+	def get_total_bytes_loaded_from_cram(self):
+		"""Returns the total number of bytes that were downloaded from the input CRAM so far."""
+		return self._total_bytes_loaded_from_cram
 
 	def clear_intervals(self):
+		"""Clears all the genomic intervals that were added so far."""
 		self._genomic_intervals = collections.defaultdict(intervaltree.IntervalTree)
 
+	def reset_total_containers_loaded_from_cram_counter(self):
+		"""Resets the counter of the total number of CRAM containers that were downloaded from the input CRAM so far."""
+		self._total_containers_loaded_from_cram = 0
+
+	def reset_total_bytes_loaded_from_cram(self):
+		"""Resets the counter of the total number of bytes downloaded from the input CRAM so far."""
+		self._total_bytes_loaded_from_cram = 0
 
 	def save_to_file(self, local_path, create_index=True):
 		"""Load and save the added genomic intervals to a local CRAM file at the given local_path, or alternatively,
