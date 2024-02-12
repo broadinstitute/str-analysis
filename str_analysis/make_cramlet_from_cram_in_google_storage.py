@@ -21,6 +21,7 @@ import re
 import sys
 import pysam
 import tempfile
+import time
 
 from google.cloud import storage
 import hailtop.fs as hfs
@@ -54,6 +55,8 @@ def main():
     args = parser.parse_args()
 
     window_size = 2000
+
+    start_time = time.time()
 
     # validate args
     intervals = []
@@ -119,6 +122,7 @@ def main():
     print(f"Exporting data for {len(intervals)} intervals to {args.cramlet}")
     cram_reader.save_to_file(args.cramlet)
 
+    total_duration_seconds = time.time() - start_time
     if args.output_download_stats:
         total_containers = cram_reader.get_total_containers_downloaded_from_cram()
         total_bytes = cram_reader.get_total_bytes_downloaded_from_cram()
@@ -127,8 +131,18 @@ def main():
 
         with open(stats_tsv_path, "a") as stats_file:
             if add_header:
-                stats_file.write("\t".join(["input_cram", "total_containers_downloaded", "total_bytes_downloaded"]) + "\n")
-            stats_file.write("\t".join(map(str, [args.input_cram, total_containers, total_bytes])) + "\n")
+                stats_file.write("\t".join([
+                    "input_cram",
+                    "total_containers_downloaded",
+                    "total_bytes_downloaded",
+                    "total_duration_seconds",
+                ]) + "\n")
+            stats_file.write("\t".join(map(str, [
+                args.input_cram,
+                total_containers,
+                total_bytes,
+                round(total_duration_seconds, 2),
+            ])) + "\n")
 
         print(f"Wrote stats to {stats_tsv_path}: {total_containers:,d} containers, {total_bytes:,d} bytes downloaded")
     input_bam_file.close()
