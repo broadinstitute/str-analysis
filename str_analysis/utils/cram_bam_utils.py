@@ -247,9 +247,20 @@ class IntervalReader:
 		return read_counter
 
 	def count_reads(self):
+		"""Returns the number of reads that overlap the added genomic intervals"""
 		with tempfile.NamedTemporaryFile(suffix=".cram") as temp_cram_file:
 			read_count = self.save_to_file(temp_cram_file.name, create_index=False)
 		return read_count
+
+	def get_header(self):
+		"""Returns the CRAM or BAM file header as a dictionary"""
+		saved_genomic_intervals = self._genomic_intervals  # save the genomic intervals
+		self.clear_intervals()
+		with tempfile.NamedTemporaryFile(suffix=".cram") as temp_cram_file:
+			self.save_to_file(temp_cram_file.name, create_index=True)
+			self._genomic_intervals = saved_genomic_intervals # restore the genomic intervals
+			with pysam.AlignmentFile(temp_cram_file.name) as input_file:
+				return input_file.header.to_dict()
 
 	def compute_read_stats(self):
 		"""Returns a dictionary of read stats for the added genomic intervals. The dictionary contains the following
