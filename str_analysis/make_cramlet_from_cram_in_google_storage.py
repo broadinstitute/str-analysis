@@ -42,9 +42,11 @@ def main():
     parser.add_argument("-u", "--gcloud-project", help="Google Cloud project name to use when reading the input cram.")
     parser.add_argument("-R", "--reference-fasta", help="Reference genome FASTA file used for reading the CRAM file")
     parser.add_argument("-o", "--cramlet", help="Output file path prefix")
-    parser.add_argument("-i", "--crai-index-path", help="Optional path of the input CRAM index file. "
-                                                        "This can be a local or a gs:// path")
+    parser.add_argument("-i", "--crai-index-path", help="Optional path of the input CRAM index file. This can be a "
+                        "local or a gs:// path")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("-t", "--output-download-stats", action="store_true", help="Write out a TSV file with stats "
+                        "about the total number of bytes and containers downloaded from the CRAM")
     parser.add_argument("input_cram", help="Input CRAM file path. This can a local or a gs:// path")
     parser.add_argument("region", nargs="+", help="Region(s) for which to extract reads (chr:start-end). For example, "
                                                   "for the HTT repeat locus on hg38, specify chr4:3074877-3074933")
@@ -117,6 +119,18 @@ def main():
     print(f"Exporting data for {len(intervals)} intervals to {args.cramlet}")
     cram_reader.save_to_file(args.cramlet)
 
+    if args.output_download_stats:
+        total_containers = cram_reader.get_total_containers_downloaded_from_cram()
+        total_bytes = cram_reader.get_total_bytes_downloaded_from_cram()
+        stats_tsv_path = re.sub("(.cramlet)?.cram$", "", args.cramlet) + ".stats.tsv"
+        add_header = not os.path.isfile(stats_tsv_path) or os.path.getsize(stats_tsv_path) == 0
+
+        with open(stats_tsv_path, "a") as stats_file:
+            if add_header:
+                stats_file.write("\t".join(["input_cram", "total_containers_downloaded", "total_bytes_downloaded"]) + "\n")
+            stats_file.write("\t".join(map(str, [args.input_cram, total_containers, total_bytes])) + "\n")
+
+        print(f"Wrote stats to {stats_tsv_path}: {total_containers:,d} containers, {total_bytes:,d} bytes downloaded")
     input_bam_file.close()
 
 if __name__ == "__main__":

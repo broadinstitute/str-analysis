@@ -191,12 +191,20 @@ class IntervalReader:
 
 		interval_tree.add(merged_interval)
 
-	def get_total_containers_loaded_from_cram(self):
-		"""Returns the total number of CRAM containers that were downloaded from the input CRAM so far."""
+	def get_total_containers_downloaded_from_cram(self):
+		"""Returns the total number of CRAM containers that were downloaded from the input CRAM so far.
+		This is only relevant when the IntervalReader was created with retrieve_cram_containers_from_google_storage=True
+		"""
+		if not self._retrieve_cram_containers_from_google_storage:
+			print("WARNING: This method should only be used when retrieve_cram_containers_from_google_storage=True")
 		return self._total_containers_loaded_from_cram
 
-	def get_total_bytes_loaded_from_cram(self):
-		"""Returns the total number of bytes that were downloaded from the input CRAM so far."""
+	def get_total_bytes_downloaded_from_cram(self):
+		"""Returns the total number of bytes that were downloaded from the input CRAM so far.
+		This is only relevant when the IntervalReader was created with retrieve_cram_containers_from_google_storage=True
+		"""
+		if not self._retrieve_cram_containers_from_google_storage:
+			print("WARNING: This method should only be used when retrieve_cram_containers_from_google_storage=True")
 		return self._total_bytes_loaded_from_cram
 
 	def clear_intervals(self):
@@ -204,11 +212,15 @@ class IntervalReader:
 		self._genomic_intervals = collections.defaultdict(intervaltree.IntervalTree)
 
 	def reset_total_containers_loaded_from_cram_counter(self):
-		"""Resets the counter of the total number of CRAM containers that were downloaded from the input CRAM so far."""
+		"""Resets the counter of the total number of CRAM containers that were downloaded from the input CRAM so far.
+		This is only relevant when the IntervalReader was created with retrieve_cram_containers_from_google_storage=True
+		"""
 		self._total_containers_loaded_from_cram = 0
 
 	def reset_total_bytes_loaded_from_cram(self):
-		"""Resets the counter of the total number of bytes downloaded from the input CRAM so far."""
+		"""Resets the counter of the total number of bytes downloaded from the input CRAM so far.
+		This is only relevant when the IntervalReader was created with retrieve_cram_containers_from_google_storage=True
+		"""
 		self._total_bytes_loaded_from_cram = 0
 
 	def save_to_file(self, local_path, create_index=True):
@@ -229,11 +241,8 @@ class IntervalReader:
 		else:
 			temp_cram_container_file = tempfile.NamedTemporaryFile(suffix=local_path_suffix)
 			self._download_cram_containers(temp_cram_container_file)
-			print("Seeking to 0")
 			temp_cram_container_file.seek(0)
-			print("Indexing", temp_cram_container_file.name)
 			pysam.index(temp_cram_container_file.name)
-			print("Creating alignment file", temp_cram_container_file.name, "reference_filename=", self._reference_fasta_path)
 			pysam_input_file = pysam.AlignmentFile(
 				temp_cram_container_file, require_index=True, reference_filename=self._reference_fasta_path)
 
@@ -241,16 +250,21 @@ class IntervalReader:
 		pysam_output_file = pysam.AlignmentFile(local_path, mode="wc" if local_path.endswith(".cram") else "wb",
 												template=pysam_input_file, reference_filename=self._reference_fasta_path)
 		read_counter = 0
-		print("Writing reads to ", local_path)
+		if args._verbose:
+			print("Writing reads to", local_path)
 		for chrom, start, end in sorted(self._get_merged_intervals(chrom_sort_order=lambda chrom: chom_order.index(normalize_chromosome_name(chrom)))):
 			for read in pysam_input_file.fetch(chrom, start, end):
 				read_counter += 1
 				pysam_output_file.write(read)
-		print("Done")
+		if args._verbose:
+			print("Done")
 		pysam_input_file.close()
 		pysam_output_file.close()
 
 		if create_index:
+			if args._verbose:
+				print("Creating index for", local_path)
+
 			try:
 				pysam.sort("-o", f"{local_path}.sorted.{local_path_suffix}", local_path)
 				os.rename(f"{local_path}.sorted.{local_path_suffix}", local_path)
@@ -333,6 +347,8 @@ class IntervalReader:
 		Args:
 			cram_container_file (file): A file handle which is already open for writing in binary mode
 		"""
+		if self._verbose:
+			print(f"Downloading CRAM containers to {cram_container_file.name}")
 
 		# use the CRAI index to compute which byte ranges to load from the CRAM file
 		byte_ranges_to_download = []
