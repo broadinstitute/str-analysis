@@ -250,13 +250,13 @@ class IntervalReader:
 		pysam_output_file = pysam.AlignmentFile(local_path, mode="wc" if local_path.endswith(".cram") else "wb",
 												template=pysam_input_file, reference_filename=self._reference_fasta_path)
 		read_counter = 0
-		if args._verbose:
+		if self._verbose:
 			print("Writing reads to", local_path)
 		for chrom, start, end in sorted(self._get_merged_intervals(chrom_sort_order=lambda chrom: chom_order.index(normalize_chromosome_name(chrom)))):
 			for read in pysam_input_file.fetch(chrom, start, end):
 				read_counter += 1
 				pysam_output_file.write(read)
-		if args._verbose:
+		if self._verbose:
 			print("Done")
 		pysam_input_file.close()
 		pysam_output_file.close()
