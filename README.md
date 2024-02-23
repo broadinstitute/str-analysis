@@ -3,7 +3,7 @@
 This repo contains scripts and utilities for analyzing tandem repeats (TRs). 
 
 * Tools:
-  * **call_non_ref_motifs** - takes a bam/cram file and, optionally, an ExpansionHunter variant catalog. Then, for each 
+  * **call_non_ref_motifs** ([docs](https://github.com/broadinstitute/str-analysis/blob/main/docs/call_non_ref_motifs.md)) - takes a bam/cram file and, optionally, an ExpansionHunter variant catalog. Then, for each 
     locus, it determines which STR motifs are supported by reads overlapping that locus before running ExpansionHunter on the motif(s) it detected. 
   * **filter_vcf_to_STR_variants** - takes a single-sample VCF file and filters it to the INS/DEL variants that represent
     tandem repeat expansions or contractions by peforming brute-force k-mer search on each variant's inserted or deleted 
