@@ -166,7 +166,7 @@ def parse_args():
     if args.run_reviewer and not args.run_expansion_hunter:
         p.error("--run-expansion-hunter is required when --run-reviewer is used since REViewer depends on the output of ExpansionHunter")
 
-    return args
+    return args, p
 
 
 def run(command, verbose=False):
@@ -1189,7 +1189,7 @@ def compute_sample_id(bam_or_cram_path, reference_fasta):
 def main():
     """Call non-ref pathogenic motifs"""
 
-    args = parse_args()
+    args, parser = parse_args()
 
     if not args.sample_id:
         args.sample_id = compute_sample_id(args.bam_or_cram_path, args.reference_fasta)
@@ -1277,6 +1277,16 @@ def main():
                 "Motifs": {"REFERENCE": reference_motif},
                 "UseOfftargetRegions": False,
             }
+
+    if args.locus:
+        # make sure locus list values specified on the command line are valid locus ids
+        for locus_id in args.locus:
+            if locus_id not in locus_info:
+                valid_locus_ids = ", ".join(list(locus_info.keys()))
+                if len(locus_info) > 100:
+                    valid_locus_ids += " ..."
+                parser.error(
+                    f"--locus {locus_id} is not a valid locus id. Valid locus ids are: {valid_locus_ids}")
 
     results_list = []
     for locus_id in args.locus or locus_info.keys():
