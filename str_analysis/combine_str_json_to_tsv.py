@@ -579,11 +579,19 @@ def convert_expansion_hunter_json_to_tsv_columns(
                     output_record[f"FractionOfReadsThatSupportsGenotype{suffix}"] = (
                         output_record[f"NumReadsTotalThatSupportGenotype{suffix}"] / float(output_record["NumReadsTotal"]) if int(output_record["NumReadsTotal"]) > 0 else 0
                     )
+
+                for key, value in output_record.items():
+                    if isinstance(value, float):
+                        output_record[key] = f"{value:.3f}"
+
                 if yield_allele_records:
                     yield output_record
 
             if not yield_allele_records:
                 output_record["SummaryString"] = compute_variant_summary_string(output_record)
+                for key, value in output_record.items():
+                    if isinstance(value, float):
+                        output_record[key] = f"{value:.3f}"
                 yield output_record
 
 
