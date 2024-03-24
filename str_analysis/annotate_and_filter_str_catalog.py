@@ -58,6 +58,11 @@ def parse_args():
     annotations_group.add_argument("--skip-disease-loci-annotations", action="store_true", help="Don't annotate known "
         "disease associated loci in the output catalog")
 
+    annotations_group.add_argument("--add-gene-region-to-locus-id", action="store_true", help="Append the gene region "
+        "to each locus id")
+    annotations_group.add_argument("--add-canonical-motif-to-locus-id", action="store_true", help="Append the motif "
+        "to each locus id")
+
     filter_group = parser.add_argument_group("filters")
     filter_group.add_argument("--min-motif-size", type=int, help="Minimum motif size to include in the output catalog")
     filter_group.add_argument("--max-motif-size", type=int, help="Maximum motif size to include in the output catalog")
@@ -98,6 +103,8 @@ def parse_args():
                               help="Discard intervals if they overlap another interval with a similar motif")
     filter_group.add_argument("--discard-loci-with-non-acgt-bases", action="store_true", help="Discard loci that have "
                               "non-ACGT bases within their motif and/or their reference repeat sequence")
+
+
     parser.add_argument("variant_catalog_json_or_bed", help="A catalog of repeats to annotate and filter, either "
                         "in JSON or BED format. For BED format, the chrom, start, and end should represent the repeat "
                         "interval in 0-based coordinates, and the name field (column #4) should be the repeat unit.")
@@ -477,6 +484,14 @@ def main():
 
         if args.min_mappability is not None and input_variant_catalog_record["EntireLocusMappability"] < args.min_mappability:
             continue
+
+        if args.add_gene_region_to_locus_id:
+            gene_region = input_variant_catalog_record.get(f"{args.gene_models_source}GeneRegion")
+            if gene_region:
+                input_variant_catalog_record["LocusId"] += "-" + gene_region.replace(" ", "").replace("'", "")
+
+        if args.add_canonical_motif_to_locus_id:
+            input_variant_catalog_record["LocusId"] += "-" + "-".join(canonical_motifs)
 
         # add this record to the output variant catalog
         output_records.append(input_variant_catalog_record)
