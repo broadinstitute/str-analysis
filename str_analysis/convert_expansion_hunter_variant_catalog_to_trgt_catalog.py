@@ -37,6 +37,7 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
         output_rows = []
         counter = 0
         for i, record in enumerate(tqdm.tqdm(expansion_hunter_catalog, unit=" variant catalog records")):
+            locus_id = record["LocusId"]
             locus_structure = record["LocusStructure"]
             motifs = re.findall("[(]([A-Z]+)[)]", locus_structure)
             if not motifs:
@@ -68,7 +69,7 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
                 chrom,
                 locus_start_0based,
                 locus_end_1based,
-                f"ID={chrom}_{locus_start_0based}_{locus_end_1based};MOTIFS={motif_string};STRUC={struc}",
+                f"ID={locus_id};MOTIFS={motif_string};STRUC={struc}",
             ])
 
             if chrom != previous_chrom:
