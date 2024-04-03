@@ -14,7 +14,7 @@ from str_analysis.utils.file_utils import file_exists
 
 
 def parse_args():
-	parser = argparse.ArgumentParser(description="Annotate and filter an STR variant catalog.")
+	parser = argparse.ArgumentParser(description="Run REViewer on loci whose genotype exceeded a certain locus-specific threshold.")
 	parser.add_argument("--samtools-path", default="samtools", help="Path of samtools executable")
 	parser.add_argument("--reviewer-path", default="REViewer", help="Path of REViewer executable")
 	parser.add_argument("-r", "--reference-fasta", required=True, help="Reference fasta file")
@@ -25,6 +25,7 @@ def parse_args():
 	parser.add_argument("-b", "--bam", required=True, help="ExpansionHunter output bam file")
 	parser.add_argument("-v", "--vcf", required=True, help="ExpansionHunter output vcf file")
 	parser.add_argument("-o", "--output-prefix", help="Output prefix. If not specified, the input json filename will be used.")
+	parser.add_argument("--force", action="store_true", help="Run REViewer for all loci regardless of thresholds")        
 	parser.add_argument("--verbose", action="store_true", help="Print verbose output")
 
 	parser.add_argument("--is-above-threshold", choices=[
@@ -163,7 +164,9 @@ def compute_loci_to_process(args):
 
 		# Compare the genotype to the threshold. If it's a haploid genotype (ie. male on chrX), then apply the threshold
 		# to the 1 allele regardless of whether the short or long allele was specified via --is-above-threshold
-		if args.is_above_threshold == "short-allele-CI-lower-bound":
+		if args.force:
+			loci_to_process.append(locus_id)
+		elif args.is_above_threshold == "short-allele-CI-lower-bound":
 			if genotype_confidence_interval[0][0] >= threshold:
 				loci_to_process.append(locus_id)
 		elif args.is_above_threshold == "short-allele":
