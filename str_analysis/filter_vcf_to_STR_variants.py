@@ -8,6 +8,7 @@ is a short tandem repeat (STR).
 import argparse
 import collections
 import gzip
+import intervaltree
 import os
 from pprint import pformat
 import pyfaidx
@@ -80,6 +81,7 @@ FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_MOTIFS = "STR alleles with differ
 FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_INTERRUPTION_PATTERNS = "STR alleles with different interruption patterns"
 FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_COORDS = "STR alleles with different coords"
 FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS = "locus overlaps more than one STR variant"
+FILTER_STR_LOCUS_WITH_MULTIPLE_INDELS = "locus overlaps more than one indel variant"
 
 
 def parse_args():
@@ -388,6 +390,7 @@ def check_if_allele_is_str(
         null_result["FilterReason"] = determine_reason_indel_allele_failed_str_filter(
             variant_bases, repeat_unit, min_str_length, min_repeat_unit_length, max_repeat_unit_length,
             num_total_repeats_in_variant_plus_flanks, allow_interruptions, counters)
+
         return null_result
 
     result = {
@@ -457,6 +460,7 @@ def check_if_variant_is_str(
         min_repeat_unit_length,
         max_repeat_unit_length,
         counters,
+        indel_intervals=None,
         interruptions="no",
         vcf_line_i=None,
         verbose=False,
@@ -499,6 +503,10 @@ def check_if_variant_is_str(
 
     for counter_key, count in current_counters.items():
         counters[counter_key] += count
+
+    if variant_filter_string and any(len(alt_allele) != len(vcf_ref) for alt_allele in alt_alleles):
+        # add filtered out indels to list of intervals
+        indel_intervals[vcf_chrom].addi(vcf_pos, vcf_pos + len(vcf_ref))
 
     return str_specs_allowing_interruptions, variant_filter_string
 
@@ -660,6 +668,7 @@ def process_vcf_line(
         args,
         counters,
         indels_per_locus_counter,
+        indel_intervals,
 ):
     """Utility method for processing a single line from the input vcf
 
@@ -674,6 +683,7 @@ def process_vcf_line(
         args (argparse.Namespace): parsed command-line arguments
         counters (dict): dictionary of counters
         indels_per_locus_counter (collections.Counter): counter for the number of indels per locus
+        indel_intervals (dict): maps chrom to IntervalTree of STR loci and vcf indels for subsequent overlap checking
 
     Return:
         str: a string explaining the reason this variant is not a tandem repeat, or None if the variant is a tandem repeat
@@ -690,8 +700,8 @@ def process_vcf_line(
 
     variant_id = f"{vcf_chrom_without_chr_prefix}-{vcf_pos}-{vcf_ref}-{vcf_alt}"
 
-    if args.interval:
-        print(f"Processing variant {variant_id}...")
+    #if args.interval:
+    #    print(f"Processing variant {variant_id}...")
 
     alt_alleles = vcf_alt.split(",")
 
@@ -763,6 +773,7 @@ def process_vcf_line(
     if len(alt_alleles) > 1 and len(set(vcf_genotype_indices)) == 1:
         return FILTER_MULTIALLELIC_VARIANT_WITH_HOMOZYGOUS_GENOTYPE
 
+
     str_allele_specs, filter_string = check_if_variant_is_str(
         fasta_obj,
         vcf_chrom,
@@ -774,6 +785,7 @@ def process_vcf_line(
         args.min_repeat_unit_length,
         args.max_repeat_unit_length,
         counters=counters,
+        indel_intervals=indel_intervals,
         interruptions=args.allow_interruptions,
         vcf_line_i=vcf_line_i,
         verbose=args.verbose,
@@ -810,6 +822,11 @@ def process_vcf_line(
 
     locus_id = f"{vcf_chrom_without_chr_prefix}-{start_1based - 1}-{end_1based}-{repeat_unit}"
     indels_per_locus_counter[locus_id] += 1
+
+    if end_1based - start_1based >= 0:
+        # only add it if the locus is present in the reference genome
+        #indel_intervals[vcf_chrom].discardi(start_1based - 1, end_1based)  # remove this interval if it was added already
+        indel_intervals[vcf_chrom].addi(start_1based - 1, end_1based, (locus_id, is_pure_repeat, repeat_unit))
 
     num_repeats_in_reference = (end_1based - start_1based + 1)/len(repeat_unit)
 
@@ -920,7 +937,8 @@ def process_STR_loci_with_multiple_indels(file_path, locus_ids_with_multiple_ind
 
     Args:
         file_path (str): Path to VCF or TSV file to rewrite in order to remove loci that have this multiple-indels
-        locus_ids_with_multiple_indels (set): Set of locus IDs that, in previous steps, were found to overlap multiple indels
+        locus_ids_with_multiple_indels (dict): Locus ids that, in previous steps, were found to overlap multiple indels,
+            mapped to a description of the specific reason to filter out that particular locus
         filtered_out_indels_vcf_writer (VcfWriter): VCF writer for filtered out indels
     """
 
@@ -965,7 +983,8 @@ def process_STR_loci_with_multiple_indels(file_path, locus_ids_with_multiple_ind
                 if file_path.endswith(".vcf") and filtered_out_indels_vcf_writer:
                     # update the FILTER field
                     n_alleles = len(fields[4].split(","))
-                    fields[6] = ";".join([FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS]*n_alleles)
+                    filter_reason = locus_ids_with_multiple_indels[locus_id]
+                    fields[6] = ";".join([filter_reason]*n_alleles)
                     filtered_out_indels_vcf_writer.write("\t".join(fields) + "\n")
             else:
                 fo.write("\t".join(fields) + "\n")
@@ -1018,6 +1037,7 @@ def main():
 
     counters = collections.defaultdict(int)
     indels_per_locus_counter = collections.defaultdict(int)
+    indel_intervals = collections.defaultdict(intervaltree.IntervalTree)  # maps chrom to IntervalTree of STR loci and other indels in the input VCF
 
     # open the reference genome fasta
     fasta_obj = pyfaidx.Fasta(args.reference_fasta_path, one_based_attributes=False, as_raw=True)
@@ -1074,8 +1094,9 @@ def main():
 
         vcf_line_i += 1
 
-        filter_string = process_vcf_line(vcf_line_i, vcf_fields, fasta_obj, vcf_writer, variants_tsv_writer,
-                                         alleles_tsv_writer, bed_writer, args, counters, indels_per_locus_counter)
+        filter_string = process_vcf_line(
+            vcf_line_i, vcf_fields, fasta_obj, vcf_writer, variants_tsv_writer,
+            alleles_tsv_writer, bed_writer, args, counters, indels_per_locus_counter, indel_intervals)
 
         if filter_string and args.write_vcf_with_filtered_out_variants:
             # if this variant was filtered out, record it in output VCFs
@@ -1090,12 +1111,33 @@ def main():
             ):
                 filtered_out_indels_vcf_writer.write("\t".join(vcf_fields) + "\n")
 
-    locus_ids_with_multiple_indels = set()
+    locus_ids_with_multiple_indels = {}
     for locus_id, count in [item for item in indels_per_locus_counter.items() if item[1] > 1]:
         if args.verbose:
             print(f"WARNING: {locus_id} locus contained {count} different STR INDEL variants. Skipping...")
         counters[f"variant filter: {FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS}"] += 1
-        locus_ids_with_multiple_indels.add(locus_id)
+        locus_ids_with_multiple_indels[locus_id] = FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS
+
+    for chrom, interval_tree in indel_intervals.items():
+        for interval in interval_tree:
+
+            if not interval.data or interval.data[0] in locus_ids_with_multiple_indels:
+                continue
+
+            overlapping_intervals = interval_tree.overlap(interval)
+            if len(overlapping_intervals) == 0:
+                raise ValueError(f"ERROR: Expected the locus interval to overlap with itself: {interval.data}")
+
+            if len(overlapping_intervals) == 1:
+                continue
+
+            locus_id, is_pure_repeat, _ = interval.data
+            if is_pure_repeat:
+                counters[f"variant filter: pure {FILTER_STR_LOCUS_WITH_MULTIPLE_INDELS}"] += 1
+            else:
+                counters[f"variant filter: not-pure {FILTER_STR_LOCUS_WITH_MULTIPLE_INDELS}"] += 1
+
+            locus_ids_with_multiple_indels[locus_id] = FILTER_STR_LOCUS_WITH_MULTIPLE_INDELS
 
     # close and post-process all output files
     for writer, discard_loci_with_multiple_indels in [
