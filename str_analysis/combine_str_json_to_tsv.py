@@ -2,6 +2,7 @@
 
 import argparse
 import collections
+import gzip
 import simplejson as json
 import logging
 import os
@@ -108,7 +109,11 @@ def parse_args(args_list=None):
 
     for dir_path in directories_to_search:
         # find all .json files in this directory
-        json_paths = [p for p in pathlib.Path(dir_path).glob("**/*.json")]
+        json_paths = [
+            p for p in pathlib.Path(dir_path).glob("**/*.json")
+        ] + [
+            p for p in pathlib.Path(dir_path).glob("**/*.json.gz")
+        ]
         json_file_paths.extend(json_paths)
         print(f"Found {len(json_paths)} .json files in directory: {dir_path}")
 
@@ -257,7 +262,8 @@ def parse_json_file(json_path):
     if not os.path.isfile(json_path):
         raise ValueError(f"{json_path} not found")
 
-    with open(json_path, "rt", encoding="UTF-8") as f:
+    fopen = gzip.open if json_path.endswith("gz") else open
+    with fopen(json_path, "rt", encoding="UTF-8") as f:
         try:
             return json.load(f)
         except Exception as e:
