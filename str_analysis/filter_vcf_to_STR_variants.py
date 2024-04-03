@@ -504,7 +504,7 @@ def check_if_variant_is_str(
     for counter_key, count in current_counters.items():
         counters[counter_key] += count
 
-    if variant_filter_string and any(len(alt_allele) != len(vcf_ref) for alt_allele in alt_alleles):
+    if indel_intervals is not None and variant_filter_string and any(len(alt_allele) != len(vcf_ref) for alt_allele in alt_alleles):
         # add filtered out indels to list of intervals
         indel_intervals[vcf_chrom].addi(vcf_pos, vcf_pos + len(vcf_ref))
 
