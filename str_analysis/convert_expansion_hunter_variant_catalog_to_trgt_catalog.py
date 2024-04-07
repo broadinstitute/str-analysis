@@ -5,6 +5,7 @@
 import argparse
 import gzip
 import simplejson as json
+import os
 import re
 import tqdm
 
@@ -80,9 +81,13 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
                 output_rows = []
                 previous_chrom = chrom
 
-        for output_row in output_rows:
+        for output_row in sorted(output_rows):
             counter += 1
             f.write("\t".join(map(str, output_row)) + "\n")
+
+    bgzip_step = "| bgzip" if output_file_path.endswith("gz") else ""
+    os.system(f"bedtools sort -i {output_file_path} {bgzip_step} > {output_file_path}.sorted")
+    os.system(f"mv {output_file_path}.sorted {output_file_path}")
 
     print(f"Wrote {counter:,d} rows to {output_file_path}")
 
