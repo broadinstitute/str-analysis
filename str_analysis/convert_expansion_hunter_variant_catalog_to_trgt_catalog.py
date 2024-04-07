@@ -14,6 +14,9 @@ from str_analysis.utils.misc_utils import parse_interval
 
 def main():
     p = argparse.ArgumentParser()
+    p.add_argument("-s", "--split-adjacent-repeats", action="store_true", help="If a locus is defined "
+                   "as having several adjacent repeats in the ExpansionHunter catalog, split it into separate "
+                   "entries in the TRGT catalog. This can simplify downstream analysis.")
     p.add_argument("-o", "--output-file", help="BED file output path")
     p.add_argument("expansion_hunter_catalog", help="ExpansionHunter variant catalog in JSON format")
     args = p.parse_args()
@@ -21,10 +24,10 @@ def main():
     if not args.output_file:
         args.output_file = re.sub(".json(.gz)?$", "", args.expansion_hunter_catalog) + ".trgt.bed"
 
-    process_expansion_hunter_catalog(args.expansion_hunter_catalog, args.output_file)
+    process_expansion_hunter_catalog(args.expansion_hunter_catalog, args.output_file, args.split_adjacent_repeats)
 
 
-def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_path):
+def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_path, split_adjacent_repeats=False):
     print(f"Parsing {expansion_hunter_catalog_path}")
     fopen = gzip.open if expansion_hunter_catalog_path.endswith("gz") else open
     with fopen(expansion_hunter_catalog_path, "rt") as f:
@@ -63,15 +66,27 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
             if previous_chrom is None:
                 previous_chrom = chrom
 
-            motif_string = ",".join(motifs)
-            struc = "".join([f"({motif})n" for motif in motifs])
+            if split_adjacent_repeats:
+                for motif, reference_region in zip(motifs, reference_regions):
+                    chrom, start_0based, end_1based = parse_interval(reference_region)
+                    locus_label = f"{locus_id}_{motif}" if len(motifs) > 1 else locus_id
+                    struc = f"({motif})n"
+                    output_rows.append([
+                        chrom,
+                        start_0based,
+                        end_1based,
+                        f"ID={locus_label};MOTIFS={motif};STRUC={struc}",
+                    ])
+            else:
+                motif_string = ",".join(motifs)
+                struc = "".join([f"({motif})n" for motif in motifs])
 
-            output_rows.append([
-                chrom,
-                locus_start_0based,
-                locus_end_1based,
-                f"ID={locus_id};MOTIFS={motif_string};STRUC={struc}",
-            ])
+                output_rows.append([
+                    chrom,
+                    locus_start_0based,
+                    locus_end_1based,
+                    f"ID={locus_id};MOTIFS={motif_string};STRUC={struc}",
+                ])
 
             if chrom != previous_chrom:
                 for output_row in sorted(output_rows):
