@@ -1,0 +1,180 @@
+ARX is in TRGT but not in gnomAD
+ATXN8 is in TRGT but not in gnomAD
+HOXA13 is in TRGT but not in gnomAD
+------
+ABCD3 is in gnomAD but not in TRGT
+ARX_1 is in gnomAD but not in TRGT
+ARX_2 is in gnomAD but not in TRGT
+ATXN8OS is in gnomAD but not in TRGT
+BCLAF3 is in gnomAD but not in TRGT
+CSNK1E is in gnomAD but not in TRGT
+DMD is in gnomAD but not in TRGT
+EIF4A3 is in gnomAD but not in TRGT
+FGF14 is in gnomAD but not in TRGT
+HOXA13_1 is in gnomAD but not in TRGT
+HOXA13_2 is in gnomAD but not in TRGT
+HOXA13_3 is in gnomAD but not in TRGT
+PRDM12 is in gnomAD but not in TRGT
+PRNP is in gnomAD but not in TRGT
+RILPL1 is in gnomAD but not in TRGT
+TBX1 is in gnomAD but not in TRGT
+THAP11 is in gnomAD but not in TRGT
+VWA1 is in gnomAD but not in TRGT
+ZFHX3 is in gnomAD but not in TRGT
+ZIC3 is in gnomAD but not in TRGT
+------
+Canonical motifs for FXN    differ between gnomAD (AAG) and TRGT (A)
+Canonical motifs for HOXD13 differ between gnomAD (CCG) and TRGT (CNG)
+------
+------
+AFF3 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr2:100104798-100104822  ( 8.0 x GCC     24bp) gnomAD     = pathogenic.min.  hg38 seq:             GCCGCCGCCGCCGCCGCCGCCGCC
+    chr2:100104799-100104824  ( 8.3 x GCC     25bp) STRchive  300.0 = pathogenic.min.  hg38 seq:         CCGCCGCCGCCGCCGCCGCCGCCGC
+    chr2:100104799-100104824  ( 8.3 x CCG     25bp) TRGT                        hg38 seq:                CCGCCGCCGCCGCCGCCGCCGCCGC
+------
+ATXN3 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr14:92071009-92071042  (11.0 x GCT     33bp) official catalog from EH repo
+    chr14:92071010-92071040  (10.0 x CTG     30bp) gnomAD    56 = pathogenic.min.  hg38 seq:            CTGCTGCTGCTGCTGCTGCTGCTGTTGCTG
+    chr14:92071010-92071040  (10.0 x CAG     30bp) STRipy    56 = pathogenic.min.  hg38 seq:            CTGCTGCTGCTGCTGCTGCTGCTGTTGCTG
+    chr14:92071012-92071053  (13.7 x CTG     41bp) STRchive  60.0 = pathogenic.min.  hg38 seq:            GCTGCTGCTGCTGCTGCTGCTGTTGCTGCTTTTGCTGCTGT
+    chr14:92071009-92071042  (11.0 x AGC     33bp) TRGT                        hg38 seq:                CCTGCTGCTGCTGCTGCTGCTGCTGTTGCTGCT
+------
+ATXN7 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr3:63912684-63912714  (10.0 x GCA     30bp) gnomAD    37 = pathogenic.min.  hg38 seq:             GCAGCAGCAGCAGCAGCAGCAGCAGCAGCA
+    chr3:63912685-63912715  (10.0 x CAG     30bp) STRipy    36 = pathogenic.min.  hg38 seq:              CAGCAGCAGCAGCAGCAGCAGCAGCAGCAG
+    chr3:63912685-63912716  (10.3 x CAG     31bp) STRchive  34.0 = pathogenic.min.  hg38 seq:            CAGCAGCAGCAGCAGCAGCAGCAGCAGCAGC
+    chr3:63912684-63912726  (14.0 x AGC     42bp) TRGT                        hg38 seq:                 GCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCCGCCGCCTCC
+------
+BEAN1 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr16:66490398-66490453  (11.0 x TAAAA     55bp) gnomAD    500 = pathogenic.min.  hg38 seq:          TAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAA
+    chr16:66490398-66490466  (13.6 x TGGAA     68bp) STRipy    500 = pathogenic.min.  hg38 seq:          TAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAATAAAATAAAA
+    chr16:66490397-66490466  (13.8 x AATAA     69bp) STRchive  110.0 = pathogenic.min.  hg38 seq:       ATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAATAAAATAAAA
+    chr16:66490398-66490467  (13.8 x AATGG     69bp) TRGT                        hg38 seq:               TAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAATAAAATAAAAA
+------
+C11ORF80 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr11:66744819-66744843  ( 8.0 x GGC     24bp) gnomAD     = pathogenic.min.  hg38 seq:              GGCGGCGGCGGCGGCGGCGGCGGC
+    chr11:66744821-66744850  ( 9.7 x CCG     29bp) TRGT                        hg38 seq:                  CGGCGGCGGCGGCGGCGGCGGCGGGCGGG
+------
+CNBP hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr3:129172576-129172656  (20.0 x CAGG     80bp) gnomAD    55 = pathogenic.min.  hg38 seq:          CAGGCAGGCAGGCAGGCAGGCAGGCAGGCAGACAGGCAGACAGGCAGCCAGGCAGGCAGGCAGGCAGGCAGGCAGGCAGG
+    chr3:129172576-129172656  (20.0 x CCTG     80bp) STRipy    55 = pathogenic.min.  hg38 seq:          CAGGCAGGCAGGCAGGCAGGCAGGCAGGCAGACAGGCAGACAGGCAGCCAGGCAGGCAGGCAGGCAGGCAGGCAGGCAGG
+    chr3:129172577-129172659  (20.5 x CAGG     82bp) STRchive  75.0 = pathogenic.min.  hg38 seq:         AGGCAGGCAGGCAGGCAGGCAGGCAGGCAGACAGGCAGACAGGCAGCCAGGCAGGCAGGCAGGCAGGCAGGCAGGCAGGCAG
+    chr3:129172576-129172732  (39.0 x AGGC    156bp) TRGT                        hg38 seq:              CAGGCAGGCAGGCAGGCAGGCAGGCAGGCAGACAGGCAGACAGGCAGCCAGGCAGGCAGGCAGGCAGGCAGGCAGGCAGGCAGACAGACAGACAGACAGACAGACAGACAGACAGACAGACACACACACACACACACACACACACACACACACACA
+------
+COMP hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr19:18786034-18786049  ( 5.0 x GTC     15bp) gnomAD    6, 7 = pathogenic.min.  hg38 seq:          GTCGTCGTCGTCGTC
+    chr19:18786034-18786049  ( 5.0 x GAC     15bp) STRipy    6, 7 = pathogenic.min.  hg38 seq:          GTCGTCGTCGTCGTC
+    chr19:18786034-18786049  ( 5.0 x GTC     15bp) STRchive  6.0 = pathogenic.min.  hg38 seq:           GTCGTCGTCGTCGTC
+    chr19:18786034-18786050  ( 5.3 x ACG     16bp) TRGT                        hg38 seq:                GTCGTCGTCGTCGTCG
+------
+DAB1 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr1:57367043-57367118  (15.0 x AAAAT     75bp) gnomAD    31 = pathogenic.min.  hg38 seq:           AAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAAT
+    chr1:57367043-57367118  (15.0 x ATTTC     75bp) STRipy    31 = pathogenic.min.  hg38 seq:           AAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAAT
+    chr1:57367044-57367125  (16.2 x AAAAT     81bp) STRchive  31.0 = pathogenic.min.  hg38 seq:          AAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAATAAA
+    chr1:57367043-57367119  (15.2 x AAAAT     76bp) TRGT                        hg38 seq:               AAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATA
+------
+FOXL2 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr3:138946020-138946062  (14.0 x NGC     42bp) gnomAD    19 = pathogenic.min.  hg38 seq:           CGCGGCTGCAGCCGCAGCTGCTGCAGCCGCTGCGGCTGCCGC
+    chr3:138946020-138946062  (14.0 x GCN     42bp) STRipy    19 = pathogenic.min.  hg38 seq:           CGCGGCTGCAGCCGCAGCTGCTGCAGCCGCTGCGGCTGCCGC
+    chr3:138946020-138946062  (14.0 x NGC     42bp) STRchive  15.0 = pathogenic.min.  hg38 seq:         CGCGGCTGCAGCCGCAGCTGCTGCAGCCGCTGCGGCTGCCGC
+    chr3:138946020-138946063  (14.3 x CNG     43bp) TRGT                        hg38 seq:               CGCGGCTGCAGCCGCAGCTGCTGCAGCCGCTGCGGCTGCCGCC
+------
+FRA10AC1 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr10:93702522-93702546  ( 8.0 x CCG     24bp) gnomAD     = pathogenic.min.  hg38 seq:              CCGCCGCCGCCGCCGCCGCCGCCG
+    chr10:93702522-93702547  ( 8.3 x CCG     25bp) TRGT                        hg38 seq:                CCGCCGCCGCCGCCGCCGCCGCCGC
+------
+FXN hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr9:69037286-69037304  ( 6.0 x GAA     18bp) gnomAD    66 = pathogenic.min.  hg38 seq:             GAAGAAGAAGAAGAAGAA
+    chr9:69037286-69037304  ( 6.0 x GAA     18bp) STRipy    70 = pathogenic.min.  hg38 seq:             GAAGAAGAAGAAGAAGAA
+    chr9:69037286-69037304  ( 6.0 x GAA     18bp) STRchive  66.0 = pathogenic.min.  hg38 seq:           GAAGAAGAAGAAGAAGAA
+    chr9:69037261-69037304  (14.3 x A     43bp) TRGT                        hg38 seq:                   AAAAAATACAAAAAAAAAAAAAAAAGAAGAAGAAGAAGAAGAA
+------
+HOXD13 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr2:176093058-176093103  (15.0 x GCG     45bp) gnomAD    22 = pathogenic.min.  hg38 seq:           GCGGCGGCGGCGGCAGCGGCGGCTGCGGCGGCGGCGGCGGCAGCC
+    chr2:176093058-176093103  (15.0 x GCN     45bp) STRipy    22 = pathogenic.min.  hg38 seq:           GCGGCGGCGGCGGCAGCGGCGGCTGCGGCGGCGGCGGCGGCAGCC
+    chr2:176093058-176093103  (15.0 x GCN     45bp) STRchive  22.0 = pathogenic.min.  hg38 seq:         GCGGCGGCGGCGGCAGCGGCGGCTGCGGCGGCGGCGGCGGCAGCC
+    chr2:176093058-176093104  (15.3 x CNG     46bp) TRGT                        hg38 seq:               GCGGCGGCGGCGGCAGCGGCGGCTGCGGCGGCGGCGGCGGCAGCCT
+------
+HTT hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr4:3074876-3074933  (19.0 x CAG     57bp) gnomAD    36 = pathogenic.min.  hg38 seq:               CAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAG
+    chr4:3074876-3074933  (19.0 x CAG     57bp) STRipy    36 = pathogenic.min.  hg38 seq:               CAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAG
+    chr4:3074877-3074940  (21.0 x CAG     63bp) STRchive  40.0 = pathogenic.min.  hg38 seq:              AGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAACAGC
+    chr4:3074876-3074966  (30.0 x AGC     90bp) TRGT                        hg38 seq:                   CAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAGCAACAGCCGCCACCGCCGCCGCCGCCGCCGCCG
+------
+LRP12 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr8:104588970-104588997  ( 9.0 x CGC     27bp) gnomAD    93 = pathogenic.min.  hg38 seq:           CGCCGCCGCCGCCGCCGCCGCCGCCGC
+    chr8:104588972-104588999  ( 9.0 x CGG     27bp) STRipy    93 = pathogenic.min.  hg38 seq:             CCGCCGCCGCCGCCGCCGCCGCCGCCG
+    chr8:104588972-104588999  ( 9.0 x CGC     27bp) STRchive  90.0 = pathogenic.min.  hg38 seq:           CCGCCGCCGCCGCCGCCGCCGCCGCCG
+    chr8:104588972-104589000  ( 9.3 x CCG     28bp) TRGT                        hg38 seq:                 CCGCCGCCGCCGCCGCCGCCGCCGCCGA
+------
+MARCHF6 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr5:10356346-10356411  (13.0 x ATTTT     65bp) gnomAD    668 = pathogenic.min.  hg38 seq:                 ATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTT
+    chr5:10356347-10356407  (12.0 x TTTCA     60bp) STRipy    668 = pathogenic.min.  hg38 seq:                  TTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTA
+    chr5:10356339-10356411  (14.4 x TTTTA     72bp) STRchive  791.0 = pathogenic.min.  hg38 seq:        TTTATTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTT
+    chr5:10356346-10356412  (13.2 x AAAAT     66bp) TRGT                        hg38 seq:                      ATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTC
+------
+NOP56 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr20:2652733-2652757  ( 4.0 x GGCCTG     24bp) gnomAD    650 = pathogenic.min.  hg38 seq:          GGCCTGGGCCTGGGCCTGGGCCTG
+    chr20:2652733-2652757  ( 4.0 x GGCCTG     24bp) STRipy    25 = pathogenic.min.  hg38 seq:           GGCCTGGGCCTGGGCCTGGGCCTG
+    chr20:2652733-2652757  ( 4.0 x GGCCTG     24bp) STRchive  650.0 = pathogenic.min.  hg38 seq:        GGCCTGGGCCTGGGCCTGGGCCTG
+    chr20:2652733-2652775  ( 7.0 x AGGCCC     42bp) TRGT                        hg38 seq:               GGCCTGGGCCTGGGCCTGGGCCTGCGCCTGCGCCTGCGCCTG
+------
+RAPGEF2 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr4:159342526-159342616  (18.0 x TTTTA     90bp) gnomAD    60 = pathogenic.min.  hg38 seq:         TTTTATTTTATTTTATTTTATTTTATATTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTA
+    chr4:159342526-159342616  (18.0 x TTTCA     90bp) STRipy    60 = pathogenic.min.  hg38 seq:         TTTTATTTTATTTTATTTTATTTTATATTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTA
+    chr4:159342527-159342618  (18.2 x TTTTA     91bp) STRchive  60.0 = pathogenic.min.  hg38 seq:        TTTATTTTATTTTATTTTATTTTATATTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATT
+    chr4:159342526-159342617  (18.2 x AAAAT     91bp) TRGT                        hg38 seq:             TTTTATTTTATTTTATTTTATTTTATATTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTAT
+------
+RUNX2 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr6:45422750-45422792  (14.0 x GCN     42bp) gnomAD    27 = pathogenic.min.  hg38 seq:             GCGGCGGCGGCGGCTGCGGCGGCGGCGGCGGCTGCGGCGGCG
+    chr6:45422750-45422801  (17.0 x GCN     51bp) STRipy    20 = pathogenic.min.  hg38 seq:             GCGGCGGCGGCGGCTGCGGCGGCGGCGGCGGCTGCGGCGGCGGCAGCTGCA
+    chr6:45422750-45422792  (14.0 x GCN     42bp) STRchive  27.0 = pathogenic.min.  hg38 seq:           GCGGCGGCGGCGGCTGCGGCGGCGGCGGCGGCTGCGGCGGCG
+    chr6:45422750-45422802  (17.3 x CNG     52bp) TRGT                        hg38 seq:                 GCGGCGGCGGCGGCTGCGGCGGCGGCGGCGGCTGCGGCGGCGGCAGCTGCAG
+------
+SAMD12 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr8:118366812-118366918  (21.2 x AAAAT    106bp) gnomAD    100 = pathogenic.min.  hg38 seq:        AAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAATAAAATAAAATAAAATAAAATAAAATAAAATAAAA
+    chr8:118366815-118366913  (19.6 x TTTCA     98bp) STRipy    100 = pathogenic.min.  hg38 seq:           TAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAATAAAATAAAATAAAATAAAATAAAATAAAA
+    chr8:118366813-118366918  (21.0 x TAAAA    105bp) STRchive  105.0 = pathogenic.min.  hg38 seq:       AATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAATAAAATAAAATAAAATAAAATAAAATAAAATAAAA
+    chr8:118366815-118366919  (20.8 x AAATG    104bp) TRGT                        hg38 seq:                TAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAATAAAATAAAATAAAATAAAATAAAATAAAATAAAAA
+------
+SOX3 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chrX:140504316-140504361  (15.0 x NGC     45bp) gnomAD    26, 22 = pathogenic.min.  hg38 seq:       GGCGGCAGCGGCTGCGGCCGCGGCAGCGGCGGCGGCGGCCGCGGC
+    chrX:140504316-140504361  (15.0 x GCN     45bp) STRipy    26, 22 = pathogenic.min.  hg38 seq:       GGCGGCAGCGGCTGCGGCCGCGGCAGCGGCGGCGGCGGCCGCGGC
+    chrX:140504316-140504361  (15.0 x NGC     45bp) STRchive  22.0 = pathogenic.min.  hg38 seq:         GGCGGCAGCGGCTGCGGCCGCGGCAGCGGCGGCGGCGGCCGCGGC
+    chrX:140504316-140504362  (15.3 x CNG     46bp) TRGT                        hg38 seq:               GGCGGCAGCGGCTGCGGCCGCGGCAGCGGCGGCGGCGGCCGCGGCA
+------
+STARD7 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr2:96197066-96197121  (11.0 x AAAAT     55bp) gnomAD    274 = pathogenic.min.  hg38 seq:          AAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAAT
+    chr2:96197066-96197121  (11.0 x ATTTC     55bp) STRipy    274 = pathogenic.min.  hg38 seq:          AAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAAT
+    chr2:96197067-96197121  (10.8 x AAAAT     54bp) STRchive  274.0 = pathogenic.min.  hg38 seq:         AAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAAT
+    chr2:96197066-96197122  (11.2 x AAATG     56bp) TRGT                        hg38 seq:               AAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATA
+------
+TMEM185A hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chrX:149631735-149631780  (15.0 x CGC     45bp) gnomAD     = pathogenic.min.  hg38 seq:             CGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGC
+    chrX:149631763-149631782  ( 6.3 x CCG     19bp) TRGT                        hg38 seq:                                           GCCGCCGCCGCCGCCGCCC
+------
+TNRC6A hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr16:24613439-24613529  (18.0 x TTTTA     90bp) gnomAD    1100 = pathogenic.min.  hg38 seq:        TTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTA
+    chr16:24613439-24613529  (18.0 x TTTCA     90bp) STRipy    1100 = pathogenic.min.  hg38 seq:        TTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTA
+    chr16:24613439-24613532  (18.6 x TTTTA     93bp) STRchive  1100.0 = pathogenic.min.  hg38 seq:      TTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTT
+    chr16:24613439-24613530  (18.2 x AAAAT     91bp) TRGT                        hg38 seq:              TTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTAT
+------
+XYLT1 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr16:17470907-17470922  ( 5.0 x GCC     15bp) gnomAD    110 = pathogenic.min.  hg38 seq:           GCCGCCGCCGCCGCC
+    chr16:17470907-17470922  ( 5.0 x GGC     15bp) STRipy    110 = pathogenic.min.  hg38 seq:           GCCGCCGCCGCCGCC
+    chr16:17470907-17470922  ( 5.0 x GCC     15bp) STRchive  72.0 = pathogenic.min.  hg38 seq:          GCCGCCGCCGCCGCC
+    chr16:17470907-17470923  ( 5.3 x CCG     16bp) TRGT                        hg38 seq:                GCCGCCGCCGCCGCCC
+------
+YEATS2 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr3:183712187-183712222  ( 7.0 x TTTTA     35bp) gnomAD    1000 = pathogenic.min.  hg38 seq:       TTTTATTTTATTTTATTTTATTTTATTTTATTTTA
+    chr3:183712187-183712222  ( 7.0 x TTTCA     35bp) STRipy    1000 = pathogenic.min.  hg38 seq:       TTTTATTTTATTTTATTTTATTTTATTTTATTTTA
+    chr3:183712188-183712222  ( 6.8 x TTTTA     34bp) STRchive  1000.0 = pathogenic.min.  hg38 seq:      TTTATTTTATTTTATTTTATTTTATTTTATTTTA
+    chr3:183712187-183712223  ( 7.2 x AAAAT     36bp) TRGT                        hg38 seq:             TTTTATTTTATTTTATTTTATTTTATTTTATTTTAT
+------
+ZIC2 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
+    chr13:99985448-99985493  (15.0 x GCN     45bp) gnomAD    25 = pathogenic.min.  hg38 seq:            GCGGCGGCGGCAGCGGCGGCGGCGGCTGCGGCGGCGGCGGCCGCG
+    chr13:99985448-99985493  (15.0 x GCN     45bp) STRipy    25 = pathogenic.min.  hg38 seq:            GCGGCGGCGGCAGCGGCGGCGGCGGCTGCGGCGGCGGCGGCCGCG
+    chr13:99985448-99985493  (15.0 x GCN     45bp) STRchive  25.0 = pathogenic.min.  hg38 seq:          GCGGCGGCGGCAGCGGCGGCGGCGGCTGCGGCGGCGGCGGCCGCG
+    chr13:99985448-99985494  (15.3 x CNG     46bp) TRGT                        hg38 seq:                GCGGCGGCGGCAGCGGCGGCGGCGGCTGCGGCGGCGGCGGCCGCGG
+
+26 out of 53 loci have a different hg38 ReferenceRegion or motif in gnomAD vs other catalogs
