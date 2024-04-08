@@ -117,7 +117,7 @@ def parse_args():
         if not os.path.isfile(combined_tsv_path):
             p.error(f"{combined_tsv_path} not found")
 
-    if not args.use_affected and not args.use_thresolds:
+    if not args.use_affected and not args.use_thresholds:
         p.error("Must specify --use-thresholds or --use-affected")
 
     return args
