@@ -18,7 +18,8 @@
                 "PathogenicMin": 118
             }
         ],
-        "MainReferenceRegion": "chr1:94418421-94418442"
+        "MainReferenceRegion": "chr1:94418421-94418442",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "AFF2",
@@ -41,7 +42,8 @@
                 "PathogenicMin": 200
             }
         ],
-        "MainReferenceRegion": "chrX:148500631-148500691"
+        "MainReferenceRegion": "chrX:148500631-148500691",
+        "Inheritance": "XR"
     },
     {
         "LocusId": "AFF3",
@@ -76,7 +78,8 @@
                 "PathogenicMin": 40
             }
         ],
-        "MainReferenceRegion": "chrX:67545316-67545385"
+        "MainReferenceRegion": "chrX:67545316-67545385",
+        "Inheritance": "XR"
     },
     {
         "LocusId": "ARX_1",
@@ -105,7 +108,8 @@
                 "PathogenicMin": 18
             }
         ],
-        "MainReferenceRegion": "chrX:25013649-25013697"
+        "MainReferenceRegion": "chrX:25013649-25013697",
+        "Inheritance": "XR"
     },
     {
         "LocusId": "ARX_2",
@@ -142,7 +146,8 @@
                 "PathogenicMin": 23
             }
         ],
-        "MainReferenceRegion": "chrX:25013529-25013565"
+        "MainReferenceRegion": "chrX:25013529-25013565",
+        "Inheritance": "XR"
     },
     {
         "LocusId": "ATN1",
@@ -165,7 +170,8 @@
                 "PathogenicMin": 49
             }
         ],
-        "MainReferenceRegion": "chr12:6936716-6936773"
+        "MainReferenceRegion": "chr12:6936716-6936773",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "ATXN1",
@@ -189,7 +195,8 @@
                 "IntermediateRange": "36-38"
             }
         ],
-        "MainReferenceRegion": "chr6:16327633-16327723"
+        "MainReferenceRegion": "chr6:16327633-16327723",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "ATXN10",
@@ -213,7 +220,8 @@
                 "IntermediateRange": "30-799"
             }
         ],
-        "MainReferenceRegion": "chr22:45795354-45795424"
+        "MainReferenceRegion": "chr22:45795354-45795424",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "ATXN2",
@@ -237,7 +245,8 @@
                 "IntermediateRange": "32-34"
             }
         ],
-        "MainReferenceRegion": "chr12:111598949-111599018"
+        "MainReferenceRegion": "chr12:111598949-111599018",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "ATXN3",
@@ -261,7 +270,8 @@
                 "IntermediateRange": "45-55"
             }
         ],
-        "MainReferenceRegion": "chr14:92071010-92071040"
+        "MainReferenceRegion": "chr14:92071010-92071040",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "ATXN7",
@@ -295,7 +305,8 @@
                 "IntermediateRange": "34-36"
             }
         ],
-        "MainReferenceRegion": "chr3:63912684-63912714"
+        "MainReferenceRegion": "chr3:63912684-63912714",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "ATXN8OS",
@@ -329,7 +340,8 @@
                 "IntermediateRange": "38-79"
             }
         ],
-        "MainReferenceRegion": "chr13:70139383-70139428"
+        "MainReferenceRegion": "chr13:70139383-70139428",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "BCLAF3",
@@ -370,7 +382,8 @@
         ],
         "BenignMotifs": [
             "TAAAA"
-        ]
+        ],
+        "Inheritance": "AD"
     },
     {
         "LocusId": "C9ORF72",
@@ -393,7 +406,8 @@
                 "PathogenicMin": 31
             }
         ],
-        "MainReferenceRegion": "chr9:27573528-27573546"
+        "MainReferenceRegion": "chr9:27573528-27573546",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "C11ORF80",
@@ -429,7 +443,8 @@
                 "IntermediateRange": "19-19"
             }
         ],
-        "MainReferenceRegion": "chr19:13207858-13207897"
+        "MainReferenceRegion": "chr19:13207858-13207897",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "CBL",
@@ -477,7 +492,8 @@
                 "PathogenicMin": 55
             }
         ],
-        "MainReferenceRegion": "chr3:129172576-129172656"
+        "MainReferenceRegion": "chr3:129172576-129172656",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "COMP",
@@ -505,7 +521,8 @@
                 "PathogenicMin": 7
             }
         ],
-        "MainReferenceRegion": "chr19:18786034-18786049"
+        "MainReferenceRegion": "chr19:18786034-18786049",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "CSTB",
@@ -527,7 +544,8 @@
                 "PathogenicMin": 30
             }
         ],
-        "MainReferenceRegion": "chr21:43776443-43776479"
+        "MainReferenceRegion": "chr21:43776443-43776479",
+        "Inheritance": "AR"
     },
     {
         "LocusId": "CSNK1E",
@@ -567,7 +585,8 @@
         ],
         "BenignMotifs": [
             "AAAAT"
-        ]
+        ],
+        "Inheritance": "AD"
     },
     {
         "LocusId": "DIP2B",
@@ -588,7 +607,8 @@
                 "PathogenicMin": 350
             }
         ],
-        "MainReferenceRegion": "chr12:50505001-50505022"
+        "MainReferenceRegion": "chr12:50505001-50505022",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "DMD",
@@ -624,7 +644,8 @@
                 "IntermediateRange": "35-49"
             }
         ],
-        "MainReferenceRegion": "chr19:45770204-45770264"
+        "MainReferenceRegion": "chr19:45770204-45770264",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "EIF4A3",
@@ -645,7 +666,8 @@
                 "PathogenicMin": 14
             }
         ],
-        "MainReferenceRegion": "chr17:80147059-80147139"
+        "MainReferenceRegion": "chr17:80147059-80147139",
+        "Inheritance": "AR"
     },
     {
         "LocusId": "FGF14",
@@ -677,7 +699,8 @@
         "VariantId": [
             "FGF14_AAGA",
             "FGF14"
-        ]
+        ],
+        "Inheritance": "AD"
     },
     {
         "LocusId": "FMR1",
@@ -710,7 +733,8 @@
                 "IntermediateRange": "41-54"
             }
         ],
-        "MainReferenceRegion": "chrX:147912050-147912110"
+        "MainReferenceRegion": "chrX:147912050-147912110",
+        "Inheritance": "XD"
     },
     {
         "LocusId": "FOXL2",
@@ -733,7 +757,8 @@
                 "PathogenicMin": 19
             }
         ],
-        "MainReferenceRegion": "chr3:138946020-138946062"
+        "MainReferenceRegion": "chr3:138946020-138946062",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "FRA10AC1",
@@ -788,7 +813,8 @@
                 "PathogenicMin": 66
             }
         ],
-        "MainReferenceRegion": "chr9:69037286-69037304"
+        "MainReferenceRegion": "chr9:69037286-69037304",
+        "Inheritance": "AR"
     },
     {
         "LocusId": "GIPC1",
@@ -811,7 +837,8 @@
                 "PathogenicMin": 73
             }
         ],
-        "MainReferenceRegion": "chr19:14496041-14496074"
+        "MainReferenceRegion": "chr19:14496041-14496074",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "GLS",
@@ -834,7 +861,8 @@
                 "PathogenicMin": 680
             }
         ],
-        "MainReferenceRegion": "chr2:190880872-190880920"
+        "MainReferenceRegion": "chr2:190880872-190880920",
+        "Inheritance": "AR"
     },
     {
         "LocusId": "HOXA13_1",
@@ -857,7 +885,8 @@
                 "PathogenicMin": 22
             }
         ],
-        "MainReferenceRegion": "chr7:27199924-27199966"
+        "MainReferenceRegion": "chr7:27199924-27199966",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "HOXA13_2",
@@ -880,7 +909,8 @@
                 "PathogenicMin": 18
             }
         ],
-        "MainReferenceRegion": "chr7:27199825-27199861"
+        "MainReferenceRegion": "chr7:27199825-27199861",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "HOXA13_3",
@@ -903,7 +933,8 @@
                 "PathogenicMin": 24
             }
         ],
-        "MainReferenceRegion": "chr7:27199678-27199732"
+        "MainReferenceRegion": "chr7:27199678-27199732",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "HOXD13",
@@ -926,7 +957,8 @@
                 "PathogenicMin": 22
             }
         ],
-        "MainReferenceRegion": "chr2:176093058-176093103"
+        "MainReferenceRegion": "chr2:176093058-176093103",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "HTT",
@@ -960,7 +992,8 @@
                 "IntermediateRange": "27-35"
             }
         ],
-        "MainReferenceRegion": "chr4:3074876-3074933"
+        "MainReferenceRegion": "chr4:3074876-3074933",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "JPH3",
@@ -983,7 +1016,8 @@
                 "PathogenicMin": 41
             }
         ],
-        "MainReferenceRegion": "chr16:87604287-87604329"
+        "MainReferenceRegion": "chr16:87604287-87604329",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "NUTM2B-AS1",
@@ -1006,7 +1040,8 @@
                 "PathogenicMin": 700
             }
         ],
-        "MainReferenceRegion": "chr10:79826383-79826404"
+        "MainReferenceRegion": "chr10:79826383-79826404",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "LRP12",
@@ -1029,7 +1064,8 @@
                 "PathogenicMin": 93
             }
         ],
-        "MainReferenceRegion": "chr8:104588970-104588997"
+        "MainReferenceRegion": "chr8:104588970-104588997",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "MARCHF6",
@@ -1057,7 +1093,8 @@
         ],
         "BenignMotifs": [
             "ATTTT"
-        ]
+        ],
+        "Inheritance": "AD"
     },
     {
         "LocusId": "NIPA1",
@@ -1078,7 +1115,8 @@
                 "PathogenicMin": 11
             }
         ],
-        "MainReferenceRegion": "chr15:22786677-22786701"
+        "MainReferenceRegion": "chr15:22786677-22786701",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "NOP56",
@@ -1111,7 +1149,8 @@
                 "PathogenicMin": 650
             }
         ],
-        "MainReferenceRegion": "chr20:2652733-2652757"
+        "MainReferenceRegion": "chr20:2652733-2652757",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "NOTCH2NLA",
@@ -1154,7 +1193,8 @@
                 "PathogenicMin": 60
             }
         ],
-        "MainReferenceRegion": "chr1:149390802-149390841"
+        "MainReferenceRegion": "chr1:149390802-149390841",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "PABPN1",
@@ -1177,7 +1217,8 @@
                 "PathogenicMin": 7
             }
         ],
-        "MainReferenceRegion": "chr14:23321472-23321490"
+        "MainReferenceRegion": "chr14:23321472-23321490",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "PHOX2B",
@@ -1200,7 +1241,8 @@
                 "PathogenicMin": 24
             }
         ],
-        "MainReferenceRegion": "chr4:41745972-41746032"
+        "MainReferenceRegion": "chr4:41745972-41746032",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "PPP2R2B",
@@ -1223,7 +1265,8 @@
                 "PathogenicMin": 51
             }
         ],
-        "MainReferenceRegion": "chr5:146878727-146878757"
+        "MainReferenceRegion": "chr5:146878727-146878757",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "PRDM12",
@@ -1244,7 +1287,8 @@
                 "PathogenicMin": 18
             }
         ],
-        "MainReferenceRegion": "chr9:130681606-130681639"
+        "MainReferenceRegion": "chr9:130681606-130681639",
+        "Inheritance": "AR"
     },
     {
         "LocusId": "PRNP",
@@ -1275,7 +1319,8 @@
                 "PathogenicMin": 9
             }
         ],
-        "MainReferenceRegion": "chr20:4699397-4699493"
+        "MainReferenceRegion": "chr20:4699397-4699493",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "RAPGEF2",
@@ -1303,7 +1348,8 @@
         ],
         "BenignMotifs": [
             "TTTTA"
-        ]
+        ],
+        "Inheritance": "AD"
     },
     {
         "LocusId": "RFC1",
@@ -1337,7 +1383,8 @@
             "AAAAG",
             "AAAGGG",
             "AAGAG"
-        ]
+        ],
+        "Inheritance": "AR"
     },
     {
         "LocusId": "RILPL1",
@@ -1360,7 +1407,8 @@
                 "PathogenicMin": 135
             }
         ],
-        "MainReferenceRegion": "chr12:123533720-123533750"
+        "MainReferenceRegion": "chr12:123533720-123533750",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "RUNX2",
@@ -1383,7 +1431,8 @@
                 "PathogenicMin": 27
             }
         ],
-        "MainReferenceRegion": "chr6:45422750-45422792"
+        "MainReferenceRegion": "chr6:45422750-45422792",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "SAMD12",
@@ -1412,7 +1461,8 @@
         ],
         "BenignMotifs": [
             "TAAAA"
-        ]
+        ],
+        "Inheritance": "AD"
     },
     {
         "LocusId": "SOX3",
@@ -1443,7 +1493,8 @@
                 "PathogenicMin": 22
             }
         ],
-        "MainReferenceRegion": "chrX:140504316-140504361"
+        "MainReferenceRegion": "chrX:140504316-140504361",
+        "Inheritance": "XR"
     },
     {
         "LocusId": "STARD7",
@@ -1471,7 +1522,8 @@
         ],
         "BenignMotifs": [
             "AAAAT"
-        ]
+        ],
+        "Inheritance": "AD"
     },
     {
         "LocusId": "TBP",
@@ -1494,7 +1546,8 @@
                 "PathogenicMin": 43
             }
         ],
-        "MainReferenceRegion": "chr6:170561906-170562017"
+        "MainReferenceRegion": "chr6:170561906-170562017",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "TBX1",
@@ -1515,7 +1568,8 @@
                 "PathogenicMin": 25
             }
         ],
-        "MainReferenceRegion": "chr22:19766762-19766807"
+        "MainReferenceRegion": "chr22:19766762-19766807",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "TCF4",
@@ -1538,7 +1592,8 @@
                 "PathogenicMin": 50
             }
         ],
-        "MainReferenceRegion": "chr18:55586155-55586227"
+        "MainReferenceRegion": "chr18:55586155-55586227",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "THAP11",
@@ -1560,7 +1615,8 @@
                 "PathogenicMin": 45
             }
         ],
-        "MainReferenceRegion": "chr16:67842863-67842950"
+        "MainReferenceRegion": "chr16:67842863-67842950",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "TMEM185A",
@@ -1610,7 +1666,8 @@
         ],
         "BenignMotifs": [
             "TTTTA"
-        ]
+        ],
+        "Inheritance": "AD"
     },
     {
         "LocusId": "VWA1",
@@ -1631,7 +1688,8 @@
                 "PathogenicMin": 3
             }
         ],
-        "MainReferenceRegion": "chr1:1435798-1435818"
+        "MainReferenceRegion": "chr1:1435798-1435818",
+        "Inheritance": "AR"
     },
     {
         "LocusId": "XYLT1",
@@ -1654,7 +1712,8 @@
                 "PathogenicMin": 110
             }
         ],
-        "MainReferenceRegion": "chr16:17470907-17470922"
+        "MainReferenceRegion": "chr16:17470907-17470922",
+        "Inheritance": "AR"
     },
     {
         "LocusId": "YEATS2",
@@ -1682,7 +1741,8 @@
         ],
         "BenignMotifs": [
             "TTTTA"
-        ]
+        ],
+        "Inheritance": "AD"
     },
     {
         "LocusId": "ZFHX3",
@@ -1705,7 +1765,8 @@
                 "PathogenicMin": 41
             }
         ],
-        "MainReferenceRegion": "chr16:72787694-72787757"
+        "MainReferenceRegion": "chr16:72787694-72787757",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "ZIC2",
@@ -1728,7 +1789,8 @@
                 "PathogenicMin": 25
             }
         ],
-        "MainReferenceRegion": "chr13:99985448-99985493"
+        "MainReferenceRegion": "chr13:99985448-99985493",
+        "Inheritance": "AD"
     },
     {
         "LocusId": "ZIC3",
@@ -1749,7 +1811,8 @@
                 "PathogenicMin": 12
             }
         ],
-        "MainReferenceRegion": "chrX:137566826-137566856"
+        "MainReferenceRegion": "chrX:137566826-137566856",
+        "Inheritance": "XR"
     },
     {
         "LocusId": "ZNF713",
