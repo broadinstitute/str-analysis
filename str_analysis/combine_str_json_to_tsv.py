@@ -67,6 +67,12 @@ def parse_args(args_list=None):
         help="If specified, additional fields from TRGT will be added. The input json files are expected to be the "
              "result of running convert_trgt_vcf_to_expansion_hunter_json."
     )
+    p.add_argument(
+        "--include-extra-longtr-fields",
+        action="store_true",
+        help="If specified, additional fields from LongTR will be added. The input json files are expected to be the "
+             "result of running convert_hipstr_vcf_to_expansion_hunter_json."
+    )
 
     p.add_argument(
         "-o",
@@ -199,6 +205,7 @@ def main():
                 include_extra_gangstr_fields=args.include_extra_gangstr_fields,
                 include_extra_hipstr_fields=args.include_extra_hipstr_fields,
                 include_extra_trgt_fields=args.include_extra_trgt_fields,
+                include_extra_longtr_fields=args.include_extra_longtr_fields,
             ):
                 if just_get_header:
                     variant_table_columns.extend([k for k in variant_record.keys() if k not in variant_table_columns])
@@ -221,6 +228,8 @@ def main():
                 include_extra_expansion_hunter_fields=args.include_extra_expansion_hunter_fields,
                 include_extra_gangstr_fields=args.include_extra_gangstr_fields,
                 include_extra_hipstr_fields=args.include_extra_hipstr_fields,
+                include_extra_trgt_fields=args.include_extra_trgt_fields,
+                include_extra_longtr_fields=args.include_extra_longtr_fields,
             ):
                 if just_get_header:
                     allele_table_columns.extend([k for k in allele_record.keys() if k not in allele_table_columns])
@@ -348,6 +357,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
     include_extra_gangstr_fields=False,
     include_extra_hipstr_fields=False,
     include_extra_trgt_fields=False,
+    include_extra_longtr_fields=False,
 ):
     """Converts a dictionary that represents the contents of an ExpansionHunter v3 or v4 json output file to
     a dictionary of tsv column values.
@@ -366,6 +376,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
         include_extra_gangstr_fields (bool): if True, include additional fields provided by GangSTR.
         include_extra_hipstr_fields (bool): if True, include additional fields provided by HipSTR.
         include_extra_trgt_fields (bool): if True, include additional fields provided by TRGT.
+        include_extra_longtr_fields (bool): if True, include additional fields provided by LongTR.
     Yields:
         dict: dictionary representing the output tsv row
     """
@@ -501,6 +512,11 @@ def convert_expansion_hunter_json_to_tsv_columns(
                 variant_record["AllelePurity"] = variant_json["AP"]
                 variant_record["MeanMethylation"] = variant_json["AM"]
                 variant_record["SpanningReadsPerAllele"] = variant_json["SD"]
+
+            if include_extra_longtr_fields:
+                variant_record["Q"] = float(variant_json["Q"])
+                variant_record["DP"] = float(variant_json["DP"])
+                variant_record["DFLANKINDEL"] = float(variant_json["DFLANKINDEL"])
 
             variant_record["Genotype"] = variant_json["Genotype"]
 
