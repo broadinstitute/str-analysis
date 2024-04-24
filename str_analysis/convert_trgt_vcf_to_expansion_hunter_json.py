@@ -72,6 +72,8 @@ from tqdm import tqdm
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--discard-hom-ref", action="store_true", help="Discard hom-ref calls")
+    p.add_argument("--use-trgt-locus-id", action="store_true", help="Use TRID as locus id. If not specified, the "
+                                                                    "locus id will be set to 'chrom-start-end-motif'")
     p.add_argument("--verbose", action="store_true", help="Print verbose output")
     p.add_argument("--sample-id",
                    help="If not specified, the sample id will be parsed from the last column of the vcf header.")
@@ -83,6 +85,7 @@ def main():
         args.vcf_path,
         sample_id=args.sample_id,
         discard_hom_ref=args.discard_hom_ref,
+        use_trgt_locus_id=args.use_trgt_locus_id,
         verbose=args.verbose,
     )
 
@@ -92,7 +95,7 @@ def main():
         json.dump(locus_results, f, indent=3)
 
 
-def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, verbose=False):
+def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_locus_id=False, verbose=False):
     locus_results = {
         "LocusResults": {},
         "SampleParameters": {
@@ -143,11 +146,8 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, verbose=Fal
                 continue
 
             try:
-
-                locus_id = info_dict["TRID"]
                 end_1based = int(info_dict["END"])
                 motifs = info_dict["MOTIFS"].split(",")
-
                 allele_sizes_bp = [int(allele_size_bp) for allele_size_bp in genotype_dict["AL"].split(",")]
                 flip_alleles = len(allele_sizes_bp) == 2 and allele_sizes_bp[0] > allele_sizes_bp[1]
                 if flip_alleles:
@@ -156,6 +156,7 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, verbose=Fal
 
                 if len(motifs) == 1:
                     repeat_unit = motifs[0]
+                    locus_id = info_dict["TRID"] if use_trgt_locus_id else f"{chrom}-{start_1based - 1}-{end_1based}-{repeat_unit}"
 
                     genotype = []
                     for allele_size_bp in genotype_dict["AL"].split(","):
@@ -189,6 +190,7 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, verbose=Fal
                         }
                     }
                 else:
+                    locus_id = info_dict["TRID"]
                     motif_counts = [[int(c) for c in mc.split("_")] for mc in genotype_dict["MC"].split(",")]
 
                     motif_count_genotypes = []
