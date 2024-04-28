@@ -1169,7 +1169,7 @@ def main():
         if writer.name.endswith(".tsv"):
             run(f"bgzip -f {writer.name}")
         elif writer.name.endswith(".vcf"):
-            if not discard_loci_that_overlap_multiple_variants:
+            if writer is filtered_out_variants_vcf_writer:
                 # sort the vcf
                 run(f"cat {writer.name} | grep ^# > {writer.name}.sorted.vcf")
                 run(f"cat {writer.name} | grep -v ^# | sort -k1,1V -k2,2n >> {writer.name}.sorted.vcf")
