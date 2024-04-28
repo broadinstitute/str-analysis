@@ -80,8 +80,8 @@ FILTER_STR_ALLELE_REPEAT_UNIT_TOO_LONG = "repeat unit > %d bp"
 FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_MOTIFS = "STR alleles with different motifs"
 FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_INTERRUPTION_PATTERNS = "STR alleles with different interruption patterns"
 FILTER_VARIANT_WITH_STR_ALLELES_WITH_DIFFERENT_COORDS = "STR alleles with different coords"
-FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS = "locus overlaps more than one STR variant"
-FILTER_STR_LOCUS_WITH_MULTIPLE_VARIANTS = "locus overlaps more than one variant"
+FILTER_STR_LOCUS_THAT_HAS_OVERLAPPING_STR_VARIANTS = "locus overlaps more than one STR variant"
+FILTER_STR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS = "locus overlaps more than one variant"
 
 
 def parse_args():
@@ -114,11 +114,11 @@ def parse_args():
                    "the input vcf filename")
     p.add_argument("-ik", "--copy-info-field-keys-to-tsv", help="Copy the values of these INFO fields from the input "
                                                                 "VCF to the output TSV files.", action="append")
-    p.add_argument("--keep-loci-that-overlap-multiple-variants", action="store_true", help="Sometimes, after a variant "
-                  "in the input VCF is found to be an STR variant, and extended to encompass all repeats with the same "
+    p.add_argument("--keep-loci-that-have-overlapping-variants", action="store_true", help="Sometimes, after a variant "
+                  "in the input VCF is found to be an STR variant and extended to encompass all repeats with the same "
                   "motif immediately adjacent to it in the reference genome, this STR locus is then found to overlap "
-                  "additional variant(s) in the input VCF. By default, such STR variants are then filtered out. Using "
-                  "this flag will instead keep such STR variants.")
+                  "additional variant(s) in the input VCF. By default, such STR variants are discarded. Using this flag "
+                  "will keep them in the output.")
     p.add_argument("--write-bed-file", help="Whether to output a .bed file containing the STR variants. This requires "
                    "bedtools, bgzip and tabix tools to be available in the shell environment.",
                    action="store_true")
@@ -937,12 +937,12 @@ def process_vcf_line(
         alleles_tsv_writer.write("\t".join([str(allele_tsv_record.get(c, "")) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
 
 
-def process_STR_loci_that_overlap_multiple_variants(file_path, locus_ids_that_overlap_multiple_variants, filtered_out_variants_vcf_writer):
+def process_STR_loci_that_have_overlapping_variants(file_path, locus_ids_with_overlapping_variants, filtered_out_variants_vcf_writer):
     """Go back and filter out STR loci that turned out to overlap more than one variant since their genotype is unclear.
 
     Args:
         file_path (str): Path to VCF or TSV file to rewrite in order to remove loci with the given locus ids which overlap multiple variants.
-        locus_ids_that_overlap_multiple_variants (dict): Locus ids that, in previous steps, were found to overlap multiple
+        locus_ids_with_overlapping_variants (dict): Locus ids that, in previous steps, were found to overlap multiple
             variants in the input vcf, mapped to a description of the specific reason to filter out that particular locus.
         filtered_out_variants_vcf_writer (VcfWriter): VCF writer for filtered out variants
     """
@@ -983,12 +983,12 @@ def process_STR_loci_that_overlap_multiple_variants(file_path, locus_ids_that_ov
                 motif = summary_string_fields[1]
                 locus_id = f"{chrom}-{fields[1]}-{fields[2]}-{motif}"
 
-            if locus_id in locus_ids_that_overlap_multiple_variants:
+            if locus_id in locus_ids_with_overlapping_variants:
                 filtered_count += 1
                 if file_path.endswith(".vcf") and filtered_out_variants_vcf_writer:
                     # update the FILTER field
                     n_alleles = len(fields[4].split(","))
-                    filter_reason = locus_ids_that_overlap_multiple_variants[locus_id]
+                    filter_reason = locus_ids_with_overlapping_variants[locus_id]
                     fields[6] = ";".join([filter_reason]*n_alleles)
                     filtered_out_variants_vcf_writer.write("\t".join(fields) + "\n")
             else:
@@ -1117,19 +1117,19 @@ def main():
                 filtered_out_variants_vcf_writer.write("\t".join(vcf_fields) + "\n")
 
     # prepare to filter out detected STR loci that overlapped one or more other variants in the VCF (ie. other STRs, non-STR indels, or SNVs).
-    locus_ids_that_overlap_multiple_variants = {}
-    if not args.keep_loci_that_overlap_multiple_variants:
+    locus_ids_with_overlapping_variants = {}
+    if not args.keep_loci_that_have_overlapping_variants:
         for locus_id, count in [item for item in variants_per_locus_counter.items() if item[1] > 1]:
             if args.verbose:
                 print(f"WARNING: {locus_id} locus contained {count} different STR INDEL variants. Skipping...")
-            counters[f"variant filter: {FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS}"] += 1
-            locus_ids_that_overlap_multiple_variants[locus_id] = FILTER_STR_LOCUS_WITH_MULTIPLE_STR_VARIANTS
+            counters[f"variant filter: {FILTER_STR_LOCUS_THAT_HAS_OVERLAPPING_STR_VARIANTS}"] += 1
+            locus_ids_with_overlapping_variants[locus_id] = FILTER_STR_LOCUS_THAT_HAS_OVERLAPPING_STR_VARIANTS
 
         for chrom, interval_tree in variant_intervals.items():
             for interval in interval_tree:
 
-                if not interval.data or interval.data[0] in locus_ids_that_overlap_multiple_variants:
-                    # skip if it's not an STR locus, or if the locus id is in locus_ids_that_overlap_multiple_variants
+                if not interval.data or interval.data[0] in locus_ids_with_overlapping_variants:
+                    # skip if it's not an STR locus, or if the locus id is in locus_ids_with_overlapping_variants
                     continue
 
                 repeat_unit = interval.data[2]
@@ -1142,14 +1142,14 @@ def main():
 
                 locus_id, is_pure_repeat, _ = interval.data
                 if is_pure_repeat:
-                    counters[f"variant filter: pure {FILTER_STR_LOCUS_WITH_MULTIPLE_VARIANTS}"] += 1
+                    counters[f"variant filter: pure {FILTER_STR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS}"] += 1
                 else:
-                    counters[f"variant filter: not-pure {FILTER_STR_LOCUS_WITH_MULTIPLE_VARIANTS}"] += 1
+                    counters[f"variant filter: not-pure {FILTER_STR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS}"] += 1
 
-                locus_ids_that_overlap_multiple_variants[locus_id] = FILTER_STR_LOCUS_WITH_MULTIPLE_VARIANTS
+                locus_ids_with_overlapping_variants[locus_id] = FILTER_STR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS
 
     # close and post-process all output files
-    for writer, discard_loci_that_overlap_multiple_variants in [
+    for writer, discard_STR_loci_that_have_overlapping_variants in [
         (vcf_writer, True),
         (variants_tsv_writer, True),
         (alleles_tsv_writer, True),
@@ -1159,12 +1159,12 @@ def main():
         if writer is None:
             continue
         writer.close()
-        if len(locus_ids_that_overlap_multiple_variants) > 0:
-            print(f"Filtering {len(locus_ids_that_overlap_multiple_variants)} loci from {writer.name} because they overlap "
+        if len(locus_ids_with_overlapping_variants) > 0:
+            print(f"Filtering {len(locus_ids_with_overlapping_variants)} loci from {writer.name} because they overlap "
                   f"more than one STR variant")
-            if discard_loci_that_overlap_multiple_variants:
-                process_STR_loci_that_overlap_multiple_variants(
-                    writer.name, locus_ids_that_overlap_multiple_variants, filtered_out_variants_vcf_writer)
+            if discard_STR_loci_that_have_overlapping_variants:
+                process_STR_loci_that_have_overlapping_variants(
+                    writer.name, locus_ids_with_overlapping_variants, filtered_out_variants_vcf_writer)
 
         if writer.name.endswith(".tsv"):
             run(f"bgzip -f {writer.name}")
