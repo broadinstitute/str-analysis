@@ -1118,13 +1118,13 @@ def main():
 
     # prepare to filter out detected STR loci that overlapped one or more other variants in the VCF (ie. other STRs, non-STR indels, or SNVs).
     locus_ids_with_overlapping_variants = {}
-    if not args.keep_loci_that_have_overlapping_variants:
-        for locus_id, count in [item for item in variants_per_locus_counter.items() if item[1] > 1]:
-            if args.verbose:
-                print(f"WARNING: {locus_id} locus contained {count} different STR INDEL variants. Skipping...")
-            counters[f"variant filter: {FILTER_STR_LOCUS_THAT_HAS_OVERLAPPING_STR_VARIANTS}"] += 1
-            locus_ids_with_overlapping_variants[locus_id] = FILTER_STR_LOCUS_THAT_HAS_OVERLAPPING_STR_VARIANTS
+    for locus_id, count in [item for item in variants_per_locus_counter.items() if item[1] > 1]:
+        if args.verbose:
+            print(f"WARNING: {locus_id} locus contained {count} different STR INDEL variants. Skipping...")
+        counters[f"variant filter: {FILTER_STR_LOCUS_THAT_HAS_OVERLAPPING_STR_VARIANTS}"] += 1
+        locus_ids_with_overlapping_variants[locus_id] = FILTER_STR_LOCUS_THAT_HAS_OVERLAPPING_STR_VARIANTS
 
+    if not args.keep_loci_that_have_overlapping_variants:
         for chrom, interval_tree in variant_intervals.items():
             for interval in interval_tree:
 
