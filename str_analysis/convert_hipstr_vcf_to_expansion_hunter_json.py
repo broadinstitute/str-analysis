@@ -60,12 +60,9 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--sample-id",
                    help="If not specified, the sample id will be parsed from the last column of the vcf header.")
-    p.add_argument("--skip-loci-with-invalid-locus-ids", action="store_true",
-                   help="Locus Ids are expected to have the format 'chrom-start-end-motif'. Skip loci with ids"
-                        "that don't match this format instead of throwing an error")
     p.add_argument("--skip-hom-ref-loci", action="store_true", help="Filter ou loci that were called as "
                                                                          "homozygous reference")
-
+    p.add_argument("--output-path", help="Output path for the json file. By default, it is based on the input filename.")
     p.add_argument("vcf_path", help="HipSTR vcf path(s)")
     args = p.parse_args()
 
@@ -74,16 +71,15 @@ def main():
         args.vcf_path,
         sample_id=args.sample_id,
         skip_hom_ref_loci=args.skip_hom_ref_loci,
-        skip_loci_with_invalid_locus_ids=args.skip_loci_with_invalid_locus_ids,
     )
 
-    output_json_path = re.sub(".vcf(.gz)?$", "", args.vcf_path) + ".json"
+    output_json_path = args.output_path or (re.sub(".vcf(.gz)?$", "", os.path.basename(args.vcf_path)) + ".json")
     print(f"Writing {len(locus_results['LocusResults']):,d} loci to {output_json_path}")
     with open(output_json_path, "wt") as f:
         json.dump(locus_results, f, indent=4)
 
 
-def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False, skip_loci_with_invalid_locus_ids=False):
+def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False):
     locus_results = {
         "LocusResults": {},
         "SampleParameters": {
@@ -95,8 +91,8 @@ def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False, skip_l
     fopen = gzip.open if vcf_path.endswith("gz") else open
     with fopen(vcf_path, "rt") as vcf:
         line_counter = 0
-        locus_pos_adjust_counter = 0
-
+        locus_coordinates_adjusted_counter = 0
+        locus_coordinates_adjusted_became_hom_ref_counter = 0
         for line in vcf:
             if line.startswith("#"):
                 if line.startswith("#CHROM"):
@@ -126,16 +122,6 @@ def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False, skip_l
             chrom = fields[0]
             pos = int(fields[1])
             locus_id = fields[2]
-            locus_id_fields = locus_id.split("-")
-            if len(locus_id_fields) >= 4 and len(set(locus_id_fields[3]) - set("ACGTRN")) == 0:
-                repeat_unit = locus_id_fields[3]
-            else:
-                if skip_loci_with_invalid_locus_ids:
-                    continue
-                else:
-                    raise ValueError(
-                        f"VCF row #{line_counter}: Unable to parse repeat unit from locus id '{locus_id}'. "
-                        f"Expected locus id to have the format 'chrom-start-end-motif'. Instead, found '{locus_id}'")
 
             ref = fields[3]
             alts = fields[4].split(",")
@@ -168,20 +154,40 @@ def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False, skip_l
                 else:
                     short_allele, long_allele = allele2, allele1
 
-                if pos < start_1based:
-                    if start_1based - pos >= len(short_allele):
-                        raise ValueError(f"start_1based ({start_1based:,d}) - pos ({pos:,d}) >= len(short_allele) ({len(short_allele):,d}). The short allele is '{short_allele}'")
-                    if start_1based - pos >= len(long_allele):
-                        raise ValueError(f"start_1based ({start_1based:,d}) - pos ({pos:,d}) >= len(long_allele) ({len(long_allele):,d}). The long allele is '{long_allele}'")
-                    locus_pos_adjust_counter += 1
-                    print(f"WARNING: {locus_id} VCF row has pos < start_1based: {pos:,d} < {start_1based:,d}. Diff: {start_1based - pos}bp. "
-                          f"Trimming alleles: {short_allele} => {short_allele[start_1based - pos:]} and "
-                          f"{long_allele} => {long_allele[start_1based - pos:]}")
-                    short_allele = short_allele[start_1based - pos:]
-                    long_allele = long_allele[start_1based - pos:]
+                start_changed = pos < start_1based
+                end_changed = pos + len(ref) - 1 > end_1based
+                locus_coordinates_changed = start_changed or end_changed
+                if locus_coordinates_changed:
+                    if start_1based - pos >= end_1based - pos + 1:
+                        raise ValueError(f"{locus_id} VCF row #{line_counter:,d} has start_1based - pos >= "
+                                         f"end_1based - pos + 1: {start_1based - pos} >= {end_1based - pos + 1} where "
+                                         f"start_1based = {start_1based:,d}, "
+                                         f"pos = {pos:,d}, "
+                                         f"end_1based = {end_1based:,d}")
 
-                num_repeats1 = int(len(short_allele)/len(repeat_unit))
-                num_repeats2 = int(len(long_allele)/len(repeat_unit))
+                    locus_coordinates_adjusted_counter += 1
+                    print(f"WARNING: {locus_id} VCF row #{line_counter:,d} has " +
+                          (f"pos < start_1based: {pos:,d} < {start_1based:,d}" if start_changed else "") +
+                          (" and " if start_changed and end_changed else "") +
+                          (f"pos + len(ref) - 1 > end_1based: {pos + len(ref) - 1:,d} > {end_1based:,d}" if end_changed else "") + " "
+                          f"Diff: {start_1based - pos}bp on the left, {pos + len(ref) - end_1based + 1}bp on the right. Trimming alleles: "
+                          f"{short_allele} => {short_allele[start_1based - pos : end_1based - pos + 1]} and "
+                          f"{long_allele} => {long_allele[start_1based - pos : end_1based - pos + 1]}")
+
+                    short_allele = short_allele[start_1based - pos : end_1based - pos + 1]
+                    long_allele = long_allele[start_1based - pos : end_1based - pos + 1]
+
+                num_repeats_in_reference = int((end_1based - start_1based + 1) / period)
+                num_repeats1 = int(len(short_allele)/period)
+                num_repeats2 = int(len(long_allele)/period)
+                if locus_coordinates_changed and num_repeats1 == num_repeats_in_reference and num_repeats2 == num_repeats_in_reference:
+                    locus_coordinates_adjusted_became_hom_ref_counter += 1
+                    if skip_hom_ref_loci:
+                        continue
+
+                repeat_unit_candidates = [long_allele[i:i+period] for i in range(0, len(long_allele), period)]
+                repeat_unit_candidates += [short_allele[i:i+period] for i in range(0, len(short_allele), period)]
+                repeat_unit = max(repeat_unit_candidates, key=repeat_unit_candidates.count)
 
                 locus_results["LocusResults"][locus_id] = {
                     "AlleleCount": 2,
@@ -207,8 +213,10 @@ def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False, skip_l
                 print(line)
                 print(genotype_dict)
 
-        if locus_pos_adjust_counter:
-            print(f"Adjusted the start position of {locus_pos_adjust_counter:,d} out of {line_counter:,d} ({locus_pos_adjust_counter/line_counter:.2%}) loci.")
+        if locus_coordinates_adjusted_counter:
+            print(f"Adjusted the start position of {locus_coordinates_adjusted_counter:,d} out of {line_counter:,d} ({locus_coordinates_adjusted_counter/line_counter:.2%}) loci.")
+        if locus_coordinates_adjusted_became_hom_ref_counter:
+            print(f"Adjusted loci that became homozygous reference after coordinate adjustment: {locus_coordinates_adjusted_became_hom_ref_counter:,d} out of {locus_coordinates_adjusted_counter:,d} ({locus_coordinates_adjusted_became_hom_ref_counter/locus_coordinates_adjusted_counter:.2%}) loci.")
 
     return locus_results
 
