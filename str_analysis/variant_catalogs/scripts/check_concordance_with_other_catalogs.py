@@ -12,7 +12,7 @@ import requests
 
 from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
-from str_analysis.combine_str_catalogs import parse_motifs_from_locus_structure
+from str_analysis.merge_loci import parse_motifs_from_locus_structure
 
 OTHER_CATALOG_NAME_STRCHIVE = "STRchive"
 OTHER_CATALOG_NAME_STRIPY = "STRipy"

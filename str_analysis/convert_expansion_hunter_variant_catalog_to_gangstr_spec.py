@@ -12,6 +12,7 @@ import tqdm
 from str_analysis.utils.misc_utils import parse_interval
 
 
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("-o", "--output-file", help="bed file output path")

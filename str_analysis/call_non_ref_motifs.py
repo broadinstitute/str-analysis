@@ -20,7 +20,7 @@ import pandas as pd
 from pprint import pformat, pprint
 import pysam
 
-from str_analysis.combine_str_catalogs import parse_motifs_from_locus_structure
+from str_analysis.merge_loci import parse_motifs_from_locus_structure
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from str_analysis.utils.ehdn_info_for_locus import parse_ehdn_info_for_locus
 from str_analysis.utils.file_utils import open_file

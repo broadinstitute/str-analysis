@@ -8,7 +8,7 @@ This repo contains scripts and utilities for analyzing tandem repeats (TRs).
   * **filter_vcf_to_STR_variants** - takes a single-sample VCF file and filters it to the INS/DEL variants that represent
     tandem repeat expansions or contractions by peforming brute-force k-mer search on each variant's inserted or deleted 
     bases. This tool was a core part of [Weisburd, B., Tiao, G. & Rehm, H. L. Insights from a genome-wide truth set of tandem repeat variation. (2023)](https://www.biorxiv.org/content/10.1101/2023.05.05.539588v1)
-  * **combine_str_catalogs** - takes two or more STR catalogs and combines them into a single catalog while removing
+  * **merge_loci** - takes one or more STR catalogs and combines them into a single catalog while removing
     duplicates based on overlap and repeat motif. 
   * **annotate_and_filter_str_catalog** - takes an STR catalog and annotates the loci based on their overlap with genes  
     and known disease associated STRs. It then allows filtering by motif size, gene region, and various other criteria.

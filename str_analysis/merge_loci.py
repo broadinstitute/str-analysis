@@ -36,9 +36,9 @@ def parse_args():
                                                                          "a JSON and a BED file will be generated.")
     parser.add_argument("--output-prefix", help="Output filename prefix")
     parser.add_argument("--verbose", action="store_true", help="If specified, then print more stats")
-    parser.add_argument("--save-unique-loci", action="store_true", help="If specified, write a BED file for "
-                        "each input catalog except the 1st one that records the new loci introduced by that catalog "
-                        "which weren't in previous catalogs. This is useful for troubleshooting catalogs and "
+    parser.add_argument("--save-unique-loci", action="store_true", help="If specified, then for every input catalog "
+                        "except the first one, this script will output a BED file for that records the new loci"
+                        "introduced by that catalog. This is useful for troubleshooting catalogs and "
                         "understanding the differences between them.")
     parser.add_argument("variant_catalog_json_or_bed", nargs="+", help="Paths of two or more repeat catalogs "
         "in JSON or BED format. For BED format, the chrom, start, and end should represent the repeat "
@@ -358,7 +358,6 @@ def convert_interval_trees_to_output_records(interval_trees, merge_adjacent_loci
         dict: A dictionary representing a record in the output catalog
     """
     counter = 0
-    motif_size_stats = collections.defaultdict(int)
 
     if not merge_adjacent_loci_with_same_motif:
         for interval_tree in interval_trees.values():
@@ -426,15 +425,19 @@ def print_catalog_stats(interval_trees, has_source_field=False):
     total = 0
     motif_counters = collections.defaultdict(int)
     source_counters = collections.defaultdict(int)
-    for interval_tree in interval_trees.values():
-        for inerval in interval_tree:
+    chrom_counters = collections.defaultdict(int)
+    for chrom, interval_tree in interval_trees.items():
+        for interval in interval_tree:
+            chrom_type = chrom.upper() if any(c in chrom.upper() for c in "XYM") else "autosomes"
+            chrom_counters[chrom_type] += 1
+            
             total += 1
-            motifs = parse_motifs_from_locus_structure(inerval.data["LocusStructure"])
+            motifs = parse_motifs_from_locus_structure(interval.data["LocusStructure"])
             for motif in motifs:
                 motif_label = f"{len(motif)}bp" if len(motif) <= 6 else f"7+bp"
                 motif_counters[motif_label] += 1
             if has_source_field:
-                source_counters[inerval.data["Source"]] += 1
+                source_counters[interval.data["Source"]] += 1
 
     if has_source_field:
         print("Source of loci in output catalog:")
@@ -444,6 +447,10 @@ def print_catalog_stats(interval_trees, has_source_field=False):
     print("Motif sizes:")
     for label, count in sorted(motif_counters.items(), key=lambda x: x[1], reverse=True):
         print(f"   {count:9,d} out of {total:9,d} ({count/total:5.1%}) {label}")
+
+    print("Chromsomes:")
+    for label, count in sorted(chrom_counters.items(), key=lambda x: x[1], reverse=True):
+        print(f"   {count:9,d} out of {total:9,d} ({count/total:5.1%}) are on {label}")
 
 def main():
     args, paths = parse_args()
