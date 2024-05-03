@@ -53,10 +53,14 @@ def parse_args():
         default="~/code/str-truth-set/ref/other/MANE.v1.0.ensembl_genomic.sorted.gtf.gz")
     annotations_group.add_argument("--gene-models-source", help="Source of the genes-gtf file. If not specified, "
         "it will be computed based on the filename", choices=["gencode", "mane", "refseq"])
+    annotations_group.add_argument("--mappability-track-bigwig", default=MAPPABILITY_TRACK_BIGWIG_URL,
+        help="Path or URL of the bigWig file containing mappability scores for each base in the reference genome")
     annotations_group.add_argument("--skip-gene-annotations", action="store_true", help="Don't addd gene annotations to "
         "the output catalog")
     annotations_group.add_argument("--skip-disease-loci-annotations", action="store_true", help="Don't annotate known "
         "disease associated loci in the output catalog")
+    annotations_group.add_argument("--skip-mappability-annotations", action="store_true", help="Don't annotate known "
+        "loci with mappability")
 
     annotations_group.add_argument("--add-gene-region-to-locus-id", action="store_true", help="Append the gene region "
         "to each locus id")
@@ -111,9 +115,13 @@ def parse_args():
 
     args = parser.parse_args()
 
-    for file_path in [args.known_disease_associated_loci, args.genes_gtf, args.variant_catalog_json_or_bed]:
-        if not file_exists(os.path.expanduser(file_path)):
-            parser.error(f"File not found: {file_path}")
+    if not args.skip_gene_annotations and not file_exists(os.path.expanduser(args.genes_gtf)):
+        parser.error(f"File not found: {args.genes_gtf}")
+    if not args.skip_disease_loci_annotations and not file_exists(os.path.expanduser(args.known_disease_associated_loci)):
+        parser.error(f"File not found: {args.known_disease_associated_loci}")
+    if not file_exists(os.path.expanduser(args.variant_catalog_json_or_bed)):
+        parser.error(f"File not found: {args.variant_catalog_json_or_bed}")
+
 
     return args, parser
 
@@ -256,12 +264,20 @@ def main():
     ref_fasta_chromosome_sizes = dict(zip(ref_fasta.references, ref_fasta.lengths))
 
     # download and open the mappability bigWig file
-    mappability_bigwig_path = download_local_copy(MAPPABILITY_TRACK_BIGWIG_URL)
-    mappability_bigwig = pyBigWig.open(mappability_bigwig_path)
+    if not args.skip_mappability_annotations:
+        if args.mappability_track_bigwig and any(args.mappability_track_bigwig.startswith(prefix) for prefix in ("http", "gs://")):
+            mappability_bigwig_path = download_local_copy(args.mappability_track_bigwig)
+        else:
+            mappability_bigwig_path = args.mappability_track_bigwig
+        mappability_bigwig = pyBigWig.open(mappability_bigwig_path)
 
     # parse known disease-associated loci
-    known_disease_associated_loci_interval_tree, known_disease_associated_motifs = parse_known_disease_associated_loci(
-        args, parser)
+    if not args.skip_disease_loci_annotations:
+        known_disease_associated_loci_interval_tree, known_disease_associated_motifs = parse_known_disease_associated_loci(
+            args, parser)
+    else:
+        known_disease_associated_motifs = set()
+        known_disease_associated_loci_interval_tree = collections.defaultdict(IntervalTree)
 
     if not args.output_path:
         filename_prefix = re.sub("(.json|.bed)(.b?gz)?$", "", os.path.basename(args.variant_catalog_json_or_bed))
@@ -360,32 +376,33 @@ def main():
                 spanning_interval_start0_based = min(start_0based, spanning_interval_start0_based) if spanning_interval_start0_based is not None else start_0based
                 spanning_interval_end = max(end, spanning_interval_end) if spanning_interval_end is not None else end
 
-        if not args.gene_models_source:
-            args.gene_models_source = os.path.basename(args.genes_gtf).split(".")[0].title()
-        (
-            input_variant_catalog_record[f"{args.gene_models_source}GeneRegion"],
-            input_variant_catalog_record[f"{args.gene_models_source}GeneName"],
-            input_variant_catalog_record[f"{args.gene_models_source}GeneId"],
-            input_variant_catalog_record[f"{args.gene_models_source}TranscriptId"],
-        ) = compute_genomic_region_of_interval(
-            spanning_interval_chrom,
-            spanning_interval_start0_based + 1,
-            spanning_interval_end,
-            args.genes_gtf,
-            verbose=args.verbose)
+        if not args.skip_gene_annotations:
+            if not args.gene_models_source:
+                args.gene_models_source = os.path.basename(args.genes_gtf).split(".")[0].title()
+            (
+                input_variant_catalog_record[f"{args.gene_models_source}GeneRegion"],
+                input_variant_catalog_record[f"{args.gene_models_source}GeneName"],
+                input_variant_catalog_record[f"{args.gene_models_source}GeneId"],
+                input_variant_catalog_record[f"{args.gene_models_source}TranscriptId"],
+            ) = compute_genomic_region_of_interval(
+                spanning_interval_chrom,
+                spanning_interval_start0_based + 1,
+                spanning_interval_end,
+                args.genes_gtf,
+                verbose=args.verbose)
 
-        if args.region_type and input_variant_catalog_record[f"{args.gene_models_source}GeneRegion"] not in args.region_type:
-            continue
-        if args.exclude_region_type and input_variant_catalog_record[f"{args.gene_models_source}GeneRegion"] in args.exclude_region_type:
-            continue
-        if args.gene_name and input_variant_catalog_record[f"{args.gene_models_source}GeneName"] not in args.gene_name:
-            continue
-        if args.exclude_gene_name and input_variant_catalog_record[f"{args.gene_models_source}GeneName"] in args.exclude_gene_name:
-            continue
-        if args.gene_id and input_variant_catalog_record[f"{args.gene_models_source}GeneId"] not in args.gene_id:
-            continue
-        if args.exclude_gene_id and input_variant_catalog_record[f"{args.gene_models_source}GeneId"] in args.exclude_gene_id:
-            continue
+            if args.region_type and input_variant_catalog_record[f"{args.gene_models_source}GeneRegion"] not in args.region_type:
+                continue
+            if args.exclude_region_type and input_variant_catalog_record[f"{args.gene_models_source}GeneRegion"] in args.exclude_region_type:
+                continue
+            if args.gene_name and input_variant_catalog_record[f"{args.gene_models_source}GeneName"] not in args.gene_name:
+                continue
+            if args.exclude_gene_name and input_variant_catalog_record[f"{args.gene_models_source}GeneName"] in args.exclude_gene_name:
+                continue
+            if args.gene_id and input_variant_catalog_record[f"{args.gene_models_source}GeneId"] not in args.gene_id:
+                continue
+            if args.exclude_gene_id and input_variant_catalog_record[f"{args.gene_models_source}GeneId"] in args.exclude_gene_id:
+                continue
 
         # annotate repeat purity in the reference genome
         interruption_base_count = []
@@ -444,46 +461,47 @@ def main():
             continue
 
         # compute mappability of left and right flanking sequence
-        chrom, left_flank_end, _ = chroms_start_0based_ends[0]
-        _, _, right_flank_start = chroms_start_0based_ends[-1]
+        if not args.skip_mappability_annotations:
+            chrom, left_flank_end, _ = chroms_start_0based_ends[0]
+            _, _, right_flank_start = chroms_start_0based_ends[-1]
 
-        mappability_left_flank = None
-        left_flank_mappability_interval_start = max(1, left_flank_end - FLANK_MAPPABILITY_WINDOW_SIZE - MAPPABILITY_TRACK_KMER_SIZE)
-        # subtract the kmer size so that mappability scores are retrieved from an interval that doesn't overlap the repeat
-        # region and so only measure mappability of the flank itself
-        left_flank_mappability_interval_end = max(2, left_flank_end - MAPPABILITY_TRACK_KMER_SIZE)
-        try:
+            mappability_left_flank = None
+            left_flank_mappability_interval_start = max(1, left_flank_end - FLANK_MAPPABILITY_WINDOW_SIZE - MAPPABILITY_TRACK_KMER_SIZE)
+            # subtract the kmer size so that mappability scores are retrieved from an interval that doesn't overlap the repeat
+            # region and so only measure mappability of the flank itself
+            left_flank_mappability_interval_end = max(2, left_flank_end - MAPPABILITY_TRACK_KMER_SIZE)
+            try:
 
-            (mappability_left_flank, ) = mappability_bigwig.stats(chrom,
-                                                                  left_flank_mappability_interval_start,
-                                                                  left_flank_mappability_interval_end)
-        except Exception as e:
-            print(f"WARNING: Couldn't compute mappability of left flank interval: {chrom}:{left_flank_mappability_interval_start}-{left_flank_mappability_interval_end}: {e}")
+                (mappability_left_flank, ) = mappability_bigwig.stats(chrom,
+                                                                      left_flank_mappability_interval_start,
+                                                                      left_flank_mappability_interval_end)
+            except Exception as e:
+                print(f"WARNING: Couldn't compute mappability of left flank interval: {chrom}:{left_flank_mappability_interval_start}-{left_flank_mappability_interval_end}: {e}")
 
-        mappability_right_flank = None
-        right_flank_mappability_interval_start = right_flank_start
-        right_flank_mappability_interval_end = min(ref_fasta_chromosome_sizes[chrom], right_flank_start + FLANK_MAPPABILITY_WINDOW_SIZE)
-        try:
-            (mappability_right_flank, ) = mappability_bigwig.stats(chrom,
-                                                                   right_flank_start,
+            mappability_right_flank = None
+            right_flank_mappability_interval_start = right_flank_start
+            right_flank_mappability_interval_end = min(ref_fasta_chromosome_sizes[chrom], right_flank_start + FLANK_MAPPABILITY_WINDOW_SIZE)
+            try:
+                (mappability_right_flank, ) = mappability_bigwig.stats(chrom,
+                                                                       right_flank_start,
+                                                                       right_flank_mappability_interval_end)
+            except Exception as e:
+                print(f"WARNING: Couldn't compute mappability of right flank interval: {chrom}:{right_flank_start}-{right_flank_mappability_interval_end}: {e}")
+
+            mappability_overall = None
+            try:
+                (mappability_overall, ) = mappability_bigwig.stats(chrom,
+                                                                   left_flank_mappability_interval_start,
                                                                    right_flank_mappability_interval_end)
-        except Exception as e:
-            print(f"WARNING: Couldn't compute mappability of right flank interval: {chrom}:{right_flank_start}-{right_flank_mappability_interval_end}: {e}")
+            except Exception as e:
+                print(f"WARNING: Couldn't compute mappability of overall interval: {chrom}:{left_flank_mappability_interval_start}-{right_flank_mappability_interval_end}: {e}")
 
-        mappability_overall = None
-        try:
-            (mappability_overall, ) = mappability_bigwig.stats(chrom,
-                                                               left_flank_mappability_interval_start,
-                                                               right_flank_mappability_interval_end)
-        except Exception as e:
-            print(f"WARNING: Couldn't compute mappability of overall interval: {chrom}:{left_flank_mappability_interval_start}-{right_flank_mappability_interval_end}: {e}")
+            input_variant_catalog_record[f"LeftFlankMappability"] = round(mappability_left_flank, 2)
+            input_variant_catalog_record[f"EntireLocusMappability"] = round(mappability_overall, 2)
+            input_variant_catalog_record[f"RightFlankMappability"] = round(mappability_right_flank, 2)
 
-        input_variant_catalog_record[f"LeftFlankMappability"] = round(mappability_left_flank, 2)
-        input_variant_catalog_record[f"EntireLocusMappability"] = round(mappability_overall, 2)
-        input_variant_catalog_record[f"RightFlankMappability"] = round(mappability_right_flank, 2)
-
-        if args.min_mappability is not None and input_variant_catalog_record["EntireLocusMappability"] < args.min_mappability:
-            continue
+            if args.min_mappability is not None and input_variant_catalog_record["EntireLocusMappability"] < args.min_mappability:
+                continue
 
         if args.add_gene_region_to_locus_id:
             gene_region = input_variant_catalog_record.get(f"{args.gene_models_source}GeneRegion")
