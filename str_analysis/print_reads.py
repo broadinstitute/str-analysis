@@ -12,7 +12,7 @@ import pysam
 
 from google.cloud import storage
 
-from str_analysis.utils.file_utils import set_requester_pays_project, file_exists
+from str_analysis.utils.file_utils import set_requester_pays_project, file_exists, open_file
 from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.cram_bam_utils import IntervalReader
 pysam.set_verbosity(0)
@@ -25,7 +25,8 @@ def main():
 	parser.add_argument("--read-index", help="Optional path of the input BAM or CRAM index file. This can be a local "
 											 "or a gs:// path")
 	parser.add_argument("-L", "--interval", action="append", required=True, help="Region(s) to extract reads. This can "
-						"be a .bed file or an interval specified as \"chr:start-end\"")
+						"be a .bed file, .bed.gz file, .interval_list file, or an interval specified "
+						"as \"chr:start-end\" with a 0-based start coordinate")
 	parser.add_argument("--verbose", action="store_true")
 	parser.add_argument("input_bam_or_cram", help="Input BAM or CRAM file. This can a local or a gs:// path")
 	args = parser.parse_args()
@@ -52,11 +53,28 @@ def main():
 
 	# write out a temp CRAM file with just the cram header and region intervals
 	for interval in args.interval:
-		try:
-			chrom, start, end = parse_interval(interval)
-			reader.add_interval(chrom, start, end)
-		except ValueError:
-			parser.error(f"Invalid interval {interval}")
+		if interval.endswith(".bed") or interval.endswith(".bed.gz") or interval.endswith(".interval_list"):
+			if not file_exists(interval):
+				parser.error(f"{interval} file not found")
+			with open_file(interval, is_text_file=True) as f:
+				for line in f:
+					if line.startswith("@"):
+						continue
+					fields = line.strip().split("\t")
+					if len(fields) < 3:
+						parser.error(f"Expected at least 3 columns in line {line}")
+					chrom, start, end = fields[:3]
+
+					start_offset = 1 if interval.endswith(".interval_list") else 0
+					start = int(start) - start_offset  # convert to 0-based coordinates
+					reader.add_interval(chrom, start, int(end))
+		else:
+			try:
+				chrom, start_0based, end = parse_interval(interval)
+				reader.add_interval(chrom, start_0based, end)
+			except ValueError:
+				parser.error(f"Invalid interval {interval}")
+
 
 	read_counts = reader.save_to_file(args.output)
 
