@@ -177,7 +177,7 @@ def parse_sample_id_and_counts_column(counts_value):
 def parse_bed_to_interval_tree(bed_file_path, name_field_is_repeat_unit=False, verbose=False):
     interval_tree = collections.defaultdict(IntervalTree)
 
-    f = open_file(bed_file_path, download_local_copy_before_opening=True)
+    f = open_file(bed_file_path, download_local_copy_before_opening=True, is_text_file=True)
     if verbose:
         print(f"Parsing {bed_file_path}", "assuming the name field contains the repeat unit" if name_field_is_repeat_unit else "")
         f = tqdm(f, unit=" records", unit_scale=True)

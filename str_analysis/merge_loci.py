@@ -94,7 +94,7 @@ def get_variant_catalog_iterator(
         print(f"Parsing {variant_catalog_json_or_bed}")
 
     if file_type == "JSON":
-        with open_file(variant_catalog_json_or_bed, "rt") as f:
+        with open_file(variant_catalog_json_or_bed, "rt", is_text_file=True) as f:
             file_iterator = ijson.items(f, "item")
             if verbose:
                 file_iterator = tqdm.tqdm(file_iterator, unit=" records", unit_scale=True)
@@ -132,7 +132,7 @@ def get_variant_catalog_iterator(
                 yield unmodified_chrom, start_0based, end_1based, record
 
     elif file_type == "BED":
-        with open_file(variant_catalog_json_or_bed, "rt") as file_iterator:
+        with open_file(variant_catalog_json_or_bed, "rt", is_text_file=True) as file_iterator:
             if verbose:
                 file_iterator = tqdm.tqdm(file_iterator, unit=" records", unit_scale=True)
 

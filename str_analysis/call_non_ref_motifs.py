@@ -1221,7 +1221,7 @@ def main():
         locus_info = LOCUS_INFO
     elif args.variant_catalog:
         # convert variant catalog to locus_info format
-        with open_file(args.variant_catalog) as f:
+        with open_file(args.variant_catalog, is_text_file=True) as f:
             variant_catalog = json.load(f)
 
         locus_info = {}

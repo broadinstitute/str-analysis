@@ -72,7 +72,7 @@ def parse_gtf_to_interval_trees(gtf_path=GENE_MODELS["gencode"], verbose=False):
 def generate_gtf_records(gtf_path):
     """Parse the GTF file"""
 
-    gtf_file = open_file(gtf_path)
+    gtf_file = open_file(gtf_path, is_text_file=True)
     for i, line in enumerate(gtf_file):
         if line.startswith("#"):
             continue

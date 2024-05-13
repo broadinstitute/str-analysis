@@ -127,7 +127,7 @@ def main():
         
     # parse the input catalog(s)
     try:
-        with open_file(args.input_catalog_path) as f:
+        with open_file(args.input_catalog_path, is_text_file=True) as f:
             input_catalog = json.load(f)
     except Exception as e:
         parser.error(f"Unable to parse {args.input_catalog_path}: {e}")

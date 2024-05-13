@@ -256,7 +256,7 @@ def main():
         print("-"*50)
         print(f"Parsing {path}")
         catalog_name = os.path.basename(path)
-        with open_file(path, "rt") as f:
+        with open_file(path, "rt", is_text_file=True) as f:
             file_iterator = ijson.items(f, "item")
             stats = compute_catalog_stats(catalog_name, file_iterator, verbose=args.verbose)
         stat_table_rows.append(stats)

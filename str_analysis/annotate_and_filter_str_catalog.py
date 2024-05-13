@@ -198,11 +198,11 @@ def get_variant_catalog_iterator(variant_catalog_json_or_bed):
     """
 
     if ".json" in variant_catalog_json_or_bed:
-        with open_file(variant_catalog_json_or_bed, "rt") as f:
+        with open_file(variant_catalog_json_or_bed, "rt", is_text_file=True) as f:
             for record in ijson.items(f, "item"):
                 yield record
     else:        
-        with open_file(variant_catalog_json_or_bed, "rt") as input_variant_catalog:
+        with open_file(variant_catalog_json_or_bed, "rt", is_text_file=True) as input_variant_catalog:
             for line in input_variant_catalog:
                 fields = line.strip().split("\t")
                 unmodified_chrom = fields[0]

@@ -301,7 +301,7 @@ def main():
     input_catalogs = collections.defaultdict(dict)
     for input_catalog_path in args.input_catalog_paths:
         print(f"Loading input catalog {input_catalog_path}")
-        with open_file(input_catalog_path) as f:
+        with open_file(input_catalog_path, is_text_file=True) as f:
             if args.n:
                 input_catalog = []
                 for record in ijson.items(f, "item"):
