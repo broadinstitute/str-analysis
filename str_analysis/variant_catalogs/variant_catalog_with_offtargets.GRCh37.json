@@ -964,15 +964,9 @@
     },
     {
         "LocusId": "FGF14",
-        "LocusStructure": "(AAGA)*(AAG)*",
-        "VariantType": [
-            "Repeat",
-            "RareRepeat"
-        ],
-        "ReferenceRegion": [
-            "chr13:102813916-102813924",
-            "chr13:102813924-102814074"
-        ],
+        "LocusStructure": "(AAG)*",
+        "VariantType": "RareRepeat",
+        "ReferenceRegion": "chr13:102813924-102814074",
         "RepeatUnit": "AAG",
         "Gene": "FGF14",
         "GeneRegion": "intron",
@@ -1008,10 +1002,7 @@
             "Y:8333344-8333856"
         ],
         "MainReferenceRegion": "chr13:102813924-102814074",
-        "VariantId": [
-            "FGF14_AAGA",
-            "FGF14"
-        ]
+        "VariantId": "FGF14"
     },
     {
         "LocusId": "FMR1",
