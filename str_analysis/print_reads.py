@@ -27,6 +27,7 @@ def main():
 	parser.add_argument("-L", "--interval", action="append", required=True, help="Region(s) to extract reads. This can "
 						"be a .bed file, .bed.gz file, .interval_list file, or an interval specified "
 						"as \"chr:start-end\" with a 0-based start coordinate")
+	parser.add_argument("--padding", type=int, default=0, help="Number of bases with which to pad each interval")
 	parser.add_argument("--verbose", action="store_true")
 	parser.add_argument("input_bam_or_cram", help="Input BAM or CRAM file. This can a local or a gs:// path")
 	args = parser.parse_args()
@@ -67,11 +68,11 @@ def main():
 
 					start_offset = 1 if interval.endswith(".interval_list") else 0
 					start = int(start) - start_offset  # convert to 0-based coordinates
-					reader.add_interval(chrom, start, int(end))
+					reader.add_interval(chrom, start - args.padding, int(end) + args.padding)
 		else:
 			try:
 				chrom, start_0based, end = parse_interval(interval)
-				reader.add_interval(chrom, start_0based, end)
+				reader.add_interval(chrom, start_0based - args.padding, end + args.padding)
 			except ValueError:
 				parser.error(f"Invalid interval {interval}")
 
