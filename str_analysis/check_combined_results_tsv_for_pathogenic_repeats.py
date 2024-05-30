@@ -62,7 +62,7 @@ def run(command):
 
 
 def parse_args():
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     grp = p.add_argument_group()
     grp.add_argument("--use-affected", action="store_true", help="Use affected status to determine which samples to "
         "include in the output for each locus. Only include those affected samples that have larger expansions than "
@@ -583,7 +583,7 @@ def main():
             results_dfs.append(results_df)
 
     final_results_df = pd.concat(results_dfs)
-    final_results_df = final_results_df[final_results_df["Sample_affected"] != SEPARATOR_STRING]
+    final_results_df = final_results_df[final_results_df[args.sample_affected_status_column] != SEPARATOR_STRING]
     final_results_df.to_csv(args.results_path, index=False, header=True, sep="\t")
     print(f"Wrote {len(final_results_df)} rows to {args.results_path}")
     for locus_id, count in sorted(dict(final_results_df.groupby("LocusId").count()[args.sample_id_column]).items()):

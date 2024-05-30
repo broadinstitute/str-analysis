@@ -37,7 +37,7 @@ def parse_args(args_list=None):
         args
     """
 
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument(
         "-f",
         "--fam-file",

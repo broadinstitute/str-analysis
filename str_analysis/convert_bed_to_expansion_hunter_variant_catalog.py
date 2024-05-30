@@ -14,7 +14,7 @@ from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 
 
 def main():
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--batch-size", type=int, help="Optionally, split the output into many variant catalogs with "
                                                   "at most this many loci per catalog")
     p.add_argument("-o", "--output-path", help="JSON variant catalog output path")

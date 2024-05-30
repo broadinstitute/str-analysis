@@ -70,7 +70,7 @@ import re
 from tqdm import tqdm
 
 def main():
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--discard-hom-ref", action="store_true", help="Discard hom-ref calls")
     p.add_argument("--use-trgt-locus-id", action="store_true", help="Use TRID as locus id. If not specified, the "
                                                                     "locus id will be set to 'chrom-start-end-motif'")

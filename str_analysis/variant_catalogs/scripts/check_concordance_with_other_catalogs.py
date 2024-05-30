@@ -552,7 +552,7 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 
 
 def main():
-	parser = argparse.ArgumentParser()
+	parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	parser.add_argument("-R", "--reference-fasta", help="hg38 reference fasta file path", default="~/hg38.fa")
 	args = parser.parse_args()
 

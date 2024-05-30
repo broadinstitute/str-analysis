@@ -23,7 +23,7 @@ ALREADY_WARNED_ABOUT = set()  # used for logging
 
 def parse_args(args_list=None):
     """Parse command line args and return the argparse args object"""
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument(
         "-c",
         "--variant-catalog",

@@ -57,7 +57,7 @@ import re
 
 
 def main():
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--sample-id",
                    help="If not specified, the sample id will be parsed from the last column of the vcf header.")
     p.add_argument("--variant-catalog", help="ExpansionHunter variant catalog. If specified, fields from this"

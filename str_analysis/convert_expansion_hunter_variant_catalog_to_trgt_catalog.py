@@ -13,7 +13,7 @@ from str_analysis.utils.misc_utils import parse_interval
 
 
 def main():
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("-s", "--split-adjacent-repeats", action="store_true", help="If a locus is defined "
                    "as having several adjacent repeats in the ExpansionHunter catalog, split it into separate "
                    "entries in the TRGT catalog. This can simplify downstream analysis.")

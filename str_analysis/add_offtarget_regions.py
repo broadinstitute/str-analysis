@@ -87,7 +87,7 @@ def add_offtarget_regions(
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--genome-version",
                         required=True,
                         help="Reference genome version (37 or 38). This is used to determine the path to the "

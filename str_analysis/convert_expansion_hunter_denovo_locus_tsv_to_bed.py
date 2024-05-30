@@ -14,7 +14,7 @@ $7        het_str_size : 8
 
 
 def main():
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("input_path")
     p.add_argument("output_path")
     args = p.parse_args()

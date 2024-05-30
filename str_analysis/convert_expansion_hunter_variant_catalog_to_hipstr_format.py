@@ -14,7 +14,7 @@ from str_analysis.utils.misc_utils import parse_interval
 
 
 def main():
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--verbose", action="store_true", help="Print verbose output")
     p.add_argument("-o", "--output-file", help="bed file output path")
     p.add_argument("variant_catalog")

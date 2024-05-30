@@ -13,7 +13,7 @@ import tqdm
 
 
 def main():
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("-o", "--output-file", help="json file output path")
     p.add_argument("-v", "--verbose", action="store_true")
     p.add_argument("gangstr_spec", help="path of the GangSTR repeat spec .bed file")

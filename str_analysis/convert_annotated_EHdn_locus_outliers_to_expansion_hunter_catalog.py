@@ -42,7 +42,7 @@ import pandas as pd
 VALID_GENE_REGIONS = {"CDS", "UTR", "5UTR", "3UTR", "promoter", "exon", "intron", "intergenic"}
 
 def parse_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--min-motif-size", type=int, help="Minimum motif size to include in the output catalog")
     parser.add_argument("--max-motif-size", type=int, help="Maximum motif size to include in the output catalog")
     parser.add_argument("-ms", "--motif-size", type=int, action="append", help="Only include loci with these motif sizes")

@@ -65,7 +65,7 @@ $16           sum_str_counts : 126
 
 
 def main():
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("strling_txt_path", nargs="+", help="STRling calls .txt path(s)")
     args = p.parse_args()
 
