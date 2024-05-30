@@ -233,7 +233,7 @@ def add_progress_bar(iterable, unit=" loci"):
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--ref-fasta", help="Reference fasta path", required=True)
     parser.add_argument("-n", type=int, help="Process at most this many loci. Useful for testing.")
     parser.add_argument("-d", "--max-distance-between-adjacent-repeats",
@@ -273,6 +273,12 @@ def main():
                         action="store_true",
                         help="Add extra fields to each locus in the output variant catalog that record the number of "
                              "base pairs between any adjacent loci and the main locus in an easy-to-parse format")
+    parser.add_argument("-k", "--also-output-original-definitions",
+                        action="store_true",
+                        help="When adding adjacent loci to locus definions in the input catalog, output the original "
+                             "definition without adjacent loci in addition to the new definition with adjacent loci."
+                             "This can be used to compare whether adding adjacent loci to a locus definition has any "
+                             "effect on the resulting genotypes.")
     parser.add_argument("-x", "--dont-add-adjacent-loci-to-this-locus-id", action="append", help="Don't compute "
                         "adjacent repeats for the given locus id, and instead just add it to the output catalog "
                         "without modification. This option can be specified more than once.")
@@ -409,6 +415,7 @@ def main():
                 max_adjacent_repeats=args.max_adjacent_repeats,
                 add_extra_info_to_locus_id=args.add_extra_info_to_locus_id,
                 add_extra_fields=args.add_extra_fields,
+                set_variant_ids_to_locus_id_plus_motif=False,
             )
 
             # check if adjacent loci were added
@@ -418,6 +425,11 @@ def main():
                 counters["total reference regions"] += len(output_record["ReferenceRegion"])
                 counters["total spacers"] += len(output_record["ReferenceRegion"]) - 1
                 output_record_key = output_record["LocusStructure"] + ";" + ";".join(output_record["ReferenceRegion"])
+
+                if args.also_output_original_definitions:
+                    record["LocusId"] = record["LocusId"] + "_ORIGINAL"
+                    output_catalog.append(record)
+                    output_record["LocusId"] = output_record["LocusId"] + "_MAIN"
             else:
                 output_record_key = output_record["LocusStructure"] + ";" + output_record["ReferenceRegion"]
                 counters["total reference regions"] += 1
