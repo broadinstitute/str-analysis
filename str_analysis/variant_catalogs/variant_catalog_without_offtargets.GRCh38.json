@@ -672,7 +672,7 @@
     {
         "LocusId": "FGF14",
         "LocusStructure": "(AAG)*",
-        "VariantType": "RareRepeat",
+        "VariantType": "Repeat",
         "ReferenceRegion": "chr13:102161574-102161724",
         "RepeatUnit": "AAG",
         "Gene": "FGF14",
