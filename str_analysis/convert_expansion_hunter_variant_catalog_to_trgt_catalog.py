@@ -4,7 +4,7 @@
 
 import argparse
 import gzip
-import simplejson as json
+import ijson
 import os
 import re
 import tqdm
@@ -29,76 +29,77 @@ def main():
 
 def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_path, split_adjacent_repeats=False):
     print(f"Parsing {expansion_hunter_catalog_path}")
-    fopen = gzip.open if expansion_hunter_catalog_path.endswith("gz") else open
-    with fopen(expansion_hunter_catalog_path, "rt") as f:
-        expansion_hunter_catalog = json.load(f)
+    with (gzip.open if expansion_hunter_catalog_path.endswith("gz") else open)(expansion_hunter_catalog_path, "rt") as f:
+        with (gzip.open if output_file_path.endswith("gz") else open)(output_file_path, "wt") as f2:
+            previous_chrom = None
+            output_rows = []
+            counter = 0
+            for i, record in enumerate(tqdm.tqdm(ijson.items(f, "item"), unit=" variant catalog records")):
+                locus_id = record["LocusId"]
+                locus_structure = record["LocusStructure"]
+                motifs = re.findall("[(]([A-Z]+)[)]", locus_structure)
+                if not motifs:
+                    raise ValueError(f"Unable to parse LocusStructure '{locus_structure}' in variant catalog "
+                                     f"record #{i+1}: {record}")
 
-    print(f"Parsed {len(expansion_hunter_catalog):,d} records from {expansion_hunter_catalog_path}")
+                reference_regions = record["ReferenceRegion"]
+                if not isinstance(reference_regions, list):
+                    reference_regions = [reference_regions]
 
-    fopen = gzip.open if output_file_path.endswith("gz") else open
-    with fopen(output_file_path, "wt") as f:
-        previous_chrom = None
-        output_rows = []
-        counter = 0
-        for i, record in enumerate(tqdm.tqdm(expansion_hunter_catalog, unit=" variant catalog records")):
-            locus_id = record["LocusId"]
-            locus_structure = record["LocusStructure"]
-            motifs = re.findall("[(]([A-Z]+)[)]", locus_structure)
-            if not motifs:
-                raise ValueError(f"Unable to parse LocusStructure '{locus_structure}' in variant catalog "
-                                 f"record #{i+1}: {record}")
+                if len(motifs) != len(reference_regions):
+                    raise ValueError(f"LocusStructure elements != # of entries in the list of ReferenceRegions in "
+                                     f"variant catalog record #{i+1}: {record}")
 
-            reference_regions = record["ReferenceRegion"]
-            if not isinstance(reference_regions, list):
-                reference_regions = [reference_regions]
-
-            if len(motifs) != len(reference_regions):
-                raise ValueError(f"LocusStructure elements != # of entries in the list of ReferenceRegions in "
-                                 f"variant catalog record #{i+1}: {record}")
-
-            chrom = locus_start_0based = locus_end_1based = None
-            for motif, reference_region in zip(motifs, reference_regions):
-                chrom, start_0based, end_1based = parse_interval(reference_region)
-
-                locus_start_0based = min(locus_start_0based, start_0based) if locus_start_0based is not None else start_0based
-                locus_end_1based = max(locus_end_1based, end_1based) if locus_end_1based is not None else end_1based
-
-            if previous_chrom is None:
-                previous_chrom = chrom
-
-            if split_adjacent_repeats:
+                chrom = locus_start_0based = locus_end_1based = None
                 for motif, reference_region in zip(motifs, reference_regions):
                     chrom, start_0based, end_1based = parse_interval(reference_region)
-                    locus_label = f"{locus_id}_{motif}" if len(motifs) > 1 else locus_id
-                    struc = f"({motif})n"
+
+                    locus_start_0based = min(locus_start_0based, start_0based) if locus_start_0based is not None else start_0based
+                    locus_end_1based = max(locus_end_1based, end_1based) if locus_end_1based is not None else end_1based
+
+                if previous_chrom is None:
+                    previous_chrom = chrom
+
+                if locus_start_0based + 1 >= locus_end_1based:
+                    print(f"WARNING: Skipping locus {locus_id} @ {chrom}:{locus_start_0based+1}-{locus_end_1based} because "
+                          f"the interval has a width = {locus_end_1based - locus_start_0based - 1}bp")
+                    continue
+
+
+                if split_adjacent_repeats:
+                    for motif, reference_region in zip(motifs, reference_regions):
+                        chrom, start_0based, end_1based = parse_interval(reference_region)
+
+                        locus_label = f"{locus_id}_{motif}" if len(motifs) > 1 else locus_id
+                        struc = f"({motif})n"
+                        output_rows.append([
+                            chrom,
+                            start_0based,
+                            end_1based,
+                            f"ID={locus_label};MOTIFS={motif};STRUC={struc}",
+                        ])
+                else:
+                    motif_string = ",".join(motifs)
+                    struc = "".join([f"({motif})n" for motif in motifs])
+
                     output_rows.append([
                         chrom,
-                        start_0based,
-                        end_1based,
-                        f"ID={locus_label};MOTIFS={motif};STRUC={struc}",
+                        locus_start_0based,
+                        locus_end_1based,
+                        f"ID={locus_id};MOTIFS={motif_string};STRUC={struc}",
                     ])
-            else:
-                motif_string = ",".join(motifs)
-                struc = "".join([f"({motif})n" for motif in motifs])
 
-                output_rows.append([
-                    chrom,
-                    locus_start_0based,
-                    locus_end_1based,
-                    f"ID={locus_id};MOTIFS={motif_string};STRUC={struc}",
-                ])
+                if chrom != previous_chrom:
+                    for output_row in sorted(output_rows):
+                        counter += 1
+                        f.write("\t".join(map(str, output_row)) + "\n")
 
-            if chrom != previous_chrom:
-                for output_row in sorted(output_rows):
-                    counter += 1
-                    f.write("\t".join(map(str, output_row)) + "\n")
+                    output_rows = []
+                    previous_chrom = chrom
 
-                output_rows = []
-                previous_chrom = chrom
-
-        for output_row in sorted(output_rows):
-            counter += 1
-            f.write("\t".join(map(str, output_row)) + "\n")
+            for output_row in sorted(output_rows):
+                counter += 1
+                f2.write("\t".join(map(str, output_row)) + "\n")
 
     bgzip_step = "| bgzip" if output_file_path.endswith("gz") else ""
     os.system(f"bedtools sort -i {output_file_path} {bgzip_step} > {output_file_path}.sorted")

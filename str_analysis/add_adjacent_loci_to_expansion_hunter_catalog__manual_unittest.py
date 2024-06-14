@@ -1,6 +1,6 @@
 """NOTE: These unittests should be run manually since they take a relatively long time and require large data files"""
 
-import simplejson as json
+import ijson
 import os
 from pprint import pformat
 import pysam
@@ -256,14 +256,14 @@ class GetAdjacentRepeatsTests(unittest.TestCase):
         ]
 
         locus_ids_already_in_catalog = {record["LocusId"] for record in self.variant_catalog}
+
         with open(self.variant_catalog_path) as f:
-            self.full_variant_catalog = json.load(f)
-        for record in self.full_variant_catalog:
-            if record["LocusId"] in locus_ids_already_in_catalog or isinstance(record["ReferenceRegion"], list):
-                continue
-            record["ExpectedLocusStructure"] = record["LocusStructure"]
-            record["ExpectedReferenceRegion"] = record["ReferenceRegion"]
-            self.variant_catalog.append(record)
+            for record in ijson.items(f, "item"):
+                if record["LocusId"] in locus_ids_already_in_catalog or isinstance(record["ReferenceRegion"], list):
+                    continue
+                record["ExpectedLocusStructure"] = record["LocusStructure"]
+                record["ExpectedReferenceRegion"] = record["ReferenceRegion"]
+                self.variant_catalog.append(record)
 
         self.variant_catalog.sort(key=lambda record: (
             record["ReferenceRegion"][0].split(":")[0]

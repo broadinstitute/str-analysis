@@ -2,7 +2,7 @@
 
 import argparse
 import collections
-import simplejson as json
+import ijson
 import re
 import sqlite3
 
@@ -126,13 +126,7 @@ def main():
     args = parser.parse_args()
         
     # parse the input catalog(s)
-    try:
-        with open_file(args.input_catalog_path, is_text_file=True) as f:
-            input_catalog = json.load(f)
-    except Exception as e:
-        parser.error(f"Unable to parse {args.input_catalog_path}: {e}")
-
-    print(f"Processing {len(input_catalog):,d} loci from {args.input_catalog_path}")
+    print(f"Processing loci from {args.input_catalog_path}")
 
     output_catalog = []
 
@@ -145,31 +139,36 @@ def main():
     offtarget_db_connection = sqlite3.connect(local_db_path)
 
     counters = collections.defaultdict(int)
-    for record in input_catalog:
-        if isinstance(record.get("ReferenceRegion"), list):
-            counters["adjacent loci filter"] += 1
-            continue
+    total = 0
+    try:
+        with open_file(args.input_catalog_path, is_text_file=True) as f:
+            for record in ijson.items(f, "item"):
+                total += 1
+                if isinstance(record.get("ReferenceRegion"), list):
+                    counters["adjacent loci filter"] += 1
+                    continue
 
-        if len(record.get("LocusStructure", "N").strip("(ACGT)*+?")) > 0:
-            counters["non-ACGT bases filter"] += 1
-            continue
+                if len(record.get("LocusStructure", "N").strip("(ACGT)*+?")) > 0:
+                    counters["non-ACGT bases filter"] += 1
+                    continue
 
-        if args.keep_original_locus_definitions:
-            output_catalog.append(record)
+                if args.keep_original_locus_definitions:
+                    output_catalog.append(record)
 
-        record_with_offtarget_regions = add_offtarget_regions(
-            record,
-            offtarget_db_connection,
-            args.max_offtarget_regions,
-            args.min_simulated_reads_absorbed,
-            args.min_fraction_of_simulated_reads_absorbed,
-            verbose=args.verbose
-        )
+                record_with_offtarget_regions = add_offtarget_regions(
+                    record,
+                    offtarget_db_connection,
+                    args.max_offtarget_regions,
+                    args.min_simulated_reads_absorbed,
+                    args.min_fraction_of_simulated_reads_absorbed,
+                    verbose=args.verbose
+                )
 
-        if record_with_offtarget_regions is not None:
-            output_catalog.append(record_with_offtarget_regions)
+                if record_with_offtarget_regions is not None:
+                    output_catalog.append(record_with_offtarget_regions)
+    except Exception as e:
+        parser.error(f"Unable to parse {args.input_catalog_path}: {e}")
 
-    total = len(input_catalog)
     if counters["adjacent loci filter"] > 0:
         print(f"Skipped {total - counters['adjacent loci filter']:,d} out of {total:,d} records "
               f"that have adjacent loci specified")
