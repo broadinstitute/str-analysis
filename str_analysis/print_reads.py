@@ -29,7 +29,7 @@ def main():
 						"as \"chr:start-end\" with a 0-based start coordinate")
 	parser.add_argument("--padding", type=int, default=0, help="Number of bases with which to pad each interval")
 	parser.add_argument("--verbose", action="store_true")
-	parser.add_argument("input_bam_or_cram", help="Input BAM or CRAM file. This can a local or a gs:// path")
+	parser.add_argument("input_bam_or_cram", help="Input BAM or CRAM file. This can be a local or a gs:// path")
 	args = parser.parse_args()
 
 	# validate args
