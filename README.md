@@ -1,8 +1,21 @@
-# str-analysis
----
 This repo contains scripts and utilities for analyzing tandem repeats (TRs). 
 
-* Tools:
+## Installation
+
+To install using pip, run:
+
+```
+python3 -m pip install --upgrade git+https://github.com/broadinstitute/str-analysis.git
+```
+
+or use the docker image:
+
+```
+docker run -it weisburd/str-analysis:latest
+```
+
+## Tools
+
   * **call_non_ref_motifs** ([docs](https://github.com/broadinstitute/str-analysis/blob/main/docs/call_non_ref_motifs.md)) - takes a bam/cram file and, optionally, an ExpansionHunter variant catalog. Then, for each 
     locus, it determines which STR motifs are supported by reads overlapping that locus before running ExpansionHunter on the motif(s) it detected. 
   * **filter_vcf_to_STR_variants** - takes a single-sample VCF file and filters it to the INS/DEL variants that represent
@@ -62,17 +75,3 @@ This repo contains scripts and utilities for analyzing tandem repeats (TRs).
   * **convert_strling_calls_to_expansion_hunter_json**
 
 
-
-## Installation
-
-To install using pip, run:
-
-```
-python3 -m pip install --upgrade str_analysis
-```
-
-or use the docker image:
-
-```
-docker run -it weisburd/str-analysis:latest
-```
