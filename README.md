@@ -2,13 +2,13 @@ This repo contains scripts and utilities for analyzing tandem repeats (TRs).
 
 ## Installation
 
-To install using pip, run:
+To install the latest version using pip, run:
 
 ```
 python3 -m pip install --upgrade git+https://github.com/broadinstitute/str-analysis.git
 ```
 
-or use the docker image:
+or use the docker image (though it may not have the latest version of the code):
 
 ```
 docker run -it weisburd/str-analysis:latest
