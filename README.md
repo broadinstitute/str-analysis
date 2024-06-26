@@ -52,11 +52,14 @@ This repo contains scripts and utilities for analyzing tandem repeats (TRs).
 * format converters:
   * **convert_bed_to_expansion_hunter_variant_catalog** 
   * **convert_expansion_hunter_variant_catalog_to_gangstr_spec** 
+  * **convert_expansion_hunter_variant_catalog_to_hipstr_format**
+  * **convert_expansion_hunter_variant_catalog_to_trgt_catalog**
+  * **convert_expansion_hunter_variant_catalog_to_longtr_format**
   * **convert_gangstr_spec_to_expansion_hunter_variant_catalog**
   * **convert_expansion_hunter_denovo_locus_tsv_to_bed**
   * **convert_gangstr_vcf_to_expansion_hunter_json** 
   * **convert_hipstr_vcf_to_expansion_hunter_json**
-  * **convert_strling_calls_to_expansion_hunter_json** 
+  * **convert_strling_calls_to_expansion_hunter_json**
 
 
 
