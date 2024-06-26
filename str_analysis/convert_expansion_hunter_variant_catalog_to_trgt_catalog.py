@@ -92,7 +92,7 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
                 if chrom != previous_chrom:
                     for output_row in sorted(output_rows):
                         counter += 1
-                        f.write("\t".join(map(str, output_row)) + "\n")
+                        f2.write("\t".join(map(str, output_row)) + "\n")
 
                     output_rows = []
                     previous_chrom = chrom
