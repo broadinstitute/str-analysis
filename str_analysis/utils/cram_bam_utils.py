@@ -164,7 +164,7 @@ class IntervalReader:
 
 		if self._is_cram_file:
 			# initialize objects used by the self._load_cram_containers(..) method
-			self._total_containers_loaded_from_cram = 0
+			self._total_byte_ranges_loaded_from_cram = 0
 			self._total_bytes_loaded_from_cram = 0
 
 			self._end_of_cram_header_byte_offset, self._crai_interval_trees = parse_crai_index(
@@ -195,11 +195,11 @@ class IntervalReader:
 
 		interval_tree.add(merged_interval)
 
-	def get_total_containers_loaded_from_cram(self):
+	def get_total_byte_ranges_loaded_from_cram(self):
 		"""Returns the total number of CRAM containers that were loaded from the input CRAM so far.
 		This only works for CRAM and not for BAM files.
 		"""
-		return self._total_containers_loaded_from_cram
+		return self._total_byte_ranges_loaded_from_cram
 
 	def get_total_bytes_loaded_from_cram(self):
 		"""Returns the total number of bytes that were loaded from the input CRAM so far.
@@ -211,11 +211,9 @@ class IntervalReader:
 		"""Clears all the genomic intervals that were added so far."""
 		self._genomic_intervals = collections.defaultdict(intervaltree.IntervalTree)
 
-	def reset_total_containers_loaded_from_cram_counter(self):
-		"""Resets the counter of the total number of CRAM containers that were loaded from the input CRAM so far.
-		This is only relevant when the IntervalReader was created with retrieve_cram_containers_from_google_storage=True
-		"""
-		self._total_containers_loaded_from_cram = 0
+	def reset_total_byte_ranges_loaded_from_cram_counter(self):
+		"""Resets the counter of the total number of byte ranges that were retrieved from the input CRAM so far."""
+		self._total_byte_ranges_loaded_from_cram = 0
 
 	def reset_total_bytes_loaded_from_cram(self):
 		"""Resets the counter of the total number of bytes loaded from the input CRAM so far.
@@ -358,24 +356,24 @@ class IntervalReader:
 			cram_container_file (file): A file handle which is already open for writing in binary mode
 		"""
 		if self._verbose:
-			print(f"Loading CRAM containers to {cram_container_file.name}")
+			print(f"Copying requested CRAM containers to {cram_container_file.name}")
 
 		# use the CRAI index to compute which byte ranges to load from the CRAM file
 		byte_ranges_to_load = []
 		for chrom, start_0based, end in self._get_merged_intervals():
 			reference_sequence_id = self._chrom_index_lookup[normalize_chromosome_name(chrom)]
 			if reference_sequence_id not in self._crai_interval_trees:
-				print(f"WARNING: No CRAM containers found for {chrom} (reference_sequence_id={reference_sequence_id})")
+				print(f"WARNING: No CRAI entries found for {chrom} (reference_sequence_id={reference_sequence_id})")
 				return
 
 			crai_interval_tree = self._crai_interval_trees[reference_sequence_id]
 			overlapping_crai_intervals = list(crai_interval_tree.overlap(start_0based, end))
 			if not overlapping_crai_intervals:
-				print(f"WARNING: None of the {len(crai_interval_tree)} CRAM containers on {chrom} overlap {chrom}:{start_0based}-{end}")
+				print(f"WARNING: None of the {len(crai_interval_tree)} CRAI entries on {chrom} overlap {chrom}:{start_0based}-{end}")
 				return
 
 			if self._verbose:
-				print(f"Found {len(overlapping_crai_intervals):4,d} CRAM container(s) that overlapped {chrom}:{start_0based}-{end}")
+				print(f"Found {len(overlapping_crai_intervals):4,d} CRAI entries that overlapped {chrom}:{start_0based}-{end}")
 
 			for crai_interval in overlapping_crai_intervals:
 				byte_ranges_to_load.append((crai_interval.data.start, crai_interval.data.end))
@@ -384,7 +382,7 @@ class IntervalReader:
 			crai_interval_tree = self._crai_interval_trees[-1]
 			crai_intervals = list(crai_interval_tree)
 			if self._verbose:
-				print(f"Found {len(crai_intervals):4,d} CRAM container(s) with unmapped read pairs")
+				print(f"Found {len(crai_intervals):4,d} CRAI entries that contained only unmapped read pairs")
 
 			for crai_interval in crai_intervals:
 				byte_ranges_to_load.append((crai_interval.data.start, crai_interval.data.end))
@@ -410,12 +408,8 @@ class IntervalReader:
 		cram_container_file.write(CRAM_EOF_CONTAINER)
 		cram_container_file.flush()
 
-		if self._verbose and self._total_containers_loaded_from_cram > 0:
-			total_megabytes_loaded = self._total_bytes_loaded_from_cram/10**6
-			print(f"Loaded {self._total_containers_loaded_from_cram:3,d} CRAM containers .. "
-				  f"({total_megabytes_loaded:5.1f}Mb total @ "
-				  f"{total_megabytes_loaded/self._total_containers_loaded_from_cram:5.2f}Mb/container) "
-				  f"from {self._cram_or_bam_path}  to  {cram_container_file.name}")
+		if self._verbose and self._total_byte_ranges_loaded_from_cram > 0:
+			print(f"Copied {self._total_bytes_loaded_from_cram/10**6:5.1f}Mb total from {self._cram_or_bam_path}  to  {cram_container_file.name}")
 
 	def _init_chrom_index_lookup(self):
 		"""Initialize a chromosome name to chromosome index lookup dictionary by reading the CRAM or BAM header and
@@ -472,11 +466,12 @@ class IntervalReader:
 
 		if self._is_file_in_google_storage:
 			byte_range = get_byte_range_from_google_storage(self._cram_or_bam_path, start, end)
-			self._total_containers_loaded_from_cram += 1
-			self._total_bytes_loaded_from_cram += len(byte_range)
 		else:
 			self._cram_or_bam_file.seek(start)
 			byte_range = self._cram_or_bam_file.read(end - start)
+
+		self._total_byte_ranges_loaded_from_cram += 1
+		self._total_bytes_loaded_from_cram += len(byte_range)
 
 		if len(byte_range) != end - start:
 			raise ValueError(f"Expected to read {end - start} bytes (from {start} to {end}) but read {len(byte_range)}")

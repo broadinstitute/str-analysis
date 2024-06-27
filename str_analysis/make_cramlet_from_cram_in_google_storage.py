@@ -91,7 +91,6 @@ def main():
     print(f"Retrieving reads within {window_size:,d}bp of", ", ".join(args.region))
     cram_reader = IntervalReader(args.input_cram, input_crai_path, verbose=args.verbose,
                                  reference_fasta_path=args.reference_fasta,
-                                 retrieve_cram_containers_from_google_storage=True,
                                  cache_byte_ranges=True)
 
     for chrom, start, end in intervals:
@@ -124,8 +123,8 @@ def main():
 
     total_duration_seconds = time.time() - start_time
     if args.output_download_stats:
-        total_containers = cram_reader.get_total_containers_downloaded_from_cram()
-        total_bytes = cram_reader.get_total_bytes_downloaded_from_cram()
+        total_containers = cram_reader.get_total_byte_ranges_loaded_from_cram()
+        total_bytes = cram_reader.get_total_bytes_loaded_from_cram()
         stats_tsv_path = re.sub("(.cramlet)?.cram$", "", args.cramlet) + ".stats.tsv"
         add_header = not os.path.isfile(stats_tsv_path) or os.path.getsize(stats_tsv_path) == 0
 
@@ -133,8 +132,8 @@ def main():
             if add_header:
                 stats_file.write("\t".join([
                     "input_cram",
-                    "total_containers_downloaded",
-                    "total_bytes_downloaded",
+                    "total_containers_loaded",
+                    "total_bytes_loaded",
                     "total_duration_seconds",
                 ]) + "\n")
             stats_file.write("\t".join(map(str, [
