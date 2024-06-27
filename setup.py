@@ -30,7 +30,7 @@ class PublishCommand(build_py):
 
 setup(
     name='str_analysis',
-    version="1.2.9",
+    version="1.2.10",
     description="Utilities for analyzing short tandem repeats (STRs)",
     install_requires=requirements,
     cmdclass={

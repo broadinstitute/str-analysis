@@ -1,5 +1,5 @@
-TAG1 = weisburd/str-analysis:v1.2.10
-TAG2 = weisburd/str-analysis:latest
+TAG1 = weisburd/str-analysis-and-tools:v1.2.10
+TAG2 = weisburd/str-analysis-and-tools:latest
 
 all: build push
 
