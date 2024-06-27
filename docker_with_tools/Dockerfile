@@ -174,13 +174,11 @@ RUN wget https://github.com/arq5x/bedtools2/releases/download/v${BED_TOOLS_VERSI
 	&& chmod 777 bedtools.static \
 	&& mv bedtools.static /usr/bin/bedtools
 
+# pybedtools appears to be a relatively heavy dependency, so only install it in this all-inclusive docker image
+RUN python3 -m pip install --upgrade pybedtools
+
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
-COPY str_analysis /str_analysis
-COPY README.md .
-COPY setup.py .
-COPY requirements.txt .
-RUN python3 -m pip install --no-cache-dir -r requirements.txt
-RUN python3 setup.py install
+RUN python3 -m pip install --upgrade git+https://github.com/broadinstitute/str-analysis.git
 
 ENV PYTHONPATH=/:.:$PYTHONPATH

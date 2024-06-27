@@ -7,7 +7,6 @@ RUN apt-get update && apt-get install --no-install-recommends --yes \
     pkg-config \
     procps \
     gcc \
-    g++ \
     make \
     autoconf \
     unzip \
@@ -57,11 +56,10 @@ RUN apt-get update && apt-get install --no-install-recommends --yes python3.9 py
 
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
-COPY str_analysis /str_analysis
-COPY README.md .
-COPY setup.py .
-COPY docker/requirements.txt .
-RUN python3 -m pip install --no-cache-dir -r requirements.txt
-RUN python3 setup.py install
+RUN curl -L https://github.com/broadinstitute/str-analysis/archive/refs/heads/main.zip -o main.zip \
+    && unzip main.zip \
+    && mv str-analysis-main str-analysis \
+    && cd str-analysis \
+    && python3 -m pip install --upgrade .
 
 ENV PYTHONPATH=/:.:$PYTHONPATH

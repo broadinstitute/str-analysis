@@ -4,7 +4,7 @@ TAG2 = weisburd/str-analysis:latest
 all: build push
 
 build:
-	cd ../ && docker build -t $(TAG1) -t $(TAG2) -f docker/Dockerfile .
+	docker build -t $(TAG1) -t $(TAG2) .
 
 push:
 	docker push $(TAG1)
