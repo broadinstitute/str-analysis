@@ -61,10 +61,16 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
                     previous_chrom = chrom
 
                 if locus_start_0based + 1 >= locus_end_1based:
-                    print(f"WARNING: Skipping locus {locus_id} @ {chrom}:{locus_start_0based+1}-{locus_end_1based} because "
-                          f"the interval has a width = {locus_end_1based - locus_start_0based - 1}bp")
+                    print(f"WARNING: Skipping locus {locus_id} because its ReferenceRegion "
+                          f"{chrom}:{locus_start_0based+1}-{locus_end_1based} has a width = "
+                          f"{locus_end_1based - locus_start_0based - 1}bp")
                     continue
 
+                if "|" in locus_structure:
+                    print(f"WARNING: Skipping locus {locus_id} @ {chrom}:{locus_start_0based+1}-{locus_end_1based} because "
+                          f"its LocusStructure {locus_structure} contains a sequence swap operation '|' which is not "
+                          f"supported by TRGT.")
+                    continue
 
                 if split_adjacent_repeats:
                     for motif, reference_region in zip(motifs, reference_regions):
@@ -80,7 +86,9 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
                         ])
                 else:
                     motif_string = ",".join(motifs)
-                    struc = locus_structure.replace("*", "n")
+                    # Handle the different LocusStructure regular expression operations described in
+                    #   https://github.com/Illumina/ExpansionHunter/blob/master/docs/04_VariantCatalogFiles.md#using-regular-expressions-to-define-locus-structure
+                    struc = locus_structure.replace("*", "n").replace("+", "n").replace("?", "n")
 
                     output_rows.append([
                         chrom,
