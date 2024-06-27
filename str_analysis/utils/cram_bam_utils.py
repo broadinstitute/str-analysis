@@ -36,7 +36,7 @@ class ByteRange:
 def parse_crai_index(crai_path, cram_path):
 	"""Takes a .crai and .cram file path (either local or on gs://) and returns a 2-tuple. The first
 	value in the tuple is the byte offset where the CRAM header ends in the input CRAM file.
-	The second value as a dictionary of interval trees that, for each reference sequence id in the CRAM file,
+	The second value is a dictionary of interval trees that, for each reference sequence id in the CRAM file,
 	provides a way to quickly look up the CRAM file byte range for a given genomic interval.
 	"""
 	container_byte_offsets = set()  # collect unique offsets
@@ -50,8 +50,6 @@ def parse_crai_index(crai_path, cram_path):
 				p.error(f"Expected {len(CRAI_FILE_HEADER)} columns but found {len(fields)} in line #{i} of {crai_path}: {line}")
 
 			crai_record = dict(zip(CRAI_FILE_HEADER, map(int, fields)))
-			if crai_record["reference_sequence_id"] < 0:
-				continue
 			if crai_record["alignment_span"] < 0:
 				continue
 
@@ -118,7 +116,7 @@ class IntervalReader:
 				 crai_or_bai_path=None,
 				 reference_fasta_path=None,
 				 verbose=False,
-				 retrieve_cram_containers_from_google_storage=False,
+				 include_unmapped_read_pairs=False,
 				 cache_byte_ranges=False):
 		"""Constructor.
 
@@ -128,38 +126,44 @@ class IntervalReader:
 				If not specified, it will be inferred based on the cram_or_bam_path.
 			reference_fasta_path: Optional reference genome FASTA path to use when reading CRAM files using pysam.
 			verbose: If True, will print more detailed information.
-			retrieve_cram_containers_from_google_storage: If this is set to True,
-				and the input path is a CRAM file in google storage, use the i/o-efficient algorithm to read
-				CRAM containers directly from Google Cloud Storage.
-			cache_byte_ranges: This option is ignored unless retrieve_cram_containers_from_google_storage is True.
+			include_unmapped_read_pairs: If True, also output any umapped read pairs stored at the end of the cram file.
+			cache_byte_ranges: This option is only relevant for CRAM files, and is ignored for BAMs.
 				Cache the byte ranges that are read from the CRAM file in memory. This can be useful when loading a
 				relatively small number of intervals and then reusing the same IntervalReader instance across multiple
 				rounds of CRAM access.
 		"""
 		self._cram_or_bam_path = cram_or_bam_path
 		self._crai_or_bai_path = crai_or_bai_path
-		if self._cram_or_bam_path.endswith(".cram"):
+		self._is_cram_file = self._cram_or_bam_path.endswith(".cram")
+		self._is_bam_file = self._cram_or_bam_path.endswith(".bam")
+		self._is_file_in_google_storage = self._cram_or_bam_path.startswith("gs://")
+
+		if self._is_cram_file:
 			if self._crai_or_bai_path is None:
 				self._crai_or_bai_path = f"{self._cram_or_bam_path}.crai"
-		elif self._cram_or_bam_path.endswith(".bam"):
+		elif self._is_bam_file:
 			if self._crai_or_bai_path is None:
 				self._crai_or_bai_path = f"{self._cram_or_bam_path}.bai"
 		else:
 			raise ValueError(f"Input file {cram_or_bam_path} must end with .cram or .bam")
+
 		self._reference_fasta_path = reference_fasta_path
 		self._verbose = verbose
-
+		self._include_unmapped_read_pairs = include_unmapped_read_pairs
 		self._byte_ranges_cache = {} if cache_byte_ranges else None
 		self._genomic_intervals = collections.defaultdict(intervaltree.IntervalTree)
 
-		self._retrieve_cram_containers_from_google_storage = (
-			retrieve_cram_containers_from_google_storage
-			and self._cram_or_bam_path.startswith("gs://")
-			and self._cram_or_bam_path.endswith(".cram"))
 
-		if self._retrieve_cram_containers_from_google_storage:
-			# initialize objects used by the self._download_cram_containers(..) method
+		if self._is_file_in_google_storage:
 			self._storage_client = storage.Client()
+		else:
+			if not os.path.isfile(self._cram_or_bam_path):
+				raise ValueError(f"{self._cram_or_bam_path} not found")
+
+			self._cram_or_bam_file = open(self._cram_or_bam_path, "rb")
+
+		if self._is_cram_file:
+			# initialize objects used by the self._load_cram_containers(..) method
 			self._total_containers_loaded_from_cram = 0
 			self._total_bytes_loaded_from_cram = 0
 
@@ -191,20 +195,16 @@ class IntervalReader:
 
 		interval_tree.add(merged_interval)
 
-	def get_total_containers_downloaded_from_cram(self):
-		"""Returns the total number of CRAM containers that were downloaded from the input CRAM so far.
-		This is only relevant when the IntervalReader was created with retrieve_cram_containers_from_google_storage=True
+	def get_total_containers_loaded_from_cram(self):
+		"""Returns the total number of CRAM containers that were loaded from the input CRAM so far.
+		This only works for CRAM and not for BAM files.
 		"""
-		if not self._retrieve_cram_containers_from_google_storage:
-			print("WARNING: This method should only be used when retrieve_cram_containers_from_google_storage=True")
 		return self._total_containers_loaded_from_cram
 
-	def get_total_bytes_downloaded_from_cram(self):
-		"""Returns the total number of bytes that were downloaded from the input CRAM so far.
-		This is only relevant when the IntervalReader was created with retrieve_cram_containers_from_google_storage=True
+	def get_total_bytes_loaded_from_cram(self):
+		"""Returns the total number of bytes that were loaded from the input CRAM so far.
+		This is only works for CRAM and not for BAM files.
 		"""
-		if not self._retrieve_cram_containers_from_google_storage:
-			print("WARNING: This method should only be used when retrieve_cram_containers_from_google_storage=True")
 		return self._total_bytes_loaded_from_cram
 
 	def clear_intervals(self):
@@ -212,14 +212,14 @@ class IntervalReader:
 		self._genomic_intervals = collections.defaultdict(intervaltree.IntervalTree)
 
 	def reset_total_containers_loaded_from_cram_counter(self):
-		"""Resets the counter of the total number of CRAM containers that were downloaded from the input CRAM so far.
+		"""Resets the counter of the total number of CRAM containers that were loaded from the input CRAM so far.
 		This is only relevant when the IntervalReader was created with retrieve_cram_containers_from_google_storage=True
 		"""
 		self._total_containers_loaded_from_cram = 0
 
 	def reset_total_bytes_loaded_from_cram(self):
-		"""Resets the counter of the total number of bytes downloaded from the input CRAM so far.
-		This is only relevant when the IntervalReader was created with retrieve_cram_containers_from_google_storage=True
+		"""Resets the counter of the total number of bytes loaded from the input CRAM so far.
+		This is only works for CRAM and not for BAM files
 		"""
 		self._total_bytes_loaded_from_cram = 0
 
@@ -227,27 +227,25 @@ class IntervalReader:
 		"""Load and save the added genomic intervals to a local CRAM file at the given local_path, or alternatively,
 		write them into the given fileobj, which must be a file object already open for writing.
 		"""
-		if not local_path.endswith(".cram") and not local_path.endswith(".bam"):
-			raise ValueError(f"Output path {local_path} must end with .cram or .bam")
-
-		local_path_suffix = ".cram" if local_path.endswith(".cram") else ".bam"
-		if not self._retrieve_cram_containers_from_google_storage:
-			pysam_input_file = pysam.AlignmentFile(
-				self._cram_or_bam_path, index_filename=self._crai_or_bai_path,
-				reference_filename=self._reference_fasta_path,
-				require_index=True,
-			)
-
-		else:
+		if self._is_cram_file:
+			local_path_suffix = ".cram"
 			temp_cram_container_file = tempfile.NamedTemporaryFile(suffix=local_path_suffix)
-			self._download_cram_containers(temp_cram_container_file)
+			self._load_cram_containers(temp_cram_container_file)
 			temp_cram_container_file.seek(0)
 			pysam.index(temp_cram_container_file.name)
 			pysam_input_file = pysam.AlignmentFile(
 				temp_cram_container_file, require_index=True, reference_filename=self._reference_fasta_path)
+		elif self._is_bam_file:
+			local_path_suffix = ".bam"
+			pysam_input_file = pysam.AlignmentFile(
+				self._cram_or_bam_path, index_filename=self._crai_or_bai_path,
+				reference_filename=self._reference_fasta_path, require_index=True,
+			)
+		else:
+			raise ValueError(f"Output path {local_path} must end with .cram or .bam")
 
 		chom_order = [normalize_chromosome_name(c) for c in pysam_input_file.references]
-		pysam_output_file = pysam.AlignmentFile(local_path, mode="wc" if local_path.endswith(".cram") else "wb",
+		pysam_output_file = pysam.AlignmentFile(local_path, mode="wc" if self._is_cram_file else "wb",
 												template=pysam_input_file, reference_filename=self._reference_fasta_path)
 		read_counter = 0
 		if self._verbose:
@@ -256,8 +254,12 @@ class IntervalReader:
 			for read in pysam_input_file.fetch(chrom, start, end):
 				read_counter += 1
 				pysam_output_file.write(read)
-		if self._verbose:
-			print("Done")
+
+		if self._include_unmapped_read_pairs:
+			for read in pysam_input_file.fetch("*"):
+				read_counter += 1
+				pysam_output_file.write(read)
+
 		pysam_input_file.close()
 		pysam_output_file.close()
 
@@ -342,16 +344,24 @@ class IntervalReader:
 
 		return stats
 
-	def _download_cram_containers(self, cram_container_file):
-		"""Download all CRAM containers that overlap the genomic intervals added so far to the given file handle.
+	def close(self):
+		"""Release any system resources opened by IntervalReader"""
+		if self._is_file_in_google_storage:
+			self._storage_client.close()
+		else:
+			self._cram_or_bam_file.close()
+
+
+	def _load_cram_containers(self, cram_container_file):
+		"""Load all CRAM containers that overlap the genomic intervals added so far to the given file handle.
 		Args:
 			cram_container_file (file): A file handle which is already open for writing in binary mode
 		"""
 		if self._verbose:
-			print(f"Downloading CRAM containers to {cram_container_file.name}")
+			print(f"Loading CRAM containers to {cram_container_file.name}")
 
 		# use the CRAI index to compute which byte ranges to load from the CRAM file
-		byte_ranges_to_download = []
+		byte_ranges_to_load = []
 		for chrom, start_0based, end in self._get_merged_intervals():
 			reference_sequence_id = self._chrom_index_lookup[normalize_chromosome_name(chrom)]
 			if reference_sequence_id not in self._crai_interval_trees:
@@ -368,11 +378,20 @@ class IntervalReader:
 				print(f"Found {len(overlapping_crai_intervals):4,d} CRAM container(s) that overlapped {chrom}:{start_0based}-{end}")
 
 			for crai_interval in overlapping_crai_intervals:
-				byte_ranges_to_download.append((crai_interval.data.start, crai_interval.data.end))
+				byte_ranges_to_load.append((crai_interval.data.start, crai_interval.data.end))
+
+		if self._include_unmapped_read_pairs and self._crai_interval_trees.get(-1):
+			crai_interval_tree = self._crai_interval_trees[-1]
+			crai_intervals = list(crai_interval_tree)
+			if self._verbose:
+				print(f"Found {len(crai_intervals):4,d} CRAM container(s) with unmapped read pairs")
+
+			for crai_interval in crai_intervals:
+				byte_ranges_to_load.append((crai_interval.data.start, crai_interval.data.end))
 
 		# compute merged byte-range intervals
 		merged_byte_ranges = []
-		for bytes_start, bytes_end in sorted(byte_ranges_to_download):
+		for bytes_start, bytes_end in sorted(byte_ranges_to_load):
 			if not merged_byte_ranges:
 				merged_byte_ranges.append((bytes_start, bytes_end))
 			else:
@@ -393,7 +412,7 @@ class IntervalReader:
 
 		if self._verbose and self._total_containers_loaded_from_cram > 0:
 			total_megabytes_loaded = self._total_bytes_loaded_from_cram/10**6
-			print(f"Downloaded {self._total_containers_loaded_from_cram:3,d} CRAM containers .. "
+			print(f"Loaded {self._total_containers_loaded_from_cram:3,d} CRAM containers .. "
 				  f"({total_megabytes_loaded:5.1f}Mb total @ "
 				  f"{total_megabytes_loaded/self._total_containers_loaded_from_cram:5.2f}Mb/container) "
 				  f"from {self._cram_or_bam_path}  to  {cram_container_file.name}")
@@ -403,12 +422,12 @@ class IntervalReader:
 		parsing the list of reference sequence names and in order.
 		"""
 
-		# download the CRAM header of the input CRAM file into a local temp file
+		# load the CRAM header of the input CRAM file into a local temp file
 		with tempfile.NamedTemporaryFile(suffix=".cram") as cram_header_file:
 			# load the CRAM header from the temp file using pysam to get the list of reference sequence names
 			was_verbose = self._verbose
 			self._verbose = False
-			self._download_cram_containers(cram_header_file)
+			self._load_cram_containers(cram_header_file)
 			self._verbose = was_verbose
 
 			pysam.index(cram_header_file.name)
@@ -446,21 +465,18 @@ class IntervalReader:
 		]
 
 	def _get_byte_range(self, start, end):
-		if not self._cram_or_bam_path.startswith("gs://"):
-			raise ValueError("This method can only be used with gs:// paths")
-
 		self._total_bytes_loaded_from_cram += end - start
 
 		if self._byte_ranges_cache is not None and (start, end) in self._byte_ranges_cache:
 			return self._byte_ranges_cache[(start, end)]
 
-		#if self._cram_or_bam_path.startswith("gs://"):
-		byte_range = get_byte_range_from_google_storage(self._cram_or_bam_path, start, end)
-		self._total_containers_loaded_from_cram += 1
-		self._total_bytes_loaded_from_cram += len(byte_range)
-		#else:
-		#	self._cram.seek(start)
-		#	byte_range = self._cram.read(end - start)
+		if self._is_file_in_google_storage:
+			byte_range = get_byte_range_from_google_storage(self._cram_or_bam_path, start, end)
+			self._total_containers_loaded_from_cram += 1
+			self._total_bytes_loaded_from_cram += len(byte_range)
+		else:
+			self._cram_or_bam_file.seek(start)
+			byte_range = self._cram_or_bam_file.read(end - start)
 
 		if len(byte_range) != end - start:
 			raise ValueError(f"Expected to read {end - start} bytes (from {start} to {end}) but read {len(byte_range)}")
