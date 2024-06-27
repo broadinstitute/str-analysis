@@ -1,5 +1,5 @@
 google-cloud-storage>=2.14.0
-hail>=0.2.127
+hail>=0.2.115
 ijson>=3.2.2
 intervaltree>=3.1.0
 numpy>=1.20.3
