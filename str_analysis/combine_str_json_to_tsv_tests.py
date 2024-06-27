@@ -246,11 +246,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(variant_rows[0]["NumAllelesSupportedByInrepeatReads"], 0)
 
         for allele_num in 1, 2:
-            self.assertAlmostEqual(variant_rows[0][f"NumSpanningReadsThatSupportGenotype: Allele {allele_num}"], 30.0)
-            self.assertAlmostEqual(variant_rows[0][f"NumFlankingReadsThatSupportGenotype: Allele {allele_num}"], 0.5)
-            self.assertEqual(variant_rows[0][f"NumInrepeatReadsThatSupportGenotype: Allele {allele_num}"], 0)
-            self.assertAlmostEqual(variant_rows[0][f"NumReadsTotalThatSupportGenotype: Allele {allele_num}"], 30.5)
-            self.assertAlmostEqual(variant_rows[0][f"FractionOfReadsThatSupportsGenotype: Allele {allele_num}"], 30.5/76)
+            self.assertAlmostEqual(float(variant_rows[0][f"NumSpanningReadsThatSupportGenotype: Allele {allele_num}"]), 30.0)
+            self.assertAlmostEqual(float(variant_rows[0][f"NumFlankingReadsThatSupportGenotype: Allele {allele_num}"]), 0.5)
+            self.assertAlmostEqual(float(variant_rows[0][f"NumInrepeatReadsThatSupportGenotype: Allele {allele_num}"]), 0)
+            self.assertAlmostEqual(float(variant_rows[0][f"NumReadsTotalThatSupportGenotype: Allele {allele_num}"]), 30.5)
+            self.assertAlmostEqual(float(variant_rows[0][f"FractionOfReadsThatSupportsGenotype: Allele {allele_num}"]), 0.401)
 
     def test_convert_expansion_hunter_json_to_tsv_columns_for_alleles(self):
         allele_rows = list(convert_expansion_hunter_json_to_tsv_columns(
@@ -282,18 +282,18 @@ class Tests(unittest.TestCase):
         self.assertEqual(allele_rows[0]["NumAllelesSupportedBySpanningReads"], 2)
         self.assertEqual(allele_rows[0]["NumAllelesSupportedByInrepeatReads"], 0)
 
-        self.assertAlmostEqual(allele_rows[0]["NumSpanningReadsThatSupportGenotype"], 30.0)
-        self.assertAlmostEqual(allele_rows[0]["NumFlankingReadsThatSupportGenotype"], 0.5)
-        self.assertEqual(allele_rows[0]["NumInrepeatReadsThatSupportGenotype"], 0)
-        self.assertAlmostEqual(allele_rows[0]["NumReadsTotalThatSupportGenotype"], 30.5)
-        self.assertAlmostEqual(allele_rows[0]["FractionOfReadsThatSupportsGenotype"], 30.5/76)
+        self.assertAlmostEqual(float(allele_rows[0]["NumSpanningReadsThatSupportGenotype"]), 30.0)
+        self.assertAlmostEqual(float(allele_rows[0]["NumFlankingReadsThatSupportGenotype"]), 0.5)
+        self.assertAlmostEqual(float(allele_rows[0]["NumInrepeatReadsThatSupportGenotype"]), 0)
+        self.assertAlmostEqual(float(allele_rows[0]["NumReadsTotalThatSupportGenotype"]), 30.5)
+        self.assertAlmostEqual(float(allele_rows[0]["FractionOfReadsThatSupportsGenotype"]), 0.401)
 
         self.assertEqual(allele_rows[-1]["Genotype"], "16")
         self.assertEqual(allele_rows[-1]["CountsOfSpanningReads"], "(14, 1), (16, 11)")
         self.assertEqual(allele_rows[-1]["CountsOfFlankingReads"], "(1, 2), (6, 2), (9, 1), (10, 2), (11, 2), (13, 1), (14, 2), (15, 2), (16, 5)")
         self.assertEqual(allele_rows[-1]["CountsOfInrepeatReads"], "()")
-        self.assertEqual(allele_rows[-1]["NumSpanningReadsThatSupportGenotype"], 11)
-        self.assertEqual(allele_rows[-1]["NumFlankingReadsThatSupportGenotype"], 5)
-        self.assertEqual(allele_rows[-1]["NumInrepeatReadsThatSupportGenotype"], 0)
-        self.assertEqual(allele_rows[-1]["NumReadsTotalThatSupportGenotype"], 16)
-        self.assertAlmostEqual(allele_rows[-1]["FractionOfReadsThatSupportsGenotype"], 16/31.)
+        self.assertAlmostEqual(float(allele_rows[-1]["NumSpanningReadsThatSupportGenotype"]), 11)
+        self.assertAlmostEqual(float(allele_rows[-1]["NumFlankingReadsThatSupportGenotype"]), 5)
+        self.assertAlmostEqual(float(allele_rows[-1]["NumInrepeatReadsThatSupportGenotype"]), 0)
+        self.assertAlmostEqual(float(allele_rows[-1]["NumReadsTotalThatSupportGenotype"]), 16)
+        self.assertAlmostEqual(float(allele_rows[-1]["FractionOfReadsThatSupportsGenotype"]), 0.516)
