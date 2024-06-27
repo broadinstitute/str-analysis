@@ -5,6 +5,7 @@ import unittest
 import subprocess
 
 from str_analysis.utils.cram_bam_utils import IntervalReader
+from str_analysis.utils.file_utils import set_requester_pays_project
 
 
 class TestCramBamUtils(unittest.TestCase):
@@ -13,9 +14,10 @@ class TestCramBamUtils(unittest.TestCase):
 		self._FXN_intervals = [
 			("chr9", 69037287, 69037304),
 		]
+		set_requester_pays_project("cmg-analysis")
 
 	def test_interval_reader_non_overlapping_intervals(self):
-		reader = IntervalReader("not_a_real_file.cram")
+		reader = IntervalReader("gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram")
 
 		reader.add_interval("chr1", 1, 5)
 		reader.add_interval("chr1", 6, 15)
@@ -30,7 +32,7 @@ class TestCramBamUtils(unittest.TestCase):
 		])
 
 	def test_interval_reader_overlapping_intervals(self):
-		reader = IntervalReader("not_a_real_file.cram")
+		reader = IntervalReader("gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram")
 
 		reader.add_interval("chr1", 1, 10)
 		reader.add_interval("chr1", 5, 15)
@@ -47,7 +49,7 @@ class TestCramBamUtils(unittest.TestCase):
 		])
 
 	def test_interval_reader_adjacent_intervals(self):
-		reader = IntervalReader("not_a_real_file.cram")
+		reader = IntervalReader("gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram")
 
 		reader.add_interval("chr1", 1, 5)
 		reader.add_interval("chr1", 5, 15)
@@ -114,12 +116,11 @@ class TestCramBamUtils(unittest.TestCase):
 
 			cram_reader2 = IntervalReader(
 				"gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram",
-				"gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram.crai",
-				retrieve_cram_containers_from_google_storage=True)
+				"gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram.crai")
 			for interval in self._FXN_intervals:
 				cram_reader2.add_interval(*interval)
 			cram_reads_counter2 = cram_reader2.save_to_file(output_bam_file.name)
-			#print(f"Retrieved {cram_reads_counter2} reads from CRAM using retrieve_cram_containers_from_google_storage=True")
+			#print(f"Retrieved {cram_reads_counter2} reads from CRAM")
 			self.assertEqual(cram_reads_counter, cram_reads_counter2)
 
 			bam_reader = IntervalReader(
