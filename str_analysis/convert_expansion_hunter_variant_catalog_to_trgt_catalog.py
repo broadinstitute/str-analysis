@@ -80,7 +80,7 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
                         ])
                 else:
                     motif_string = ",".join(motifs)
-                    struc = "".join([f"({motif})n" for motif in motifs])
+                    struc = locus_structure.replace("*", "n")
 
                     output_rows.append([
                         chrom,
