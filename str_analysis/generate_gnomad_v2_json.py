@@ -415,6 +415,7 @@ def parse_expansion_hunter_tsv_and_non_ref_motif_tsv(expansion_hunter_tsv, non_r
         print(f"Loading {non_ref_motif_tsv}")
         non_ref_motifs_df = pd.read_table(non_ref_motif_tsv, low_memory=False)
         non_ref_motifs_df = non_ref_motifs_df[~non_ref_motifs_df["expansion_hunter_call_genotype"].isna()]
+        non_ref_motifs_df = non_ref_motifs_df[non_ref_motifs_df["locus_id"] != "EIF4A3"]
 
         non_ref_motifs_df["Motif: Allele 1"], non_ref_motifs_df["Motif: Allele 2"] = zip(
             *non_ref_motifs_df["expansion_hunter_call_repeat_unit"].apply(split_by_forward_slash))
