@@ -19,7 +19,7 @@ def set_requester_pays_project(gcloud_project):
     gcloud_requester_pays_project = gcloud_project
 
 
-def open_file(path, download_local_copy_before_opening=False, gunzip=False, is_text_file=False):
+def open_file(path, *, download_local_copy_before_opening=False, gunzip=False, is_text_file=False):
     if path.startswith("gs://") and download_local_copy_before_opening:
         path = download_local_copy(path)
 
