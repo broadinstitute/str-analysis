@@ -170,8 +170,8 @@ def main():
     allele_table_columns = []
     wrote_variant_table_header = wrote_allele_table_header = False
     variant_records_counter = allele_records_counter = 0
-    variant_output_file = open(f"{output_prefix}.variants.tsv", "wt")
-    allele_output_file = open(f"{output_prefix}.alleles.tsv", "wt")
+    variant_output_file = gzip.open(f"{output_prefix}.variants.tsv.gz", "wt")
+    allele_output_file = gzip.open(f"{output_prefix}.alleles.tsv.gz", "wt")
     bed_file_records = []
     sample_metadata_lookup_counters = {}
 

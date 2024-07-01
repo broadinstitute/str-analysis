@@ -231,7 +231,7 @@ def main():
         sample_metadata_df = pd.read_table(args.sample_metadata)
         df = join_with_sample_metadata(df, args.json_sample_id_key, sample_metadata_df, args.sample_metadata_key, args.verbose)
 
-    output_filename = f"{output_prefix}.tsv"
+    output_filename = f"{output_prefix}.tsv.gz"
     df.to_csv(output_filename, index=False, header=True, sep="\t")
     print(f"Wrote {len(df)} rows to {output_filename}")
 
