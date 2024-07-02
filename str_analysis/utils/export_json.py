@@ -18,7 +18,7 @@ def export_json(json_data, local_output_path, google_storage_dir=None):
     print(f"Writing {local_output_path}")
     open_file = gzip.open if local_output_path.endswith(".gz") else open
     with open_file(local_output_path, "wt") as f:
-        json.dump(json_data, f, indent=4, ensure_ascii=True, allow_nan=False)
+        json.dump(json_data, f, indent=4, ensure_ascii=True, ignore_nan=True)
 
     if google_storage_dir:
         google_storage_path = os.path.join(google_storage_dir, os.path.basename(local_output_path))

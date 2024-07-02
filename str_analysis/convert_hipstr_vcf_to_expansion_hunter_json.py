@@ -76,7 +76,7 @@ def main():
     output_json_path = args.output_path or (re.sub(".vcf(.gz)?$", "", os.path.basename(args.vcf_path)) + ".json")
     print(f"Writing {len(locus_results['LocusResults']):,d} loci to {output_json_path}")
     with open(output_json_path, "wt") as f:
-        json.dump(locus_results, f, indent=4)
+        json.dump(locus_results, f, indent=4, ignore_nan=True)
 
 
 def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False):

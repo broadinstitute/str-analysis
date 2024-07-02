@@ -78,7 +78,7 @@ def process_variant_catalog(gangstr_spec_path, output_file_path, verbose=False):
             # TODO add support for off-target regions
 
     with (gzip.open if output_file_path.endswith("gz") else open)(output_file_path, "wt") as f:
-        json.dump(json_records, f, indent=4)
+        json.dump(json_records, f, indent=4, ignore_nan=True)
 
     print(f"Wrote out {output_file_path}")
     print(pformat(dict(counter)))

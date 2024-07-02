@@ -79,7 +79,7 @@ def main():
     output_json_path = re.sub(".vcf(.gz)?$", "", args.vcf_path) + ".json"
     print(f"Writing {len(locus_results['LocusResults']):,d} loci to {output_json_path}")
     with open(output_json_path, "wt") as f:
-        json.dump(locus_results, f, indent=4)
+        json.dump(locus_results, f, indent=4, ignore_nan=True)
 
 
 def create_variant_catalog_lookup(variant_catalog):

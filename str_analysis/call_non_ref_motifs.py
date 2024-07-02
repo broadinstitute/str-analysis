@@ -269,7 +269,7 @@ def run_expansion_hunter(
 
         variant_catalog_path = f"{variant_catalog_locus_label}.variant_catalog.json"
         with open(variant_catalog_path, "wt") as f:
-            json.dump([variant_catalog], f)
+            json.dump([variant_catalog], f, indent=4, ignore_nan=True)
 
         # Run expansion hunter
         print("--"*10)
@@ -1303,7 +1303,7 @@ def main():
     if args.output_format == "JSON":
         output_filename = f"{args.output_prefix}.json"
         with open(output_filename, "wt") as f:
-            json.dump(results_list, f, indent=4)
+            json.dump(results_list, f, indent=4, ignore_nan=True)
     elif args.output_format == "TSV":
         output_filename = f"{args.output_prefix}.tsv.gz"
         pd.DataFrame(results_list).to_csv(output_filename, sep="\t", index=False)

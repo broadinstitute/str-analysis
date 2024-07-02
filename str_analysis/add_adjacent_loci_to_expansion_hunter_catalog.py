@@ -475,7 +475,7 @@ def main():
 
         fopen = gzip.open if output_catalog_path.endswith("gz") else open
         with fopen(output_catalog_path, "wt") as f:
-            json.dump(output_catalog, f, indent=4)
+            json.dump(output_catalog, f, indent=4, ignore_nan=True)
 
         if counters["already had adjacent loci"]:
             print(f"Added {counters['already had adjacent loci']:,d} out of {counters['total records']:,d} records "

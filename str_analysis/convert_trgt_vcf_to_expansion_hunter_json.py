@@ -92,7 +92,7 @@ def main():
     output_json_path = re.sub(".vcf(.gz)?$", "", args.vcf_path) + ".json"
     print(f"Writing {len(locus_results['LocusResults']):,d} loci to {output_json_path}")
     with open(output_json_path, "wt") as f:
-        json.dump(locus_results, f, indent=3)
+        json.dump(locus_results, f, indent=3, ignore_nan=True)
 
 
 def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_locus_id=False, verbose=False):
