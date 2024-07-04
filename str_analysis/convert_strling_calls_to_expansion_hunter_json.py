@@ -149,8 +149,8 @@ def process_strling_txt(strling_txt_path):
             "AlleleCount": 2,
             "LocusId": locus_id,
             "Coverage": row.depth,
-            "ReadLength": None,
-            "FragmentLength": None,
+            #"ReadLength": None,
+            #"FragmentLength": None,
             "Variants": {
                 locus_id: {
                     "Genotype": genotype,

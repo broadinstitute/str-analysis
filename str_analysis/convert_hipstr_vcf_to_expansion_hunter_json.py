@@ -193,8 +193,8 @@ def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False):
                     "AlleleCount": 2,
                     "LocusId": locus_id,
                     "Coverage": float(genotype_dict["DP"]),
-                    "ReadLength": None,
-                    "FragmentLength": None,
+                    #"ReadLength": None,
+                    #"FragmentLength": None,
                     "Variants": {
                         locus_id: info_dict | genotype_dict | {
                             "Genotype": f"{num_repeats1}/{num_repeats2}",

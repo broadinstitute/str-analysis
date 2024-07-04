@@ -173,9 +173,9 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                     locus_results["LocusResults"][locus_id] = {
                         "AlleleCount": genotype_dict["AL"].count(",") + 1,
                         "LocusId": locus_id,
-                        "Coverage": None,
-                        "ReadLength": None,
-                        "FragmentLength": None,
+                        #"Coverage": None,
+                        #"ReadLength": None,
+                        #"FragmentLength": None,
                         "Variants": {
                             locus_id: info_dict | genotype_dict | {
                                 "Genotype": genotype,   #"17/17",
@@ -242,9 +242,9 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                     locus_results["LocusResults"][locus_id] = {
                         "AlleleCount": genotype_dict["AL"].count(",") + 1,
                         "LocusId": locus_id,
-                        "Coverage": None,
-                        "ReadLength": None,
-                        "FragmentLength": None,
+                        #"Coverage": None,
+                        #"ReadLength": None,
+                        #"FragmentLength": None,
                         "Variants": variant_records,
                     }
 

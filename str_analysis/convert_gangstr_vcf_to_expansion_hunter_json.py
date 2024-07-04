@@ -178,8 +178,8 @@ def process_gangstr_vcf(vcf_path, variant_catalog=None, sample_id=None):
                     "AlleleCount": genotype_dict["REPCN"].count(",") + 1,
                     "LocusId": locus_id,
                     "Coverage": float(genotype_dict["DP"]),  #10.757737459978655,
-                    "ReadLength": None,
-                    "FragmentLength": None,
+                    #"ReadLength": None,
+                    #"FragmentLength": None,
                     "Variants": {
                         locus_id: info_dict | genotype_dict | {
                             "Genotype": genotype_dict["REPCN"].replace(",", "/"), #"17/17",
