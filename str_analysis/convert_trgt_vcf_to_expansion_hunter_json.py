@@ -72,8 +72,8 @@ from tqdm import tqdm
 def main():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--discard-hom-ref", action="store_true", help="Discard hom-ref calls")
-    p.add_argument("--use-trgt-locus-id", action="store_true", help="Use TRID as locus id. If not specified, the "
-                                                                    "locus id will be set to 'chrom-start-end-motif'")
+    p.add_argument("--set-locus-id", action="store_true", help="If specified, the locus id will be set to "
+                                                               "'chrom-start-end-motif'")
     p.add_argument("--verbose", action="store_true", help="Print verbose output")
     p.add_argument("--sample-id",
                    help="If not specified, the sample id will be parsed from the last column of the vcf header.")
@@ -85,7 +85,7 @@ def main():
         args.vcf_path,
         sample_id=args.sample_id,
         discard_hom_ref=args.discard_hom_ref,
-        use_trgt_locus_id=args.use_trgt_locus_id,
+        use_trgt_locus_id=not args.set_locus_id,
         verbose=args.verbose,
     )
 
