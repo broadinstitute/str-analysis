@@ -434,7 +434,8 @@ def convert_expansion_hunter_json_to_tsv_columns(
     for locus_json in locus_results_list:
         locus_record = collections.OrderedDict(variant_info)
         for key in "LocusId", "ReadLength", "Coverage", "AlleleCount":
-            locus_record[key] = locus_json[key]
+            if key in locus_json:
+                locus_record[key] = locus_json[key]
 
         if "Filter" in locus_json:
             # A "Filter" field can be optionally added to ExpansionHunter output by experimental 3rd-party tools
