@@ -667,7 +667,13 @@
             }
         ],
         "MainReferenceRegion": "chr17:80147059-80147139",
-        "Inheritance": "AR"
+        "Inheritance": "AR",
+        "PathogenicMotifs": [
+            "CCTCGCTGCGCCGCTGCCGA"
+        ],
+        "BenignMotifs": [
+            "CCTCGCTGTGCCGCTGCCGA"
+        ]
     },
     {
         "LocusId": "FGF14",

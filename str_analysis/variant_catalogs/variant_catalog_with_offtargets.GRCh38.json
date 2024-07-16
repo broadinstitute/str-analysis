@@ -1088,7 +1088,13 @@
                 "PathogenicMin": 14
             }
         ],
-        "MainReferenceRegion": "chr17:80147059-80147139"
+        "MainReferenceRegion": "chr17:80147059-80147139",
+        "PathogenicMotifs": [
+            "CCTCGCTGCGCCGCTGCCGA"
+        ],
+        "BenignMotifs": [
+            "CCTCGCTGTGCCGCTGCCGA"
+        ]
     },
     {
         "LocusId": "FGF14",
@@ -1128,7 +1134,7 @@
             "chrY:25645531-25646013",
             "chrY:8465308-8465815"
         ],
-        "MainReferenceRegion": "chr13:102161574-102161724",
+        "MainReferenceRegion": "chr13:102161574-102161724"
     },
     {
         "LocusId": "FMR1",
