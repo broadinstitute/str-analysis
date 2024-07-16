@@ -1,10 +1,19 @@
-This folder contains variant catalog files that can be passed to [ExpansionHunter](https://github.com/Illumina/ExpansionHunter) to 
-genotype disease-associated loci. There are four variant catalogs - for GRCh38 with and without including off-target regions, and same thing for GRCh37.
+This folder contains catalogs of known disease-associated TR loci in a format that can be used with [ExpansionHunter](https://github.com/Illumina/ExpansionHunter) or [TRGT](https://github.com/PacificBiosciences/trgt).
+The catalogs also include 9 loci (TMEM185A, DMD, etc.) that are not currently considered causal for any Mendelian disease, but that were historically listed as candidate disease loci and so were often included in publications that cataloged disease-associated STRs.
+
+**TRGT catalogs:**
+
+There are two versions of the TRGT catalog: one with, and one without adjacent repeats (such as the CCG repeat next to the main CAG repeat at the HTT locus). 
+
+
+**ExpansionHunter catalogs:**
+
+There are four versions of the ExpansionHunter catalog: for GRCh38 and GRCh37, with and without off-target regions.
 
 [ExpansionHunter docs](https://github.com/Illumina/ExpansionHunter/blob/master/docs/04_VariantCatalogFiles.md) describe the `LocusId`, `LocusStructure`, `ReferenceRegion`, `VariantType`, `VariantId` and `OfftargetRegions` fields in more detail. 
 These fields modify ExpansionHunter behavior for each locus. 
 
-ExpansionHunter ignores fields not listed above, so we added extra reference information in the fields listed below:
+ExpansionHunter ignores extra fields in the locus definition, so I added reference information to the catalog in the fields listed below:
 
 * `Gene` - the name of the gene that contains the STR locus  
 * `GeneId` - the Ensembl ESNG gene id
