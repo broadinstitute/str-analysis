@@ -136,12 +136,13 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
 
             interval_trees[chrom].add(Interval(start_0based, end, data=len(motif)))
 
-        min_overall_mappability = min(min_overall_mappability, record["EntireLocusMappability"])
-        if record["EntireLocusMappability"] == min_overall_mappability:
-            min_overall_mappability_reference_region = reference_region
-            min_overall_mappability_motif = motif
-        mappability_bin = round(int(record["EntireLocusMappability"]*10)/10, 1)
-        counters[f"mappability:{mappability_bin}"] += 1
+        if "EntireLocusMappability" in record:
+            min_overall_mappability = min(min_overall_mappability, record["EntireLocusMappability"])
+            if record["EntireLocusMappability"] == min_overall_mappability:
+                min_overall_mappability_reference_region = reference_region
+                min_overall_mappability_motif = motif
+            mappability_bin = round(int(record["EntireLocusMappability"]*10)/10, 1)
+            counters[f"mappability:{mappability_bin}"] += 1
 
     print("")
     print(f"Stats for {catalog_name}:")
