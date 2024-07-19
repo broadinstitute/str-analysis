@@ -132,7 +132,7 @@ def get_variant_catalog_iterator(
                 yield unmodified_chrom, start_0based, end_1based, record
 
     elif file_type == "BED":
-        with open_file(variant_catalog_json_or_bed, "rt", is_text_file=True) as file_iterator:
+        with open_file(variant_catalog_json_or_bed, is_text_file=True) as file_iterator:
             if verbose:
                 file_iterator = tqdm.tqdm(file_iterator, unit=" records", unit_scale=True)
 
