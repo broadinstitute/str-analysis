@@ -7,7 +7,7 @@ import re
 import tqdm
 from intervaltree import IntervalTree, Interval
 from str_analysis.utils.misc_utils import parse_interval
-from str_analysis.utils.eh_catalog_utils import parse_motifs_from_locus_structure
+from str_analysis.utils.eh_catalog_utils import parse_motifs_from_locus_structure, get_variant_catalog_iterator
 from str_analysis.utils.file_utils import open_file, file_exists
 
 ACGT_REGEX = re.compile("^[ACGT]+$", re.IGNORECASE)
@@ -16,16 +16,18 @@ ACGT_REGEX = re.compile("^[ACGT]+$", re.IGNORECASE)
 def parse_args():
     parser = argparse.ArgumentParser(description="Compute and print stats for annotated repeat catalogs")
     parser.add_argument("--verbose", action="store_true", help="Print more information about what the script is doing")
-    parser.add_argument("annotated_variant_catalog_json", nargs="+",
-                        help="Repeat catalog(s) output by the annotate_and_filter_str_catalog.py script")
+    parser.add_argument("variant_catalog_json_or_bed", nargs="+",
+                        help="Repeat catalog in JSON or BED format. Repeat catalog(s) processed by "
+                             "the annotate_and_filter_str_catalog.py script will have extra stats computed")
 
     args = parser.parse_args()
 
-    for file_path in args.annotated_variant_catalog_json:
+    for file_path in args.variant_catalog_json_or_bed:
         if not file_exists(os.path.expanduser(file_path)):
             parser.error(f"File not found: {file_path}")
 
     return args, parser
+
 
 
 def compute_catalog_stats(catalog_name, records, verbose=False):
@@ -66,15 +68,15 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
         if isinstance(record["ReferenceRegion"], list):
             reference_regions = record["ReferenceRegion"]
             variant_types = record["VariantType"]
-            fraction_pure_bases = record["FractionPureBases"]
-            fraction_pure_repeats = record["FractionPureRepeats"]
+            fraction_pure_bases = record.get("FractionPureBases", [None]*len(reference_regions))
+            fraction_pure_repeats = record.get("FractionPureRepeats", [None]*len(reference_regions))
 
             counters["loci_with_adjacent_repeats"] += 1
         else:
             reference_regions = [record["ReferenceRegion"]]
             variant_types = [record["VariantType"]]
-            fraction_pure_bases = [record["FractionPureBases"]]
-            fraction_pure_repeats = [record["FractionPureRepeats"]]
+            fraction_pure_bases = [record.get("FractionPureBases")]
+            fraction_pure_repeats = [record.get("FractionPureRepeats")]
 
         for motif, reference_region, variant_type, fraction_pure_bases, fraction_pure_repeats in zip(
                 motifs, reference_regions, variant_types, fraction_pure_bases, fraction_pure_repeats):
@@ -102,14 +104,17 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
             if locus_size == max_locus_size:
                 max_locus_size_reference_region = reference_region
                 max_locus_size_motif = motif
-            min_fraction_pure_bases = min(min_fraction_pure_bases, fraction_pure_bases)
-            if fraction_pure_bases == min_fraction_pure_bases:
-                min_fraction_pure_bases_reference_region = reference_region
-                min_fraction_pure_bases_motif = motif
-            min_fraction_pure_repeats = min(min_fraction_pure_repeats, fraction_pure_repeats)
-            if fraction_pure_repeats == min_fraction_pure_repeats:
-                min_fraction_pure_repeats_reference_region = reference_region
-                min_fraction_pure_repeats_motif = motif
+
+            if fraction_pure_bases is not None:
+                min_fraction_pure_bases = min(min_fraction_pure_bases, fraction_pure_bases)
+                if fraction_pure_bases == min_fraction_pure_bases:
+                    min_fraction_pure_bases_reference_region = reference_region
+                    min_fraction_pure_bases_motif = motif
+            if fraction_pure_repeats is not None:
+                min_fraction_pure_repeats = min(min_fraction_pure_repeats, fraction_pure_repeats)
+                if fraction_pure_repeats == min_fraction_pure_repeats:
+                    min_fraction_pure_repeats_reference_region = reference_region
+                    min_fraction_pure_repeats_motif = motif
 
             if motif_size == 1:
                 counters["homopolymers"] += 1
@@ -120,10 +125,11 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
                 counters["non_acgt_motifs"] += 1
 
             motif_size_bin = f"{motif_size}bp" if motif_size <= 6 else "7-24bp" if motif_size <= 24 else "25+bp"
-            fraction_pure_bases_bin = round(int(fraction_pure_repeats*10)/10, 1)
-
             counters[f"motif_size:{motif_size_bin}"] += 1
-            counters[f"fraction_pure_bases:{fraction_pure_bases_bin}"] += 1
+
+            if fraction_pure_bases is not None:
+                fraction_pure_bases_bin = round(int(fraction_pure_repeats*10)/10, 1)
+                counters[f"fraction_pure_bases:{fraction_pure_bases_bin}"] += 1
 
             # check for overlap
             for overlapping_interval in interval_trees[chrom].overlap(start_0based, end):
@@ -167,9 +173,12 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
     print(f"   Num repeats range: {min_num_repeats_in_locus}-{max_num_repeats_in_locus}x repeats")
     print("")
     print(f"   Maximum locus size = {max_locus_size}bp               @ {max_locus_size_reference_region} ({max_locus_size_motif})")
-    print(f"   Minimum fraction pure bases = {min_fraction_pure_bases:.2f}      @ {min_fraction_pure_bases_reference_region} ({min_fraction_pure_bases_motif})")
-    print(f"   Minimum fraction pure repeats = {min_fraction_pure_repeats:.2f}    @ {min_fraction_pure_repeats_reference_region} ({min_fraction_pure_repeats_motif})")
-    print(f"   Minimum overall mappability = {min_overall_mappability:.2f}       @ {min_overall_mappability_reference_region} ({min_overall_mappability_motif})")
+    if min_fraction_pure_bases_motif is not None:
+        print(f"   Minimum fraction pure bases = {min_fraction_pure_bases:.2f}      @ {min_fraction_pure_bases_reference_region} ({min_fraction_pure_bases_motif})")
+    if min_fraction_pure_repeats_motif is not None:
+        print(f"   Minimum fraction pure repeats = {min_fraction_pure_repeats:.2f}    @ {min_fraction_pure_repeats_reference_region} ({min_fraction_pure_repeats_motif})")
+    if min_overall_mappability_motif is not None:
+        print(f"   Minimum overall mappability = {min_overall_mappability:.2f}       @ {min_overall_mappability_reference_region} ({min_overall_mappability_motif})")
     print("")
     print(f"          chrX: {counters['chrX']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['chrX']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
     print(f"          chrY: {counters['chrY']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['chrY']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
@@ -180,15 +189,17 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
     for motif_size_bin in "1bp", "2bp", "3bp", "4bp", "5bp", "6bp", "7-24bp", "25+bp":
         print(f"   {motif_size_bin:>10s}: {counters[f'motif_size:{motif_size_bin}']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters[f'motif_size:{motif_size_bin}']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
 
-    print("")
-    print("Fraction pure bases distribution:")
-    for fraction_pure_bases_bin in 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1:
-        print(f"   {fraction_pure_bases_bin:10.1f}: {counters[f'fraction_pure_bases:{fraction_pure_bases_bin:.1f}']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters[f'fraction_pure_bases:{fraction_pure_bases_bin:.1f}']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
+    if min_fraction_pure_bases_motif is not None:
+        print("")
+        print("Fraction pure bases distribution:")
+        for fraction_pure_bases_bin in 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1:
+            print(f"   {fraction_pure_bases_bin:10.1f}: {counters[f'fraction_pure_bases:{fraction_pure_bases_bin:.1f}']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters[f'fraction_pure_bases:{fraction_pure_bases_bin:.1f}']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
 
-    print("")
-    print("Mappability distribution:")
-    for mappability_bin in 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1:
-        print(f"   {mappability_bin:10.1f}: {counters[f'mappability:{mappability_bin:.1f}']:10,d} out of {counters['total']:10,d} ({counters[f'mappability:{mappability_bin:.1f}']/counters['total']:6.1%}) loci")
+    if min_overall_mappability_motif:
+        print("")
+        print("Mappability distribution:")
+        for mappability_bin in 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1:
+            print(f"   {mappability_bin:10.1f}: {counters[f'mappability:{mappability_bin:.1f}']:10,d} out of {counters['total']:10,d} ({counters[f'mappability:{mappability_bin:.1f}']/counters['total']:6.1%}) loci")
 
     result = {
         "catalog": catalog_name,
@@ -249,20 +260,25 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
     return result
 
 
+
 def main():
     args, parser = parse_args()
 
     stat_table_rows = []
-    for path in args.annotated_variant_catalog_json:
+    for path in args.variant_catalog_json_or_bed:
         print("-"*50)
         print(f"Parsing {path}")
         catalog_name = os.path.basename(path)
-        with open_file(path, is_text_file=True) as f:
-            file_iterator = ijson.items(f, "item")
-            stats = compute_catalog_stats(catalog_name, file_iterator, verbose=args.verbose)
+
+        file_iterator = get_variant_catalog_iterator(path)
+        stats = compute_catalog_stats(catalog_name, file_iterator, verbose=args.verbose)
         stat_table_rows.append(stats)
 
-    output_path = f"variant_catalog_stats.{len(args.annotated_variant_catalog_json)}_catalogs.tsv"
+    if len(args.variant_catalog_json_or_bed) > 1:
+        output_path = f"catalog_stats.{len(args.variant_catalog_json_or_bed)}_catalogs.tsv"
+    else:
+        output_path = re.sub("(.json|.bed)(.gz)?$", "", os.path.basename(args.variant_catalog_json_or_bed[0])) + ".catalog_stats.tsv"
+
     df = pd.DataFrame(stat_table_rows)
     columns_to_drop = ["motif_size_distribution", "fraction_pure_bases_distribution", "mappability_distribution"]
     for c in columns_to_drop:
