@@ -36,9 +36,9 @@ def parse_args():
                                                                          "a JSON and a BED file will be generated.")
     parser.add_argument("--output-prefix", help="Output filename prefix")
     parser.add_argument("--verbose", action="store_true", help="If specified, then print more stats")
-    parser.add_argument("--save-unique-loci", action="store_true", help="If specified, then for every input catalog "
-                        "except the first one, this script will output a BED file for that records the new loci"
-                        "introduced by that catalog. This is useful for troubleshooting catalogs and "
+    parser.add_argument("--write-bed-files-with-new-loci", action="store_true", help="If specified, then for every "
+                        "input catalog except the first one, this script will output a BED file that contains the new "
+                        "loci introduced by that catalog. This is useful for troubleshooting catalogs and "
                         "understanding the differences between them.")
     parser.add_argument("variant_catalog_json_or_bed", nargs="+", help="Paths of two or more repeat catalogs "
         "in JSON or BED format. For BED format, the chrom, start, and end should represent the repeat "
@@ -174,7 +174,7 @@ def add_variant_catalog_to_interval_trees(
         add_source_field=False,
         add_extra_fields_from_input_catalogs=False,
         verbose=False,
-        save_unique_loci=False
+        write_bed_files_with_new_loci=False
 ):
     """Parses the the given input variant catalog and adds any new unique records to the IntervalTrees.
 
@@ -186,7 +186,7 @@ def add_variant_catalog_to_interval_trees(
         add_extra_fields_from_input_catalogs (bool): If False, then only the required fields will be kept in each input
             variant catalog record and any extra fields will be discarded.
         verbose (bool): If True, then print more stats about the number of records added to the output catalog
-        save_unique_loci (bool): If True, then write a BED file for this input catalog which stores the unique loci in it.
+        write_bed_files_with_new_loci (bool): If True, then write a BED file of loci not seen in previous catalogs.
     """
     if verbose:
         print("- "*60)
@@ -213,6 +213,7 @@ def add_variant_catalog_to_interval_trees(
                     and overlap_size < min_overlap_fraction * (overlapping_interval.end - overlapping_interval.begin):
                 continue
 
+            # handle overlapping interval
             existing_record = overlapping_interval.data
             if new_record["LocusStructure"] == existing_record["LocusStructure"]:
                 counters[f"overlapped an exising locus by at least {100*min_overlap_fraction}% " \
@@ -224,6 +225,7 @@ def add_variant_catalog_to_interval_trees(
                 existing_record_motifs = parse_motifs_from_locus_structure(existing_record["LocusStructure"])
                 if len(existing_record_motifs) != 1:
                     raise ValueError(f"Unexpected LocusStructure in {existing_record}.")
+
                 try:
                     existing_record_canonical_motif = compute_canonical_motif(existing_record_motifs[0])
                 except Exception as e:
@@ -234,6 +236,7 @@ def add_variant_catalog_to_interval_trees(
                     new_record_motifs = parse_motifs_from_locus_structure(new_record["LocusStructure"])
                     if len(new_record_motifs) != 1:
                         raise ValueError(f"Unexpected LocusStructure in {new_record}.")
+
                     try:
                         new_record_canonical_motif = compute_canonical_motif(new_record_motifs[0])
                     except Exception as e:
@@ -245,6 +248,21 @@ def add_variant_catalog_to_interval_trees(
                     found_matching_existing_record = True
                     break
 
+                # check if one of the motifs contains the other
+                if len(existing_record_canonical_motif) != len(new_record_canonical_motif):
+                    if len(existing_record_canonical_motif) < len(new_record_canonical_motif):
+                        short_motif, long_motif = existing_record_canonical_motif, new_record_canonical_motif
+                    elif len(existing_record_canonical_motif) > len(new_record_canonical_motif):
+                        short_motif, long_motif = new_record_canonical_motif, existing_record_canonical_motif
+
+                    expanded_motif = short_motif * (1 + len(long_motif)//len(short_motif))
+                    if expanded_motif[:len(long_motif)] == long_motif:
+                        counters[f"overlapped an existing locus by at least {100*min_overlap_fraction}% " \
+                                 f"and one motif was contained within the other"] += 1
+                        found_matching_existing_record = True
+                        break
+
+
         if found_matching_existing_record:
             # don't add the current record to the output catalog
             continue
@@ -252,7 +270,7 @@ def add_variant_catalog_to_interval_trees(
         if add_source_field:
             new_record["Source"] = variant_catalog_filename
 
-        if save_unique_loci:
+        if write_bed_files_with_new_loci:
             motifs = parse_motifs_from_locus_structure(new_record["LocusStructure"])
             if len(motifs) > 1:
                 print(f"Unexpected LocusStructure in {new_record}: {new_record['LocusStructure']}. Will not save to unique loci...")
@@ -270,7 +288,7 @@ def add_variant_catalog_to_interval_trees(
                 print(" "*3, f"Discarded {counters[k]:7,d} out of {counters['total']:7,d} "
                       f"({counters[k]/counters['total']:6.1%}) records since they {k}")
 
-    if save_unique_loci:
+    if write_bed_files_with_new_loci:
         unqiue_loci_bed_prefix = re.sub("(.json|.bed)(.gz)?$", "", os.path.basename(variant_catalog_json_or_bed))
         unique_loci_bed_filename = f"{unqiue_loci_bed_prefix}.unique_loci.bed"
         with open(unique_loci_bed_filename, "wt") as unique_loci_bed:
@@ -464,7 +482,7 @@ def main():
             add_source_field=args.add_source_field,
             add_extra_fields_from_input_catalogs=args.add_extra_fields_from_input_catalogs,
             verbose=args.verbose,
-            save_unique_loci=args.save_unique_loci and i > 0,
+            write_bed_files_with_new_loci=args.write_bed_files_with_new_loci and i > 0,
         )
 
     # write the output catalog to a file
