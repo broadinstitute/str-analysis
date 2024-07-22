@@ -1,6 +1,9 @@
 # Byte-compiled / optimized / DLL files
 local_files
 
+STRchive_definitions.json
+STRipy_definitions.json
+
 __pycache__/
 *.py[cod]
 *$py.class
