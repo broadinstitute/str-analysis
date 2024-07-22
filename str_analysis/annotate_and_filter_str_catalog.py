@@ -16,10 +16,12 @@ from tqdm import tqdm
 
 from str_analysis.compute_catalog_stats import compute_catalog_stats
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
-from str_analysis.utils.eh_catalog_utils import parse_motifs_from_locus_structure, convert_json_records_to_bed_format_tuples
+from str_analysis.utils.eh_catalog_utils import (parse_motifs_from_locus_structure,
+                                                 convert_json_records_to_bed_format_tuples, get_variant_catalog_iterator)
 from str_analysis.utils.file_utils import open_file, file_exists, download_local_copy
 from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval
 from str_analysis.utils.misc_utils import parse_interval
+
 
 VALID_GENE_REGIONS = {"CDS", "UTR", "5UTR", "3UTR", "promoter", "exon", "intron", "intergenic"}
 
@@ -186,41 +188,6 @@ def get_overlap(interval_tree, chrom, start_0based, end, canonical_motif=None):
     else:
         return None
 
-
-def get_variant_catalog_iterator(variant_catalog_json_or_bed):
-    """Takes the path of a JSON or BED file and returns an iterator over variant catalog records parsed from that file.
-
-    Args:
-        variant_catalog_json_or_bed (str): path to a JSON or BED file containing variant catalog records
-
-    Yields:
-        dict: a variant catalog record parsed from the file
-    """
-
-    if ".json" in variant_catalog_json_or_bed:
-        with open_file(variant_catalog_json_or_bed, "rt", is_text_file=True) as f:
-            for record in ijson.items(f, "item"):
-                yield record
-    else:        
-        with open_file(variant_catalog_json_or_bed, "rt", is_text_file=True) as input_variant_catalog:
-            for line in input_variant_catalog:
-                fields = line.strip().split("\t")
-                unmodified_chrom = fields[0]
-                chrom = unmodified_chrom.replace("chr", "")
-                start_0based = int(fields[1])
-                end_1based = int(fields[2])
-                motif = fields[3].strip("()*+").upper()
-                if not ACGT_REGEX.match(motif):
-                    print(f"WARNING: skipping line with invalid motif: {line.strip()}")
-                    continue
-
-                record = {
-                    "LocusId": f"{chrom}-{start_0based + 1}-{end_1based}-{motif}",
-                    "ReferenceRegion": f"{unmodified_chrom}:{start_0based}-{end_1based}",
-                    "LocusStructure": f"({motif})*",
-                    "VariantType": "Repeat",
-                }
-                yield record
 
 
 def output_tsv(output_path, output_records):
