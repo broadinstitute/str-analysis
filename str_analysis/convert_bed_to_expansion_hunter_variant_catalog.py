@@ -26,7 +26,8 @@ def main():
         p.error(f"{args.bed_path} file not found")
 
     # parse bed file and convert to variant catalog json format
-    json_records = parse_bed_file(args.bed_path, verbose=args.verbose)
+    print(f"Parsing {args.bed_path}")
+    json_records = parse_bed_file(args.bed_path, trim=True, verbose=args.verbose)
 
     # sort records by normalized motif to maximize cache hit rate in the optimized version of ExpansionHunter
     print("Sorting records by normalized motif")
@@ -59,14 +60,13 @@ def main():
         print(f"Wrote {len(json_records):,d} to {output_path_prefix}*.json")
 
 
-def parse_bed_file(bed_path, verbose=False):
-    print(f"Parsing {bed_path}")
+def parse_bed_file(bed_path, trim=True, verbose=False):
     json_records = []
     existing_locus_ids = set()
     counter = collections.defaultdict(int)
     fopen = gzip.open if bed_path.endswith("gz") else open
     with fopen(bed_path, "rt") as f:
-        for i, row in tqdm.tqdm(enumerate(f), unit=" records"):
+        for i, row in tqdm.tqdm(enumerate(f), unit=" records", unit_scale=True):
             fields = row.strip("\n").split("\t")
             chrom = fields[0]
             start_0based = int(fields[1])
@@ -76,15 +76,16 @@ def parse_bed_file(bed_path, verbose=False):
                 raise ValueError(f"Unexpected characters in repeat unit in row #{i + 1}: {repeat_unit}. Line: {fields}")
 
             counter["total input loci"] += 1
-            trim_bp = (end_1based - start_0based) % len(repeat_unit)
-            if trim_bp != 0:
-                counter["trimmed locus"] += 1
-                if verbose:
-                    print(f"WARNING: {chrom}:{start_0based}-{end_1based} interval has size {end_1based - start_0based} "
-                          f"which is not a multiple of the repeat unit {repeat_unit} (size {len(repeat_unit)}). "
-                          f"Changing it to {chrom}:{start_0based}-{end_1based - trim_bp}")
-                end_1based -= trim_bp
-                assert (end_1based - start_0based) % len(repeat_unit) == 0
+            if trim:
+                trim_bp = (end_1based - start_0based) % len(repeat_unit)
+                if trim_bp != 0:
+                    counter["trimmed locus"] += 1
+                    if verbose:
+                        print(f"WARNING: {chrom}:{start_0based}-{end_1based} interval has size {end_1based - start_0based} "
+                              f"which is not a multiple of the repeat unit {repeat_unit} (size {len(repeat_unit)}). "
+                              f"Changing it to {chrom}:{start_0based}-{end_1based - trim_bp}")
+                    end_1based -= trim_bp
+                    assert (end_1based - start_0based) % len(repeat_unit) == 0
 
             locus_id = f"{chrom}-{start_0based}-{end_1based}-{repeat_unit}"
             if locus_id in existing_locus_ids:
