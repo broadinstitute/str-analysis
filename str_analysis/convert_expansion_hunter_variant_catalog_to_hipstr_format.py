@@ -31,7 +31,7 @@ def process_variant_catalog(variant_catalog_path, output_file_path, verbose=Fals
     with (gzip.open if variant_catalog_path.endswith("gz") else open)(variant_catalog_path, "rt") as f:
         with (gzip.open if output_file_path.endswith("gz") else open)(output_file_path, "wt") as f2:
             skipped_locus = 0
-            for record in tqdm.tqdm(ijson.items(f, "item"), unit=" variant catalog records"):
+            for record in tqdm.tqdm(ijson.items(f, "item"), unit=" variant catalog records", unit_scale=True):
                 locus_structure = record["LocusStructure"]
                 motifs = re.findall("[(]([A-Z]+)[)]", locus_structure)
                 if not motifs:
