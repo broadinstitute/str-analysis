@@ -76,6 +76,10 @@ def parse_args():
     filter_group.add_argument("-m", "--motif", action="append", help="Only include loci whose canonical motif matched "
                                                                      "the canonical motif version of the given motif")
 
+    filter_group.add_argument("--min-interval-size-bp", type=int, help="Filter out any loci with a reference interval "
+                                                                       "that's smaller than this many base pairs")
+    filter_group.add_argument("--max-interval-size-bp", type=int, help="Filter out any loci with a reference interval "
+                                                                       "that's larger than this many base pairs")
     filter_group.add_argument("-t", "--region-type", action="append", help="Gene region(s) to include in the output "
                               "catalog", choices=VALID_GENE_REGIONS)
     filter_group.add_argument("-xt", "--exclude-region-type", action="append", choices=VALID_GENE_REGIONS,
@@ -313,6 +317,10 @@ def main():
             input_variant_catalog_record["CanonicalMotif"] = canonical_motifs[0]
             input_variant_catalog_record["MotifSize"] = len(canonical_motifs[0])
 
+        # apply interval size filters
+        if args.min_interval_size_bp and all(end - start_0based < args.min_interval_size_bp for chrom, start_0based, end in chroms_start_0based_ends):
+            continue
+
         # parse input variant catalog record and check for overlap with known disease-associated loci
         matched_known_disease_associated_locus = False
         matched_known_disease_associated_motif = False
@@ -399,15 +407,16 @@ def main():
             fraction_pure_repeats.append( round(ref_fasta_sequence.count(motif) / int(len(ref_fasta_sequence) / len(motif)), 2) )
 
             # check for overlap
+            canonical_motif = compute_canonical_motif(motif, include_reverse_complement=False)
             for overlapping_interval in interval_trees[chrom].overlap(start_0based, end):
-                overlapping_interval_motif_size = overlapping_interval.data
-                larger_motif_size = max(len(motif), overlapping_interval_motif_size)
+                overlapping_interval_motif = overlapping_interval.data
+                larger_motif_size = max(len(canonical_motif), len(overlapping_interval_motif))
                 if overlapping_interval.overlap_size(start_0based, end) >= 2*larger_motif_size:
                     overlaps_other_interval = True
-                    overlaps_other_interval_with_similar_motif = len(motif) == overlapping_interval_motif_size
+                    overlaps_other_interval_with_similar_motif = canonical_motif == overlapping_interval_motif
                     break
 
-            interval_trees[chrom].add(Interval(start_0based, end, data=len(motif)))
+            interval_trees[chrom].add(Interval(start_0based, end, data=canonical_motif))
 
         if args.discard_loci_with_non_acgt_bases and has_non_acgt_bases:
             continue
