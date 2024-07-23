@@ -30,7 +30,7 @@ def process_variant_catalog(variant_catalog_path, output_file_path):
     print(f"Parsing {variant_catalog_path}")
     with (gzip.open if variant_catalog_path.endswith("gz") else open)(variant_catalog_path, "rt") as f:
         with (gzip.open if output_file_path.endswith("gz") else open)(output_file_path, "wt") as f2:
-            for record in tqdm.tqdm(ijson.items(f, "item"), unit=" variant catalog records"):
+            for record in tqdm.tqdm(ijson.items(f, "item"), unit=" variant catalog records", unit_scale=True):
                 locus_structure = record["LocusStructure"]
                 repeat_units = re.findall("[(]([A-Z]+)[)]", locus_structure)
                 if not repeat_units:
@@ -53,7 +53,8 @@ def process_variant_catalog(variant_catalog_path, output_file_path):
                 offtarget_regions = record.get("OfftargetRegions", [])
                 for repeat_unit, variant_type, reference_region in zip(repeat_units, variant_types, reference_regions):
                     chrom, start_0based, end_1based = parse_interval(reference_region)
-
+                    # trim the locus so that it's an exact multiple of the repeat unit size
+                    end_1based -= (end_1based - start_0based) % len(repeat_unit)
                     if start_0based + 1 >= end_1based:
                         print(f"WARNING: Skipping {repeat_unit} locus @ {chrom}:{start_0based+1}-{end_1based} because "
                               f"the interval has a width = {end_1based - start_0based - 1}bp")
