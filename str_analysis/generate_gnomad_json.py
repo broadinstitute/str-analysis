@@ -542,7 +542,7 @@ def init_gnomad_json(df):
 
     # Init sub-dictionaries for each locus
     gnomad_json = {}
-    for _, row in tqdm.tqdm(df.iterrows(), unit=" rows", total=len(df)):
+    for _, row in tqdm.tqdm(df.iterrows(), unit=" rows", total=len(df), unit_scale=True):
         locus_id = row["LocusId"]
         variant_id = row["VariantId"]
         adjacent_repeat_label = ADJACENT_REPEAT_LABELS[variant_id] if variant_id in ADJACENT_REPEAT_LABELS else None
@@ -761,7 +761,7 @@ def add_histograms_and_compute_readviz_paths(
             raise ValueError(f"{existing_readviz_filename_list} contains duplicate entries")
 
     df = df.sort_values(["Num Repeats: Allele 2", "Num Repeats: Allele 1", "Motif: Allele 2", "Motif: Allele 1"], ascending=False)
-    for _, row in tqdm.tqdm(df.iterrows(), unit=" rows", total=len(df)):
+    for _, row in tqdm.tqdm(df.iterrows(), unit=" rows", total=len(df), unit_scale=True):
         locus_id = row["LocusId"]
         variant_id = row["VariantId"]
 
