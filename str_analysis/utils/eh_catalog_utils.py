@@ -6,7 +6,9 @@ from str_analysis.utils.misc_utils import parse_interval
 ACGT_REGEX = re.compile("^[ACGT]+$", re.IGNORECASE)
 
 def parse_motifs_from_locus_structure(locus_structure):
-    """Takes an ExpansionHunter LocusStructure like "(CAG)*AGAC(GCC)+" and returns a list of motifs ["CAG", "GCC"]"""
+    """Takes an ExpansionHunter LocusStructure like "(CAG)*AGAC(GCC)+" or a TRGT STRUC like "TCCAG(CAG)nAGAC(GCC)nGCACGG"
+    and returns a list of motifs ["CAG", "GCC"].
+    """
     return [
         locus_structure_part.split("(")[-1] for locus_structure_part in locus_structure.split(")")[:-1]
     ]
