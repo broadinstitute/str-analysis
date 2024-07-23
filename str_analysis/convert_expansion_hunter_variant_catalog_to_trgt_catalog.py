@@ -34,7 +34,7 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
             previous_chrom = None
             output_rows = []
             counter = 0
-            for i, record in enumerate(tqdm.tqdm(ijson.items(f, "item"), unit=" variant catalog records")):
+            for i, record in enumerate(tqdm.tqdm(ijson.items(f, "item"), unit=" variant catalog records", unit_scale=True)):
                 locus_id = record["LocusId"]
                 locus_structure = record["LocusStructure"]
                 motifs = re.findall("[(]([A-Z]+)[)]", locus_structure)
