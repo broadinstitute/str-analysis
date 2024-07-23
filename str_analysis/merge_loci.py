@@ -199,6 +199,11 @@ def add_variant_catalog_to_interval_trees(
             add_extra_fields_from_input_catalogs=add_extra_fields_from_input_catalogs,
             verbose=verbose):
 
+        verbose=False
+        if end_1based == 74127824:
+            print("Start")
+            verbose=True
+
         chrom = unmodified_chrom.replace("chr", "")
         # check for overlap with existing loci
         counters["total"] += 1
@@ -227,7 +232,7 @@ def add_variant_catalog_to_interval_trees(
                     raise ValueError(f"Unexpected LocusStructure in {existing_record}.")
 
                 try:
-                    existing_record_canonical_motif = compute_canonical_motif(existing_record_motifs[0])
+                    existing_record_canonical_motif = compute_canonical_motif(existing_record_motifs[0], include_reverse_complement=False)
                 except Exception as e:
                     raise ValueError(f"Error computing canonical motif for {existing_record}: {e}")
 
@@ -238,7 +243,7 @@ def add_variant_catalog_to_interval_trees(
                         raise ValueError(f"Unexpected LocusStructure in {new_record}.")
 
                     try:
-                        new_record_canonical_motif = compute_canonical_motif(new_record_motifs[0])
+                        new_record_canonical_motif = compute_canonical_motif(new_record_motifs[0], include_reverse_complement=False)
                     except Exception as e:
                         raise ValueError(f"Error computing canonical motif for {new_record}: {e}")
 
@@ -280,7 +285,7 @@ def add_variant_catalog_to_interval_trees(
         counters["added"] += 1
         interval_trees[chrom].add(intervaltree.Interval(start_0based, end_1based, data=new_record))
 
-    print(f"Added {counters['added']:,d} out of {counters['total']:,d} ({counters['added']/counters['total']:6.1%}) "
+    print(f"Added {counters['added']:,d} out of {counters['total']:,d} ({counters['added']/(counters['total'] or 1):6.1%}) "
           f"records from {variant_catalog_filename} to the output catalog")
     if verbose:
         for k, v in sorted(counters.items()):
@@ -305,7 +310,7 @@ def add_variant_catalog_to_interval_trees(
         os.system(f"tabix -f {unique_loci_bed_filename}.gz")
         print(f"Wrote {counters['added']:,d} unique loci from {variant_catalog_filename} to {unique_loci_bed_filename}.gz")
 
-def check_wheter_to_merge_adjacent_loci(previous_interval, current_interval):
+def check_whether_to_merge_adjacent_loci(previous_interval, current_interval):
     """Checks whether the two loci should be merged into a single locus.
 
     Args:
@@ -392,7 +397,7 @@ def convert_interval_trees_to_output_records(interval_trees, merge_adjacent_loci
                     previous_interval = interval
                     continue
 
-                should_merge, merged_interval = check_wheter_to_merge_adjacent_loci(previous_interval, interval)
+                should_merge, merged_interval = check_whether_to_merge_adjacent_loci(previous_interval, interval)
                 if should_merge:
                     merged_counter += 1
                     previous_interval = merged_interval
