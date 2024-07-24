@@ -127,6 +127,12 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
             motif_size_bin = f"{motif_size}bp" if motif_size <= 6 else "7-24bp" if motif_size <= 24 else "25+bp"
             counters[f"motif_size:{motif_size_bin}"] += 1
 
+            num_repeats_in_ref = int(locus_size / motif_size)
+            num_repeats_in_ref_bin = f"{num_repeats_in_ref}x" if num_repeats_in_ref <= 9 else "10-15x" if num_repeats_in_ref <= 15 else "16-25x" if num_repeats_in_ref <= 25 else "26-35x" if num_repeats_in_ref <= 35 else "36-50x" if num_repeats_in_ref <= 50 else "51+x"
+            #if num_repeats_in_ref <= 3:
+            #    print(num_repeats_in_ref_bin, record["LocusId"], reference_region, motif)
+            counters[f"num_repeats_in_ref:{num_repeats_in_ref_bin}"] += 1
+
             if fraction_pure_bases is not None:
                 fraction_pure_bases_bin = round(int(fraction_pure_repeats*10)/10, 1)
                 counters[f"fraction_pure_bases:{fraction_pure_bases_bin}"] += 1
@@ -188,6 +194,10 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
     print("Motif size distribution:")
     for motif_size_bin in "1bp", "2bp", "3bp", "4bp", "5bp", "6bp", "7-24bp", "25+bp":
         print(f"   {motif_size_bin:>10s}: {counters[f'motif_size:{motif_size_bin}']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters[f'motif_size:{motif_size_bin}']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
+    print("")
+    print("Num repeats in reference:")
+    for num_repeats_in_ref_bin in "1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x", "9x", "10-15x", "16-25x", "26-35x", "36-50x", "51+x":
+        print(f"   {num_repeats_in_ref_bin:>10s}: {counters[f'num_repeats_in_ref:{num_repeats_in_ref_bin}']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters[f'num_repeats_in_ref:{num_repeats_in_ref_bin}']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
 
     if min_fraction_pure_bases_motif is not None:
         print("")
