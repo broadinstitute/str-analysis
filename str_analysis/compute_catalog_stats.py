@@ -159,7 +159,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
     print("")
     print(f"Stats for {catalog_name}:")
     print(f"   {counters['total']:10,d} total loci")
-    print(f"   {counters['loci_with_adjacent_repeats']:10,d} out of {counters['total']:10,d} ({counters['loci_with_adjacent_repeats']/counters['total']:6.1%}) loci have adjacent repeats")
+    print(f"   {counters['loci_with_adjacent_repeats']:10,d} out of {counters['total']:10,d} ({counters['loci_with_adjacent_repeats']/counters['total']:6.1%}) loci define adjacent repeats")
     print(f"   {counters['total_repeat_intervals']:10,d} total repeat intervals")
     print(f"   {counters['trimmed']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['trimmed']/counters['total_repeat_intervals']:6.1%}) repeat interval size is an integer multiple of the motif size (aka. trimmed)")
     print(f"   {counters['homopolymers']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['homopolymers']/counters['total_repeat_intervals']:6.1%}) repeat intervals are homopolymers")
