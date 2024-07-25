@@ -33,6 +33,7 @@ MAPPABILITY_TRACK_BIGWIG_URL = f"gs://tgg-viewer/ref/GRCh38/mappability/" \
 FLANK_MAPPABILITY_WINDOW_SIZE = 200
 
 ACGT_REGEX = re.compile("^[ACGT]+$", re.IGNORECASE)
+ACGTN_REGEX = re.compile("^[ACGTN]+$", re.IGNORECASE)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Annotate and filter an STR variant catalog.")
@@ -111,8 +112,14 @@ def parse_args():
     filter_group.add_argument("--min-mappability", type=float, help="Minimum overall mappability of the repeat region")
     filter_group.add_argument("--discard-overlapping-intervals-with-similar-motifs", action="store_true",
                               help="Discard intervals if they overlap another interval with a similar motif")
-    filter_group.add_argument("--discard-loci-with-non-acgt-bases", action="store_true", help="Discard loci that have "
-                              "non-ACGT bases within their motif and/or their reference repeat sequence")
+    filter_group.add_argument("--discard-loci-with-non-ACGT-bases-in-motif", action="store_true", help="Discard loci "
+                              "that include non-ACGT bases within their motif")
+    filter_group.add_argument("--discard-loci-with-non-ACGTN-bases-in-motif", action="store_true", help="Discard loci "
+                              "that include non-ACGTN bases within their motif")
+    filter_group.add_argument("--discard-loci-with-non-ACGT-bases-in-reference", action="store_true", help="Discard "
+                              "loci if their reference sequence contains non-ACGT bases")
+    filter_group.add_argument("--discard-loci-with-non-ACGTN-bases-in-reference", action="store_true", help="Discard "
+                              "loci if their reference sequence contains non-ACGTN bases")
 
 
     parser.add_argument("variant_catalog_json_or_bed", help="A catalog of repeats to annotate and filter, either "
@@ -262,23 +269,29 @@ def main():
     if args.verbose:
         input_variant_catalog_iterator = tqdm(input_variant_catalog_iterator, unit=" variant catalog records", unit_scale=True)
 
+    filter_counters = collections.Counter()
     interval_trees = collections.defaultdict(IntervalTree)  # used to check for overlap between records in the catalog
     for i, input_variant_catalog_record in enumerate(input_variant_catalog_iterator):
+        filter_counters["total"] += 1
+
         # validate input_variant_catalog_record
-        error = False
+        error = None
         for key in ["LocusId", "ReferenceRegion", "LocusStructure", "VariantType"]:
             if key not in input_variant_catalog_record:
                 print(f"ERROR: {key} not found in variant catalog record #{i+1}: {input_variant_catalog_record}. Skipping...")
-                error = True
+                error = f"missing {key} key"
                 break
         if error:
+            filter_counters[f"row {error}"] += 1
             continue
 
         # parse input_variant_catalog_record based on whether it has adjacent repeats
         locus_id = input_variant_catalog_record["LocusId"]
         if args.locus_id and locus_id not in args.locus_id:
+            filter_counters[f"row LocusId != {args.locus_id}"] += 1
             continue
         if args.exclude_locus_id and locus_id in args.exclude_locus_id:
+            filter_counters[f"row LocusId == {args.exclude_locus_id}"] += 1
             continue
 
         motifs = parse_motifs_from_locus_structure(input_variant_catalog_record["LocusStructure"])
@@ -292,9 +305,11 @@ def main():
         # validate input_variant_catalog_record with adjacent repeats
         if len(motifs) != len(reference_regions):
             print(f"ERROR: number of motifs != number of reference regions in variant catalog record #{i+1}: {input_variant_catalog_record}. Skipping...")
+            filter_counters[f"row LocusStructure motif count != number of reference regions"] += 1
             continue
         if len(motifs) != len(variant_types):
             print(f"ERROR: number of motifs != number of variant types in variant catalog record #{i+1}: {input_variant_catalog_record}. Skipping...")
+            filter_counters[f"row LocusStructure motif count != number of VariantTypes"] += 1
             continue
 
         # parse intervals
@@ -303,14 +318,18 @@ def main():
 
         # apply motif size and motif filters
         if args.min_motif_size and all(len(motif) < args.min_motif_size for motif in motifs):
+            filter_counters[f"motif size(s) < {args.min_motif_size}"] += 1
             continue
         if args.max_motif_size and all(len(motif) > args.max_motif_size for motif in motifs):
+            filter_counters[f"motif size(s) > {args.max_motif_size}"] += 1
             continue
         if args.motif_size and all(len(motif) not in args.motif_size for motif in motifs):
+            filter_counters[f"motif size(s) not in {args.motif_size}"] += 1
             continue
         if args.motif:
             args_canonical_motif_set = {compute_canonical_motif(motif) for motif in args.motif}
             if all(canonical_motif not in args_canonical_motif_set for canonical_motif in canonical_motifs):
+                filter_counters[f"row canonical motif(s) not among {args_canonical_motif_set}"] += 1
                 continue
 
         if len(canonical_motifs) == 1:
@@ -319,6 +338,7 @@ def main():
 
         # apply interval size filters
         if args.min_interval_size_bp and all(end - start_0based < args.min_interval_size_bp for chrom, start_0based, end in chroms_start_0based_ends):
+            filter_counters[f"row interval size < {args.min_interval_size_bp}bp"] += 1
             continue
 
         # parse input variant catalog record and check for overlap with known disease-associated loci
@@ -335,10 +355,13 @@ def main():
         input_variant_catalog_record["KnownDiseaseAssociatedMotif"] = matched_known_disease_associated_motif
 
         if args.only_known_disease_associated_loci and not matched_known_disease_associated_locus:
+            filter_counters[f"row isn't a known disease-associated locus"] += 1
             continue
         if args.exclude_known_disease_associated_loci and matched_known_disease_associated_locus:
+            filter_counters[f"row is a known disease-associated locus"] += 1
             continue
         if args.only_known_disease_associated_motifs and not matched_known_disease_associated_motif:
+            filter_counters[f"row motif doesn't match the motif of a known disease-associated locus"] += 1
             continue
 
         # filter by gene region
@@ -367,16 +390,22 @@ def main():
                 verbose=args.verbose)
 
             if args.region_type and input_variant_catalog_record[f"{args.gene_models_source}GeneRegion"] not in args.region_type:
+                filter_counters[f"row {args.gene_models_source}GeneRegion isn't among {args.region_type}"] += 1
                 continue
             if args.exclude_region_type and input_variant_catalog_record[f"{args.gene_models_source}GeneRegion"] in args.exclude_region_type:
+                filter_counters[f"row {args.gene_models_source}GeneRegion is one of {args.exclude_region_type}"] += 1
                 continue
             if args.gene_name and input_variant_catalog_record[f"{args.gene_models_source}GeneName"] not in args.gene_name:
+                filter_counters[f"row {args.gene_models_source}GeneName isn't among {args.gene_name}"] += 1
                 continue
             if args.exclude_gene_name and input_variant_catalog_record[f"{args.gene_models_source}GeneName"] in args.exclude_gene_name:
+                filter_counters[f"row {args.gene_models_source}GeneName is one of {args.exclude_gene_name}"] += 1
                 continue
             if args.gene_id and input_variant_catalog_record[f"{args.gene_models_source}GeneId"] not in args.gene_id:
+                filter_counters[f"row {args.gene_models_source}GeneId isn't among {args.gene_id}"] += 1
                 continue
             if args.exclude_gene_id and input_variant_catalog_record[f"{args.gene_models_source}GeneId"] in args.exclude_gene_id:
+                filter_counters[f"row {args.gene_models_source}GeneId is one of {args.exclude_gene_id}"] += 1
                 continue
 
         # annotate repeat purity in the reference genome
@@ -385,14 +414,21 @@ def main():
         fraction_pure_repeats = []
         overlaps_other_interval = False
         overlaps_other_interval_with_similar_motif = False
-        has_non_acgt_bases = False
+        has_invalid_bases = False
         for (chrom, start_0based, end), motif in zip(chroms_start_0based_ends, motifs):
             trimmed_end = end - (end - start_0based) % len(motif)
             ref_fasta_sequence = ref_fasta.fetch(chrom, start_0based, trimmed_end)  # fetch uses 0-based coords
             ref_fasta_sequence = ref_fasta_sequence.upper()
 
-            if args.discard_loci_with_non_acgt_bases and not ACGT_REGEX.match(motif + ref_fasta_sequence):
-                has_non_acgt_bases = True
+            if ((args.discard_loci_with_non_ACGT_bases_in_motif and not ACGT_REGEX.match(motif)) or
+                (args.discard_loci_with_non_ACGTN_bases_in_motif and not ACGTN_REGEX.match(motif))):
+                has_invalid_bases = True
+                filter_counters["row motif has invalid bases"] += 1
+                break
+            if ((args.discard_loci_with_non_ACGT_bases_in_reference and not ACGT_REGEX.match(ref_fasta_sequence)) or
+                (args.discard_loci_with_non_ACGTN_bases_in_reference and not ACGTN_REGEX.match(ref_fasta_sequence))):
+                has_invalid_bases = True
+                filter_counters["row reference sequence has invalid bases"] += 1
                 break
 
             pure_sequence = motif.upper() * int(len(ref_fasta_sequence)/len(motif))
@@ -418,7 +454,7 @@ def main():
 
             interval_trees[chrom].add(Interval(start_0based, end, data=canonical_motif))
 
-        if args.discard_loci_with_non_acgt_bases and has_non_acgt_bases:
+        if has_invalid_bases:
             continue
 
         input_variant_catalog_record["InterruptionBaseCount"] = interruption_base_count[0] if len(chroms_start_0based_ends) == 1 else interruption_base_count
@@ -430,10 +466,13 @@ def main():
             continue
 
         if args.max_interruptions is not None and input_variant_catalog_record["InterruptionBaseCount"] > args.max_interruptions:
+            filter_counters[f"row InterruptionBaseCount > {args.max_interruptions}"] += 1
             continue
         if args.min_base_purity is not None and input_variant_catalog_record["FractionPureBases"] < args.min_base_purity:
+            filter_counters[f"row FractionPureBases < {args.min_base_purity}"] += 1
             continue
         if args.min_repeat_purity is not None and input_variant_catalog_record["FractionPureRepeats"] < args.min_repeat_purity:
+            filter_counters[f"row FractionPureRepeats < {args.min_repeat_purity}"] += 1
             continue
 
         # compute mappability of left and right flanking sequence
@@ -477,6 +516,7 @@ def main():
             input_variant_catalog_record[f"RightFlankMappability"] = round(mappability_right_flank, 2)
 
             if args.min_mappability is not None and input_variant_catalog_record["EntireLocusMappability"] < args.min_mappability:
+                filter_counters[f"row EntireLocusMappability < {args.min_mappability}"] += 1
                 continue
 
         if args.add_gene_region_to_locus_id:
@@ -488,6 +528,7 @@ def main():
             input_variant_catalog_record["LocusId"] += "-" + "-".join(canonical_motifs)
 
         # add this record to the output variant catalog
+        filter_counters["passed all filters"] += 1
         output_records.append(input_variant_catalog_record)
 
     fopen = gzip.open if args.output_path.endswith(".gz") else open
@@ -499,6 +540,14 @@ def main():
     if args.output_stats:
         if args.verbose: print("Calculating catalog stats..")
         compute_catalog_stats(args.output_path, output_records, verbose=args.verbose)
+
+    if args.verbose:
+        print("\nFilter stats:")
+        for key, value in sorted(filter_counters.items(), key=lambda x: -x[1]):
+            if key == "total":
+                print(f" {value:9,d} total input rows")
+            else:
+                print(f" {value:9,d} out of {filter_counters['total']:,d} ({value/filter_counters['total']:3.0%})  {key}")
 
     if args.output_bed:
         output_path = f"{output_path_prefix}.bed"
@@ -516,6 +565,7 @@ def main():
     if args.output_tsv:
         if args.verbose: print(f"Writing to {output_path_prefix}.tsv.gz")
         output_tsv(f"{output_path_prefix}.tsv.gz", output_records)
+
 
 
 if __name__ == "__main__":
