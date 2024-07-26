@@ -3,7 +3,7 @@ import re
 from str_analysis.utils.file_utils import open_file
 from str_analysis.utils.misc_utils import parse_interval
 
-ACGT_REGEX = re.compile("^[ACGT]+$", re.IGNORECASE)
+ACGTN_REGEX = re.compile("^[ACGTN]+$", re.IGNORECASE)
 
 def parse_motifs_from_locus_structure(locus_structure):
     """Takes an ExpansionHunter LocusStructure like "(CAG)*AGAC(GCC)+" or a TRGT STRUC like "TCCAG(CAG)nAGAC(GCC)nGCACGG"
@@ -59,7 +59,7 @@ def get_variant_catalog_iterator(variant_catalog_json_or_bed):
                 start_0based = int(fields[1])
                 end_1based = int(fields[2])
                 motif = fields[3].strip("()*+").upper()
-                if not ACGT_REGEX.match(motif):
+                if not ACGTN_REGEX.match(motif):
                     print(f"WARNING: skipping line with invalid motif: {line.strip()}")
                     continue
 
