@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install --no-install-recommends --yes \
     curl \
     pkg-config \
     procps \
+    git \
     gcc \
     make \
     autoconf \
@@ -17,13 +18,13 @@ RUN apt-get update && apt-get install --no-install-recommends --yes \
     libcurl4-openssl-dev \
     libbz2-dev \
     liblzma-dev \
-	libgdbm-dev \
-	libc6-dev \
-	zlib1g-dev \
-	libsqlite3-dev \
-	libssl-dev \
-	openssl \
-	libffi-dev \
+    libgdbm-dev \
+    libc6-dev \
+    zlib1g-dev \
+    libsqlite3-dev \
+    libssl-dev \
+    openssl \
+    libffi-dev \
     time
 
 # install htslib
