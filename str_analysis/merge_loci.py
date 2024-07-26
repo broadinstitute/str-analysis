@@ -36,6 +36,8 @@ def parse_args():
                                                                          "a JSON and a BED file will be generated.")
     parser.add_argument("--output-prefix", help="Output filename prefix")
     parser.add_argument("--verbose", action="store_true", help="If specified, then print more stats")
+    parser.add_argument("--verbose-overlaps", action="store_true", help="If specified, print out overlapping definitions"
+                        "that have similar motifs but different boundaries")
     parser.add_argument("--write-bed-files-with-new-loci", action="store_true", help="If specified, then for every "
                         "input catalog except the first one, this script will output a BED file that contains the new "
                         "loci introduced by that catalog. This is useful for troubleshooting catalogs and "
@@ -146,7 +148,7 @@ def get_variant_catalog_iterator(
                     motifs = parse_motifs_from_locus_structure(fields[3])
                     if len(motifs) != 1:
                         filename = os.path.basename(variant_catalog_json_or_bed)
-                        print(f"ERROR: {filename} line #{line_i+1:,d}: {chrom}:{start_0based }-{end_1based} "
+                        print(f"WARNING: {filename} line #{line_i+1:,d}: {chrom}:{start_0based }-{end_1based} "
                               f"locus structure {fields[3]} contains more than one motif. Skipping...")
                         continue
 
@@ -174,6 +176,7 @@ def add_variant_catalog_to_interval_trees(
         add_source_field=False,
         add_extra_fields_from_input_catalogs=False,
         verbose=False,
+        verbose_overlaps=False,
         write_bed_files_with_new_loci=False
 ):
     """Parses the the given input variant catalog and adds any new unique records to the IntervalTrees.
@@ -186,6 +189,7 @@ def add_variant_catalog_to_interval_trees(
         add_extra_fields_from_input_catalogs (bool): If False, then only the required fields will be kept in each input
             variant catalog record and any extra fields will be discarded.
         verbose (bool): If True, then print more stats about the number of records added to the output catalog
+        verbose_overlaps (bool): If True, print info about loci that overlap and have similar motifs, but different bondaries.
         write_bed_files_with_new_loci (bool): If True, then write a BED file of loci not seen in previous catalogs.
     """
     if verbose:
@@ -199,16 +203,11 @@ def add_variant_catalog_to_interval_trees(
             add_extra_fields_from_input_catalogs=add_extra_fields_from_input_catalogs,
             verbose=verbose):
 
-        verbose=False
-        if end_1based == 74127824:
-            print("Start")
-            verbose=True
-
         chrom = unmodified_chrom.replace("chr", "")
         # check for overlap with existing loci
         counters["total"] += 1
         new_record_canonical_motif = None
-        found_matching_existing_record = False
+        found_existing_record_with_similar_motif = False
         for overlapping_interval in interval_trees[chrom].overlap(start_0based, end_1based):
             overlap_size = overlapping_interval.overlap_size(start_0based, end_1based)
 
@@ -223,7 +222,7 @@ def add_variant_catalog_to_interval_trees(
             if new_record["LocusStructure"] == existing_record["LocusStructure"]:
                 counters[f"overlapped an exising locus by at least {100*min_overlap_fraction}% " \
                          f"and had the exact same LocusStructure"] += 1
-                found_matching_existing_record = True
+                found_existing_record_with_similar_motif = True
                 break
             elif not isinstance(new_record["ReferenceRegion"], list) and not isinstance(existing_record["ReferenceRegion"], list):
                 # check if the existing record's canonical motif is the same as the canonical motif of the new record
@@ -250,7 +249,7 @@ def add_variant_catalog_to_interval_trees(
                 if existing_record_canonical_motif == new_record_canonical_motif:
                     counters[f"overlapped an existing locus by at least {100*min_overlap_fraction}% " \
                              f"and had the same canonical motif"] += 1
-                    found_matching_existing_record = True
+                    found_existing_record_with_similar_motif = True
                     break
 
                 # check if one of the motifs contains the other
@@ -264,11 +263,18 @@ def add_variant_catalog_to_interval_trees(
                     if expanded_motif[:len(long_motif)] == long_motif:
                         counters[f"overlapped an existing locus by at least {100*min_overlap_fraction}% " \
                                  f"and one motif was contained within the other"] += 1
-                        found_matching_existing_record = True
+                        found_existing_record_with_similar_motif = True
                         break
 
 
-        if found_matching_existing_record:
+        if found_existing_record_with_similar_motif:
+            if verbose_overlaps:
+                existing_record = overlapping_interval.data
+                if new_record["ReferenceRegion"] != existing_record["ReferenceRegion"]:
+                    print("="*100)
+                    print(f"Existing record:", existing_record["ReferenceRegion"], existing_record["LocusStructure"])
+                    print(f"     New record:", new_record["ReferenceRegion"], new_record["LocusStructure"])
+
             # don't add the current record to the output catalog
             continue
 
@@ -487,6 +493,7 @@ def main():
             add_source_field=args.add_source_field,
             add_extra_fields_from_input_catalogs=args.add_extra_fields_from_input_catalogs,
             verbose=args.verbose,
+            verbose_overlaps=args.verbose_overlaps,
             write_bed_files_with_new_loci=args.write_bed_files_with_new_loci and i > 0,
         )
 
