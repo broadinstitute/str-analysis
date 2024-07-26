@@ -11,7 +11,7 @@ from str_analysis.utils.eh_catalog_utils import parse_motifs_from_locus_structur
 from str_analysis.utils.file_utils import open_file, file_exists
 
 ACGT_REGEX = re.compile("^[ACGT]+$", re.IGNORECASE)
-
+ACGTN_REGEX = re.compile("^[ACGTN]+$", re.IGNORECASE)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Compute and print stats for annotated repeat catalogs")
@@ -101,6 +101,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
             min_num_repeats_in_locus = min(min_num_repeats_in_locus, int(locus_size / motif_size))
             max_num_repeats_in_locus = max(max_num_repeats_in_locus, int(locus_size / motif_size))
 
+            counters["total_base_pairs_spanned_by_all_loci"] += locus_size
             if locus_size == max_locus_size:
                 max_locus_size_reference_region = reference_region
                 max_locus_size_motif = motif
@@ -122,7 +123,9 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
                 counters["trimmed"] += 1
 
             if not ACGT_REGEX.match(motif):
-                counters["non_acgt_motifs"] += 1
+                counters["non_ACGT_motifs"] += 1
+            if not ACGTN_REGEX.match(motif):
+                counters["non_ACGTN_motifs"] += 1
 
             motif_size_bin = f"{motif_size}bp" if motif_size <= 6 else "7-24bp" if motif_size <= 24 else "25+bp"
             counters[f"motif_size:{motif_size_bin}"] += 1
@@ -159,13 +162,17 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
     print("")
     print(f"Stats for {catalog_name}:")
     print(f"   {counters['total']:10,d} total loci")
+    total_genome_size = 3_088_286_401  # in hg38, including chrX, chrY, chrM
+    print(f"   {counters['total_base_pairs_spanned_by_all_loci']:10,d} base pairs spanned by all loci ({counters['total_base_pairs_spanned_by_all_loci']/total_genome_size:0.3%} of the genome)")
     print(f"   {counters['loci_with_adjacent_repeats']:10,d} out of {counters['total']:10,d} ({counters['loci_with_adjacent_repeats']/counters['total']:6.1%}) loci define adjacent repeats")
     print(f"   {counters['total_repeat_intervals']:10,d} total repeat intervals")
     print(f"   {counters['trimmed']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['trimmed']/counters['total_repeat_intervals']:6.1%}) repeat interval size is an integer multiple of the motif size (aka. trimmed)")
     print(f"   {counters['homopolymers']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['homopolymers']/counters['total_repeat_intervals']:6.1%}) repeat intervals are homopolymers")
     print(f"   {len(overlapping_intervals):10,d} out of {counters['total_repeat_intervals']:10,d} ({len(overlapping_intervals)/counters['total_repeat_intervals']:6.1%}) repeat intervals overlap each other by at least two motif lengths")
-    if counters["non_acgt_motifs"]:
-        print(f"   {counters['non_acgt_motifs']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['non_acgt_motifs']/counters['total_repeat_intervals']:6.1%}) repeat intervals have non-ACGT motifs")
+    if counters["non_ACGT_motifs"]:
+        print(f"   {counters['non_ACGT_motifs']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['non_ACGT_motifs']/counters['total_repeat_intervals']:6.1%}) repeat intervals have non-ACGT motifs")
+    if counters["non_ACGTN_motifs"]:
+        print(f"   {counters['non_ACGTN_motifs']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['non_ACGTN_motifs']/counters['total_repeat_intervals']:6.1%}) repeat intervals have non-ACGTN motifs")
 
     if len(overlapping_intervals) > 0:
         examples = list(overlapping_intervals)
