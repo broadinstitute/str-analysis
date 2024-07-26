@@ -42,7 +42,7 @@ RUN apt-get update && apt-get install --no-install-recommends --yes python3.9 py
 RUN python3 -m pip install --upgrade --no-cache-dir "intervaltree>=3.1.0" "numpy>=1.20.3" "pandas>=1.1.4" "pysam>=0.16.0.1"
 
 # install gcloud
-ENV GCLOUD_SDK_VERISON="481.0.0"
+ENV GCLOUD_SDK_VERISON="485.0.0"
 RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
     && tar xzf google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
     && /google-cloud-sdk/install.sh -q \
