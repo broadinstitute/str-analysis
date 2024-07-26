@@ -439,9 +439,14 @@ def main():
             num_matching_bases = sum(1 for nuc1, nuc2 in zip(ref_fasta_sequence, pure_sequence) if nuc1 == nuc2)
 
             interruption_base_count.append( len(ref_fasta_sequence) - num_matching_bases )
-            fraction_pure_bases.append( round(num_matching_bases / len(ref_fasta_sequence), 2) )
-            fraction_pure_repeats.append( round(ref_fasta_sequence.count(motif) / int(len(ref_fasta_sequence) / len(motif)), 2) )
-
+            if len(ref_fasta_sequence) > 0:
+                fraction_pure_bases.append( round(num_matching_bases / len(ref_fasta_sequence), 2) )
+                fraction_pure_repeats.append( round(ref_fasta_sequence.count(motif) / int(len(ref_fasta_sequence) / len(motif)), 2) )
+            else:
+                print(f"WARNING: {chrom}:{start_0based}-{end} interval is smaller than the motif size: {len(motif)}bp {motif}")
+                fraction_pure_bases.append(0)
+                fraction_pure_repeats.append(0)
+                
             # check for overlap
             canonical_motif = compute_canonical_motif(motif, include_reverse_complement=False)
             for overlapping_interval in interval_trees[chrom].overlap(start_0based, end):
