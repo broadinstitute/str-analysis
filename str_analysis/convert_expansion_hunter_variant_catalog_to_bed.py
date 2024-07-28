@@ -16,23 +16,29 @@ def main():
                    "as having several adjacent repeats in the ExpansionHunter catalog, split it into separate "
                    "BED file rows. Otherwise, the entire locus will be represented as a single BED file row.")
     p.add_argument("-o", "--output-file", help="BED file output path")
+    p.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     p.add_argument("expansion_hunter_catalog", help="ExpansionHunter variant catalog in JSON format")
     args = p.parse_args()
 
     if not args.output_file:
-        args.output_file = re.sub(".json(.gz)?$", "", args.expansion_hunter_catalog) + ".trgt.bed"
+        args.output_file = re.sub(".json(.gz)?$", "", args.expansion_hunter_catalog) + ".bed.gz"
 
-    process_expansion_hunter_catalog(args.expansion_hunter_catalog, args.output_file, args.split_adjacent_repeats)
+    process_expansion_hunter_catalog(args.expansion_hunter_catalog, args.output_file, args.split_adjacent_repeats,
+                                     show_progress_bar=args.show_progress_bar)
 
 
-def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_path, split_adjacent_repeats=False):
+def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_path, split_adjacent_repeats=False, show_progress_bar=False):
     print(f"Parsing {expansion_hunter_catalog_path}")
-    with (gzip.open if expansion_hunter_catalog_path.endswith("gz") else open)(expansion_hunter_catalog_path, "rt") as f:
+    fopen = gzip.open if expansion_hunter_catalog_path.endswith("gz") else open
+    with fopen(expansion_hunter_catalog_path, "rt") as f:
+        iterator = ijson.items(f, "item")
+        if show_progress_bar:
+            iterator = tqdm.tqdm(iterator, unit=" variant catalog records", unit_scale=True)
         with (gzip.open if output_file_path.endswith("gz") else open)(output_file_path, "wt") as f2:
             previous_chrom = None
             output_rows = []
             counter = 0
-            for i, record in enumerate(tqdm.tqdm(ijson.items(f, "item"), unit=" variant catalog records", unit_scale=True)):
+            for i, record in enumerate(iterator):
                 locus_id = record["LocusId"]
                 locus_structure = record["LocusStructure"]
                 motifs = re.findall("[(]([A-Z]+)[)]", locus_structure)
@@ -107,8 +113,10 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
     bgzip_step = "| bgzip" if output_file_path.endswith("gz") else ""
     os.system(f"bedtools sort -i {output_file_path} {bgzip_step} > {output_file_path}.sorted")
     os.system(f"mv {output_file_path}.sorted {output_file_path}")
-
     print(f"Wrote {counter:,d} rows to {output_file_path}")
+    if output_file_path.endswith("gz"):
+        os.system(f"tabix -f {output_file_path}")
+        print(f"Added {output_file_path}.tbi index")
 
 
 if __name__ == "__main__":

@@ -46,6 +46,7 @@ def parse_args():
                         "in addition to the standard ExpansionHunter JSON file format")
     parser.add_argument("--output-stats", action="store_true", help="Output detailed stats about loci in the catalog")
     parser.add_argument("--verbose", action="store_true", help="Print verbose output.")
+    parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
 
     annotations_group = parser.add_argument_group("annotations")
     annotations_group.add_argument("--known-disease-associated-loci",
@@ -266,7 +267,7 @@ def main():
         print(f"Parsing {args.variant_catalog_json_or_bed}")
 
     input_variant_catalog_iterator = get_variant_catalog_iterator(args.variant_catalog_json_or_bed)
-    if args.verbose:
+    if args.show_progress_bar:
         input_variant_catalog_iterator = tqdm(input_variant_catalog_iterator, unit=" variant catalog records", unit_scale=True)
 
     filter_counters = collections.Counter()
@@ -387,7 +388,8 @@ def main():
                 spanning_interval_start0_based + 1,
                 spanning_interval_end,
                 args.genes_gtf,
-                verbose=args.verbose)
+                verbose=args.verbose,
+                show_progress_bar=args.show_progress_bar)
 
             if args.region_type and input_variant_catalog_record[f"{args.gene_models_source}GeneRegion"] not in args.region_type:
                 filter_counters[f"row {args.gene_models_source}GeneRegion isn't among {args.region_type}"] += 1

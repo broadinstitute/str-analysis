@@ -38,6 +38,7 @@ def parse_args():
     parser.add_argument("--verbose", action="store_true", help="If specified, then print more stats")
     parser.add_argument("--verbose-overlaps", action="store_true", help="If specified, print out overlapping definitions"
                         "that have similar motifs but different boundaries")
+    parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     parser.add_argument("--write-bed-files-with-new-loci", action="store_true", help="If specified, then for every "
                         "input catalog except the first one, this script will output a BED file that contains the new "
                         "loci introduced by that catalog. This is useful for troubleshooting catalogs and "
@@ -81,7 +82,8 @@ def get_variant_catalog_iterator(
         variant_catalog_json_or_bed,
         file_type,
         add_extra_fields_from_input_catalogs=False,
-        verbose=False):
+        verbose=False,
+        show_progress_bar=False):
     """Takes the path of a JSON or BED file and returns an iterator over variant catalog records parsed from that file.
 
     Args:
@@ -91,6 +93,7 @@ def get_variant_catalog_iterator(
         add_extra_fields_from_input_catalogs (bool): If False, then only the required fields will be kept from the
             input variant catalog and any extra fields will be discarded.
         verbose (bool): If True, add a progress bar
+        show_progress_bar (bool): If True, then show a progress bar
     """
     if verbose:
         print(f"Parsing {variant_catalog_json_or_bed}")
@@ -98,7 +101,7 @@ def get_variant_catalog_iterator(
     if file_type == "JSON":
         with open_file(variant_catalog_json_or_bed, is_text_file=True) as f:
             file_iterator = ijson.items(f, "item")
-            if verbose:
+            if show_progress_bar:
                 file_iterator = tqdm.tqdm(file_iterator, unit=" records", unit_scale=True)
 
             for record_i, record in enumerate(file_iterator):
@@ -135,7 +138,7 @@ def get_variant_catalog_iterator(
 
     elif file_type == "BED":
         with open_file(variant_catalog_json_or_bed, is_text_file=True) as file_iterator:
-            if verbose:
+            if show_progress_bar:
                 file_iterator = tqdm.tqdm(file_iterator, unit=" records", unit_scale=True)
 
             for line_i, line in enumerate(file_iterator):
@@ -177,6 +180,7 @@ def add_variant_catalog_to_interval_trees(
         add_extra_fields_from_input_catalogs=False,
         verbose=False,
         verbose_overlaps=False,
+        show_progress_bar=False,
         write_bed_files_with_new_loci=False
 ):
     """Parses the the given input variant catalog and adds any new unique records to the IntervalTrees.
@@ -190,6 +194,7 @@ def add_variant_catalog_to_interval_trees(
             variant catalog record and any extra fields will be discarded.
         verbose (bool): If True, then print more stats about the number of records added to the output catalog
         verbose_overlaps (bool): If True, print info about loci that overlap and have similar motifs, but different bondaries.
+        show_progress_bar (bool): Whether to show a progress bar
         write_bed_files_with_new_loci (bool): If True, then write a BED file of loci not seen in previous catalogs.
     """
     if verbose:
@@ -201,7 +206,7 @@ def add_variant_catalog_to_interval_trees(
     for unmodified_chrom, start_0based, end_1based, new_record in get_variant_catalog_iterator(
             variant_catalog_json_or_bed, file_type,
             add_extra_fields_from_input_catalogs=add_extra_fields_from_input_catalogs,
-            verbose=verbose):
+            verbose=verbose, show_progress_bar=show_progress_bar):
 
         chrom = unmodified_chrom.replace("chr", "")
         # check for overlap with existing loci
@@ -494,6 +499,7 @@ def main():
             add_extra_fields_from_input_catalogs=args.add_extra_fields_from_input_catalogs,
             verbose=args.verbose,
             verbose_overlaps=args.verbose_overlaps,
+            show_progress_bar=args.show_progress_bar,
             write_bed_files_with_new_loci=args.write_bed_files_with_new_loci and i > 0,
         )
 

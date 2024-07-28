@@ -16,6 +16,7 @@ from str_analysis.utils.misc_utils import parse_interval
 
 def main():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    p.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     p.add_argument("-o", "--output-file", help="bed file output path")
     p.add_argument("variant_catalog")
     args = p.parse_args()
@@ -23,14 +24,19 @@ def main():
     if not args.output_file:
         args.output_file = re.sub(".json(.gz)?$", "", args.variant_catalog) + ".gangstr_spec.bed"
 
-    process_variant_catalog(args.variant_catalog, args.output_file)
+    process_variant_catalog(args.variant_catalog, args.output_file, show_progress_bar=args.show_progress_bar)
 
 
-def process_variant_catalog(variant_catalog_path, output_file_path):
+def process_variant_catalog(variant_catalog_path, output_file_path, show_progress_bar=False):
     print(f"Parsing {variant_catalog_path}")
-    with (gzip.open if variant_catalog_path.endswith("gz") else open)(variant_catalog_path, "rt") as f:
+    fopen = gzip.open if variant_catalog_path.endswith("gz") else open
+    with fopen(variant_catalog_path, "rt") as f:
         with (gzip.open if output_file_path.endswith("gz") else open)(output_file_path, "wt") as f2:
-            for record in tqdm.tqdm(ijson.items(f, "item"), unit=" variant catalog records", unit_scale=True):
+            iterator = ijson.items(f, "item")
+            if show_progress_bar:
+                iterator = tqdm.tqdm(iterator, unit=" variant catalog records", unit_scale=True)
+
+            for record in iterator:
                 locus_structure = record["LocusStructure"]
                 repeat_units = re.findall("[(]([A-Z]+)[)]", locus_structure)
                 if not repeat_units:

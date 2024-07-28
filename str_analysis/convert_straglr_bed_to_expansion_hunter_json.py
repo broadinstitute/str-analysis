@@ -12,6 +12,7 @@ from tqdm import tqdm
 def main():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--verbose", action="store_true", help="Print verbose output")
+    p.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     p.add_argument("--sample-id", help="If not specified, the sample id will be based on the filename.")
     p.add_argument("bed_path", help="TRGT vcf path")
     args = p.parse_args()
@@ -21,6 +22,7 @@ def main():
         args.bed_path,
         sample_id=args.sample_id,
         verbose=args.verbose,
+        show_progress_bar=args.show_progress_bar,
     )
 
     output_json_path = re.sub(".bed(.gz)?$", "", args.bed_path) + ".json"
@@ -29,7 +31,7 @@ def main():
         json.dump(locus_results, f, indent=3, ignore_nan=True)
 
 
-def process_straglr_bed(bed_path, sample_id=None, verbose=False):
+def process_straglr_bed(bed_path, sample_id=None, verbose=False, show_progress_bar=False):
     locus_results = {
         "LocusResults": {},
         "SampleParameters": {
@@ -39,12 +41,11 @@ def process_straglr_bed(bed_path, sample_id=None, verbose=False):
     }
 
     fopen = gzip.open if bed_path.endswith("gz") else open
-
     with fopen(bed_path, "rt") as bed_file:
         # #chrom, start, end, repeat_unit, allele1:size,  allele1:copy_number, allele1:support allele2:size, allele2:copy_number, allele2:support
         header_fields = bed_file.readline().strip().strip("#").split("\t")
 
-        if verbose:
+        if show_progress_bar:
             bed_file = tqdm(bed_file, unit=" BED lines", unit_scale=True, unit_divisor=1000)
 
         line_counter = 0

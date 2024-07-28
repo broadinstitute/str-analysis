@@ -19,6 +19,7 @@ def main():
                                                   "at most this many loci per catalog")
     p.add_argument("-o", "--output-path", help="JSON variant catalog output path")
     p.add_argument("-v", "--verbose", action="store_true")
+    p.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     p.add_argument("bed_path", help="Input BED file path")
     args = p.parse_args()
 
@@ -27,7 +28,7 @@ def main():
 
     # parse bed file and convert to variant catalog json format
     print(f"Parsing {args.bed_path}")
-    json_records = parse_bed_file(args.bed_path, trim=True, verbose=args.verbose)
+    json_records = parse_bed_file(args.bed_path, trim=True, verbose=args.verbose, show_progress_bar=args.show_progress_bar)
 
     # sort records by normalized motif to maximize cache hit rate in the optimized version of ExpansionHunter
     print("Sorting records by normalized motif")
@@ -60,13 +61,17 @@ def main():
         print(f"Wrote {len(json_records):,d} to {output_path_prefix}*.json")
 
 
-def parse_bed_file(bed_path, trim=True, verbose=False):
+def parse_bed_file(bed_path, trim=True, verbose=False, show_progress_bar=False):
     json_records = []
     existing_locus_ids = set()
     counter = collections.defaultdict(int)
     fopen = gzip.open if bed_path.endswith("gz") else open
     with fopen(bed_path, "rt") as f:
-        for i, row in tqdm.tqdm(enumerate(f), unit=" records", unit_scale=True):
+        iterator = f
+        if show_progress_bar:
+            iterator = tqdm.tqdm(iterator, unit=" records", unit_scale=True)
+
+        for i, row in enumerate(iterator):
             fields = row.strip("\n").split("\t")
             chrom = fields[0]
             start_0based = int(fields[1])

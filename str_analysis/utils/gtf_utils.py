@@ -21,13 +21,14 @@ GENCODE_INTERVAL_TREES = {}
 
 TRANSCRIPT_ID_TO_CDS_COORDS_MAP = {}
 
-def parse_gtf_to_interval_trees(gtf_path=GENE_MODELS["gencode"], verbose=False):
+def parse_gtf_to_interval_trees(gtf_path=GENE_MODELS["gencode"], verbose=False, show_progress_bar=False):
     """Converts GTF file to interval trees for fast overlap queries"""
 
     # parse the GTF file into IntervalTrees
     iterator = generate_gtf_records(gtf_path)
     if verbose:
         print(f"Parsing {gtf_path}...")
+    if show_progress_bar:
         iterator = tqdm.tqdm(iterator, unit=" GTF records", unit_scale=True)
 
     counters = collections.defaultdict(int)
@@ -39,11 +40,13 @@ def parse_gtf_to_interval_trees(gtf_path=GENE_MODELS["gencode"], verbose=False):
     # cache all CDS coords to use later for converting "UTR" records into "5' UTR" and "3' UTR"
     transcript_id_to_cds_coords_map = TRANSCRIPT_ID_TO_CDS_COORDS_MAP[gtf_path] = {}
 
-    if verbose:
-        print(f"Adding gtf records to IntervalTree for overlap detection...")
+    if show_progress_bar:
         iterator = tqdm.tqdm(gtf_records, unit=" GTF records", unit_scale=True)
     else:
         iterator = gtf_records
+
+    if verbose:
+        print(f"Adding gtf records to IntervalTree for overlap detection...")
 
     for record in iterator:
         chrom = record["chrom"].replace("chr", "")
@@ -173,7 +176,7 @@ def compute_UTR_type(utr_record, transcript_id_to_cds_coords):
         return "UTR"
 
 
-def compute_genomic_region_of_interval(chrom, start_1based, end_1based, genes_gtf_path=None, verbose=False):
+def compute_genomic_region_of_interval(chrom, start_1based, end_1based, genes_gtf_path=None, verbose=False, show_progress_bar=False):
     """This method computes the genomic region of a given interval. The first time it is called, it will parse the
     GTF file and create an interval tree for fast overlap queries. Subsequent calls will reuse the interval tree.
 
@@ -195,7 +198,7 @@ def compute_genomic_region_of_interval(chrom, start_1based, end_1based, genes_gt
         genes_gtf_path = GENE_MODELS["gencode"]
 
     if genes_gtf_path not in GENCODE_INTERVAL_TREES:
-        parse_gtf_to_interval_trees(genes_gtf_path, verbose=verbose)
+        parse_gtf_to_interval_trees(genes_gtf_path, verbose=verbose, show_progress_bar=show_progress_bar)
 
     interval_trees = GENCODE_INTERVAL_TREES[genes_gtf_path]
     transcript_id_to_cds_coords_map = TRANSCRIPT_ID_TO_CDS_COORDS_MAP[genes_gtf_path]

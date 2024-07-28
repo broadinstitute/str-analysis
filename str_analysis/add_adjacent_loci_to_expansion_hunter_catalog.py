@@ -287,7 +287,8 @@ def main():
     parser.add_argument("-o", "--output-catalog",
                         help="Path where to write the output catalog. If not specified, it will be based on the input "
                              "catalog path")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Print more logging output and show progress bars")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Print more logging output")
+    parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     parser.add_argument("input_catalog_paths",
                         nargs="+",
                         help="ExpansionHunter catalog json file path. If more than one catalog path is specified, the "
@@ -331,7 +332,7 @@ def main():
     # validate input catalog records and get the min and max coordinates of the TR loci for each chromosome
     min_max_coords_for_chrom = collections.defaultdict(lambda: (10**10, 0))
     for input_catalog in input_catalogs.values():
-        if args.verbose:
+        if args.show_progress_bar:
             print(f"Validating records in {input_catalog_path}")
             input_catalog = add_progress_bar(input_catalog, unit=" loci")
 

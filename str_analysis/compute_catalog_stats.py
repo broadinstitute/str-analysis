@@ -16,6 +16,7 @@ ACGTN_REGEX = re.compile("^[ACGTN]+$", re.IGNORECASE)
 def parse_args():
     parser = argparse.ArgumentParser(description="Compute and print stats for annotated repeat catalogs")
     parser.add_argument("--verbose", action="store_true", help="Print more information about what the script is doing")
+    parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     parser.add_argument("variant_catalog_json_or_bed", nargs="+",
                         help="Repeat catalog in JSON or BED format. Repeat catalog(s) processed by "
                              "the annotate_and_filter_str_catalog.py script will have extra stats computed")
@@ -30,7 +31,7 @@ def parse_args():
 
 
 
-def compute_catalog_stats(catalog_name, records, verbose=False):
+def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_bar=False):
     """This script takes a TR catalog in BED format or in ExpansionHunter JSON format and outputs statistics about the
     distribution of the TRs in the catalog.
 
@@ -56,7 +57,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False):
     min_overall_mappability_reference_region = None
     min_overall_mappability_motif = None
 
-    if verbose:
+    if show_progress_bar:
         records = tqdm.tqdm(records, unit=" records", unit_scale=True)
 
     interval_trees = collections.defaultdict(IntervalTree)  # used to check for overlap between records in the catalog
@@ -288,7 +289,7 @@ def main():
         catalog_name = os.path.basename(path)
 
         file_iterator = get_variant_catalog_iterator(path)
-        stats = compute_catalog_stats(catalog_name, file_iterator, verbose=args.verbose)
+        stats = compute_catalog_stats(catalog_name, file_iterator, verbose=args.verbose, show_progress_bar=args.show_progress_bar)
         stat_table_rows.append(stats)
 
     if len(args.variant_catalog_json_or_bed) > 1:

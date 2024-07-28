@@ -16,6 +16,7 @@ def main():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("-o", "--output-file", help="JSON file output path")
     p.add_argument("-v", "--verbose", action="store_true")
+    p.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     p.add_argument("-t", "--trim", action="store_true", help="Trim locus intervals so that they contain exact multiples of the repeat unit")
     p.add_argument("gangstr_spec", help="path of the GangSTR repeat spec BED file")
     args = p.parse_args()
@@ -26,17 +27,21 @@ def main():
     if not os.path.isfile(args.gangstr_spec):
         p.error(f"{args.gangstr_spec} file not found")
 
-    process_variant_catalog(args.gangstr_spec, args.output_file, trim_loci=args.trim, verbose=args.verbose)
+    process_variant_catalog(args.gangstr_spec, args.output_file, trim_loci=args.trim, verbose=args.verbose, show_progress_bar=args.show_progress_bar)
 
 
-def process_variant_catalog(gangstr_spec_path, output_file_path, trim_loci=False, verbose=False):
+def process_variant_catalog(gangstr_spec_path, output_file_path, trim_loci=False, verbose=False, show_progress_bar=False):
     print(f"Parsing {gangstr_spec_path}")
     json_records = []
     existing_locus_ids = set()
     counter = collections.defaultdict(int)
     fopen = gzip.open if gangstr_spec_path.endswith("gz") else open
     with fopen(gangstr_spec_path, "rt") as f:
-        for i, row in tqdm.tqdm(enumerate(f), unit=" records", unit_scale=True):
+        iterator = f
+        if show_progress_bar:
+            iterator = tqdm.tqdm(iterator, unit=" variant catalog records", unit_scale=True)
+
+        for i, row in enumerate(iterator):
             fields = row.strip("\n").split("\t")
             chrom = fields[0]
             start_0based = int(fields[1]) - 1

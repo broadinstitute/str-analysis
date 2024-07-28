@@ -20,6 +20,7 @@ def main():
     p.add_argument("-r", "--reference-fasta", required=True, help="Reference FASTA file path")
     p.add_argument("-o", "--output-file", help="ExansionHunter variant catalog JSON output file path")
     p.add_argument("-v", "--verbose", action="store_true")
+    p.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     p.add_argument("trgt_bed_path", help="path of the TRGT repeat catalog BED file")
     args = p.parse_args()
 
@@ -29,10 +30,10 @@ def main():
     if not os.path.isfile(args.trgt_bed_path):
         p.error(f"{args.trgt_bed_path} file not found")
 
-    process_variant_catalog(args.trgt_bed_path, args.reference_fasta, args.output_file, verbose=args.verbose)
+    process_variant_catalog(args.trgt_bed_path, args.reference_fasta, args.output_file, verbose=args.verbose, show_progress_bar=args.show_progress_bar)
 
 
-def process_variant_catalog(trgt_bed_path_path, reference_fasta_path, output_file_path, verbose=False):
+def process_variant_catalog(trgt_bed_path_path, reference_fasta_path, output_file_path, verbose=False, show_progress_bar=False):
 
     fasta_obj = pyfaidx.Fasta(reference_fasta_path, one_based_attributes=False, as_raw=True)
 
@@ -41,7 +42,11 @@ def process_variant_catalog(trgt_bed_path_path, reference_fasta_path, output_fil
     counter = collections.defaultdict(int)
     fopen = gzip.open if trgt_bed_path_path.endswith("gz") else open
     with fopen(trgt_bed_path_path, "rt") as f:
-        for i, row in tqdm.tqdm(enumerate(f), unit=" records", unit_scale=True):
+        iterator = f
+        if show_progress_bar:
+            iterator = tqdm.tqdm(iterator, unit=" records", unit_scale=True)
+
+        for i, row in enumerate(iterator):
             fields = row.strip("\n").split("\t")
             if len(fields) < 4:
                 print(f"WARNING: skipping invalid row which has fewer than 4 columns: {fields}")

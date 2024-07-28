@@ -81,6 +81,8 @@ def parse_args():
                         "the value with be N/A.", default=[])
 
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
+
     parser.add_argument("-o", "--output-dir", help="Output directory")
 
     parser.add_argument("ehdn_locus_outlier_tsv", nargs="+", help="One or more EHdn locus outlier results .tsv file(s)")
@@ -174,12 +176,14 @@ def parse_sample_id_and_counts_column(counts_value):
         }
 
 
-def parse_bed_to_interval_tree(bed_file_path, name_field_is_repeat_unit=False, verbose=False):
+def parse_bed_to_interval_tree(bed_file_path, name_field_is_repeat_unit=False, verbose=False, show_progress_bar=False):
     interval_tree = collections.defaultdict(IntervalTree)
 
     f = open_file(bed_file_path, download_local_copy_before_opening=True, is_text_file=True)
     if verbose:
         print(f"Parsing {bed_file_path}", "assuming the name field contains the repeat unit" if name_field_is_repeat_unit else "")
+
+    if show_progress_bar:
         f = tqdm(f, unit=" records", unit_scale=True)
 
     valid_nucleotides = set("ACGTN")
@@ -242,7 +246,8 @@ def main():
     path_to_column_func = {}
 
     current_interval_tree = parse_bed_to_interval_tree(
-        args.reference_tr_bed_file, name_field_is_repeat_unit=True, verbose=args.verbose)
+        args.reference_tr_bed_file, name_field_is_repeat_unit=True, verbose=args.verbose,
+        show_progress_bar=args.show_progress_bar)
     path_to_column_func["MatchedReferenceTR"] = get_overlapping_interval_generator(
         current_interval_tree, require_motif_match=True)
 

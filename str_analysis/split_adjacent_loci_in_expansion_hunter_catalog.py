@@ -17,6 +17,8 @@ from str_analysis.utils.misc_utils import parse_interval
 def main():
 	p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	p.add_argument("-o", "--output-file", help="JSON file output path")
+	p.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
+
 	p.add_argument("expansion_hunter_catalog", help="ExpansionHunter variant catalog in JSON format")
 	args = p.parse_args()
 
@@ -26,17 +28,18 @@ def main():
 		if args.expansion_hunter_catalog.endswith("gz"):
 			args.output_file += ".gz"
 
-	process_expansion_hunter_catalog(args.expansion_hunter_catalog, args.output_file)
+	process_expansion_hunter_catalog(args.expansion_hunter_catalog, args.output_file, show_progress_bar=args.show_progress_bar)
 
 
-def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_path):
+def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_path, show_progress_bar=False):
 	print(f"Parsing {expansion_hunter_catalog_path}")
 	input_file_iterator = get_variant_catalog_iterator(expansion_hunter_catalog_path)
-
+	if show_progress_bar:
+		input_file_iterator = tqdm.tqdm(input_file_iterator, unit=" variant catalog records", unit_scale=True)
 	input_records_split_counter = 0
 	output_records_split_counter = 0
 	output_records = []
-	for i, record in enumerate(tqdm.tqdm(input_file_iterator, unit=" variant catalog records", unit_scale=True)):
+	for i, record in enumerate(input_file_iterator):
 		locus_id = record["LocusId"]
 		locus_structure = record["LocusStructure"]
 		if "|" in locus_structure:

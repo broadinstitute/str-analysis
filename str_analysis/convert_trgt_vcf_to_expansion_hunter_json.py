@@ -75,6 +75,7 @@ def main():
     p.add_argument("--set-locus-id", action="store_true", help="If specified, the locus id will be set to "
                                                                "'chrom-start-end-motif'")
     p.add_argument("--verbose", action="store_true", help="Print verbose output")
+    p.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     p.add_argument("--sample-id",
                    help="If not specified, the sample id will be parsed from the last column of the vcf header.")
     p.add_argument("vcf_path", help="TRGT vcf path")
@@ -87,6 +88,7 @@ def main():
         discard_hom_ref=args.discard_hom_ref,
         use_trgt_locus_id=not args.set_locus_id,
         verbose=args.verbose,
+        show_progress_bar=args.show_progress_bar,
     )
 
     output_json_path = re.sub(".vcf(.gz)?$", "", args.vcf_path) + ".json"
@@ -95,7 +97,7 @@ def main():
         json.dump(locus_results, f, indent=3, ignore_nan=True)
 
 
-def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_locus_id=False, verbose=False):
+def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_locus_id=False, verbose=False, show_progress_bar=False):
     locus_results = {
         "LocusResults": {},
         "SampleParameters": {
@@ -118,7 +120,7 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
 
     with fopen(vcf_path, "rt") as vcf:
         line_counter = 0
-        if verbose:
+        if show_progress_bar:
             vcf = tqdm(vcf, unit=" vcf records", unit_scale=True, unit_divisor=1000)
 
         for line in vcf:
