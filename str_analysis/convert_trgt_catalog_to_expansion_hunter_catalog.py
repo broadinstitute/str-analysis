@@ -86,10 +86,6 @@ def process_variant_catalog(trgt_bed_path_path, reference_fasta_path, output_fil
             unprocessed_locus_structure = locus_structure
             current_start_coord_0based = start_0based
 
-            #print("=======")
-            #print("unprocessed_locus_structure", unprocessed_locus_structure)
-            #print("unprocessed_reference_sequence:", unprocessed_reference_sequence)
-            #print("start_coord_0based:", current_start_coord_0based)
             added_locus = False
             while "(" in unprocessed_locus_structure:  # continue while there are more motifs
                 current_end_coord = current_start_coord_0based
@@ -101,28 +97,18 @@ def process_variant_catalog(trgt_bed_path_path, reference_fasta_path, output_fil
                              f"{unprocessed_reference_sequence[:left_flank_end_i]} @ locus {locus_id}. Skipping...")
                         break
 
-                    #print("-------")
-                    #print("processing left flank:", left_flank)
-                    #print(f"current_start_0based/end_coord: {chrom}:{current_start_coord_0based:,d}-{current_end_coord:,d}")
                     unprocessed_reference_sequence = unprocessed_reference_sequence[len(left_flank):]
                     unprocessed_locus_structure = unprocessed_locus_structure[left_flank_end_i:]
                     current_start_coord_0based += len(left_flank)
-                    #print("incrementing current_start_coord_0based to:", current_start_coord_0based)
-
 
                 motif_end_i = unprocessed_locus_structure.find(")n")
                 if motif_end_i == -1:
                     break
 
                 motif = unprocessed_locus_structure[1:motif_end_i]
-                #print("-------")
-                #print("processing motif", motif)
-
                 unprocessed_locus_structure = unprocessed_locus_structure[motif_end_i + 2:]
-                #print("unprocessed_locus_structure:", unprocessed_locus_structure)
 
                 # count number of repeats
-                #print("-------")
                 repeat_counter = 0
                 for i in range(0, len(unprocessed_reference_sequence), len(motif)):
                     if not unprocessed_reference_sequence.startswith(motif):
@@ -130,15 +116,11 @@ def process_variant_catalog(trgt_bed_path_path, reference_fasta_path, output_fil
                     repeat_counter += 1
                     unprocessed_reference_sequence = unprocessed_reference_sequence[len(motif):]
                     current_end_coord += len(motif)
-                #print(f"found {repeat_counter} repeats of motif {motif}")
-                #print("unprocessed_locus_structure is now:", unprocessed_locus_structure)
 
                 if current_start_coord_0based != current_end_coord and repeat_counter > 1:
-                    #print(f"incremented current_end_coord to {chrom}:{current_start_coord_0based:,d}-{current_end_coord:,d}")
 
                     current_locus_id = f"{locus_id}-{motif}" if len(motifs) > 1 else locus_id
 
-                    #print("-------")
                     added_locus=True
                     if verbose:
                         print(f"Adding locus {current_locus_id} with motif {motif} and reference region {chrom}:{current_start_coord_0based}-{current_end_coord}")
