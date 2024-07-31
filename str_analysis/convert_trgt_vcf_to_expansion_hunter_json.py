@@ -73,7 +73,11 @@ def main():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--discard-hom-ref", action="store_true", help="Discard hom-ref calls")
     p.add_argument("--set-locus-id", action="store_true", help="If specified, the locus id will be set to "
-                                                               "'chrom-start-end-motif'")
+                                                               "'chrom-start_0based-end-motif'")
+    p.add_argument("--take-genotype-from-AL-field", action="store_true", help="By default, the genotype is taken from "
+                   "the MC field. If this option is specified, it will be taken from the AL field for loci with only 1 motif")
+    p.add_argument("--dont-output-REF-ALT-fields", action="store_true", help="Exclude the VCF REF and ALT fields from "
+                   "the output as they can take up a lot of space.")
     p.add_argument("--verbose", action="store_true", help="Print verbose output")
     p.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     p.add_argument("--sample-id",
@@ -87,6 +91,8 @@ def main():
         sample_id=args.sample_id,
         discard_hom_ref=args.discard_hom_ref,
         use_trgt_locus_id=not args.set_locus_id,
+        take_genotype_from_AL_field=args.take_genotype_from_AL_field,
+        dont_output_REF_ALT_fields=args.dont_output_REF_ALT_fields,
         verbose=args.verbose,
         show_progress_bar=args.show_progress_bar,
     )
@@ -97,7 +103,9 @@ def main():
         json.dump(locus_results, f, indent=3, ignore_nan=True)
 
 
-def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_locus_id=False, verbose=False, show_progress_bar=False):
+def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_locus_id=False,
+                     take_genotype_from_AL_field=False, dont_output_REF_ALT_fields=False,
+                     verbose=False, show_progress_bar=False):
     locus_results = {
         "LocusResults": {},
         "SampleParameters": {
@@ -156,7 +164,7 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                     for key in "AL", "ALLR", "SD", "MC", "MS", "AP", "AM":
                         genotype_dict[key] = ",".join(genotype_dict[key].split(",")[::-1])
 
-                if len(motifs) == 1:
+                if take_genotype_from_AL_field and len(motifs) == 1:
                     repeat_unit = motifs[0]
                     locus_id = info_dict["TRID"] if use_trgt_locus_id else f"{chrom}-{start_1based - 1}-{end_1based}-{repeat_unit}"
 
@@ -186,8 +194,8 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                                 "RepeatUnit": repeat_unit,
                                 "VariantId": locus_id,
                                 "VariantType": "Repeat",
-                                "Ref": fields[3],
-                                "Alt": fields[4],
+                                "Ref": None if dont_output_REF_ALT_fields else fields[3],
+                                "Alt": None if dont_output_REF_ALT_fields else fields[4],
                             }
                         }
                     }
@@ -236,8 +244,8 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                             "RepeatUnit": motif,
                             "VariantId": variant_id,
                             "VariantType": "Repeat",
-                            "Ref": None,
-                            "Alt": None,
+                            "Ref": None if dont_output_REF_ALT_fields else fields[3],
+                            "Alt": None if dont_output_REF_ALT_fields else fields[4],
                         }
 
 
