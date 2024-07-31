@@ -204,13 +204,14 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                     motif_counts = [[int(c) for c in mc.split("_")] for mc in genotype_dict["MC"].split(",")]
 
                     motif_count_genotypes = []
+                    motif_count_genotypes_CIs = []
                     for motif_i, motif in enumerate(motifs):
                         genotype = []
                         for motif_counts_for_haplotype in motif_counts:
                             genotype.append(str(motif_counts_for_haplotype[motif_i]))
 
                         motif_count_genotypes.append("/".join(genotype))
-
+                        motif_count_genotypes_CIs.append("/".join([f"{g}-{g}" for g in genotype]))
                     # parse allele sizes from string like '0(0-9)_1(9-24),0(0-9)_1(9-24)'
                     #interval_sizes_bp = [
                     #    re.findall(r"(\d+)[(](\d+)-(\d+)[)]", interval_size_bp) for interval_size_bp in genotype_dict["MS"].split(",")
@@ -239,7 +240,7 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                         variant_id = f"{locus_id}-m{motif_i}-{motif}"
                         variant_records[variant_id] = info_dict | genotype_dict | {
                             "Genotype": motif_count_genotypes[motif_i],   #"17/17",
-                            "GenotypeConfidenceInterval": None,
+                            "GenotypeConfidenceInterval": motif_count_genotypes_CIs[motif_i], #"17-17/17-17",
                             "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
                             "RepeatUnit": motif,
                             "VariantId": variant_id,
