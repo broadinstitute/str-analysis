@@ -72,12 +72,17 @@ from tqdm import tqdm
 def main():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--discard-hom-ref", action="store_true", help="Discard hom-ref calls")
-    p.add_argument("--set-locus-id", action="store_true", help="If specified, the locus id will be set to "
-                                                               "'chrom-start_0based-end-motif'")
-    p.add_argument("--take-genotype-from-AL-field", action="store_true", help="By default, the genotype is taken from "
-                   "the MC field. If this option is specified, it will be taken from the AL field for loci with only 1 motif")
     p.add_argument("--dont-output-REF-ALT-fields", action="store_true", help="Exclude the VCF REF and ALT fields from "
                    "the output as they can take up a lot of space.")
+    p.add_argument("--parse-genotype-from-AL-field", action="store_true", help="By default, the genotype is taken from "
+                   "the MC field. If this option is specified, it will be taken from the AL field for loci with only "
+                   "1 motif, and from the MC field only for loci with multiple motifs.")
+    grp = p.add_mutually_exclusive_group()
+    grp.add_argument("--parse-reference-region-from-locus-id", action="store_true", help="Parse the reference region from the " 
+                   "locus ID (which is expected to have the format '{chrom}-{start_0based}-{end}-{motif}') instead of "
+                   "from the VCF row position and END fields.")
+    grp.add_argument("--set-locus-id", action="store_true", help="If specified, the locus id will be set to "
+                     "'{chrom}-{start_0based}-{end}-{motif} based on the VCF row position and END fields.")
     p.add_argument("--verbose", action="store_true", help="Print verbose output")
     p.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     p.add_argument("--sample-id",
@@ -91,7 +96,8 @@ def main():
         sample_id=args.sample_id,
         discard_hom_ref=args.discard_hom_ref,
         use_trgt_locus_id=not args.set_locus_id,
-        take_genotype_from_AL_field=args.take_genotype_from_AL_field,
+        parse_genotype_from_AL_field=args.parse_genotype_from_AL_field,
+        parse_reference_region_from_locus_id=args.parse_reference_region_from_locus_id,
         dont_output_REF_ALT_fields=args.dont_output_REF_ALT_fields,
         verbose=args.verbose,
         show_progress_bar=args.show_progress_bar,
@@ -104,7 +110,9 @@ def main():
 
 
 def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_locus_id=False,
-                     take_genotype_from_AL_field=False, dont_output_REF_ALT_fields=False,
+                     parse_genotype_from_AL_field=False,
+                     parse_reference_region_from_locus_id=False,
+                     dont_output_REF_ALT_fields=False,
                      verbose=False, show_progress_bar=False):
     locus_results = {
         "LocusResults": {},
@@ -157,6 +165,7 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
 
             try:
                 end_1based = int(info_dict["END"])
+
                 motifs = info_dict["MOTIFS"].split(",")
                 allele_sizes_bp = [int(allele_size_bp) for allele_size_bp in genotype_dict["AL"].split(",")]
                 flip_alleles = len(allele_sizes_bp) == 2 and allele_sizes_bp[0] > allele_sizes_bp[1]
@@ -164,9 +173,22 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                     for key in "AL", "ALLR", "SD", "MC", "MS", "AP", "AM":
                         genotype_dict[key] = ",".join(genotype_dict[key].split(",")[::-1])
 
-                if take_genotype_from_AL_field and len(motifs) == 1:
-                    repeat_unit = motifs[0]
+                parse_genotype_from_AL_field = parse_genotype_from_AL_field and len(motifs) == 1
+                if parse_genotype_from_AL_field:
                     locus_id = info_dict["TRID"] if use_trgt_locus_id else f"{chrom}-{start_1based - 1}-{end_1based}-{repeat_unit}"
+                else:
+                    locus_id = info_dict["TRID"]
+
+                if parse_reference_region_from_locus_id:
+                    locus_id_fields = re.split("[_-]", locus_id)
+                    if len(locus_id_fields) < 3:
+                        raise ValueError(f"Unable to parse chrom, start, end from locus ID field: {locus_id}")
+                    chrom = locus_id_fields[0]
+                    start_1based = int(locus_id_fields[1]) + 1
+                    end_1based = int(locus_id_fields[2])
+
+                if parse_genotype_from_AL_field:
+                    repeat_unit = motifs[0]
 
                     genotype = []
                     for allele_size_bp in genotype_dict["AL"].split(","):
@@ -200,7 +222,6 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                         }
                     }
                 else:
-                    locus_id = info_dict["TRID"]
                     motif_counts = [[int(c) for c in mc.split("_")] for mc in genotype_dict["MC"].split(",")]
 
                     motif_count_genotypes = []
