@@ -56,7 +56,9 @@ def get_adjacent_repeats(locus_interval_0based, repeat_unit, pysam_fasta_file, i
 
     repeat_units_already_added = set()
 
-    repeat_unit = get_repeat_unit_from_fasta(chrom, start_0based + 1, end_1based, len(repeat_unit), pysam_fasta_file)
+    repeat_unit_in_reference = get_repeat_unit_from_fasta(chrom, start_0based + 1, end_1based, len(repeat_unit), pysam_fasta_file)
+    if repeat_unit != repeat_unit_in_reference:
+        print(f"WARNING: locus motif {repeat_unit} differs from the motif in the reference which is {repeat_unit_in_reference} @ {chrom}:{start_0based+1}-{end_1based}")
     locus_structure = f"({repeat_unit})*"
 
     repeat_units_already_added.add(repeat_unit)
