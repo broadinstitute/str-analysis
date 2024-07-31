@@ -17,6 +17,11 @@ def main():
     p.add_argument("-s", "--split-adjacent-repeats", action="store_true", help="If a locus is defined "
                    "as having several adjacent repeats in the ExpansionHunter catalog, split it into separate "
                    "entries in the TRGT catalog. This can simplify downstream analysis.")
+    p.add_argument("--keep-wide-boundaries", action="store_true", help="When the --split-adjacent-repeats option is used, "
+                   "use the outer boundaries of the adjacent repeats list as the locus boundaries.")
+    p.add_argument("--set-locus-id", action="store_true", help=f"Set the ID field to 'chom-start_0based-end-motif'"
+                                                               f"instead of using the LocusId field from the "
+                                                               f"ExpansionHunter catalog.")
     p.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     p.add_argument("-o", "--output-file", help="BED file output path")
     p.add_argument("expansion_hunter_catalog", help="ExpansionHunter variant catalog in JSON format")
@@ -25,11 +30,19 @@ def main():
     if not args.output_file:
         args.output_file = re.sub(".json(.gz)?$", "", args.expansion_hunter_catalog) + ".trgt.bed"
 
-    process_expansion_hunter_catalog(args.expansion_hunter_catalog, args.output_file, args.split_adjacent_repeats,
+    if args.keep_wide_boundaries and not args.split_adjacent_repeats:
+        p.error("The --wide-boundaries option can only be used in combination with the --split-adjacent-repeats option")
+
+    process_expansion_hunter_catalog(args.expansion_hunter_catalog, args.output_file,
+                                     split_adjacent_repeats=args.split_adjacent_repeats,
+                                     keep_wide_boundaries=args.keep_wide_boundaries,
+                                     set_locus_id=args.set_locus_id,
                                      show_progress_bar=args.show_progress_bar)
 
 
-def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_path, split_adjacent_repeats=False, show_progress_bar=False):
+def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_path,
+                                     split_adjacent_repeats=False, keep_wide_boundaries=False, set_locus_id=False,
+                                     show_progress_bar=False):
     print(f"Parsing {expansion_hunter_catalog_path}")
     fopen = gzip.open if expansion_hunter_catalog_path.endswith("gz") else open
     with fopen(expansion_hunter_catalog_path, "rt") as f:
@@ -83,12 +96,15 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
                     for motif, reference_region in zip(motifs, reference_regions):
                         chrom, start_0based, end_1based = parse_interval(reference_region)
 
-                        locus_label = f"{locus_id}_{motif}" if len(motifs) > 1 else locus_id
+                        if set_locus_id:
+                            locus_label = f"{chrom.replace('chr', '')}-{start_0based}-{end_1based}-{motif}"
+                        else:
+                            locus_label = f"{locus_id}-{motif}" if len(motifs) > 1 else locus_id
                         struc = f"({motif})n"
                         output_rows.append([
                             chrom,
-                            start_0based,
-                            end_1based,
+                            start_0based if not keep_wide_boundaries else locus_start_0based,
+                            end_1based if not keep_wide_boundaries else locus_end_1based,
                             f"ID={locus_label};MOTIFS={motif};STRUC={struc}",
                         ])
                 else:
