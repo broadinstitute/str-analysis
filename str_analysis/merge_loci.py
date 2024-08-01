@@ -277,7 +277,14 @@ def add_variant_catalog_to_interval_trees(
                 existing_record = overlapping_interval.data
                 if new_record["ReferenceRegion"] != existing_record["ReferenceRegion"]:
                     print("="*100)
-                    print(f"Existing record:", existing_record["ReferenceRegion"], existing_record["LocusStructure"])
+                    _, existing_start, existing_end = parse_interval(existing_record["ReferenceRegion"])
+                    _, new_start, new_end = parse_interval(new_record["ReferenceRegion"])
+                    existing_size = existing_end - existing_start
+                    new_size = new_end - new_start
+                    size_comparison = f"includes {existing_size - new_size} more repeats than" if existing_size > new_size \
+                        else "is the same size as" if existing_size == new_size else \
+                        f"includes {new_size - existing_size} fewer repeats than"
+                    print(f"Existing record:", existing_record["ReferenceRegion"], existing_record["LocusStructure"], size_comparison, "the new record")
                     print(f"     New record:", new_record["ReferenceRegion"], new_record["LocusStructure"])
 
             # don't add the current record to the output catalog
