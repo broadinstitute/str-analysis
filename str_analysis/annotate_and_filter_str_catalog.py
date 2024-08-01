@@ -278,6 +278,7 @@ def main():
     filter_counters = collections.Counter()
     modification_counters = collections.Counter()
     interval_trees = collections.defaultdict(IntervalTree)  # used to check for overlap between records in the catalog
+    warning_counter = 0
     for i, input_variant_catalog_record in enumerate(input_variant_catalog_iterator):
         filter_counters["total"] += 1
 
@@ -321,7 +322,7 @@ def main():
 
         # Check if the motif is actually composed of multiple repeats of a simpler motif.
         # For example, a "TTT" motif can be simplified to just a "T" homopolymer.
-        if not args.dont_simplify_motifs::
+        if not args.dont_simplify_motifs:
             for i, motif in enumerate(motifs):
                 simplified_motif = None
     
@@ -336,7 +337,8 @@ def main():
                     motifs[i] = simplified_motif
                     modification_counters[counter_key] += 1
                     if args.verbose:
-                        print(f"WARNING #{modification_counters[counter_key]}: collapsing "
+                        warning_counter += 1
+                        print(f"WARNING #{warning_counter}: collapsing "
                               f"{locus_id} motif from {motif} to just {simplified_motif}:",
                               input_variant_catalog_record["LocusStructure"])
 
@@ -472,7 +474,8 @@ def main():
                 fraction_pure_bases.append( round(num_matching_bases / len(ref_fasta_sequence), 2) )
                 fraction_pure_repeats.append( round(ref_fasta_sequence.count(motif) / int(len(ref_fasta_sequence) / len(motif)), 2) )
             else:
-                print(f"WARNING: {chrom}:{start_0based}-{end} interval is smaller than the motif size: {len(motif)}bp {motif}")
+                warning_counter += 1
+                print(f"WARNING #{warning_counter}: {chrom}:{start_0based}-{end} interval is smaller than the motif size: {len(motif)}bp {motif}")
                 fraction_pure_bases.append(0)
                 fraction_pure_repeats.append(0)
                 
@@ -525,7 +528,8 @@ def main():
                                                                       left_flank_mappability_interval_start,
                                                                       left_flank_mappability_interval_end)
             except Exception as e:
-                print(f"WARNING: Couldn't compute mappability of left flank interval: {chrom}:{left_flank_mappability_interval_start}-{left_flank_mappability_interval_end}: {e}")
+                warning_counter += 1
+                print(f"WARNING #{warning_counter}: Couldn't compute mappability of left flank interval: {chrom}:{left_flank_mappability_interval_start}-{left_flank_mappability_interval_end}: {e}")
 
             mappability_right_flank = None
             right_flank_mappability_interval_start = right_flank_start
@@ -535,7 +539,8 @@ def main():
                                                                        right_flank_start,
                                                                        right_flank_mappability_interval_end)
             except Exception as e:
-                print(f"WARNING: Couldn't compute mappability of right flank interval: {chrom}:{right_flank_start}-{right_flank_mappability_interval_end}: {e}")
+                warning_counter += 1
+                print(f"WARNING #{warning_counter}: Couldn't compute mappability of right flank interval: {chrom}:{right_flank_start}-{right_flank_mappability_interval_end}: {e}")
 
             mappability_overall = None
             try:
@@ -543,7 +548,8 @@ def main():
                                                                    left_flank_mappability_interval_start,
                                                                    right_flank_mappability_interval_end)
             except Exception as e:
-                print(f"WARNING: Couldn't compute mappability of overall interval: {chrom}:{left_flank_mappability_interval_start}-{right_flank_mappability_interval_end}: {e}")
+                warning_counter += 1
+                print(f"WARNING #{warning_counter}: Couldn't compute mappability of overall interval: {chrom}:{left_flank_mappability_interval_start}-{right_flank_mappability_interval_end}: {e}")
 
             input_variant_catalog_record[f"LeftFlankMappability"] = round(mappability_left_flank, 2)
             input_variant_catalog_record[f"EntireLocusMappability"] = round(mappability_overall, 2)
