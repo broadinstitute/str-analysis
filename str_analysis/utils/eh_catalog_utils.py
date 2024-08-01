@@ -2,6 +2,7 @@ import ijson
 import re
 from str_analysis.utils.file_utils import open_file
 from str_analysis.utils.misc_utils import parse_interval
+from tqdm import tqdm
 
 ACGTN_REGEX = re.compile("^[ACGTN]+$", re.IGNORECASE)
 
@@ -36,22 +37,28 @@ def convert_json_records_to_bed_format_tuples(json_records):
             yield chrom, start_0based, end_1based, motif, f"{(end_1based - start_0based) / len(motif):0.1f}"
 
 
-def get_variant_catalog_iterator(variant_catalog_json_or_bed):
+def get_variant_catalog_iterator(variant_catalog_json_or_bed, show_progress_bar=False):
     """Takes the path of a JSON or BED file and returns an iterator over variant catalog records parsed from that file.
 
     Args:
         variant_catalog_json_or_bed (str): path to a JSON or BED file containing variant catalog records
-
+        show_progress_bar (bool): whether to show a tqdm progress bar
     Yields:
         dict: a variant catalog record parsed from the file
     """
 
     if ".json" in variant_catalog_json_or_bed:
         with open_file(variant_catalog_json_or_bed, is_text_file=True) as f:
+            if show_progress_bar:
+                f = tqdm(f, unit=" records", unit_scale=True)
+
             for record in ijson.items(f, "item"):
                 yield record
     else:
         with open_file(variant_catalog_json_or_bed, is_text_file=True) as input_variant_catalog:
+            if show_progress_bar:
+                input_variant_catalog = tqdm(input_variant_catalog, unit=" records", unit_scale=True)
+
             for line in input_variant_catalog:
                 fields = line.strip().split("\t")
                 unmodified_chrom = fields[0]
