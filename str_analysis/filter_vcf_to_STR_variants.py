@@ -326,7 +326,7 @@ def check_if_allele_is_str(
             num_total_repeats_within_variant_bases,
             repeat_unit_interruption_index,
             has_partial_repeats
-        ) = find_repeat_unit_allowing_interruptions(variant_bases)
+        ) = find_repeat_unit_allowing_interruptions(variant_bases, allow_partial_repeats=False)
 
         reversed_repeat_unit_interruption_index = (len(repeat_unit) - 1 - repeat_unit_interruption_index) if repeat_unit_interruption_index is not None else None
 
