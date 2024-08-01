@@ -19,9 +19,9 @@ from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from str_analysis.utils.eh_catalog_utils import (parse_motifs_from_locus_structure,
                                                  convert_json_records_to_bed_format_tuples, get_variant_catalog_iterator)
 from str_analysis.utils.file_utils import open_file, file_exists, download_local_copy
+from str_analysis.utils.find_repeat_unit import find_repeat_unit_without_allowing_interruptions
 from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval
 from str_analysis.utils.misc_utils import parse_interval
-
 
 VALID_GENE_REGIONS = {"CDS", "UTR", "5UTR", "3UTR", "promoter", "exon", "intron", "intergenic"}
 
@@ -122,6 +122,11 @@ def parse_args():
     filter_group.add_argument("--discard-loci-with-non-ACGTN-bases-in-reference", action="store_true", help="Discard "
                               "loci if their reference sequence contains non-ACGTN bases")
 
+    modification_group = parser.add_argument_group("modifications")
+    filter_group.add_argument("--dont-simplify-motifs", action="store_true", help="By default, repeat motifs within the "
+                              "LocusStructure will be simplified to their most compact form. For example, a "
+                              "LocusStructure defined as '(TTT)*CGAG(CAGCAG)*' will be replaced with '(T)*CGAG(CAG)*'. "
+                              "This option disables this simplification step.")
 
     parser.add_argument("variant_catalog_json_or_bed", help="A catalog of repeats to annotate and filter, either "
                         "in JSON or BED format. For BED format, the chrom, start, and end should represent the repeat "
@@ -271,6 +276,7 @@ def main():
         input_variant_catalog_iterator = tqdm(input_variant_catalog_iterator, unit=" variant catalog records", unit_scale=True)
 
     filter_counters = collections.Counter()
+    modification_counters = collections.Counter()
     interval_trees = collections.defaultdict(IntervalTree)  # used to check for overlap between records in the catalog
     for i, input_variant_catalog_record in enumerate(input_variant_catalog_iterator):
         filter_counters["total"] += 1
@@ -312,6 +318,27 @@ def main():
             print(f"ERROR: number of motifs != number of variant types in variant catalog record #{i+1}: {input_variant_catalog_record}. Skipping...")
             filter_counters[f"row LocusStructure motif count != number of VariantTypes"] += 1
             continue
+
+        # Check if the motif is actually composed of multiple repeats of a simpler motif.
+        # For example, a "TTT" motif can be simplified to just a "T" homopolymer.
+        if not args.dont_simplify_motifs::
+            for i, motif in enumerate(motifs):
+                simplified_motif = None
+    
+                # the above elif clauses are an optimization to speed up the
+                simplified_motif, num_repeats, _ = find_repeat_unit_without_allowing_interruptions(motif, allow_partial_repeats=False)
+                if num_repeats > 1:
+                    counter_key = f"replaced {len(motif)}bp motif with a simplified {len(simplified_motif)}bp motif"
+    
+                    input_variant_catalog_record["LocusStructure"] = input_variant_catalog_record["LocusStructure"].replace(
+                        f"({motif})", f"({simplified_motif})")
+    
+                    motifs[i] = simplified_motif
+                    modification_counters[counter_key] += 1
+                    if args.verbose:
+                        print(f"WARNING #{modification_counters[counter_key]}: collapsing "
+                              f"{locus_id} motif from {motif} to just {simplified_motif}:",
+                              input_variant_catalog_record["LocusStructure"])
 
         # parse intervals
         chroms_start_0based_ends = [parse_interval(reference_region) for reference_region in reference_regions]
@@ -391,24 +418,24 @@ def main():
                 verbose=args.verbose,
                 show_progress_bar=args.show_progress_bar)
 
-            if args.region_type and input_variant_catalog_record[f"{args.gene_models_source}GeneRegion"] not in args.region_type:
-                filter_counters[f"row {args.gene_models_source}GeneRegion isn't among {args.region_type}"] += 1
-                continue
-            if args.exclude_region_type and input_variant_catalog_record[f"{args.gene_models_source}GeneRegion"] in args.exclude_region_type:
-                filter_counters[f"row {args.gene_models_source}GeneRegion is one of {args.exclude_region_type}"] += 1
-                continue
-            if args.gene_name and input_variant_catalog_record[f"{args.gene_models_source}GeneName"] not in args.gene_name:
-                filter_counters[f"row {args.gene_models_source}GeneName isn't among {args.gene_name}"] += 1
-                continue
-            if args.exclude_gene_name and input_variant_catalog_record[f"{args.gene_models_source}GeneName"] in args.exclude_gene_name:
-                filter_counters[f"row {args.gene_models_source}GeneName is one of {args.exclude_gene_name}"] += 1
-                continue
-            if args.gene_id and input_variant_catalog_record[f"{args.gene_models_source}GeneId"] not in args.gene_id:
-                filter_counters[f"row {args.gene_models_source}GeneId isn't among {args.gene_id}"] += 1
-                continue
-            if args.exclude_gene_id and input_variant_catalog_record[f"{args.gene_models_source}GeneId"] in args.exclude_gene_id:
-                filter_counters[f"row {args.gene_models_source}GeneId is one of {args.exclude_gene_id}"] += 1
-                continue
+        if args.region_type and input_variant_catalog_record.get(f"{args.gene_models_source}GeneRegion") not in args.region_type:
+            filter_counters[f"row {args.gene_models_source}GeneRegion isn't among {args.region_type}"] += 1
+            continue
+        if args.exclude_region_type and input_variant_catalog_record.get(f"{args.gene_models_source}GeneRegion") in args.exclude_region_type:
+            filter_counters[f"row {args.gene_models_source}GeneRegion is one of {args.exclude_region_type}"] += 1
+            continue
+        if args.gene_name and input_variant_catalog_record.get(f"{args.gene_models_source}GeneName") not in args.gene_name:
+            filter_counters[f"row {args.gene_models_source}GeneName isn't among {args.gene_name}"] += 1
+            continue
+        if args.exclude_gene_name and input_variant_catalog_record.get(f"{args.gene_models_source}GeneName") in args.exclude_gene_name:
+            filter_counters[f"row {args.gene_models_source}GeneName is one of {args.exclude_gene_name}"] += 1
+            continue
+        if args.gene_id and input_variant_catalog_record.get(f"{args.gene_models_source}GeneId") not in args.gene_id:
+            filter_counters[f"row {args.gene_models_source}GeneId isn't among {args.gene_id}"] += 1
+            continue
+        if args.exclude_gene_id and input_variant_catalog_record.get(f"{args.gene_models_source}GeneId") in args.exclude_gene_id:
+            filter_counters[f"row {args.gene_models_source}GeneId is one of {args.exclude_gene_id}"] += 1
+            continue
 
         # annotate repeat purity in the reference genome
         interruption_base_count = []
@@ -555,6 +582,11 @@ def main():
                 print(f" {value:9,d} total input rows")
             else:
                 print(f" {value:9,d} out of {filter_counters['total']:,d} ({value/filter_counters['total']:3.0%})  {key}")
+        if sum(modification_counters.values()) > 0:
+            print("\nModification stats:")
+            for key, value in sorted(modification_counters.items(), key=lambda x: -x[1]):
+                print(f" {value:9,d} out of {filter_counters['total']:,d} ({value/filter_counters['total']:3.0%})  {key}")
+
 
     if args.output_bed:
         output_path = f"{output_path_prefix}.bed"
