@@ -8,10 +8,10 @@ compute time proportional to repeat unit length, so this threshold is necessary 
 """
 MAX_INTERRUPTED_REPEAT_UNIT_LENGTH = 24
 
-"""The maximum fraction of bases that can be interruptions before it's no longer considered a homopolymer repeat."""
+"""The minimum fraction of bases that can be  pure repeats before it's no longer considered a homopolymer repeat."""
 MIN_PURE_REPEAT_FRACTION_FOR_HOMOPOLYMER_REPEATS = 9/10
 
-"""The maximum fraction of repeats that can have interruptions before it's no longer considered a dinucleotide repeat."""
+"""The minimum fraction of repeats that have to be pure repeats before it's no longer considered a dinucleotide repeat."""
 MIN_PURE_REPEAT_FRACTION_FOR_DINUCLEOTIDE_REPEATS = 4/5
 
 """Cache of compiled regular expressions for matching repeats."""
@@ -94,8 +94,19 @@ def find_repeat_unit_without_allowing_interruptions(sequence, allow_partial_repe
             has_partial_repeats
     """
 
+    # quickly check if the sequence consists of exact repeats of a 1bp, 2bp, or 3bp motif
+    repeat_unit = None
+    if len(sequence) >= 2 and sequence == sequence[0]*len(sequence):
+        repeat_unit = sequence[0]
+    elif len(sequence) >= 4 and len(sequence) % 2 == 0 and sequence == sequence[:2]*(len(sequence)//2):
+        repeat_unit = sequence[:2]
+    elif len(sequence) >= 6 and len(sequence) % 3 == 0 and sequence == sequence[:3]*(len(sequence)//3):
+        repeat_unit = sequence[:3]
+    if repeat_unit:
+        return repeat_unit, len(sequence) // len(repeat_unit), False
+
     # find the smallest repeat unit that covers the entire sequence
-    repeat_unit_length = 1
+    repeat_unit_length = 4 if not allow_partial_repeats else 1
     while repeat_unit_length <= len(sequence)/2:
         if not allow_partial_repeats and len(sequence) % repeat_unit_length != 0:
             repeat_unit_length += 1
