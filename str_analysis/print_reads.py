@@ -37,10 +37,14 @@ def main():
 						help="Output read pairs where both mates are unmapped. This can be specified in addition to or "
 							 "instead of -L intervals.")
 	parser.add_argument("--verbose", action="store_true")
+	parser.add_argument("--debug", action="store_true")
 	parser.add_argument("input_bam_or_cram", help="Input BAM or CRAM file. This can be a local or a gs:// path")
 	args = parser.parse_args()
 
 	# validate args
+	if args.debug:
+		args.verbose = True
+
 	if not args.interval and not args.include_unmapped_read_pairs:
 		parser.error("At least one --interval or --include-unmapped-read-pairs arg must be specified")
 
@@ -61,7 +65,9 @@ def main():
 		args.input_bam_or_cram,
 		crai_or_bai_path=args.read_index,
 		include_unmapped_read_pairs=args.include_unmapped_read_pairs,
-		verbose=args.verbose)
+		verbose=args.verbose,
+		debug=args.debug,
+	)
 
 	# write out the CRAM file
 	for interval in args.interval:

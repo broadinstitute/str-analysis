@@ -41,11 +41,12 @@ def main():
         "and retrieved using a single disk read operation. To reduce number of the disk reads, increase "
         "this parameter, or decrease it to reduce the total number of bytes read.")
     parser.add_argument("-u", "--gcloud-project", help="Google Cloud project name to use when reading the input cram.")
-    parser.add_argument("-R", "--reference-fasta", help="Reference genome FASTA file used for reading the CRAM file")
+    parser.add_argument("-R", "--reference-fasta", required=True, help="Reference genome FASTA file used for reading the CRAM file")
     parser.add_argument("-o", "--cramlet", help="Output file path prefix")
     parser.add_argument("-i", "--crai-index-path", help="Optional path of the input CRAM index file. This can be a "
                         "local or a gs:// path")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--debug", action="store_true")
     parser.add_argument("-t", "--output-download-stats", action="store_true", help="Write out a TSV file with stats "
                         "about the total number of bytes and containers downloaded from the CRAM")
     parser.add_argument("input_cram", help="Input CRAM file path. This can a local or a gs:// path")
@@ -53,6 +54,9 @@ def main():
                                                   "for the HTT repeat locus on hg38, specify chr4:3074877-3074933")
 
     args = parser.parse_args()
+
+    if args.debug:
+        args.verbose=True
 
     window_size = 2000
 
@@ -89,9 +93,8 @@ def main():
     # create a CramIntervalRreader and use it to generate a temp CRAM file containing the CRAM header and any reads
     # overlapping the user-specified region interval(s)
     print(f"Retrieving reads within {window_size:,d}bp of", ", ".join(args.region))
-    cram_reader = IntervalReader(args.input_cram, input_crai_path, verbose=args.verbose,
-                                 reference_fasta_path=args.reference_fasta,
-                                 cache_byte_ranges=True)
+    cram_reader = IntervalReader(args.input_cram, input_crai_path, verbose=args.verbose, debug=args.debug,
+                                 reference_fasta_path=args.reference_fasta, cache_byte_ranges=True)
 
     for chrom, start, end in intervals:
         cram_reader.add_interval(chrom, start, end)
