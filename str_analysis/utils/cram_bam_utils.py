@@ -1,5 +1,6 @@
 import binascii
 import collections
+import hashlib
 import intervaltree
 import os
 import pysam
@@ -115,9 +116,10 @@ class IntervalReader:
 				 cram_or_bam_path,
 				 crai_or_bai_path=None,
 				 reference_fasta_path=None,
-				 verbose=False,
 				 include_unmapped_read_pairs=False,
-				 cache_byte_ranges=False):
+				 cache_byte_ranges=False,
+				 verbose=False,
+				 debug=False):
 		"""Constructor.
 
 		Args:
@@ -125,12 +127,13 @@ class IntervalReader:
 			crai_or_bai_path: Optional CRAI  or BAI index file path. This can be a local or a gs:// path.
 				If not specified, it will be inferred based on the cram_or_bam_path.
 			reference_fasta_path: Optional reference genome FASTA path to use when reading CRAM files using pysam.
-			verbose: If True, will print more detailed information.
 			include_unmapped_read_pairs: If True, also output any umapped read pairs stored at the end of the cram file.
 			cache_byte_ranges: This option is only relevant for CRAM files, and is ignored for BAMs.
 				Cache the byte ranges that are read from the CRAM file in memory. This can be useful when loading a
 				relatively small number of intervals and then reusing the same IntervalReader instance across multiple
 				rounds of CRAM access.
+			verbose: If True, will print more detailed information.
+			debug: If True, will print even more detailed information.
 		"""
 		self._cram_or_bam_path = cram_or_bam_path
 		self._crai_or_bai_path = crai_or_bai_path
@@ -148,8 +151,10 @@ class IntervalReader:
 			raise ValueError(f"Input file {cram_or_bam_path} must end with .cram or .bam")
 
 		self._reference_fasta_path = reference_fasta_path
-		self._verbose = verbose
 		self._include_unmapped_read_pairs = include_unmapped_read_pairs
+		self._verbose = verbose or debug
+		self._debug = debug
+
 		self._byte_ranges_cache = {} if cache_byte_ranges else None
 		self._genomic_intervals = collections.defaultdict(intervaltree.IntervalTree)
 
@@ -228,7 +233,13 @@ class IntervalReader:
 		if self._is_cram_file:
 			local_path_suffix = ".cram"
 			temp_cram_container_file = tempfile.NamedTemporaryFile(suffix=local_path_suffix)
+			if self._debug:
+				print(f"DEBUG: Writing containers to {temp_cram_container_file.name}")
 			self._load_cram_containers(temp_cram_container_file)
+			if self._debug:
+				print(f"DEBUG: {temp_cram_container_file.name} has file size "
+					  f"{os.path.getsize(temp_cram_container_file.name):,d} bytes")
+				print(f"DEBUG: Using pysam to generate a CRAM index..")
 			temp_cram_container_file.seek(0)
 			pysam.index(temp_cram_container_file.name)
 			pysam_input_file = pysam.AlignmentFile(
@@ -400,13 +411,22 @@ class IntervalReader:
 					merged_byte_ranges.append((bytes_start, bytes_end))
 
 		# write all CRAM containers that overlap the requested intervals to the given CRAM file
+		if self._debug:
+			print(f"DEBUG: Wrote CRAM header [0-{len(self._cram_header_bytes):,d}] (hash: {hashlib.md5(self._cram_header_bytes).hexdigest()[:20]})")
 		cram_container_file.write(self._cram_header_bytes)
 		for bytes_start, bytes_end in merged_byte_ranges:
 			cram_container_bytes = self._get_byte_range(bytes_start, bytes_end)
 			cram_container_file.write(cram_container_bytes)
+			if self._debug:
+				print(f"DEBUG: Wrote byte range [{bytes_start:,d}-{bytes_end:,d}] (hash: {hashlib.md5(cram_container_bytes).hexdigest()[:20]})")
 
 		cram_container_file.write(CRAM_EOF_CONTAINER)
+		if self._debug:
+			print(f"DEBUG: Wrote EOF container [0-{len(CRAM_EOF_CONTAINER):,d}] (hash: {hashlib.md5(CRAM_EOF_CONTAINER).hexdigest()[:20]})")
+
 		cram_container_file.flush()
+		if self._debug:
+			print(f"DEBUG: Wrote {len(merged_byte_ranges):,d} CRAM containers to {cram_container_file.name}")
 
 		if self._verbose and self._total_byte_ranges_loaded_from_cram > 0:
 			print(f"Copied {self._total_bytes_loaded_from_cram/10**6:5.1f}Mb total from {self._cram_or_bam_path}  to  {cram_container_file.name}")
