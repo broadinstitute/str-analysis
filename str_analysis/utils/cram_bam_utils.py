@@ -266,6 +266,7 @@ class IntervalReader:
 		for chrom, start, end in sorted(self._get_merged_intervals(chrom_sort_order=lambda chrom: chom_order.index(normalize_chromosome_name(chrom)))):
 			if self._debug:
 				print(f"DEBUG: Fetching {chrom}:{start}-{end} from {pysam_input_filename}")
+
 			for read in pysam_input_file.fetch(chrom, start, end):
 				read_counter += 1
 				pysam_output_file.write(read)

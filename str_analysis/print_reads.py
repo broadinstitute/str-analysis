@@ -25,6 +25,7 @@ def main():
 	parser.add_argument("-o", "--output", help="Output file path. If not specified, it will be based on the input filename.")
 	parser.add_argument("--read-index", help="Optional path of the input BAM or CRAM index file. This can be a local "
 											 "or a gs:// path")
+	parser.add_argument("-R", "--reference-fasta", help="Optional reference genome FASTA file used when reading the CRAM file")
 	parser.add_argument("-L", "--interval", action="append", default=[], help="The script will output aligned reads that "
 						"overalp the given genomic interval(s). The value can be the path of a .bed file, .bed.gz file, "
 						".interval_list file, an interval in the format \"chr:start-end\" with a 0-based start "
@@ -65,6 +66,7 @@ def main():
 		args.input_bam_or_cram,
 		crai_or_bai_path=args.read_index,
 		include_unmapped_read_pairs=args.include_unmapped_read_pairs,
+		reference_fasta_path=args.reference_fasta,
 		verbose=args.verbose,
 		debug=args.debug,
 	)
