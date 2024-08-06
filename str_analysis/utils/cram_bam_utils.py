@@ -239,17 +239,21 @@ class IntervalReader:
 			if self._debug:
 				print(f"DEBUG: {temp_cram_container_file.name} has file size "
 					  f"{os.path.getsize(temp_cram_container_file.name):,d} bytes")
-				print(f"DEBUG: Using pysam to generate a CRAM index..")
+				print(f"DEBUG: Using pysam to generate a CRAM index for {temp_cram_container_file.name}")
 			temp_cram_container_file.seek(0)
 			pysam.index(temp_cram_container_file.name)
+			if self._debug:
+				print(f"DEBUG: Generated CRAM index {temp_cram_container_file.name}.crai (size: {os.path.getsize(temp_cram_container_file.name + '.crai'):,d} bytes)")
 			pysam_input_file = pysam.AlignmentFile(
 				temp_cram_container_file, require_index=True, reference_filename=self._reference_fasta_path)
+			pysam_input_filename = temp_cram_container_file.name
 		elif self._is_bam_file:
 			local_path_suffix = ".bam"
 			pysam_input_file = pysam.AlignmentFile(
 				self._cram_or_bam_path, index_filename=self._crai_or_bai_path,
 				reference_filename=self._reference_fasta_path, require_index=True,
 			)
+			pysam_input_filename = self._cram_or_bam_path.name
 		else:
 			raise ValueError(f"Output path {local_path} must end with .cram or .bam")
 
@@ -260,6 +264,8 @@ class IntervalReader:
 		if self._verbose:
 			print("Writing reads to", local_path)
 		for chrom, start, end in sorted(self._get_merged_intervals(chrom_sort_order=lambda chrom: chom_order.index(normalize_chromosome_name(chrom)))):
+			if self._debug:
+				print(f"DEBUG: Fetching {chrom}:{start}-{end} from {pysam_input_filename}")
 			for read in pysam_input_file.fetch(chrom, start, end):
 				read_counter += 1
 				pysam_output_file.write(read)
@@ -273,13 +279,15 @@ class IntervalReader:
 		pysam_output_file.close()
 
 		if create_index:
-			if self._verbose:
-				print("Creating index for", local_path)
+			if self._debug:
+				print(f"DEBUG: Using pysam to generate a CRAM index for {local_path}")
 
 			try:
 				pysam.sort("-o", f"{local_path}.sorted.{local_path_suffix}", local_path)
 				os.rename(f"{local_path}.sorted.{local_path_suffix}", local_path)
 				pysam.index(local_path)
+				if self._debug:
+					print(f"DEBUG: Generated CRAM index {local_path}.crai (size: {os.path.getsize(local_path + '.crai'):,d} bytes)")
 			except Exception as e:
 				print(f"WARNING: Failed to sort and index {local_path}: {e}")
 
