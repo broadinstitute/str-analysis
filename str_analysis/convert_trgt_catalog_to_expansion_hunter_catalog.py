@@ -174,6 +174,7 @@ def process_variant_catalog(trgt_bed_path_path, reference_fasta_path, output_fil
                 if verbose:
                     print(f"WARNING: Skipped {locus_id} due to issues with parsing the reference sequence. This typically happens when reference repeat sequence contains interruptions. {motifs}, {fields}")
 
+    print(f"Parsed {counter['total input loci']:,d} loci from {trgt_bed_path_path}")
     print(f"Writing {len(output_json_records):,d} records to {output_file_path}")
     fopen = gzip.open if output_file_path.endswith("gz") else open
     with fopen(output_file_path, "wt") as f:
