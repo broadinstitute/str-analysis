@@ -61,9 +61,9 @@ def process_variant_catalog(variant_catalog_path, output_file_path, verbose=Fals
                 for motif, variant_type, reference_region in zip(motifs, variant_types, reference_regions):
                     chrom, start_0based, end_1based = parse_interval(reference_region)
 
-                    if start_0based + 1 >= end_1based:
-                        print(f"WARNING: Skipping {motif} locus @ {chrom}:{start_0based+1}-{end_1based} because "
-                              f"the interval has a width = {end_1based - start_0based - 1}bp")
+                    if start_0based >= end_1based:
+                        print(f"WARNING: Skipping {motif} locus @ {chrom}:{start_0based}-{end_1based} because "
+                              f"the interval has a width = {end_1based - start_0based}bp")
                         continue
 
                     if len(motif) > 9 or (end_1based - start_0based) <= 1:

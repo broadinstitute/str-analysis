@@ -78,10 +78,10 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
                 locus_start_0based = min(locus_start_0based, start_0based) if locus_start_0based is not None else start_0based
                 locus_end_1based = max(locus_end_1based, end_1based) if locus_end_1based is not None else end_1based
 
-            if locus_start_0based + 1 >= locus_end_1based:
+            if locus_start_0based >= locus_end_1based:
                 print(f"WARNING: Skipping locus {locus_id} because its ReferenceRegion "
-                      f"{chrom}:{locus_start_0based+1}-{locus_end_1based} has a width = "
-                      f"{locus_end_1based - locus_start_0based - 1}bp")
+                      f"{chrom}:{locus_start_0based}-{locus_end_1based} has a width = "
+                      f"{locus_end_1based - locus_start_0based}bp")
                 continue
 
             if "|" in locus_structure:

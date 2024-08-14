@@ -61,9 +61,9 @@ def process_variant_catalog(variant_catalog_path, output_file_path, show_progres
                     chrom, start_0based, end_1based = parse_interval(reference_region)
                     # trim the locus so that it's an exact multiple of the repeat unit size
                     end_1based -= (end_1based - start_0based) % len(repeat_unit)
-                    if start_0based + 1 >= end_1based:
-                        print(f"WARNING: Skipping {repeat_unit} locus @ {chrom}:{start_0based+1}-{end_1based} because "
-                              f"the interval has a width = {end_1based - start_0based - 1}bp")
+                    if start_0based >= end_1based:
+                        print(f"WARNING: Skipping {repeat_unit} locus @ {chrom}:{start_0based}-{end_1based} because "
+                              f"the interval has a width = {end_1based - start_0based}bp")
                         continue
 
                     f2.write("\t".join(map(str, [
