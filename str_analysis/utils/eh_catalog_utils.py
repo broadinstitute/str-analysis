@@ -61,19 +61,22 @@ def get_variant_catalog_iterator(variant_catalog_json_or_bed, show_progress_bar=
 
             for line in input_variant_catalog:
                 fields = line.strip().split("\t")
-                unmodified_chrom = fields[0]
-                chrom = unmodified_chrom.replace("chr", "")
-                start_0based = int(fields[1])
-                end_1based = int(fields[2])
-                motif = fields[3].strip("()*+").upper()
-                if not ACGTN_REGEX.match(motif):
-                    print(f"WARNING: skipping line with invalid motif: {line.strip()}")
-                    continue
+                try:
+                    unmodified_chrom = fields[0]
+                    chrom = unmodified_chrom.replace("chr", "")
+                    start_0based = int(fields[1])
+                    end_1based = int(fields[2])
+                    motif = fields[3].strip("()*+").upper()
+                    if not ACGTN_REGEX.match(motif):
+                        print(f"WARNING: skipping line with invalid motif: {line.strip()}")
+                        continue
 
-                record = {
-                    "LocusId": f"{chrom}-{start_0based + 1}-{end_1based}-{motif}",
-                    "ReferenceRegion": f"{unmodified_chrom}:{start_0based}-{end_1based}",
-                    "LocusStructure": f"({motif})*",
-                    "VariantType": "Repeat",
-                }
-                yield record
+                    record = {
+                        "LocusId": f"{chrom}-{start_0based + 1}-{end_1based}-{motif}",
+                        "ReferenceRegion": f"{unmodified_chrom}:{start_0based}-{end_1based}",
+                        "LocusStructure": f"({motif})*",
+                        "VariantType": "Repeat",
+                    }
+                    yield record
+                except Exception as e:
+                    raise ValueError(f"Unable to parse line {fields}. Error: {e}")
