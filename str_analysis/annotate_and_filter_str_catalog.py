@@ -447,8 +447,7 @@ def main():
         overlaps_other_interval_with_similar_motif = False
         has_invalid_bases = False
         for (chrom, start_0based, end), motif in zip(chroms_start_0based_ends, motifs):
-            trimmed_end = end - (end - start_0based) % len(motif)
-            ref_fasta_sequence = ref_fasta.fetch(chrom, start_0based, trimmed_end)  # fetch uses 0-based coords
+            ref_fasta_sequence = ref_fasta.fetch(chrom, start_0based, end)  # fetch uses 0-based coords
             ref_fasta_sequence = ref_fasta_sequence.upper()
 
             if ((args.discard_loci_with_non_ACGT_bases_in_motif and not ACGT_REGEX.match(motif)) or
@@ -456,26 +455,23 @@ def main():
                 has_invalid_bases = True
                 filter_counters["row motif has invalid bases"] += 1
                 break
-            if ((args.discard_loci_with_non_ACGT_bases_in_reference and not ACGT_REGEX.match(ref_fasta_sequence)) or
-                (args.discard_loci_with_non_ACGTN_bases_in_reference and not ACGTN_REGEX.match(ref_fasta_sequence))):
-                has_invalid_bases = True
-                filter_counters["row reference sequence has invalid bases"] += 1
-                break
+            if len(ref_fasta_sequence) > 0:
+                if ((args.discard_loci_with_non_ACGT_bases_in_reference and not ACGT_REGEX.match(ref_fasta_sequence)) or
+                    (args.discard_loci_with_non_ACGTN_bases_in_reference and not ACGTN_REGEX.match(ref_fasta_sequence))):
+                    has_invalid_bases = True
+                    filter_counters["row reference sequence has invalid bases"] += 1
+                    break
 
             pure_sequence = motif.upper() * int(len(ref_fasta_sequence)/len(motif))
-            if len(pure_sequence) != len(ref_fasta_sequence):
-                raise ValueError(f"Invalid input locus spec: {pformat(input_variant_catalog_record)}. Reference "
-                                 f"interval is not a multiple of the motif size")
+            num_matching_bases = sum(1 for nuc1, nuc2 in zip(ref_fasta_sequence[:len(pure_sequence)], pure_sequence) if nuc1 == nuc2)
 
-            num_matching_bases = sum(1 for nuc1, nuc2 in zip(ref_fasta_sequence, pure_sequence) if nuc1 == nuc2)
-
-            interruption_base_count.append( len(ref_fasta_sequence) - num_matching_bases )
-            if len(ref_fasta_sequence) > 0:
+            interruption_base_count.append( len(pure_sequence) - num_matching_bases )
+            if len(ref_fasta_sequence) >= len(motif):
                 fraction_pure_bases.append( round(num_matching_bases / len(ref_fasta_sequence), 2) )
                 fraction_pure_repeats.append( round(ref_fasta_sequence.count(motif) / int(len(ref_fasta_sequence) / len(motif)), 2) )
             else:
                 warning_counter += 1
-                print(f"WARNING #{warning_counter}: {chrom}:{start_0based}-{end} interval is smaller than the motif size: {len(motif)}bp {motif}")
+                print(f"WARNING #{warning_counter}: {chrom}:{start_0based}-{end} interval size ({end-start_0based}bp) is smaller than the motif size ({len(motif)}bp) {motif}. Setting purity to 0.")
                 fraction_pure_bases.append(0)
                 fraction_pure_repeats.append(0)
                 
