@@ -20,7 +20,8 @@ def main():
 	p.add_argument("-r", "--reference-fasta", required=True, help="Reference FASTA file path")
 	p.add_argument("-o", "--output-file", help="ExansionHunter variant catalog JSON output file path")
 	p.add_argument("-v", "--verbose", action="store_true")
-	p.add_argument("--set-locus-id", action="store_true", help="Ignore the ID field in the TRGT catalog and set the locus ID to {chrom}-{start}-{end}-{motif}")
+	p.add_argument("--set-locus-id", action="store_true", help="Ignore the ID field in the TRGT catalog and set the "
+															   "locus ID to {chrom}-{start_0based}-{end}-{motif}")
 	p.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
 	p.add_argument("trgt_bed_path", help="path of the TRGT repeat catalog BED file")
 	args = p.parse_args()

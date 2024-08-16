@@ -14,6 +14,7 @@ from str_analysis.utils.file_utils import open_file, file_exists
 from str_analysis.utils.misc_utils import parse_interval
 
 REQUIRED_OUTPUT_FIELDS = {"LocusId", "ReferenceRegion", "LocusStructure", "VariantType"}
+SEPARATOR_FOR_MULTIPLE_SOURCES = " ||| "
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Combines two or more repeat catalogs into a single catalog. Loci "
@@ -160,7 +161,7 @@ def get_variant_catalog_iterator(
                     motif = fields[3]
 
                 record = {
-                    "LocusId": f"{chrom}-{start_0based + 1}-{end_1based}-{motif}",
+                    "LocusId": f"{chrom}-{start_0based}-{end_1based}-{motif}",
                     "ReferenceRegion": f"{unmodified_chrom}:{start_0based}-{end_1based}",
                     "LocusStructure": f"({motif})*",
                     "VariantType": "Repeat",
@@ -328,12 +329,13 @@ def add_variant_catalog_to_interval_trees(
         os.system(f"tabix -f {unique_loci_bed_filename}.gz")
         print(f"Wrote {counters['added']:,d} unique loci from {variant_catalog_filename} to {unique_loci_bed_filename}.gz")
 
-def check_whether_to_merge_adjacent_loci(previous_interval, current_interval):
+def check_whether_to_merge_adjacent_loci(previous_interval, current_interval, add_source_field=False):
     """Checks whether the two loci should be merged into a single locus.
 
     Args:
         previous_interval (intervaltree.Interval): The previous locus
         current_interval (intervaltree.Interval): The current locus
+        add_source_field (bool): see the --add-source-field option
 
     Return:
         bool: True if the two loci should be merged into a single locus
@@ -368,11 +370,22 @@ def check_whether_to_merge_adjacent_loci(previous_interval, current_interval):
     end_1based = current_interval.end
     locus_structure = previous_interval.data["LocusStructure"]
     merged_data = {
-        "LocusId": f"{chrom}-{start_0based + 1}-{end_1based}-{previous_motif}",
+        "LocusId": f"{chrom}-{start_0based}-{end_1based}-{previous_motif}",
         "ReferenceRegion": f"{unmodified_chrom}:{start_0based}-{end_1based}",
         "LocusStructure": locus_structure,
         "VariantType": "Repeat",
     }
+
+    if add_source_field:
+        if not previous_interval.data.get("Source"):
+            raise ValueError(f"'Source' field not found in record {previous_interval.data}")
+        if not current_interval.data.get("Source"):
+            raise ValueError(f"'Source' field not found in record {current_interval.data}")
+
+        if previous_interval.data["Source"] == current_interval.data["Source"]:
+            merged_data["Source"] = previous_interval.data["Source"]
+        else:
+            merged_data["Source"] = previous_interval.data["Source"] + SEPARATOR_FOR_MULTIPLE_SOURCES + current_interval.data["Source"]
 
     merged_interval = intervaltree.Interval(
         previous_interval.begin,
@@ -388,12 +401,17 @@ def check_whether_to_merge_adjacent_loci(previous_interval, current_interval):
     return True, merged_interval
 
 
-def convert_interval_trees_to_output_records(interval_trees, merge_adjacent_loci_with_same_motif=False):
+def convert_interval_trees_to_output_records(
+    interval_trees,
+    merge_adjacent_loci_with_same_motif=False,
+    add_source_field=False,
+):
     """Converts the IntervalTrees to a generator for output catalog records.
 
     Args:
         interval_trees (dict): a dictionary that maps chromosome names to IntervalTree objects for overlap detection
         merge_adjacent_loci_with_same_motif (bool): see the --merge-adjacent-loci-with-same-motif option
+        add_source_field (bool): see the --add-source-field option
 
     Yield:
         dict: A dictionary representing a record in the output catalog
@@ -415,7 +433,8 @@ def convert_interval_trees_to_output_records(interval_trees, merge_adjacent_loci
                     previous_interval = interval
                     continue
 
-                should_merge, merged_interval = check_whether_to_merge_adjacent_loci(previous_interval, interval)
+                should_merge, merged_interval = check_whether_to_merge_adjacent_loci(
+                    previous_interval, interval, add_source_field=add_source_field)
                 if should_merge:
                     merged_counter += 1
                     previous_interval = merged_interval
@@ -493,6 +512,17 @@ def print_catalog_stats(interval_trees, has_source_field=False):
     for label, count in sorted(chrom_counters.items(), key=lambda x: x[1], reverse=True):
         print(f"   {count:9,d} out of {total:9,d} ({count/total:5.1%}) are on {label}")
 
+def fix_source_field_for_merged_adjacent_loci_with_multiple_sources(iterator):
+    for record in iterator:
+        if "Source" not in record:
+            raise ValueError(f"Unexpected absence of 'Source' field in record: {record}")
+
+        if SEPARATOR_FOR_MULTIPLE_SOURCES in record["Source"]:
+            source = ", ".join(sorted(set(record["Source"].split(SEPARATOR_FOR_MULTIPLE_SOURCES))))
+            record["Source"] = f"merged adjacent loci from: {source}"
+
+        yield record
+
 def main():
     args, paths = parse_args()
 
@@ -517,7 +547,14 @@ def main():
 
     for output_format in output_formats:
         output_catalog_record_generator = convert_interval_trees_to_output_records(
-            interval_trees, args.merge_adjacent_loci_with_same_motif)
+            interval_trees,
+            merge_adjacent_loci_with_same_motif=args.merge_adjacent_loci_with_same_motif,
+            add_source_field=args.add_source_field)
+
+        if args.add_source_field and args.merge_adjacent_loci_with_same_motif:
+            # convert the SEPARATOR_FOR_MULTIPLE_SOURCES to commas
+            output_catalog_record_generator = fix_source_field_for_merged_adjacent_loci_with_multiple_sources(
+                output_catalog_record_generator)
 
         output_path = f"{args.output_prefix}.{output_format.lower()}"
         if output_format == "JSON":
