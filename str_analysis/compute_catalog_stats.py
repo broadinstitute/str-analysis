@@ -135,7 +135,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
             motif_sizes_per_locus_size_bin = f"{motif_sizes_per_locus_size}x" if motif_sizes_per_locus_size <= 9 else "10-15x" if motif_sizes_per_locus_size <= 15 else "16-25x" if motif_sizes_per_locus_size <= 25 else "26-35x" if motif_sizes_per_locus_size <= 35 else "36-50x" if motif_sizes_per_locus_size <= 50 else "51+x"
             counters[f"motif_sizes_per_locus_size:{motif_sizes_per_locus_size_bin}"] += 1
 
-            motif_sizes_per_locus_size_detailed_bin = f"{motif_sizes_per_locus_size}x" if motif_sizes_per_locus_size <= 20 else "21-25x" if motif_sizes_per_locus_size <= 25 else "26-30x" if motif_sizes_per_locus_size <= 30 else "31-35x" if motif_sizes_per_locus_size <= 35 else "36-50x" if motif_sizes_per_locus_size <= 50 else "51+x"
+            motif_sizes_per_locus_size_detailed_bin = f"{motif_sizes_per_locus_size}x" if motif_sizes_per_locus_size <= 24 else "25-50x" if motif_sizes_per_locus_size <= 50 else "51+x"
             #if motif_sizes_per_locus_size <= 3:
             #    print(motif_sizes_per_locus_size_bin, record["LocusId"], reference_region, motif)
             counters[f"motif_sizes_per_locus_size_detailed:{motif_sizes_per_locus_size_detailed_bin}"] += 1
@@ -234,6 +234,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
         "count_chrX": counters['chrX'],
         "count_chrY": counters['chrY'],
         "count_chrM": counters["chrM"],
+        "percent_of_genome_spanned_by_loci": f"{counters['total_base_pairs_spanned_by_all_loci']/total_genome_size:0.3%}",
         "motif_size_range": f"{min_motif_size}-{max_motif_size}bp",
         "locus_size_range": f"{min_locus_size}-{max_locus_size}bp",
         "num_repeats_range": f"{min_num_repeats_in_locus}-{max_num_repeats_in_locus}x repeats",
@@ -266,10 +267,11 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
         "min_locus_size": min_locus_size,
         "max_locus_size": max_locus_size,
     }
+
     for motif_sizes_per_locus_size_detailed_bin in (
         "0x", "1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x", "9x", "10x",
         "11x", "12x", "13x", "14x", "15x", "16x", "17x", "18x", "19x", "20x",
-        "21-25x", "26-30x", "31-35x", "36-50x", "51+x"
+        "21x", "22x", "23x", "24x", "25-50x", "51+x"
     ):
         result[f"motif_sizes_per_locus_size:{motif_sizes_per_locus_size_detailed_bin}"] = counters[f"motif_sizes_per_locus_size_detailed:{motif_sizes_per_locus_size_detailed_bin}"]
 
