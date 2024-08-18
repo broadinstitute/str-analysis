@@ -284,6 +284,45 @@ def add_variant_catalog_to_interval_trees(
 
         if found_existing_record_with_similar_motif:
             existing_record = overlapping_interval.data
+
+            discard_new = False
+            remove_existing = False
+            if overlapping_loci_action == "keep-first":
+                discard_new = True
+            elif overlapping_loci_action == "keep-last":
+                interval_trees[chrom].remove(overlapping_interval)
+            elif overlapping_loci_action == "keep-both":
+                pass
+            elif overlapping_loci_action == "keep-narrow":
+                if (end_1based - start_0based) >= (overlapping_interval.end - overlapping_interval.begin):
+                    discard_new = True
+                else:
+                    remove_existing = True
+            elif overlapping_loci_action == "keep-wider":
+                if (end_1based - start_0based) <= (overlapping_interval.end - overlapping_interval.begin):
+                    discard_new = True
+                else:
+                    remove_existing = True
+            elif overlapping_loci_action == "merge":
+                remove_existing = True
+                min_start_0based = min(start_0based, overlapping_interval.begin)
+                max_end_1based = max(end_1based, overlapping_interval.end)
+                existing_record_locus_structure = existing_record["LocusStructure"]
+                existing_record_motifs = parse_motifs_from_locus_structure(existing_record_locus_structure)
+                if len(current_motifs) != 1:
+                    raise ValueError(f"Unexpected LocusStructure in {existing_record}.")
+                existing_record_motif  = existing_record_motifs[0]
+                new_record = {
+                    "LocusId": f"{chrom}-{min_start_0based}-{max_end_1based}-{existing_record_motif}",
+                    "ReferenceRegion": f"{unmodified_chrom}:{min_start_0based}-{max_end_1based}",
+                    "LocusStructure": existing_record_locus_structure,
+                    "VariantType": existing_record["VariantType"],
+                }
+                if add_source_field:
+                    new_record["Source"] = existing_record["Source"] + SEPARATOR_FOR_MULTIPLE_SOURCES + variant_catalog_filename
+            else:
+                raise ValueError(f"Unexpected overlapping_loci_action value: {overlapping_loci_action}")
+
             if verbose_overlaps:
                 if new_record["ReferenceRegion"] != existing_record["ReferenceRegion"]:
                     print("="*100)
@@ -296,28 +335,13 @@ def add_variant_catalog_to_interval_trees(
                         f"includes {new_size - existing_size} fewer repeats than"
                     print(f"Existing record:", existing_record["ReferenceRegion"], existing_record["LocusStructure"], size_comparison, "the new record")
                     print(f"     New record:", new_record["ReferenceRegion"], new_record["LocusStructure"])
-
-            # don't add the current record to the output catalog
-            if overlapping_loci_action == "keep-first":
-                continue
-            elif overlapping_loci_action == "keep-last":
+                    print(f"         Action:", "Replacing existing record with new record " if not discard_new and remove_existing else (
+                        "Discarding new record" if discard_new else "Adding new record"
+                    ))
+            if remove_existing:
                 interval_trees[chrom].remove(overlapping_interval)
-            elif overlapping_loci_action == "keep-both":
-                pass
-            elif overlapping_loci_action == "keep-narrow":
-                if (end_1based - start_0based) <= (overlapping_interval.end - overlapping_interval.begin):
-                    continue
-                else:
-                    interval_trees[chrom].remove(overlapping_interval)
-            elif overlapping_loci_action == "keep-wider":
-                if (end_1based - start_0based) >= (overlapping_interval.end - overlapping_interval.begin):
-                    continue
-                else:
-                    interval_trees[chrom].remove(overlapping_interval)
-            elif overlapping_loci_action == "merge":
-                raise NotImplementedError("The --overlapping-loci-action 'merge' option is not yet implemented")
-            else:
-                raise ValueError(f"Unexpected overlapping_loci_action value: {overlapping_loci_action}")
+            if discard_new:
+               continue
 
         if write_bed_files_with_new_loci:
             motifs = parse_motifs_from_locus_structure(new_record["LocusStructure"])
