@@ -42,6 +42,7 @@ def parse_args():
     parser.add_argument("--output-format", choices=("JSON", "BED"), help="Output file format. If not specified, both "
                                                                          "a JSON and a BED file will be generated.")
     parser.add_argument("--output-prefix", help="Output filename prefix")
+    parser.add_argument("--output-merge-stats-tsv", action="store_true", help="If specified, output a .merge_stats.tsv")
     parser.add_argument("--verbose", action="store_true", help="If specified, then print more stats")
     parser.add_argument("--verbose-overlaps", action="store_true", help="If specified, print out overlapping definitions"
                         "that have similar motifs but different boundaries")
@@ -186,6 +187,7 @@ def add_variant_catalog_to_interval_trees(
         min_overlap_fraction=0.01,
         add_source_field=False,
         add_extra_fields_from_input_catalogs=False,
+        stats=None,
         verbose=False,
         verbose_overlaps=False,
         show_progress_bar=False,
@@ -200,6 +202,7 @@ def add_variant_catalog_to_interval_trees(
         add_source_field (bool): If True, then the source file path will be added to each record as a new "Source" field
         add_extra_fields_from_input_catalogs (bool): If False, then only the required fields will be kept in each input
             variant catalog record and any extra fields will be discarded.
+        stats (dict): dictionary for tracking merge stats
         verbose (bool): If True, then print more stats about the number of records added to the output catalog
         verbose_overlaps (bool): If True, print info about loci that overlap and have similar motifs, but different bondaries.
         show_progress_bar (bool): Whether to show a progress bar
@@ -215,6 +218,7 @@ def add_variant_catalog_to_interval_trees(
             variant_catalog_json_or_bed, file_type,
             add_extra_fields_from_input_catalogs=add_extra_fields_from_input_catalogs,
             verbose=verbose, show_progress_bar=show_progress_bar):
+
 
         chrom = unmodified_chrom.replace("chr", "")
         # check for overlap with existing loci
@@ -233,7 +237,7 @@ def add_variant_catalog_to_interval_trees(
             # handle overlapping interval
             existing_record = overlapping_interval.data
             if new_record["LocusStructure"] == existing_record["LocusStructure"]:
-                counters[f"overlapped an exising locus by at least {100*min_overlap_fraction}% " \
+                counters[f"overlapped an existing locus by at least {100*min_overlap_fraction}% " \
                          f"and had the exact same LocusStructure"] += 1
                 found_existing_record_with_similar_motif = True
                 break
@@ -304,6 +308,7 @@ def add_variant_catalog_to_interval_trees(
                 else:
                     remove_existing = True
             elif overlapping_loci_action == "merge":
+                stats[variant_catalog_filename]["merged"] += 1
                 remove_existing = True
                 min_start_0based = min(start_0based, overlapping_interval.begin)
                 max_end_1based = max(end_1based, overlapping_interval.end)
@@ -360,6 +365,9 @@ def add_variant_catalog_to_interval_trees(
             if k not in {"added", "total"}:
                 print(" "*3, f"Discarded {counters[k]:7,d} out of {counters['total']:7,d} "
                       f"({counters[k]/counters['total']:6.1%}) records since they {k}")
+
+    if stats is not None:
+        stats[variant_catalog_filename] = counters
 
     if write_bed_files_with_new_loci:
         unqiue_loci_bed_prefix = re.sub("(.json|.bed)(.gz)?$", "", os.path.basename(variant_catalog_json_or_bed))
@@ -561,6 +569,7 @@ def print_catalog_stats(interval_trees, has_source_field=False):
     for label, count in sorted(chrom_counters.items(), key=lambda x: x[1], reverse=True):
         print(f"   {count:9,d} out of {total:9,d} ({count/total:5.1%}) are on {label}")
 
+
 def fix_source_field_for_merged_adjacent_loci_with_multiple_sources(iterator):
     for record in iterator:
         if "Source" not in record:
@@ -575,6 +584,8 @@ def fix_source_field_for_merged_adjacent_loci_with_multiple_sources(iterator):
 def main():
     args, paths = parse_args()
 
+    stats = collections.Counter()
+
     # parse each catalog and add each new unique record to this IntervalTrees dictionary
     interval_trees = collections.defaultdict(intervaltree.IntervalTree)
     for i, (path, file_type) in enumerate(paths):
@@ -584,6 +595,7 @@ def main():
             min_overlap_fraction=args.overlap_fraction,
             add_source_field=args.add_source_field,
             add_extra_fields_from_input_catalogs=args.add_extra_fields_from_input_catalogs,
+            stats=stats,
             verbose=args.verbose,
             verbose_overlaps=args.verbose_overlaps,
             show_progress_bar=args.show_progress_bar,
@@ -601,7 +613,7 @@ def main():
             merge_adjacent_loci_with_same_motif=args.merge_adjacent_loci_with_same_motif,
             add_source_field=args.add_source_field)
 
-        if args.add_source_field and args.merge_adjacent_loci_with_same_motif:
+        if args.add_source_field and (args.merge_adjacent_loci_with_same_motif or args.overlapping_loci_action == "merge"):
             # convert the SEPARATOR_FOR_MULTIPLE_SOURCES to commas
             output_catalog_record_generator = fix_source_field_for_merged_adjacent_loci_with_multiple_sources(
                 output_catalog_record_generator)
@@ -617,6 +629,27 @@ def main():
     if args.verbose:
         print_catalog_stats(interval_trees, has_source_field=args.add_source_field)
 
+    if args.output_merge_stats_tsv:
+        with open(f"{args.output_prefix}.merge_stats.tsv", "wt") as merge_stats_tsv:
+            merge_stats_tsv.write("Catalog\t"
+                                  "Added\t"
+                                  "Total\t"
+                                  "Overlapped an existing locus and had the exact same LocusStructure\t"
+                                  "Overlapped an existing locus and had the same canonical motif\t"
+                                  "Overlapped an existing locus and one motif was contained within the other\n")
+            for catalog, catalog_stats in stats.items():
+                output_row = [catalog, catalog_stats["added"], catalog_stats["total"]]
+                for key_suffix in "had the exact same LocusStructure", "had the same canonical motif", "one motif was contained within the other":
+                    keys = [k for k in catalog_stats.keys() if k.endswith(key_suffix)]
+                    if len(keys) == 0:
+                        value = 0
+                    elif len(keys) == 1:
+                        value = catalog_stats.get(keys[0])
+                    else:
+                        raise ValueError(f"Unexpected stats keys: {keys}")
+                    output_row.append(value)
+
+                merge_stats_tsv.write("\t".join(map(str, output_row)) + "\n")
 
 if __name__ == "__main__":
     main()
