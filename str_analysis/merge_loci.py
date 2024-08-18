@@ -42,11 +42,11 @@ def parse_args():
     parser.add_argument("--output-format", choices=("JSON", "BED"), help="Output file format. If not specified, both "
                                                                          "a JSON and a BED file will be generated.")
     parser.add_argument("--output-prefix", help="Output filename prefix")
-    parser.add_argument("--output-merge-stats-tsv", action="store_true", help="If specified, output a .merge_stats.tsv")
     parser.add_argument("--verbose", action="store_true", help="If specified, then print more stats")
     parser.add_argument("--verbose-overlaps", action="store_true", help="If specified, print out overlapping definitions"
                         "that have similar motifs but different boundaries")
     parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
+    parser.add_argument("--write-merge-stats-tsv", action="store_true", help="If specified, output a .merge_stats.tsv")
     parser.add_argument("--write-bed-files-with-new-loci", action="store_true", help="If specified, then for every "
                         "input catalog except the first one, this script will output a BED file that contains the new "
                         "loci introduced by that catalog. This is useful for troubleshooting catalogs and "
@@ -629,7 +629,7 @@ def main():
     if args.verbose:
         print_catalog_stats(interval_trees, has_source_field=args.add_source_field)
 
-    if args.output_merge_stats_tsv:
+    if args.write_merge_stats_tsv:
         merge_stats_output_tsv_path = f"{args.output_prefix}.merge_stats.tsv"
         with open(merge_stats_output_tsv_path, "wt") as merge_stats_tsv:
             merge_stats_tsv.write("Catalog\t"
