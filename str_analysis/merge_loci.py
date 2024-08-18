@@ -22,8 +22,9 @@ def parse_args():
     parser.add_argument("-f", "--overlap-fraction", default=0.66, type=float, help="The minimum overlap for two loci "
         "to be considered as the same locus (assuming they are specified as having the same normalized motif). "
         "This is similar to the -f argument for 'bedtools intersect'.")
-    parser.add_argument("--add-source-field", action="store_true", help="If specified, then the source field will be "
-        "added to the output catalog. This requires the output format to be set to JSON.")
+    parser.add_argument("--add-source-field", action="store_true", help="If specified, then a Source field will be "
+        "added to the output catalog to specify the filename of the original source catalog of a given locus. This "
+        "requires the output format to be set to JSON.")
     parser.add_argument("--add-extra-fields-from-input-catalogs", action="store_true", help="If specified, then "
         "extra fields from the input catalogs will be added to the output catalog. This requires the output format "
         "to be set to JSON.")
@@ -343,10 +344,13 @@ def add_variant_catalog_to_interval_trees(
                     print(f"         Action:", "Replacing existing record with new record " if not discard_new and remove_existing else (
                         "Discarding new record" if discard_new else "Adding new record"
                     ))
+
             if remove_existing:
                 interval_trees[chrom].remove(overlapping_interval)
+
             if discard_new:
                continue
+
 
         if write_bed_files_with_new_loci:
             motifs = parse_motifs_from_locus_structure(new_record["LocusStructure"])
@@ -570,14 +574,13 @@ def print_catalog_stats(interval_trees, has_source_field=False):
         print(f"   {count:9,d} out of {total:9,d} ({count/total:5.1%}) are on {label}")
 
 
-def fix_source_field_for_merged_adjacent_loci_with_multiple_sources(iterator):
+def replace_separator_for_multiple_entries_in_field(iterator, field_name="Source"):
     for record in iterator:
-        if "Source" not in record:
-            raise ValueError(f"Unexpected absence of 'Source' field in record: {record}")
+        if field_name not in record:
+            raise ValueError(f"Unexpected absence of '{field_name}' field in record: {record}")
 
-        if SEPARATOR_FOR_MULTIPLE_SOURCES in record["Source"]:
-            source = ", ".join(sorted(set(record["Source"].split(SEPARATOR_FOR_MULTIPLE_SOURCES))))
-            record["Source"] = f"merged adjacent loci from: {source}"
+        if SEPARATOR_FOR_MULTIPLE_SOURCES in record[field_name]:
+            record[field_name] = ", ".join(sorted(set(record[field_name].split(SEPARATOR_FOR_MULTIPLE_SOURCES))))
 
         yield record
 
@@ -613,10 +616,11 @@ def main():
             merge_adjacent_loci_with_same_motif=args.merge_adjacent_loci_with_same_motif,
             add_source_field=args.add_source_field)
 
-        if args.add_source_field and (args.merge_adjacent_loci_with_same_motif or args.overlapping_loci_action == "merge"):
+        if args.add_source_field:
             # convert the SEPARATOR_FOR_MULTIPLE_SOURCES to commas
-            output_catalog_record_generator = fix_source_field_for_merged_adjacent_loci_with_multiple_sources(
-                output_catalog_record_generator)
+            output_catalog_record_generator = replace_separator_for_multiple_entries_in_field(
+                output_catalog_record_generator, field_name="Source")
+
 
         output_path = f"{args.output_prefix}.{output_format.lower()}"
         if output_format == "JSON":
