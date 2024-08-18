@@ -630,13 +630,15 @@ def main():
         print_catalog_stats(interval_trees, has_source_field=args.add_source_field)
 
     if args.output_merge_stats_tsv:
-        with open(f"{args.output_prefix}.merge_stats.tsv", "wt") as merge_stats_tsv:
+        merge_stats_output_tsv_path = f"{args.output_prefix}.merge_stats.tsv"
+        with open(merge_stats_output_tsv_path, "wt") as merge_stats_tsv:
             merge_stats_tsv.write("Catalog\t"
                                   "Added\t"
                                   "Total\t"
                                   "Overlapped an existing locus and had the exact same LocusStructure\t"
                                   "Overlapped an existing locus and had the same canonical motif\t"
                                   "Overlapped an existing locus and one motif was contained within the other\n")
+            output_counter = 0
             for catalog, catalog_stats in stats.items():
                 output_row = [catalog, catalog_stats["added"], catalog_stats["total"]]
                 for key_suffix in "had the exact same LocusStructure", "had the same canonical motif", "one motif was contained within the other":
@@ -648,8 +650,9 @@ def main():
                     else:
                         raise ValueError(f"Unexpected stats keys: {keys}")
                     output_row.append(value)
-
+                output_counter += 1
                 merge_stats_tsv.write("\t".join(map(str, output_row)) + "\n")
+            print(f"Wrote {output_counter:,d} rows to {merge_stats_output_tsv_path}")
 
 if __name__ == "__main__":
     main()
