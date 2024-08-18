@@ -330,9 +330,9 @@ def add_variant_catalog_to_interval_trees(
                     _, new_start, new_end = parse_interval(new_record["ReferenceRegion"])
                     existing_size = existing_end - existing_start
                     new_size = new_end - new_start
-                    size_comparison = f"includes {existing_size - new_size} more repeats than" if existing_size > new_size \
+                    size_comparison = f"includes {existing_size - new_size} more bases than" if existing_size > new_size \
                         else "is the same size as" if existing_size == new_size else \
-                        f"includes {new_size - existing_size} fewer repeats than"
+                        f"includes {new_size - existing_size} fewer bases than"
                     print(f"Existing record:", existing_record["ReferenceRegion"], existing_record["LocusStructure"], size_comparison, "the new record")
                     print(f"     New record:", new_record["ReferenceRegion"], new_record["LocusStructure"])
                     print(f"         Action:", "Replacing existing record with new record " if not discard_new and remove_existing else (
@@ -580,7 +580,7 @@ def main():
     for i, (path, file_type) in enumerate(paths):
         add_variant_catalog_to_interval_trees(
             interval_trees, path, file_type,
-            overlapping_loci_action="keep-first",
+            overlapping_loci_action=args.overlapping_loci_action,
             min_overlap_fraction=args.overlap_fraction,
             add_source_field=args.add_source_field,
             add_extra_fields_from_input_catalogs=args.add_extra_fields_from_input_catalogs,
