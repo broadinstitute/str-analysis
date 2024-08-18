@@ -49,6 +49,12 @@ RUN wget -q https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VE
 	&& make install \
 	&& make clean
 
+# install bedtools
+ENV BED_TOOLS_VERSION="2.31.0"
+RUN wget https://github.com/arq5x/bedtools2/releases/download/v${BED_TOOLS_VERSION}/bedtools.static \
+	&& chmod 777 bedtools.static \
+	&& mv bedtools.static /usr/bin/bedtools
+
 # install python3.9
 RUN apt-get update && apt-get install --no-install-recommends --yes python3.9 python3-distutils \
 	&& curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
