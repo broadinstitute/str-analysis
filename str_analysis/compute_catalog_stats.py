@@ -64,7 +64,12 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
     interval_trees = collections.defaultdict(IntervalTree)  # used to check for overlap between records in the catalog
     overlapping_intervals = set()
     counters = collections.defaultdict(int)
+
     locus_sizes_by_motif_size = collections.defaultdict(list)  # used to compute the median locus sizes for each motif size
+    base_purity_by_motif_size = collections.defaultdict(list)  # used to compute the mean base purity for each motif size
+    repeat_purity_by_motif_size = collections.defaultdict(list)  # used to compute the mean repeat purity for each motif size
+    mappability_by_motif_size = collections.defaultdict(list)  # used to compute the mean mappability for each motif size
+
     for record in records:
         counters["total"] += 1
         motifs = parse_motifs_from_locus_structure(record["LocusStructure"])
@@ -100,6 +105,10 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
 
             if motif_size <= 50:
                 locus_sizes_by_motif_size[motif_size].append(locus_size)
+                base_purity_by_motif_size[motif_size].append(fraction_pure_bases)
+                repeat_purity_by_motif_size[motif_size].append(fraction_pure_repeats)
+                if "FlanksAndLocusMappability" in record:
+                    mappability_by_motif_size[motif_size].append(record["FlanksAndLocusMappability"])
 
             min_motif_size = min(min_motif_size, motif_size)
             max_motif_size = max(max_motif_size, motif_size)
@@ -161,12 +170,12 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
 
             interval_trees[chrom].add(Interval(start_0based, end, data=len(motif)))
 
-        if "EntireLocusMappability" in record:
-            min_overall_mappability = min(min_overall_mappability, record["EntireLocusMappability"])
-            if record["EntireLocusMappability"] == min_overall_mappability:
+        if "FlanksAndLocusMappability" in record:
+            min_overall_mappability = min(min_overall_mappability, record["FlanksAndLocusMappability"])
+            if record["FlanksAndLocusMappability"] == min_overall_mappability:
                 min_overall_mappability_reference_region = reference_region
                 min_overall_mappability_motif = motif
-            mappability_bin = round(int(record["EntireLocusMappability"]*10)/10, 1)
+            mappability_bin = round(int(record["FlanksAndLocusMappability"]*10)/10, 1)
             counters[f"mappability:{mappability_bin}"] += 1
 
     print("")
@@ -201,13 +210,13 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
     print(f"   Locus size range: {min_locus_size}-{max_locus_size}bp")
     print(f"   Num repeats range: {min_num_repeats_in_locus}-{max_num_repeats_in_locus}x repeats")
     print("")
-    print(f"   Maximum locus size = {max_locus_size:5d}bp             @ {max_locus_size_reference_region} ({max_locus_size_motif})")
+    print(f"   Max locus size = {max_locus_size:7,d}bp           @ {max_locus_size_reference_region} ({max_locus_size_motif})")
     if min_fraction_pure_bases_motif is not None:
-        print(f"   Minimum fraction pure bases = {min_fraction_pure_bases:5.2f}      @ {min_fraction_pure_bases_reference_region} ({min_fraction_pure_bases_motif})")
+        print(f"   Min fraction pure bases   = {min_fraction_pure_bases:5.2f}    @ {min_fraction_pure_bases_reference_region} ({min_fraction_pure_bases_motif})")
     if min_fraction_pure_repeats_motif is not None:
-        print(f"   Minimum fraction pure repeats = {min_fraction_pure_repeats:5.2f}    @ {min_fraction_pure_repeats_reference_region} ({min_fraction_pure_repeats_motif})")
+        print(f"   Min fraction pure repeats = {min_fraction_pure_repeats:5.2f}    @ {min_fraction_pure_repeats_reference_region} ({min_fraction_pure_repeats_motif})")
     if min_overall_mappability_motif is not None:
-        print(f"   Minimum overall mappability = {min_overall_mappability:5.2f}       @ {min_overall_mappability_reference_region} ({min_overall_mappability_motif})")
+        print(f"   Min overall mappability = {min_overall_mappability:5.2f}       @ {min_overall_mappability_reference_region} ({min_overall_mappability_motif})")
     print("")
     print(f"          chrX: {counters['chrX']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['chrX']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
     print(f"          chrY: {counters['chrY']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['chrY']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
@@ -282,11 +291,14 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
         min_size = int(min(locus_sizes_by_motif_size[motif_size]))
         median_size = int(statistics.median(locus_sizes_by_motif_size[motif_size]))
         max_size = int(max(locus_sizes_by_motif_size[motif_size]))
+        mean_base_purity = statistics.mean(base_purity_by_motif_size[motif_size])
+        mean_repeat_purity = statistics.mean(repeat_purity_by_motif_size[motif_size])
+        mean_mappability = statistics.mean(mappability_by_motif_size[motif_size]) if mappability_by_motif_size[motif_size] else None
         result[f"{motif_size}bp motifs: min locus size"] = min_size
         result[f"{motif_size}bp motifs: median locus size"] = median_size
         result[f"{motif_size}bp motifs: max locus size"] = max_size
 
-        print(f"   {motif_size:3,d}bp motifs: locus size range:   {min_size:4,d} bp to {max_size:5,d} bp  (median: {int(median_size):4,d} bp) based on {len(locus_sizes_by_motif_size[motif_size]):5,d} loci")
+        print(f"   {motif_size:3,d}bp motifs: locus size range:   {min_size:4,d} bp to {max_size:7,d} bp  (median: {int(median_size):4,d} bp) based on {len(locus_sizes_by_motif_size[motif_size]):8,d} loci. Mean base purity: {mean_base_purity:0.2f}, mean repeat purity: {mean_repeat_purity:0.2f}. ", f"Mean mappability: {mean_mappability:0.2f}" if mean_mappability is not None else "")
 
     for num_repeats_per_locus_detailed_bin in (
         "0x", "1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x", "9x", "10x",
