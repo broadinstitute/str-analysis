@@ -30,7 +30,7 @@ VALID_GENE_REGIONS = {"CDS", "UTR", "5UTR", "3UTR", "promoter", "exon", "intron"
 MAPPABILITY_TRACK_KMER_SIZE = 36
 MAPPABILITY_TRACK_BIGWIG_URL = f"gs://tgg-viewer/ref/GRCh38/mappability/" \
                                f"GRCh38_no_alt_analysis_set_GCA_000001405.15-k{MAPPABILITY_TRACK_KMER_SIZE}_m2.bw"
-FLANK_MAPPABILITY_WINDOW_SIZE = 200
+FLANK_MAPPABILITY_WINDOW_SIZE = 150
 
 ACGT_REGEX = re.compile("^[ACGT]+$", re.IGNORECASE)
 ACGTN_REGEX = re.compile("^[ACGTN]+$", re.IGNORECASE)
@@ -549,7 +549,7 @@ def main():
                 print(f"WARNING #{warning_counter}: Couldn't compute mappability of overall interval: {chrom}:{left_flank_mappability_interval_start}-{right_flank_mappability_interval_end}: {e}")
 
             variant_catalog_record[f"LeftFlankMappability"] = round(mappability_left_flank, 2)
-            variant_catalog_record[f"EntireLocusMappability"] = round(mappability_overall, 2)
+            variant_catalog_record[f"FlanksAndLocusMappability"] = round(mappability_overall, 2)
             variant_catalog_record[f"RightFlankMappability"] = round(mappability_right_flank, 2)
 
             if args.min_mappability is not None and variant_catalog_record["EntireLocusMappability"] < args.min_mappability:
@@ -564,7 +564,8 @@ def main():
         if args.add_canonical_motif_to_locus_id:
             variant_catalog_record["LocusId"] += "-" + "-".join(canonical_motifs)
 
-        for key, value in variant_catalog_record.items():
+        for key in list(variant_catalog_record.keys()):
+            value = variant_catalog_record[key]
             if value is None or value is False:
                 del variant_catalog_record[key]
 
