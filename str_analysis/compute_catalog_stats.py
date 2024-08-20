@@ -4,6 +4,7 @@ import ijson
 import os
 import pandas as pd
 import re
+import statistics
 import tqdm
 from intervaltree import IntervalTree, Interval
 from str_analysis.utils.misc_utils import parse_interval
@@ -63,6 +64,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
     interval_trees = collections.defaultdict(IntervalTree)  # used to check for overlap between records in the catalog
     overlapping_intervals = set()
     counters = collections.defaultdict(int)
+    locus_sizes_by_motif_size = collections.defaultdict(list)  # used to compute the median locus sizes for each motif size
     for record in records:
         counters["total"] += 1
         motifs = parse_motifs_from_locus_structure(record["LocusStructure"])
@@ -95,13 +97,17 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
 
             motif_size = len(motif)
             locus_size = end - start_0based
+
+            if motif_size <= 50:
+                locus_sizes_by_motif_size[motif_size].append(locus_size)
+
             min_motif_size = min(min_motif_size, motif_size)
             max_motif_size = max(max_motif_size, motif_size)
             min_locus_size = min(min_locus_size, locus_size)
             max_locus_size = max(max_locus_size, locus_size)
-            motif_sizes_per_locus_size = int(locus_size / motif_size)
-            min_num_repeats_in_locus = min(min_num_repeats_in_locus, motif_sizes_per_locus_size)
-            max_num_repeats_in_locus = max(max_num_repeats_in_locus, motif_sizes_per_locus_size)
+            num_repeats_per_locus = int(locus_size / motif_size)
+            min_num_repeats_in_locus = min(min_num_repeats_in_locus, num_repeats_per_locus)
+            max_num_repeats_in_locus = max(max_num_repeats_in_locus, num_repeats_per_locus)
 
             counters["total_base_pairs_spanned_by_all_loci"] += locus_size
             if locus_size == max_locus_size:
@@ -132,13 +138,13 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
             motif_size_bin = f"{motif_size}bp" if motif_size <= 6 else "7-24bp" if motif_size <= 24 else "25+bp"
             counters[f"motif_size:{motif_size_bin}"] += 1
 
-            motif_sizes_per_locus_size_bin = f"{motif_sizes_per_locus_size}x" if motif_sizes_per_locus_size <= 9 else "10-15x" if motif_sizes_per_locus_size <= 15 else "16-25x" if motif_sizes_per_locus_size <= 25 else "26-35x" if motif_sizes_per_locus_size <= 35 else "36-50x" if motif_sizes_per_locus_size <= 50 else "51+x"
-            counters[f"motif_sizes_per_locus_size:{motif_sizes_per_locus_size_bin}"] += 1
+            num_repeats_per_locus_bin = f"{num_repeats_per_locus}x" if num_repeats_per_locus <= 9 else "10-15x" if num_repeats_per_locus <= 15 else "16-25x" if num_repeats_per_locus <= 25 else "26-35x" if num_repeats_per_locus <= 35 else "36-50x" if num_repeats_per_locus <= 50 else "51+x"
+            counters[f"num_repeats_per_locus:{num_repeats_per_locus_bin}"] += 1
 
-            motif_sizes_per_locus_size_detailed_bin = f"{motif_sizes_per_locus_size}x" if motif_sizes_per_locus_size <= 24 else "25-50x" if motif_sizes_per_locus_size <= 50 else "51+x"
-            #if motif_sizes_per_locus_size <= 3:
-            #    print(motif_sizes_per_locus_size_bin, record["LocusId"], reference_region, motif)
-            counters[f"motif_sizes_per_locus_size_detailed:{motif_sizes_per_locus_size_detailed_bin}"] += 1
+            num_repeats_per_locus_detailed_bin = f"{num_repeats_per_locus}x" if num_repeats_per_locus <= 24 else "25-50x" if num_repeats_per_locus <= 50 else "51+x"
+            #if num_repeats_per_locus <= 3:
+            #    print(num_repeats_per_locus_bin, record["LocusId"], reference_region, motif)
+            counters[f"num_repeats_per_locus_detailed:{num_repeats_per_locus_detailed_bin}"] += 1
 
             if fraction_pure_bases is not None:
                 fraction_pure_bases_bin = round(int(fraction_pure_repeats*10)/10, 1)
@@ -213,8 +219,8 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
         print(f"   {motif_size_bin:>10s}: {counters[f'motif_size:{motif_size_bin}']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters[f'motif_size:{motif_size_bin}']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
     print("")
     print("Num repeats in reference:")
-    for motif_sizes_per_locus_size_bin in "1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x", "9x", "10-15x", "16-25x", "26-35x", "36-50x", "51+x":
-        print(f"   {motif_sizes_per_locus_size_bin:>10s}: {counters[f'motif_sizes_per_locus_size:{motif_sizes_per_locus_size_bin}']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters[f'motif_sizes_per_locus_size:{motif_sizes_per_locus_size_bin}']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
+    for num_repeats_per_locus_bin in "1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x", "9x", "10-15x", "16-25x", "26-35x", "36-50x", "51+x":
+        print(f"   {num_repeats_per_locus_bin:>10s}: {counters[f'num_repeats_per_locus:{num_repeats_per_locus_bin}']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters[f'num_repeats_per_locus:{num_repeats_per_locus_bin}']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
 
     if min_fraction_pure_bases_motif is not None:
         print("")
@@ -268,12 +274,26 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
         "max_locus_size": max_locus_size,
     }
 
-    for motif_sizes_per_locus_size_detailed_bin in (
+    print("")
+    print("Locus sizes at each motif size:")
+    for motif_size in list(sorted(locus_sizes_by_motif_size.keys()))[:10]:
+        if motif_size not in locus_sizes_by_motif_size:
+            continue
+        min_size = int(min(locus_sizes_by_motif_size[motif_size]))
+        median_size = int(statistics.median(locus_sizes_by_motif_size[motif_size]))
+        max_size = int(max(locus_sizes_by_motif_size[motif_size]))
+        result[f"{motif_size}bp motifs: min locus size"] = min_size
+        result[f"{motif_size}bp motifs: median locus size"] = median_size
+        result[f"{motif_size}bp motifs: max locus size"] = max_size
+
+        print(f"   {motif_size:3,d}bp motifs: locus size range:   {min_size:4,d} bp to {max_size:5,d} bp  (median: {int(median_size):4,d} bp) based on {len(locus_sizes_by_motif_size[motif_size]):5,d} loci")
+
+    for num_repeats_per_locus_detailed_bin in (
         "0x", "1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x", "9x", "10x",
         "11x", "12x", "13x", "14x", "15x", "16x", "17x", "18x", "19x", "20x",
         "21x", "22x", "23x", "24x", "25-50x", "51+x"
     ):
-        result[f"motif_sizes_per_locus_size:{motif_sizes_per_locus_size_detailed_bin}"] = counters[f"motif_sizes_per_locus_size_detailed:{motif_sizes_per_locus_size_detailed_bin}"]
+        result[f"num_repeats_per_locus:{num_repeats_per_locus_detailed_bin}"] = counters[f"num_repeats_per_locus_detailed:{num_repeats_per_locus_detailed_bin}"]
 
 
     return result
