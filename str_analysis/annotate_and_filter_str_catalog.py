@@ -226,6 +226,34 @@ def output_tsv(output_path, output_records):
     pd.DataFrame(output_records).to_csv(output_path, sep="\t", index=False, header=True)
 
 
+def compute_sequence_purity_stats(nucleotide_sequence, motif):
+    """Compute the number of interruptions, base-level purity, and repeat-level purity of a nucleotide sequence,
+    compared to an equal-length pure repeat sequence with the given motif. If the nucleotide sequence length is not an
+    exact multiple of the motif length, the sequence will be trimmed to the nearest multiple of the motif length before
+    computing stats.
+
+    Args:
+        nucleotide_sequence (str): a nucleotide sequence
+        motif (str): a repeat motif
+
+    Return:
+        tuple: (interruption_base_count, fraction_pure_bases, fraction_pure_repeats)
+    """
+    num_repeats = int(len(nucleotide_sequence)/len(motif))
+    pure_sequence = motif.upper() * num_repeats
+    nucleotide_sequence_trimmed = nucleotide_sequence[:len(pure_sequence)]
+    num_matching_bases = sum(1 for nuc1, nuc2 in zip(nucleotide_sequence_trimmed, pure_sequence) if nuc1 == nuc2)
+
+    if len(nucleotide_sequence) < len(motif):
+        return 0, 0, 0
+
+    interruption_base_count = len(nucleotide_sequence_trimmed) - num_matching_bases
+    fraction_pure_bases = round(num_matching_bases / len(pure_sequence), 2)
+    fraction_pure_repeats = round(nucleotide_sequence.count(motif) / num_repeats, 2)
+
+    return interruption_base_count, fraction_pure_bases, fraction_pure_repeats
+
+
 def main():
     args, parser = parse_args()
 
@@ -443,9 +471,9 @@ def main():
             continue
 
         # annotate repeat purity in the reference genome
-        interruption_base_count = []
-        fraction_pure_bases = []
-        fraction_pure_repeats = []
+        interrupted_base_count_list = []
+        fraction_pure_bases_list = []
+        fraction_pure_repeats_list = []
         overlaps_other_interval = False
         overlaps_other_interval_with_similar_motif = False
         has_invalid_bases = False
@@ -464,20 +492,15 @@ def main():
                     has_invalid_bases = True
                     filter_counters["row reference sequence has invalid bases"] += 1
                     break
+            
+            
+            interrupted_bases_count, fraction_pure_bases, fraction_pure_repeats = compute_sequence_purity_stats(
+                ref_fasta_sequence, motif)
+            
+            interrupted_base_count_list.append( interrupted_bases_count )
+            fraction_pure_bases_list.append( fraction_pure_bases )
+            fraction_pure_repeats_list.append( fraction_pure_repeats )
 
-            pure_sequence = motif.upper() * int(len(ref_fasta_sequence)/len(motif))
-            num_matching_bases = sum(1 for nuc1, nuc2 in zip(ref_fasta_sequence[:len(pure_sequence)], pure_sequence) if nuc1 == nuc2)
-
-            interruption_base_count.append( len(pure_sequence) - num_matching_bases )
-            if len(ref_fasta_sequence) >= len(motif):
-                fraction_pure_bases.append( round(num_matching_bases / len(pure_sequence), 2) )
-                fraction_pure_repeats.append( round(ref_fasta_sequence.count(motif) / int(len(ref_fasta_sequence) / len(motif)), 2) )
-            else:
-                warning_counter += 1
-                print(f"WARNING #{warning_counter}: {chrom}:{start_0based}-{end} interval size ({end-start_0based}bp) is smaller than the motif size ({len(motif)}bp) {motif}. Setting purity to 0.")
-                fraction_pure_bases.append(0)
-                fraction_pure_repeats.append(0)
-                
             # check for overlap
             canonical_motif = compute_canonical_motif(motif, include_reverse_complement=False)
             for overlapping_interval in interval_trees[chrom].overlap(start_0based, end):
@@ -492,9 +515,9 @@ def main():
         if has_invalid_bases:
             continue
 
-        variant_catalog_record["InterruptionBaseCount"] = interruption_base_count[0] if len(chroms_start_0based_ends) == 1 else interruption_base_count
-        variant_catalog_record["FractionPureBases"] = fraction_pure_bases[0] if len(chroms_start_0based_ends) == 1 else fraction_pure_bases
-        variant_catalog_record["FractionPureRepeats"] = fraction_pure_repeats[0] if len(chroms_start_0based_ends) == 1 else fraction_pure_repeats
+        variant_catalog_record["InterruptionBaseCount"] = interrupted_base_count_list[0] if len(chroms_start_0based_ends) == 1 else interrupted_base_count_list
+        variant_catalog_record["FractionPureBases"] = fraction_pure_bases_list[0] if len(chroms_start_0based_ends) == 1 else fraction_pure_bases_list
+        variant_catalog_record["FractionPureRepeats"] = fraction_pure_repeats_list[0] if len(chroms_start_0based_ends) == 1 else fraction_pure_repeats_list
 
         if args.discard_overlapping_intervals_with_similar_motifs and overlaps_other_interval_with_similar_motif:
             continue
@@ -555,8 +578,8 @@ def main():
             variant_catalog_record[f"FlanksAndLocusMappability"] = round(mappability_overall, 2)
             variant_catalog_record[f"RightFlankMappability"] = round(mappability_right_flank, 2)
 
-            if args.min_mappability is not None and variant_catalog_record["EntireLocusMappability"] < args.min_mappability:
-                filter_counters[f"row EntireLocusMappability < {args.min_mappability}"] += 1
+            if args.min_mappability is not None and variant_catalog_record["FlanksAndLocusMappability"] < args.min_mappability:
+                filter_counters[f"row FlanksAndLocusMappability < {args.min_mappability}"] += 1
                 continue
 
         if args.add_gene_region_to_locus_id:
