@@ -523,7 +523,8 @@ def main():
 
                 (mappability_left_flank, ) = mappability_bigwig.stats(chrom,
                                                                       left_flank_mappability_interval_start,
-                                                                      left_flank_mappability_interval_end)
+                                                                      left_flank_mappability_interval_end,
+                                                                      type="mean")
             except Exception as e:
                 warning_counter += 1
                 print(f"WARNING #{warning_counter}: Couldn't compute mappability of left flank interval: {chrom}:{left_flank_mappability_interval_start}-{left_flank_mappability_interval_end}: {e}")
@@ -534,7 +535,8 @@ def main():
             try:
                 (mappability_right_flank, ) = mappability_bigwig.stats(chrom,
                                                                        right_flank_start,
-                                                                       right_flank_mappability_interval_end)
+                                                                       right_flank_mappability_interval_end,
+                                                                       type="mean")
             except Exception as e:
                 warning_counter += 1
                 print(f"WARNING #{warning_counter}: Couldn't compute mappability of right flank interval: {chrom}:{right_flank_start}-{right_flank_mappability_interval_end}: {e}")
@@ -543,7 +545,8 @@ def main():
             try:
                 (mappability_overall, ) = mappability_bigwig.stats(chrom,
                                                                    left_flank_mappability_interval_start,
-                                                                   right_flank_mappability_interval_end)
+                                                                   right_flank_mappability_interval_end,
+                                                                   type="mean")
             except Exception as e:
                 warning_counter += 1
                 print(f"WARNING #{warning_counter}: Couldn't compute mappability of overall interval: {chrom}:{left_flank_mappability_interval_start}-{right_flank_mappability_interval_end}: {e}")
