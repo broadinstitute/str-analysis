@@ -32,7 +32,7 @@ def process_variant_catalog(variant_catalog_path, output_file_path, show_progres
     fopen = gzip.open if variant_catalog_path.endswith("gz") else open
     with fopen(variant_catalog_path, "rt") as f:
         with (gzip.open if output_file_path.endswith("gz") else open)(output_file_path, "wt") as f2:
-            iterator = ijson.items(f, "item")
+            iterator = ijson.items(f, "item", use_float=True)
             if show_progress_bar:
                 iterator = tqdm.tqdm(iterator, unit=" variant catalog records", unit_scale=True)
 

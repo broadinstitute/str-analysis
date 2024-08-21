@@ -31,7 +31,7 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
     print(f"Parsing {expansion_hunter_catalog_path}")
     fopen = gzip.open if expansion_hunter_catalog_path.endswith("gz") else open
     with fopen(expansion_hunter_catalog_path, "rt") as f:
-        iterator = ijson.items(f, "item")
+        iterator = ijson.items(f, "item", use_float=True)
         if show_progress_bar:
             iterator = tqdm.tqdm(iterator, unit=" variant catalog records", unit_scale=True)
         with (gzip.open if output_file_path.endswith("gz") else open)(output_file_path, "wt") as f2:
