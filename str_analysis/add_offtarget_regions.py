@@ -142,7 +142,7 @@ def main():
     total = 0
     try:
         with open_file(args.input_catalog_path, is_text_file=True) as f:
-            for record in ijson.items(f, "item"):
+            for record in ijson.items(f, "item", use_float=True):
                 total += 1
                 if isinstance(record.get("ReferenceRegion"), list):
                     counters["adjacent loci filter"] += 1

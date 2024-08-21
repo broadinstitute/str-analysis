@@ -311,7 +311,7 @@ def main():
         with open_file(input_catalog_path, is_text_file=True) as f:
             if args.n:
                 input_catalog = []
-                for record in ijson.items(f, "item"):
+                for record in ijson.items(f, "item", use_float=True):
                     if len(input_catalog) > args.n:
                         break
                     input_catalog.append(record)

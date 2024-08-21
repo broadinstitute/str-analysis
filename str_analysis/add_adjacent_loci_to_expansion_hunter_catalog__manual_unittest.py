@@ -258,7 +258,7 @@ class GetAdjacentRepeatsTests(unittest.TestCase):
         locus_ids_already_in_catalog = {record["LocusId"] for record in self.variant_catalog}
 
         with open(self.variant_catalog_path) as f:
-            for record in ijson.items(f, "item"):
+            for record in ijson.items(f, "item", use_float=True):
                 if record["LocusId"] in locus_ids_already_in_catalog or isinstance(record["ReferenceRegion"], list):
                     continue
                 record["ExpectedLocusStructure"] = record["LocusStructure"]
