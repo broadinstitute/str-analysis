@@ -109,7 +109,7 @@ def get_variant_catalog_iterator(
 
     if file_type == "JSON":
         with open_file(variant_catalog_json_or_bed, is_text_file=True) as f:
-            file_iterator = ijson.items(f, "item")
+            file_iterator = ijson.items(f, "item", use_float=True)
             if show_progress_bar:
                 file_iterator = tqdm.tqdm(file_iterator, unit=" records", unit_scale=True)
 
