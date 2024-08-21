@@ -52,7 +52,7 @@ def get_variant_catalog_iterator(variant_catalog_json_or_bed, show_progress_bar=
             if show_progress_bar:
                 f = tqdm(f, unit=" records", unit_scale=True)
 
-            for record in ijson.items(f, "item"):
+            for record in ijson.items(f, "item", use_float=True):
                 yield record
     else:
         with open_file(variant_catalog_json_or_bed, is_text_file=True) as input_variant_catalog:
@@ -66,15 +66,24 @@ def get_variant_catalog_iterator(variant_catalog_json_or_bed, show_progress_bar=
                     chrom = unmodified_chrom.replace("chr", "")
                     start_0based = int(fields[1])
                     end_1based = int(fields[2])
-                    motif = fields[3].strip("()*+").upper()
-                    if not ACGTN_REGEX.match(motif):
-                        print(f"WARNING: skipping line with invalid motif: {line.strip()}")
-                        continue
+
+                    if "ID=" in fields[3] and "STRUC=" in fields[3]:
+                        # This is a TRGT format line, skip it
+                        info = dict(key_value.split("=") for key_value in fields[3].split(";"))
+                        locus_id = info["ID"]
+                        locus_structure = info["STRUC"].replace("n", "*")
+                    else:
+                        locus_id = f"{chrom}-{start_0based}-{end_1based}-{motif}"
+                        motif = fields[3].strip("()*+").upper()
+                        locus_structure = f"({motif})*"
+                        if not ACGTN_REGEX.match(motif):
+                            print(f"WARNING: skipping line with invalid motif: {line.strip()}")
+                            continue
 
                     record = {
-                        "LocusId": f"{chrom}-{start_0based}-{end_1based}-{motif}",
+                        "LocusId": locus_id,
                         "ReferenceRegion": f"{unmodified_chrom}:{start_0based}-{end_1based}",
-                        "LocusStructure": f"({motif})*",
+                        "LocusStructure": locus_structure,
                         "VariantType": "Repeat",
                     }
                     yield record
