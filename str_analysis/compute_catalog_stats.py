@@ -106,7 +106,9 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
             if motif_size <= 50:
                 locus_sizes_by_motif_size[motif_size].append(locus_size)
                 base_purity_by_motif_size[motif_size].append(fraction_pure_bases)
+                base_purity_by_motif_size['all'].append(fraction_pure_bases)
                 repeat_purity_by_motif_size[motif_size].append(fraction_pure_repeats)
+                repeat_purity_by_motif_size['all'].append(fraction_pure_repeats)
                 if "FlanksAndLocusMappability" in record:
                     mappability_by_motif_size[motif_size].append(record["FlanksAndLocusMappability"])
 
@@ -216,7 +218,9 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
     if min_fraction_pure_repeats_motif is not None:
         print(f"   Min fraction pure repeats = {min_fraction_pure_repeats:5.2f}    @ {min_fraction_pure_repeats_reference_region} ({min_fraction_pure_repeats_motif})")
     if min_overall_mappability_motif is not None:
-        print(f"   Min overall mappability = {min_overall_mappability:5.2f}       @ {min_overall_mappability_reference_region} ({min_overall_mappability_motif})")
+        print(f"   Min overall mappability   = {min_overall_mappability:5.2f}    @ {min_overall_mappability_reference_region} ({min_overall_mappability_motif})")
+    print(f"   Base-level   purity   median: {statistics.median(base_purity_by_motif_size['all']):0.3f},  mean: {statistics.mean(base_purity_by_motif_size['all']):0.3f}")
+    print(f"   Repeat-level purity   median: {statistics.median(repeat_purity_by_motif_size['all']):0.3f},  mean: {statistics.mean(repeat_purity_by_motif_size['all']):0.3f}")
     print("")
     print(f"          chrX: {counters['chrX']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['chrX']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
     print(f"          chrY: {counters['chrY']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['chrY']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
@@ -298,7 +302,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
         result[f"{motif_size}bp motifs: median locus size"] = median_size
         result[f"{motif_size}bp motifs: max locus size"] = max_size
 
-        print(f"   {motif_size:3,d}bp motifs: locus size range:   {min_size:4,d} bp to {max_size:7,d} bp  (median: {int(median_size):4,d} bp) based on {len(locus_sizes_by_motif_size[motif_size]):8,d} loci. Mean base purity: {mean_base_purity:0.2f}, mean repeat purity: {mean_repeat_purity:0.2f}. ", f"Mean mappability: {mean_mappability:0.2f}" if mean_mappability is not None else "")
+        print(f"   {motif_size:3,d}bp motifs: locus size range:   {min_size:4,d} bp to {max_size:7,d} bp  (median: {int(median_size):4,d} bp) based on {len(locus_sizes_by_motif_size[motif_size]):10,d} loci. Mean base purity: {mean_base_purity:0.2f}, mean repeat purity: {mean_repeat_purity:0.2f}. ", f"Mean mappability: {mean_mappability:0.2f}" if mean_mappability is not None else "")
 
     for num_repeats_per_locus_detailed_bin in (
         "0x", "1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x", "9x", "10x",
