@@ -73,8 +73,8 @@ def get_variant_catalog_iterator(variant_catalog_json_or_bed, show_progress_bar=
                         locus_id = info["ID"]
                         locus_structure = info["STRUC"].replace("n", "*")
                     else:
-                        locus_id = f"{chrom}-{start_0based}-{end_1based}-{motif}"
                         motif = fields[3].strip("()*+").upper()
+                        locus_id = f"{chrom}-{start_0based}-{end_1based}-{motif}"
                         locus_structure = f"({motif})*"
                         if not ACGTN_REGEX.match(motif):
                             print(f"WARNING: skipping line with invalid motif: {line.strip()}")
