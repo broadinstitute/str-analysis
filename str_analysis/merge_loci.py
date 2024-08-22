@@ -18,7 +18,8 @@ SEPARATOR_FOR_MULTIPLE_SOURCES = " ||| "
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Combines two or more repeat catalogs into a single catalog. Loci "
-        "that overlap by more than ")
+        "that have similar motifs and overlap either by more than the given threshold or by at least two repeats of "
+        "the larger motif among the two can be merged or discarded.")
     parser.add_argument("-f", "--overlap-fraction", default=0.66, type=float, help="The minimum overlap for two loci "
         "to be considered as the same locus (assuming they are specified as having the same normalized motif). "
         "This is similar to the -f argument for 'bedtools intersect'.")
@@ -231,25 +232,29 @@ def add_variant_catalog_to_interval_trees(
 
             # if the new record overlaps an existing record by less than the minimum overlap fraction, then it's not
             # considered a duplicate of the existing record
-            if overlap_size < min_overlap_fraction * (end_1based - start_0based) \
-                    and overlap_size < min_overlap_fraction * (overlapping_interval.end - overlapping_interval.begin):
-                continue
+            overlap_is_less_than_min_overlap_fraction = overlap_size < min_overlap_fraction * (end_1based - start_0based) \
+                    and overlap_size < min_overlap_fraction * (overlapping_interval.end - overlapping_interval.begin)
 
             # handle overlapping interval
             existing_record = overlapping_interval.data
-            if new_record["LocusStructure"] == existing_record["LocusStructure"]:
-                counters[f"overlapped an existing locus by at least {100*min_overlap_fraction}% " \
-                         f"and had the exact same LocusStructure"] += 1
-                found_existing_record_with_similar_motif = True
-                break
-            elif not isinstance(new_record["ReferenceRegion"], list) and not isinstance(existing_record["ReferenceRegion"], list):
+            if isinstance(new_record["ReferenceRegion"], list) or isinstance(existing_record["ReferenceRegion"], list):
+                if overlap_is_less_than_min_overlap_fraction:
+                    continue
+
+                if new_record["LocusStructure"] == existing_record["LocusStructure"]:
+                    counters[f"overlapped an existing locus by at least {100*min_overlap_fraction}% " \
+                             f"and had the exact same LocusStructure"] += 1
+                    found_existing_record_with_similar_motif = True
+                    break
+            else:
                 # check if the existing record's canonical motif is the same as the canonical motif of the new record
                 existing_record_motifs = parse_motifs_from_locus_structure(existing_record["LocusStructure"])
                 if len(existing_record_motifs) != 1:
                     raise ValueError(f"Unexpected LocusStructure in {existing_record}.")
 
                 try:
-                    existing_record_canonical_motif = compute_canonical_motif(existing_record_motifs[0], include_reverse_complement=False)
+                    existing_record_canonical_motif = compute_canonical_motif(
+                        existing_record_motifs[0], include_reverse_complement=False)
                 except Exception as e:
                     raise ValueError(f"Error computing canonical motif for {existing_record}: {e}")
 
@@ -260,9 +265,18 @@ def add_variant_catalog_to_interval_trees(
                         raise ValueError(f"Unexpected LocusStructure in {new_record}.")
 
                     try:
-                        new_record_canonical_motif = compute_canonical_motif(new_record_motifs[0], include_reverse_complement=False)
+                        new_record_canonical_motif = compute_canonical_motif(
+                            new_record_motifs[0], include_reverse_complement=False)
                     except Exception as e:
                         raise ValueError(f"Error computing canonical motif for {new_record}: {e}")
+
+                if len(existing_record_canonical_motif) > len(new_record_canonical_motif):
+                    longer_motif = existing_record_canonical_motif
+                else:
+                    longer_motif = new_record_canonical_motif
+
+                if overlap_is_less_than_min_overlap_fraction and overlap_size < 2*len(longer_motif):
+                    continue
 
                 if existing_record_canonical_motif == new_record_canonical_motif:
                     counters[f"overlapped an existing locus by at least {100*min_overlap_fraction}% " \
