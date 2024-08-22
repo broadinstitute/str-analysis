@@ -364,11 +364,11 @@ def main():
     
                     motifs[i] = simplified_motif
                     modification_counters[counter_key] += 1
-                    if args.verbose:
-                        warning_counter += 1
-                        print(f"WARNING #{warning_counter}: collapsing "
-                              f"{locus_id} motif from {motif} to just {simplified_motif}:",
-                              variant_catalog_record["LocusStructure"])
+                    #if args.verbose:
+                    #    warning_counter += 1
+                    #    print(f"WARNING #{warning_counter}: collapsing "
+                    #          f"{locus_id} motif from {motif} to just {simplified_motif}:",
+                    #          variant_catalog_record["LocusStructure"])
 
         # parse intervals
         chroms_start_0based_ends = [parse_interval(reference_region) for reference_region in reference_regions]
@@ -508,6 +508,10 @@ def main():
                 larger_motif_size = max(len(canonical_motif), len(overlapping_interval_motif))
                 if overlapping_interval.overlap_size(start_0based, end) >= 2*larger_motif_size:
                     overlaps_other_interval_with_similar_motif = canonical_motif == overlapping_interval_motif
+                    #if args.verbose and overlaps_other_interval_with_similar_motif:
+                    #    print(f"    {locus_id} overlaps another interval with a similar motif: "
+                    #          f"{chrom}-{overlapping_interval.begin}-{overlapping_interval.end}-{overlapping_interval_motif} "
+                    #          f"by 2 or more repeats of the larger motif. Source: {variant_catalog_record.get('Source')}")
                     break
 
             interval_trees[chrom].add(Interval(start_0based, end, data=canonical_motif))
@@ -520,6 +524,7 @@ def main():
         variant_catalog_record["FractionPureRepeats"] = fraction_pure_repeats_list[0] if len(chroms_start_0based_ends) == 1 else fraction_pure_repeats_list
 
         if args.discard_overlapping_intervals_with_similar_motifs and overlaps_other_interval_with_similar_motif:
+            filter_counters[f"overlapping interval"] += 1
             continue
 
         if args.max_interruptions is not None and variant_catalog_record["InterruptionBaseCount"] > args.max_interruptions:
