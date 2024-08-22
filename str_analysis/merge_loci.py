@@ -273,7 +273,7 @@ def check_for_sufficient_overlap_and_motif_match(existing_interval, new_interval
                                           f"and had the same canonical motif"] += 1
         return existing_interval
     else:
-        if len(existing_record_canonical_motif) < len(new_record_canonical_motif):
+        if len(existing_record_canonical_motif) <= len(new_record_canonical_motif):
             short_motif, long_motif = existing_record_canonical_motif, new_record_canonical_motif
         elif len(existing_record_canonical_motif) > len(new_record_canonical_motif):
             short_motif, long_motif = new_record_canonical_motif, existing_record_canonical_motif
