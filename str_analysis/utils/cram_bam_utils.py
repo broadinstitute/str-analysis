@@ -253,7 +253,7 @@ class IntervalReader:
 				self._cram_or_bam_path, index_filename=self._crai_or_bai_path,
 				reference_filename=self._reference_fasta_path, require_index=True,
 			)
-			pysam_input_filename = self._cram_or_bam_path.name
+			pysam_input_filename = os.path.basename(self._crai_or_bai_path)
 		else:
 			raise ValueError(f"Output path {local_path} must end with .cram or .bam")
 
