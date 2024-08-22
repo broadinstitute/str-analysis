@@ -26,8 +26,8 @@ def parse_args():
     parser.add_argument("--add-source-field", action="store_true", help="If specified, then a Source field will be "
         "added to the output catalog to specify the filename of the original source catalog of a given locus. This "
         "requires the output format to be set to JSON.")
-    parser.add_argument("--add-found-in-fields", action="store_true", help="If specified, then 'In<CatalogName>' fields "
-        "will added to the output catalog to indicate which input catalogs contain this locus. "
+    parser.add_argument("--add-found-in-fields", action="store_true", help="If specified, then 'FoundIn<CatalogName>' "
+        "fields will added to the output catalog to indicate which input catalogs contain this locus. "
         "This requires the output format to be set to JSON.")
     parser.add_argument("--add-extra-fields-from-input-catalogs", action="store_true", help="If specified, then "
         "extra fields from the input catalogs will be added to the output catalog. This requires the output format "
@@ -51,6 +51,8 @@ def parse_args():
     parser.add_argument("--verbose-overlaps", action="store_true", help="If specified, print out overlapping definitions"
                         "that have similar motifs but different boundaries")
     parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
+    parser.add_argument("--outer-join-overlap-table-min-sources", type=int, default=1, help="The minimum number of "
+                        "input catalogs that a locus must be found in to be included in the outer join overlap table")
     parser.add_argument("--write-outer-join-overlap-table", action="store_true", help="If specified, output an "
                         ".outer_join_overlap_table.tsv.gz which reports which loci are present in which input catalogs")
     parser.add_argument("--write-merge-stats-tsv", action="store_true", help="If specified, output a .merge_stats.tsv")
@@ -312,7 +314,7 @@ def add_variant_catalog_to_interval_trees(
         outer_join_overlap_table (dict): a dictionary that maps locus IDs to a dictionary of catalog name to locus presence
         for each locus found in any catalog, maps its LocusId to a dictionary of catalog name to locus presence
         add_source_field (bool): If True, then the source file path will be added to each record as a new "Source" field
-        add_found_in_fields (bool): If True, then "In<CatalogName>" fields will be added.
+        add_found_in_fields (bool): If True, then "FoundIn<CatalogName>" fields will be added.
         add_extra_fields_from_input_catalogs (bool): If False, then only the required fields will be kept in each input
             variant catalog record and any extra fields will be discarded.
         stats (dict): dictionary for tracking merge stats
@@ -339,7 +341,7 @@ def add_variant_catalog_to_interval_trees(
         if add_source_field or add_found_in_fields:
             new_record["Source"] = catalog_name
         if add_found_in_fields:
-            new_record[f"In{catalog_name}"] = "Yes"
+            new_record[f"FoundIn{catalog_name}"] = "Yes"
         if outer_join_overlap_table is not None:
             outer_join_overlap_table[new_record["LocusId"]][catalog_name] = "Yes"
 
@@ -418,12 +420,12 @@ def add_variant_catalog_to_interval_trees(
             if remove_existing:
                 interval_trees[chrom].remove(existing_interval)
 
-            # update the "In<CatalogName>" fields in the existing record to show that it was found in the new catalog
+            # update the "FoundIn<CatalogName>" fields in the existing record to show that it was found in the new catalog
             if (add_found_in_fields and discard_new and
                 existing_interval.begin == new_interval.begin and
                 existing_interval.end == new_interval.end and
                 existing_record["LocusStructure"] == new_record["LocusStructure"]):
-                existing_record[f"In{catalog_name}"] = "Yes"
+                existing_record[f"FoundIn{catalog_name}"] = "Yes"
 
             # handle overlapping records in the outer-join table
             if outer_join_overlap_table is not None:
@@ -435,15 +437,15 @@ def add_variant_catalog_to_interval_trees(
 
                     overlapping_record = overlapping_interval.data
                     if overlapping_interval.length() < (end_1based - start_0based):
-                        overlapping_record[f"In{catalog_name}"] = "YesButWider"
+                        overlapping_record[f"FoundIn{catalog_name}"] = "YesButWider"
                         outer_join_overlap_table[overlapping_record["LocusId"]][catalog_name] = "YesButWider"
-                        new_record[f"In{overlapping_record['Source']}"] = "YesButNarrower"
+                        new_record[f"FoundIn{overlapping_record['Source']}"] = "YesButNarrower"
                         outer_join_overlap_table[new_record["LocusId"]][overlapping_record["Source"]] = "YesButNarrower"
 
                     elif overlapping_interval.length() > (end_1based - start_0based):
-                        overlapping_record[f"In{catalog_name}"] = "YesButNarrower"
+                        overlapping_record[f"FoundIn{catalog_name}"] = "YesButNarrower"
                         outer_join_overlap_table[overlapping_record["LocusId"]][catalog_name] = "YesButNarrower"
-                        new_record[f"In{overlapping_record['Source']}"] = "YesButWider"
+                        new_record[f"FoundIn{overlapping_record['Source']}"] = "YesButWider"
                         outer_join_overlap_table[new_record["LocusId"]][overlapping_record["Source"]] = "YesButWider"
 
             if discard_new:
@@ -745,7 +747,7 @@ def main():
         with gzip.open(outer_join_overlap_table_path, "wt") as outer_join_overlap_table_tsv:
             outer_join_overlap_table_tsv.write("LocusId" + "\t" + "\t".join([catalog_name for catalog_name, _, _ in paths]) + "\n")
             for locus_id, catalog_presence in sorted(outer_join_overlap_table.items()):
-                if sum(1 for catalog_name, _, _ in paths if catalog_name in catalog_presence) > 0:
+                if sum(1 for catalog_name, _, _ in paths if catalog_name in catalog_presence) >= args.outer_join_overlap_table_min_sources:
                     outer_join_overlap_table_tsv.write(locus_id + "\t" + "\t".join(
                         catalog_presence.get(catalog_name, "") for catalog_name, _, _ in paths) + "\n")
         print(f"Wrote outer join overlap table to {outer_join_overlap_table_path}")
