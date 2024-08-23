@@ -379,10 +379,12 @@ def main():
                     motif_size = len(simplified_motif)
                     interval_width = end_1based - start_0based
                     if interval_width % motif_size != 0:
-                        new_end_1based -= end_1based - interval_width % motif_size
+                        new_end_1based = end_1based - interval_width % motif_size
+                        if new_end_1based == start_0based:
+                            new_end_1based += motif_size
                         variant_catalog_record["ReferenceRegion"] = f"{chrom}:{start_0based}-{new_end_1based}"
                         reference_regions[i] = variant_catalog_record["ReferenceRegion"]
-                        counter_key = f"trimmed locus end coordinate to make interval width an exact multiple of the motif size"
+                        counter_key = f"trimmed locus end coordinate to an exact multiple of the motif size"
                         modification_counters[counter_key] += 1
 
         # parse intervals
