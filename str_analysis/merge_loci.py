@@ -430,23 +430,37 @@ def add_variant_catalog_to_interval_trees(
             # handle overlapping records in the outer-join table
             if outer_join_overlap_table is not None:
                 for overlapping_interval in overlapping_intervals:
+                    overlapping_record = overlapping_interval.data
+                    if overlapping_record["Source"] == catalog_name:
+                        continue
+
                     they_match = check_for_sufficient_overlap_and_motif_match(
                         overlapping_interval, new_interval, min_overlap_fraction=min_overlap_fraction)
                     if not they_match:
                         continue
 
-                    overlapping_record = overlapping_interval.data
-                    if overlapping_interval.length() < (end_1based - start_0based):
-                        overlapping_record[f"FoundIn{catalog_name}"] = "YesButWider"
-                        outer_join_overlap_table[overlapping_record["LocusId"]][catalog_name] = "YesButWider"
-                        new_record[f"FoundIn{overlapping_record['Source']}"] = "YesButNarrower"
-                        outer_join_overlap_table[new_record["LocusId"]][overlapping_record["Source"]] = "YesButNarrower"
+                    def set_value_if_not_yes(dictionary, key, value, log=None):
+                        if dictionary.get(key) != "Yes":
+                            dictionary[key] = value
+                            if log:
+                                print(log, f" setting to {value}")
 
+                    #existing_record_motifs = parse_motifs_from_locus_structure(existing_record["LocusStructure"])
+                    #if abs(overlapping_interval.length() - (end_1based - start_0based)) < len(existing_record_motifs[0]):
+                    #    set_value_if_not_yes(outer_join_overlap_table[overlapping_record["LocusId"]], catalog_name, "Yes")
+                    #    set_value_if_not_yes(outer_join_overlap_table[new_record["LocusId"]], overlapping_record["Source"], "Yes")
+                    #### COMMENTED OUT because it's better to preprocess the input catalogs to trim all loci, then to do it on
+                    #    the fly here, and so create redundant entries in the output table
+                    if overlapping_interval.length() < (end_1based - start_0based):
+                        set_value_if_not_yes(overlapping_record, f"FoundIn{catalog_name}", "YesButWider")
+                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["LocusId"]], catalog_name, "YesButWider")
+                        set_value_if_not_yes(new_record, f"FoundIn{overlapping_record['Source']}", "YesButNarrower")
+                        set_value_if_not_yes(outer_join_overlap_table[new_record["LocusId"]], overlapping_record["Source"], "YesButNarrower")
                     elif overlapping_interval.length() > (end_1based - start_0based):
-                        overlapping_record[f"FoundIn{catalog_name}"] = "YesButNarrower"
-                        outer_join_overlap_table[overlapping_record["LocusId"]][catalog_name] = "YesButNarrower"
-                        new_record[f"FoundIn{overlapping_record['Source']}"] = "YesButWider"
-                        outer_join_overlap_table[new_record["LocusId"]][overlapping_record["Source"]] = "YesButWider"
+                        set_value_if_not_yes(overlapping_record, f"FoundIn{catalog_name}", "YesButNarrower")
+                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["LocusId"]], catalog_name, "YesButNarrower")
+                        set_value_if_not_yes(new_record, f"FoundIn{overlapping_record['Source']}", "YesButWider")
+                        set_value_if_not_yes(outer_join_overlap_table[new_record["LocusId"]], overlapping_record["Source"], "YesButWider")
 
             if discard_new:
                 # don't add the new record to the interval tree since it matches an existing record
