@@ -744,13 +744,16 @@ def main():
 
     if args.write_outer_join_overlap_table:
         outer_join_overlap_table_path = f"{args.output_prefix}.outer_join_overlap_table.tsv.gz"
+        output_counter = 0
         with gzip.open(outer_join_overlap_table_path, "wt") as outer_join_overlap_table_tsv:
-            outer_join_overlap_table_tsv.write("LocusId" + "\t" + "\t".join([catalog_name for catalog_name, _, _ in paths]) + "\n")
+            header_string = "LocusId\t" + "\t".join([catalog_name for catalog_name, _, _ in paths])
+            outer_join_overlap_table_tsv.write(f"{header_string}\n")
             for locus_id, catalog_presence in sorted(outer_join_overlap_table.items()):
+                output_counter += 1
                 if sum(1 for catalog_name, _, _ in paths if catalog_name in catalog_presence) >= args.outer_join_overlap_table_min_sources:
-                    outer_join_overlap_table_tsv.write(locus_id + "\t" + "\t".join(
-                        catalog_presence.get(catalog_name, "") for catalog_name, _, _ in paths) + "\n")
-        print(f"Wrote outer join overlap table to {outer_join_overlap_table_path}")
+                    row_string = f"{locus_id}\t" + "\t".join(catalog_presence.get(catalog_name, "") for catalog_name, _, _ in paths)
+                    outer_join_overlap_table_tsv.write(f"{row_string}\n")
+        print(f"Wrote {output_counter:,d} rows to {outer_join_overlap_table_path}")
 
     if args.write_merge_stats_tsv:
         merge_stats_output_tsv_path = f"{args.output_prefix}.merge_stats.tsv"
