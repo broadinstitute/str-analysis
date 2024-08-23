@@ -123,11 +123,13 @@ def parse_args():
                               "loci if their reference sequence contains non-ACGTN bases")
 
     modification_group = parser.add_argument_group("modifications")
-    filter_group.add_argument("--dont-simplify-motifs", action="store_true", help="By default, repeat motifs within the "
+    modification_group.add_argument("--dont-simplify-motifs", action="store_true", help="By default, repeat motifs within the "
                               "LocusStructure will be simplified to their most compact form. For example, a "
                               "LocusStructure defined as '(TTT)*CGAG(CAGCAG)*' will be replaced with '(T)*CGAG(CAG)*'. "
                               "This option disables this simplification step.")
-
+    modification_group.add_argument("--trim-loci", action="store_true", help="Trim locus end coordinate so that the"
+                                                                             "interval width is an exact multiple of the "
+                                                                             "motif size")
     parser.add_argument("variant_catalog_json_or_bed", help="A catalog of repeats to annotate and filter, either "
                         "in JSON or BED format. For BED format, the chrom, start, and end should represent the repeat "
                         "interval in 0-based coordinates, and the name field (column #4) should be the repeat unit.")
@@ -351,24 +353,37 @@ def main():
         # Check if the motif is actually composed of multiple repeats of a simpler motif.
         # For example, a "TTT" motif can be simplified to just a "T" homopolymer.
         if not args.dont_simplify_motifs:
-            for i, motif in enumerate(motifs):
+            for i, (reference_region, motif) in enumerate(zip(reference_regions, motifs)):
                 simplified_motif = None
     
                 # the above elif clauses are an optimization to speed up the
-                simplified_motif, num_repeats, _ = find_repeat_unit_without_allowing_interruptions(motif, allow_partial_repeats=False)
+                simplified_motif, num_repeats, _ = find_repeat_unit_without_allowing_interruptions(
+                    motif, allow_partial_repeats=False)
                 if num_repeats > 1:
-                    counter_key = f"replaced {len(motif)}bp motif with a simplified {len(simplified_motif)}bp motif"
-    
                     variant_catalog_record["LocusStructure"] = variant_catalog_record["LocusStructure"].replace(
                         f"({motif})", f"({simplified_motif})")
     
                     motifs[i] = simplified_motif
+                    counter_key = f"replaced {len(motif)}bp motif with a simplified {len(simplified_motif)}bp motif"
                     modification_counters[counter_key] += 1
+
                     #if args.verbose:
                     #    warning_counter += 1
                     #    print(f"WARNING #{warning_counter}: collapsing "
                     #          f"{locus_id} motif from {motif} to just {simplified_motif}:",
                     #          variant_catalog_record["LocusStructure"])
+
+                if args.trim_loci:
+                    # trim locus end coordinate so that the interval width is an exact multiple of the motif size
+                    chrom, start_0based, end_1based = parse_interval(reference_region)
+                    motif_size = len(simplified_motif)
+                    interval_width = end_1based - start_0based
+                    if interval_width % motif_size != 0:
+                        new_end_1based -= end_1based - interval_width % motif_size
+                        variant_catalog_record["ReferenceRegion"] = f"{chrom}:{start_0based}-{new_end_1based}"
+                        reference_regions[i] = variant_catalog_record["ReferenceRegion"]
+                        counter_key = f"trimmed locus end coordinate to make interval width an exact multiple of the motif size"
+                        modification_counters[counter_key] += 1
 
         # parse intervals
         chroms_start_0based_ends = [parse_interval(reference_region) for reference_region in reference_regions]
