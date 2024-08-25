@@ -25,6 +25,13 @@ from str_analysis.utils.file_utils import download_local_copy
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 
 
+EXTRA_FIELD_CHOICES = {
+    "TRsInRegion",
+    "DistancesBetweenReferenceRegions",
+    "ReferenceRegionMotifs",
+    "MaxDistanceBetweenReferenceRegions",
+}
+
 def process_input_record(
     record, reference_fasta, interval_tree,
     max_distance_between_adjacent_repeats=MAX_DISTANCE_BETWEEN_REPEATS,
@@ -32,7 +39,8 @@ def process_input_record(
     max_overlap_between_adjacent_repeats=MAX_OVERLAP_BETWEEN_ADJACENT_REPEATS,
     max_adjacent_repeats=None,
     add_extra_info_to_locus_id=False,
-    add_extra_fields=False,
+    add_extra_field=None,
+    only_add_extra_fields=False,
     set_variant_ids_to_locus_id_plus_motif=True,
 ):
     """Add adjacent loci to a record from the variant catalog
@@ -51,8 +59,9 @@ def process_input_record(
         max_overlap_between_adjacent_repeats (int)
         max_adjacent_repeats (int) Max adjacent repeats to add.
         add_extra_info_to_locus_id (bool) If True, add info about adjacent loci to the locus id in the output variant
-        add_extra_fields (bool) If True, add extra fields to the output record that record the number of base pairs
-            between the main repeat and any adjacent repeats.
+        add_extra_field (set) Set of extra fields to add to the output record (see --add-extra-field).
+        only_add_extra_fields (bool) If True, only add the extra field(s) to the output variant catalog. Don't add
+            adjacent loci.
         set_variant_ids_to_locus_id_plus_motif (bool) If True, set the variant id of adjacent loci to the locus id
             followed by the motif. This matches the naming convention in the official Illumina catalog. For
             example: FXN_A is the adjacent poly-A repeat next to the main FXN locus. If False, use a longer, more
@@ -84,20 +93,31 @@ def process_input_record(
         max_adjacent_repeats=max_adjacent_repeats,
     )
 
-    if adjacent_repeats_left or adjacent_repeats_right:
+    if not adjacent_repeats_left and not adjacent_repeats_right:
+        if add_extra_field and "TRsInRegion" in add_extra_field:
+            output_record["TRsInRegion"] = 1
+    else:
         reference_regions = []
         variant_ids = []
         variant_types = []
-        if add_extra_fields:
+        if add_extra_field:
             previous_reference_region_end = None
             distances_between_reference_regions = []
             reference_region_motifs = []
 
-        for variant_id, adjacent_repeat in [
-            (f"{locus_id}_ADJACENT_LEFT_{i+1}", adjacent_repeat_left) for i, adjacent_repeat_left in enumerate(adjacent_repeats_left)
-        ] + [(locus_id, f"{chrom}:{start_0based}-{end_1based}-{repeat_unit}")] + [
-            (f"{locus_id}_ADJACENT_RIGHT_{i+1}", adjacent_repeat_right) for i, adjacent_repeat_right in enumerate(adjacent_repeats_right)
-        ]:
+        primary_repeat = f"{chrom}:{start_0based}-{end_1based}-{repeat_unit}"
+        if only_add_extra_fields:
+            adjacent_left = []
+            adjacent_right = []
+        else:
+            adjacent_left = [
+                (f"{locus_id}_ADJACENT_LEFT_{i+1}", adjacent_repeat_left) for i, adjacent_repeat_left in enumerate(adjacent_repeats_left)
+            ]
+            adjacent_right = [
+                (f"{locus_id}_ADJACENT_RIGHT_{i+1}", adjacent_repeat_right) for i, adjacent_repeat_right in enumerate(adjacent_repeats_right)
+            ]
+
+        for variant_id, adjacent_repeat in adjacent_left + [(locus_id, primary_repeat)] + adjacent_right:
             adjacent_repeat_chrom, adjacent_repeat_start_0based, adjacent_repeat_end_1based, adjacent_repeat_unit = re.split("[:-]", adjacent_repeat)
             reference_regions.append(f"{adjacent_repeat_chrom}:{adjacent_repeat_start_0based}-{adjacent_repeat_end_1based}")
             if variant_id == locus_id:
@@ -108,25 +128,31 @@ def process_input_record(
                 variant_ids.append(f"{variant_id}_{adjacent_repeat_unit}")
 
             variant_types.append("Repeat")
-            if add_extra_info_to_locus_id or add_extra_fields:
+            if add_extra_info_to_locus_id or add_extra_field:
                 reference_region_motifs.append(adjacent_repeat_unit)
                 if previous_reference_region_end is not None:
                     distances_between_reference_regions.append(
                         int(adjacent_repeat_start_0based) - int(previous_reference_region_end))
                 previous_reference_region_end = int(adjacent_repeat_end_1based)
 
-        output_record["ReferenceRegion"] = reference_regions
-        output_record["VariantId"] = variant_ids
-        output_record["VariantType"] = variant_types
-        output_record["LocusStructure"] = adjacent_repeats_locus_structure
+        if not only_add_extra_fields:
+            output_record["ReferenceRegion"] = reference_regions
+            output_record["LocusStructure"] = adjacent_repeats_locus_structure
+            output_record["VariantId"] = variant_ids
+            output_record["VariantType"] = variant_types
+
 
         if add_extra_info_to_locus_id:
             output_record["LocusId"] += f";{len(reference_regions) - 1}_adjacent_repeats"
             if len(reference_regions) > 1:
                 output_record["LocusId"] += f";max_dist_{max(distances_between_reference_regions)}bp"
-        if add_extra_fields and distances_between_reference_regions:
+        if add_extra_field and "TRsInRegion" in add_extra_field:
+            output_record["TRsInRegion"] = len(reference_regions)
+        if add_extra_field and "DistancesBetweenReferenceRegions" in add_extra_field and distances_between_reference_regions:
             output_record["DistancesBetweenReferenceRegions"] = distances_between_reference_regions
+        if add_extra_field and "ReferenceRegionMotifs" in add_extra_field and reference_region_motifs:
             output_record["ReferenceRegionMotifs"] = reference_region_motifs
+        if add_extra_field and "MaxDistanceBetweenReferenceRegions" in add_extra_field and distances_between_reference_regions:
             output_record["MaxDistanceBetweenReferenceRegions"] = max(distances_between_reference_regions)
 
     return output_record
@@ -269,10 +295,14 @@ def main():
                         action="store_true",
                         help="Add info about adjacent loci to the locus id in the output variant catalog. This will "
                              "include the number of adjacent loci and the max distance between them.")
-    parser.add_argument("--add-extra-fields",
-                        action="store_true",
+    parser.add_argument("-a", "--add-extra-field",
+                        choices=EXTRA_FIELD_CHOICES,
+                        action="append",
                         help="Add extra fields to each locus in the output variant catalog that record the number of "
                              "base pairs between any adjacent loci and the main locus in an easy-to-parse format")
+    parser.add_argument("--only-add-extra-fields",
+                        action="store_true",
+                        help="Only add the extra field(s) to the output variant catalog. Don't add adjacent loci.")
     parser.add_argument("-k", "--also-output-original-definitions",
                         action="store_true",
                         help="When adding adjacent loci to locus definions in the input catalog, output the original "
@@ -415,7 +445,8 @@ def main():
                 max_overlap_between_adjacent_repeats=args.max_overlap_between_adjacent_repeats,
                 max_adjacent_repeats=args.max_adjacent_repeats,
                 add_extra_info_to_locus_id=args.add_extra_info_to_locus_id,
-                add_extra_fields=args.add_extra_fields,
+                add_extra_field=args.add_extra_field,
+                only_add_extra_fields=args.only_add_extra_fields,
                 set_variant_ids_to_locus_id_plus_motif=False,
             )
 
@@ -485,7 +516,7 @@ def main():
                   ", ".join(locus_ids_with_existing_adjacent_repeats[:10]),
                   "" if len(locus_ids_with_existing_adjacent_repeats) <= 10 else "...")
         else:
-            print("None of the records in the input catalog(s) had adjacent loci specified")
+            print("The input catalog(s) did not have any adjacent loci specified")
 
         print(f"Added adjacent loci to {counters['added adjacent loci']:,d} out of {counters['total records']:,d} records ("
               f"{counters['added adjacent loci'] / counters['total records']:.1%}): ",
