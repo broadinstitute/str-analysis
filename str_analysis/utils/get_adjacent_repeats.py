@@ -34,6 +34,7 @@ def get_adjacent_repeats(locus_interval_0based, repeat_unit, pysam_fasta_file, i
     max_total_adjacent_region_size=MAX_TOTAL_ADJACENT_REGION_SIZE,
     max_overlap_between_adjacent_repeats=MAX_OVERLAP_BETWEEN_ADJACENT_REPEATS,
     max_adjacent_repeats=None,
+    verbose=False,
 ):
     """Find adjacent repeats on the left and right of the given locus interval.
 
@@ -48,6 +49,7 @@ def get_adjacent_repeats(locus_interval_0based, repeat_unit, pysam_fasta_file, i
         max_total_adjacent_region_size (int): maximum total size of the region to search for adjacent repeats
         max_overlap_between_adjacent_repeats (int): maximum overlap between adjacent repeats
         max_adjacent_repeats (int): maximum number of adjacent repeats to return
+        verbose (bool): verbose output
 
     Returns:
          3-tuple: (adjacent_repeats_on_left, locus_structure, adjacent_repeats_on_right)
@@ -57,7 +59,7 @@ def get_adjacent_repeats(locus_interval_0based, repeat_unit, pysam_fasta_file, i
     repeat_units_already_added = set()
 
     repeat_unit_in_reference = get_repeat_unit_from_fasta(chrom, start_0based + 1, end_1based, len(repeat_unit), pysam_fasta_file)
-    if repeat_unit != repeat_unit_in_reference:
+    if repeat_unit != repeat_unit_in_reference and verbose:
         print(f"WARNING: locus motif {repeat_unit} differs from the motif in the reference which is {repeat_unit_in_reference} @ {chrom}:{start_0based+1}-{end_1based}")
     locus_structure = f"({repeat_unit})*"
 
