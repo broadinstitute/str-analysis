@@ -20,7 +20,7 @@ from str_analysis.utils.eh_catalog_utils import (parse_motifs_from_locus_structu
                                                  convert_json_records_to_bed_format_tuples, get_variant_catalog_iterator)
 from str_analysis.utils.file_utils import open_file, file_exists, download_local_copy
 from str_analysis.utils.find_repeat_unit import find_repeat_unit_without_allowing_interruptions
-from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval
+from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval, GENE_MODELS
 from str_analysis.utils.misc_utils import parse_interval
 
 VALID_GENE_REGIONS = {"CDS", "UTR", "5UTR", "3UTR", "promoter", "exon", "intron", "intergenic"}
@@ -53,10 +53,9 @@ def parse_args():
         help="ExpansionHunter catalog .json file with all known disease-associated loci",
         default="~/code/str-analysis/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json")
     #default="https://raw.githubusercontent.com/broadinstitute/str-analysis/main/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json")
-    annotations_group.add_argument("--genes-gtf", help="Gene models gtf file path or url.",
-        default="~/code/str-truth-set/ref/other/MANE.v1.0.ensembl_genomic.sorted.gtf.gz")
-    annotations_group.add_argument("--gene-models-source", help="Source of the genes-gtf file. If not specified, "
-        "it will be computed based on the filename", choices=["gencode", "mane", "refseq"])
+    annotations_group.add_argument("--genes-gtf", help="Gene models gtf file path or url.")
+    annotations_group.add_argument("--gene-models-source", action="append", help="Source of the genes-gtf file. "
+        "Can be specified more than once to annotate with multiple gene models.", choices=["gencode", "mane", "refseq"])
     annotations_group.add_argument("--mappability-track-bigwig", default=MAPPABILITY_TRACK_BIGWIG_URL,
         help="Path or URL of the bigWig file containing mappability scores for each base in the reference genome")
     annotations_group.add_argument("--skip-gene-annotations", action="store_true", help="Don't addd gene annotations to "
@@ -136,7 +135,7 @@ def parse_args():
 
     args = parser.parse_args()
 
-    if not args.skip_gene_annotations and not file_exists(os.path.expanduser(args.genes_gtf)):
+    if not args.skip_gene_annotations and args.genes_gtf and not file_exists(os.path.expanduser(args.genes_gtf)):
         parser.error(f"File not found: {args.genes_gtf}")
     if not args.skip_disease_loci_annotations and not file_exists(os.path.expanduser(args.known_disease_associated_loci)):
         parser.error(f"File not found: {args.known_disease_associated_loci}")
@@ -450,23 +449,31 @@ def main():
                 spanning_interval_end = max(end, spanning_interval_end) if spanning_interval_end is not None else end
 
         if not args.skip_gene_annotations:
-            if not args.gene_models_source:
-                args.gene_models_source = os.path.basename(args.genes_gtf).split(".")[0].title()
-            else:
-                args.gene_models_source = args.gene_models_source.title()
+            if args.genes_gtf:
+                gene_models_source = os.path.basename(args.genes_gtf).split(".")[0].lower()
+                args.gene_models_source = [gene_models_source]
+                GENE_MODELS[gene_models_source] = args.genes_gtf
 
-            (
-                variant_catalog_record[f"{args.gene_models_source}GeneRegion"],
-                variant_catalog_record[f"{args.gene_models_source}GeneName"],
-                variant_catalog_record[f"{args.gene_models_source}GeneId"],
-                variant_catalog_record[f"{args.gene_models_source}TranscriptId"],
-            ) = compute_genomic_region_of_interval(
-                spanning_interval_chrom,
-                spanning_interval_start0_based + 1,
-                spanning_interval_end,
-                args.genes_gtf,
-                verbose=args.verbose,
-                show_progress_bar=args.show_progress_bar)
+            for gene_models_source in args.gene_models_source:
+                genes_gtf = GENE_MODELS[gene_models_source]
+
+                gene_models_source = gene_models_source.title()
+
+                (
+                    variant_catalog_record[f"{gene_models_source}GeneRegion"],
+                    variant_catalog_record[f"{gene_models_source}GeneName"],
+                    variant_catalog_record[f"{gene_models_source}GeneId"],
+                    variant_catalog_record[f"{gene_models_source}TranscriptId"],
+                ) = compute_genomic_region_of_interval(
+                    spanning_interval_chrom,
+                    spanning_interval_start0_based + 1,
+                    spanning_interval_end,
+                    genes_gtf,
+                    verbose=args.verbose,
+                    show_progress_bar=args.show_progress_bar)
+
+                if variant_catalog_record[f"{gene_models_source}GeneId"] == variant_catalog_record[f"{gene_models_source}GeneName"]:
+                    del variant_catalog_record[f"{gene_models_source}GeneName"]
 
         if args.region_type and variant_catalog_record.get(f"{args.gene_models_source}GeneRegion") not in args.region_type:
             filter_counters[f"row {args.gene_models_source}GeneRegion isn't among {args.region_type}"] += 1
