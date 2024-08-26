@@ -93,10 +93,7 @@ def process_input_record(
         max_adjacent_repeats=max_adjacent_repeats,
     )
 
-    if not adjacent_repeats_left and not adjacent_repeats_right:
-        if add_extra_field and "TRsInRegion" in add_extra_field:
-            output_record["TRsInRegion"] = 1
-    else:
+    if adjacent_repeats_left or adjacent_repeats_right:
         reference_regions = []
         variant_ids = []
         variant_types = []
@@ -141,19 +138,19 @@ def process_input_record(
             output_record["VariantId"] = variant_ids
             output_record["VariantType"] = variant_types
 
-
         if add_extra_info_to_locus_id:
             output_record["LocusId"] += f";{len(reference_regions) - 1}_adjacent_repeats"
             if len(reference_regions) > 1:
                 output_record["LocusId"] += f";max_dist_{max(distances_between_reference_regions)}bp"
-        if add_extra_field and "TRsInRegion" in add_extra_field:
-            output_record["TRsInRegion"] = len(reference_regions)
         if add_extra_field and "DistancesBetweenReferenceRegions" in add_extra_field and distances_between_reference_regions:
             output_record["DistancesBetweenReferenceRegions"] = distances_between_reference_regions
         if add_extra_field and "ReferenceRegionMotifs" in add_extra_field and reference_region_motifs:
             output_record["ReferenceRegionMotifs"] = reference_region_motifs
         if add_extra_field and "MaxDistanceBetweenReferenceRegions" in add_extra_field and distances_between_reference_regions:
             output_record["MaxDistanceBetweenReferenceRegions"] = max(distances_between_reference_regions)
+
+    if add_extra_field and "TRsInRegion" in add_extra_field:
+        output_record["TRsInRegion"] = 1 + len(adjacent_repeats_left) + len(adjacent_repeats_right)
 
     return output_record
 
@@ -407,8 +404,8 @@ def main():
     locus_ids_with_existing_adjacent_repeats = []
     locus_ids_with_new_adjacent_repeats = []
     for input_catalog_path, input_catalog in input_catalogs.items():
-        if args.verbose:
-            print(f"Processing {input_catalog_path}")
+        print(f"Processing {input_catalog_path}")
+        if args.show_progress_bar:
             input_catalog = add_progress_bar(input_catalog, unit=" loci")
 
         output_catalog = []
