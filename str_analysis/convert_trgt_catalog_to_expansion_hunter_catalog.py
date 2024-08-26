@@ -100,8 +100,8 @@ def process_variant_catalog(trgt_bed_path_path, reference_fasta_path, output_fil
 					if not locus_id:
 						raise ValueError(f"ID field not found in row #{i + 1}: {fields}. One work-around is to rerun with --set-locus-id")
 
-				if verbose:
-					print(f"Adding locus {locus_id} with motif {motif} and reference region {chrom}:{start_0based}-{end_1based}")
+				#if verbose:
+				#	print(f"Adding locus {locus_id} with motif {motif} and reference region {chrom}:{start_0based}-{end_1based}")
 
 				output_json_records.append({
 					"LocusId": locus_id,
@@ -120,17 +120,17 @@ def process_variant_catalog(trgt_bed_path_path, reference_fasta_path, output_fil
 							f"ID field not found in row #{i + 1}: {fields}. One work-around is to rerun with --set-locus-id")
 
 				output_records = list(convert_trgt_locus_to_expansion_hunter_format(
-					fasta_obj, chrom, start_0based, end_1based, locus_structure, locus_id_prefix=locus_id, verbose=verbose))
+					fasta_obj, chrom, start_0based, end_1based, locus_structure, locus_id_prefix=locus_id, verbose=False))
 
 				if len(output_records) > 0:
 					output_json_records.extend(output_records)
 				else:
 					counter["skipped"] += 1
-					if verbose:
-						print(
-							f"WARNING: Skipped {info_fields_dict.get('ID')} due to issues with parsing the reference "
-							f"sequence. This typically happens when reference repeat sequence contains interruptions. "
-							f"{motifs}, {fields}")
+					#if verbose:
+					#	print(
+					#		f"WARNING: Skipped {info_fields_dict.get('ID')} due to issues with parsing the reference "
+					#		f"sequence. This typically happens when reference repeat sequence contains interruptions. "
+					#		f"TRGT catalog specified the motifs as: {', '.join(motifs)}")
 
 	print(f"Parsed {counter['total input loci']:,d} loci from {trgt_bed_path_path}")
 	print(f"Writing {len(output_json_records):,d} records to {output_file_path}")
