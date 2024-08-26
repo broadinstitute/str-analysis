@@ -9,8 +9,9 @@ import tqdm
 from str_analysis.utils.file_utils import open_file
 
 GENE_MODELS = {
-    "gencode": "gs://str-truth-set/hg38/ref/other/gencode.v43.annotation.gtf.gz",
-    "mane": "gs://str-truth-set/hg38/ref/other/MANE.GRCh38.v1.0.ensembl_genomic.gtf.gz",
+    "gencode": "/tmp/gencode.v46.basic.annotation.gtf.gz", #gs://str-truth-set/hg38/ref/other/gencode.v46.basic.annotation.gtf.gz",
+    "mane": "gs://str-truth-set/hg38/ref/other/MANE.GRCh38.v1.3.ensembl_genomic.gtf.gz",
+    "refseq": "/tmp/hg38.ncbiRefSeq.gtf.gz", #"gs://str-truth-set/hg38/ref/other/hg38.ncbiRefSeq.gtf.gz",
 }
 
 
@@ -94,6 +95,8 @@ def generate_gtf_records(gtf_path):
         chrom = fields[0]
         start_1based = int(fields[3])
         end_1based = int(fields[4])
+        if end_1based <= start_1based:
+            continue
 
         meta_fields = {}
         for meta_field in fields[8].strip("; ").split(";"):
@@ -115,8 +118,8 @@ def generate_gtf_records(gtf_path):
             "gene_id": gene_id,
             "transcript_id": transcript_id,
             "gene_name": meta_fields["gene_name"],
-            "gene_type": meta_fields["transcript_type"],
-            "transcript_type":  meta_fields["transcript_type"],
+            "gene_type": meta_fields.get("transcript_type"),
+            "transcript_type":  meta_fields.get("transcript_type"),
         }
 
         yield record
@@ -131,6 +134,9 @@ def generate_gtf_records(gtf_path):
                 promoter_end_1based = end_1based + PROMOTER_SIZE
             else:
                 raise ValueError(f"Unexpected strand value in {gtf_path} line #{i}: {line}")
+
+            if promoter_end_1based <= promoter_start_1based:
+                continue
 
             promoter_record = dict(record)
             promoter_record.update({
@@ -206,7 +212,7 @@ def compute_genomic_region_of_interval(chrom, start_1based, end_1based, genes_gt
     input_chrom = str(chrom).replace("chr", "")
     input_locus_interval = Interval(start_1based - 1, end_1based)
 
-    # The truth set STR may overlap more than one region in the GTF. Return the most biologically important region.
+    # The given interval may overlap more than one region in the GTF. Return the most biologically important region.
     overlapping_intervals_from_gtf = interval_trees[input_chrom].overlap(input_locus_interval)
     overlapping_intervals_feature_types = {}
     for i in sorted(overlapping_intervals_from_gtf, key=lambda i: i.data["transcript_id"]):
