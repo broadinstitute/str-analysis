@@ -69,6 +69,16 @@ import simplejson as json
 import re
 from tqdm import tqdm
 
+
+KEYS_TO_DICARD = {
+    'END',
+    'MOTIFS',
+    'AL',
+    'ALLR',
+    #'MC',
+    'MS',
+}
+
 def main():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--discard-hom-ref", action="store_true", help="Discard hom-ref calls")
@@ -114,6 +124,7 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                      parse_reference_region_from_locus_id=False,
                      dont_output_REF_ALT_fields=False,
                      verbose=False, show_progress_bar=False):
+
     locus_results = {
         "LocusResults": {},
         "SampleParameters": {
@@ -144,26 +155,27 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                 continue
 
             line_counter += 1
-            fields = line.strip().split("\t")
-            chrom = fields[0]
-            start_1based = int(fields[1])
-            info = fields[7]
-            if not fields[9] or fields[9] == ".":  # no genotype
-                continue
-
-            info_dict = dict([key_value.split("=") for key_value in info.split(";")])
-            genotype_fields = fields[8].split(":")
-            genotype_values = fields[9].split(":")
-            genotype_dict = dict(zip(genotype_fields, genotype_values))
-
-            if discard_hom_ref and genotype_dict["GT"] == "0/0":
-                continue
-
-            # GT:AL:ALLR:SD:MC:MS:AP:AM
-            if genotype_dict["AL"] == ".":   # no genotype
-                continue
 
             try:
+                fields = line.strip().split("\t")
+                chrom = fields[0]
+                start_1based = int(fields[1])
+                info = fields[7]
+                if not fields[9] or fields[9] == ".":  # no genotype
+                    continue
+
+                info_dict = dict([key_value.split("=") for key_value in info.split(";")])
+                genotype_fields = fields[8].split(":")
+                genotype_values = fields[9].split(":")
+                genotype_dict = dict(zip(genotype_fields, genotype_values))
+
+                if discard_hom_ref and genotype_dict["GT"] == "0/0":
+                    continue
+
+                # GT:AL:ALLR:SD:MC:MS:AP:AM
+                if genotype_dict["AL"] == ".":   # no genotype
+                    continue
+
                 end_1based = int(info_dict["END"])
 
                 motifs = info_dict["MOTIFS"].split(",")
@@ -188,6 +200,9 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                     end_1based = int(locus_id_fields[2])
 
                 if parse_genotype_from_AL_field:
+                    if len(motifs) != 1:
+                        raise ValueError(f"Expected 1 motif, got {len(motifs)} in locus ID {locus_id}")
+
                     repeat_unit = motifs[0]
 
                     genotype = []
@@ -202,6 +217,20 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                         genotype_CI.append("-".join(ci))
                     genotype_CI = "/".join(genotype_CI)
 
+                    variant_record = info_dict | genotype_dict | {
+                        "Genotype": genotype,   #"17/17",
+                        "GenotypeConfidenceInterval": genotype_CI, #"17-17/17-17",
+                        "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
+                        "RepeatUnit": repeat_unit,
+                        "VariantId": locus_id,
+                        #"VariantType": "Repeat",
+                        "Ref": None if dont_output_REF_ALT_fields else fields[3],
+                        "Alt": None if dont_output_REF_ALT_fields else fields[4],
+                    }
+                    for key in KEYS_TO_DICARD:
+                        if key in variant_record:
+                            del variant_record[key]
+
                     locus_results["LocusResults"][locus_id] = {
                         "AlleleCount": genotype_dict["AL"].count(",") + 1,
                         "LocusId": locus_id,
@@ -209,16 +238,7 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                         #"ReadLength": None,
                         #"FragmentLength": None,
                         "Variants": {
-                            locus_id: info_dict | genotype_dict | {
-                                "Genotype": genotype,   #"17/17",
-                                "GenotypeConfidenceInterval": genotype_CI, #"17-17/17-17",
-                                "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
-                                "RepeatUnit": repeat_unit,
-                                "VariantId": locus_id,
-                                "VariantType": "Repeat",
-                                "Ref": None if dont_output_REF_ALT_fields else fields[3],
-                                "Alt": None if dont_output_REF_ALT_fields else fields[4],
-                            }
+                            locus_id: variant_record
                         }
                     }
                 else:
@@ -233,60 +253,40 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
 
                         motif_count_genotypes.append("/".join(genotype))
                         motif_count_genotypes_CIs.append("/".join([f"{g}-{g}" for g in genotype]))
-                    # parse allele sizes from string like '0(0-9)_1(9-24),0(0-9)_1(9-24)'
-                    #interval_sizes_bp = [
-                    #    re.findall(r"(\d+)[(](\d+)-(\d+)[)]", interval_size_bp) for interval_size_bp in genotype_dict["MS"].split(",")
-                    #]
-                    #interval_sizes_bp = [
-                    #    {
-                    #        int(motif_i): (int(end) - int(start)) for motif_i, start, end in interval_sizes_bp_for_haplotype
-                    #    }
-                    #    for interval_sizes_bp_for_haplotype in interval_sizes_bp
-                    #]
-
-                    #interval_size_genotypes = []
-                    #for motif_i, motif in enumerate(motifs):
-                    #    genotype = []
-                    #    for interval_sizes_bp_for_haplotype in interval_sizes_bp:
-                    #        span_of_current_motif = interval_sizes_bp_for_haplotype.get(motif_i, 0)
-                    #        genotype.append(span_of_current_motif//len(motif))
-                    #    interval_size_genotypes.append("/".join(map(str, genotype)))
-
-                    #for motif_count_genotype, interval_size_genotype in zip(motif_count_genotypes, interval_size_genotypes):
-                    #    if motif_count_genotype != interval_size_genotype:
-                    #        raise ValueError(f"Motif count genotype {motif_count_genotype} != interval size genotype {interval_size_genotype} in locus {locus_id}: {line}")
 
                     variant_records = {}
                     for motif_i, motif in enumerate(motifs):
-                        variant_id = f"{locus_id}-m{motif_i}-{motif}"
-                        variant_records[variant_id] = info_dict | genotype_dict | {
+                        variant_id = f"{locus_id}-m{motif_i}-{motif}" if len(motifs) > 1 else locus_id
+
+                        variant_record = info_dict | genotype_dict | {
                             "Genotype": motif_count_genotypes[motif_i],   #"17/17",
                             "GenotypeConfidenceInterval": motif_count_genotypes_CIs[motif_i], #"17-17/17-17",
                             "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
                             "RepeatUnit": motif,
                             "VariantId": variant_id,
-                            "VariantType": "Repeat",
+                            #"VariantType": "Repeat",
                             "Ref": None if dont_output_REF_ALT_fields else fields[3],
                             "Alt": None if dont_output_REF_ALT_fields else fields[4],
                         }
+
+                        for key in KEYS_TO_DICARD:
+                            if key in variant_record:
+                                del variant_record[key]
+
+                        variant_records[variant_id] = variant_record
 
 
                     locus_results["LocusResults"][locus_id] = {
                         "AlleleCount": genotype_dict["AL"].count(",") + 1,
                         "LocusId": locus_id,
-                        #"Coverage": None,
-                        #"ReadLength": None,
-                        #"FragmentLength": None,
                         "Variants": variant_records,
                     }
 
             except Exception as e:
-                print(f"Error on vcf record #{line_counter}: {e}")
-                print(line)
-                print(genotype_dict)
-                # print stack trace
+                print(f"Error while parsing vcf record #{line_counter}: {e}")
+                print(f"    {line}")
                 import traceback
-                traceback.print_exc()
+                traceback.print_exc() # print stack trace
 
 
     return locus_results
