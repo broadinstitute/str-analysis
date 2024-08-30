@@ -72,6 +72,20 @@ def parse_args():
 
     args = parser.parse_args()
 
+    if args.merge_adjacent_loci_with_same_motif and args.write_outer_join_overlap_table:
+        parser.error("The --merge-adjacent-loci-with-same-motif and --write-outer-join-overlap-table combination is "
+                     "not current supported")
+    elif args.merge_adjacent_loci_with_same_motif and args.add_found_in_fields:
+        parser.error("The --merge-adjacent-loci-with-same-motif and --add-found-in-fields combination is not currently "
+                     "supported")
+    elif args.overlapping_loci_action == "merge" and args.write_outer_join_overlap_table:
+        parser.error("The --overlapping-loci-action 'merge' and --write-outer-join-overlap-table combination is not "
+                     "currently supported")
+    elif args.overlapping_loci_action == "merge" and args.add_found_in_fields:
+        parser.error("The --overlapping-loci-action 'merge' and --add-found-in-fields combination is not currently "
+                     "supported")
+
+
     if args.output_format == "BED":
         if args.add_source_field:
             parser.error("The --add-source-field option requires --output-format JSON to be specified")
@@ -117,7 +131,6 @@ def parse_variant_catalog_paths_arg(args, argparser):
             paths.append((catalog_name, path, "JSON"))
         else:
             argparser.error(f"Unrecognized file extension: {path}")
-
 
     return paths
 
@@ -296,7 +309,6 @@ def add_variant_catalog_to_interval_trees(
         overlapping_loci_action="keep-first",
         min_overlap_fraction=0.01,
         add_source_field=False,
-        add_found_in_fields=False,
         add_extra_fields_from_input_catalogs=False,
         stats=None,
         verbose=False,
@@ -314,7 +326,6 @@ def add_variant_catalog_to_interval_trees(
         outer_join_overlap_table (dict): a dictionary that maps locus IDs to a dictionary of catalog name to locus presence
         for each locus found in any catalog, maps its LocusId to a dictionary of catalog name to locus presence
         add_source_field (bool): If True, then the source file path will be added to each record as a new "Source" field
-        add_found_in_fields (bool): If True, then "FoundIn<CatalogName>" fields will be added.
         add_extra_fields_from_input_catalogs (bool): If False, then only the required fields will be kept in each input
             variant catalog record and any extra fields will be discarded.
         stats (dict): dictionary for tracking merge stats
@@ -338,16 +349,16 @@ def add_variant_catalog_to_interval_trees(
 
         chrom = unmodified_chrom.replace("chr", "")
 
-        if add_source_field or add_found_in_fields:
+        if add_source_field:
             new_record["Source"] = catalog_name
-        if add_found_in_fields:
-            new_record[f"FoundIn{catalog_name}"] = "Yes"
         if outer_join_overlap_table is not None:
             outer_join_overlap_table[new_record["LocusId"]][catalog_name] = "Yes"
 
         # check for overlap with existing loci
         counters["total"] += 1
         existing_interval = None
+        discard_new = False
+        remove_existing = False
         overlapping_intervals = interval_trees[chrom].overlap(start_0based, end_1based)
         for overlapping_interval in overlapping_intervals:
             overlap_size = overlapping_interval.overlap_size(start_0based, end_1based)
@@ -361,12 +372,10 @@ def add_variant_catalog_to_interval_trees(
             # handle results if overlap was found
             existing_record = existing_interval.data
 
-            discard_new = False
-            remove_existing = False
             if overlapping_loci_action == "keep-first":
                 discard_new = True
             elif overlapping_loci_action == "keep-last":
-                interval_trees[chrom].remove(existing_interval)
+                remove_existing = True
             elif overlapping_loci_action == "keep-both":
                 pass
             elif overlapping_loci_action == "keep-narrow":
@@ -395,7 +404,7 @@ def add_variant_catalog_to_interval_trees(
                     "LocusStructure": existing_record_locus_structure,
                     "VariantType": existing_record["VariantType"],
                 }
-                if add_source_field or add_found_in_fields:
+                if add_source_field:
                     new_record["Source"] = existing_record["Source"] + SEPARATOR_FOR_MULTIPLE_SOURCES + catalog_name
             else:
                 raise ValueError(f"Unexpected overlapping_loci_action value: {overlapping_loci_action}")
@@ -416,18 +425,7 @@ def add_variant_catalog_to_interval_trees(
                         "Discarding new record" if discard_new else "Adding new record"
                     ))
 
-
-            if remove_existing:
-                interval_trees[chrom].remove(existing_interval)
-
-            # update the "FoundIn<CatalogName>" fields in the existing record to show that it was found in the new catalog
-            if (add_found_in_fields and discard_new and
-                existing_interval.begin == new_interval.begin and
-                existing_interval.end == new_interval.end and
-                existing_record["LocusStructure"] == new_record["LocusStructure"]):
-                existing_record[f"FoundIn{catalog_name}"] = "Yes"
-
-            # handle overlapping records in the outer-join table
+            # handle overlapping records in the outer-join tables
             if outer_join_overlap_table is not None:
                 for overlapping_interval in overlapping_intervals:
                     overlapping_record = overlapping_interval.data
@@ -452,29 +450,28 @@ def add_variant_catalog_to_interval_trees(
                     #### COMMENTED OUT because it's better to preprocess the input catalogs to trim all loci, then to do it on
                     #    the fly here, and so create redundant entries in the output table
                     if overlapping_interval.length() < (end_1based - start_0based):
-                        set_value_if_not_yes(overlapping_record, f"FoundIn{catalog_name}", "YesButWider")
                         set_value_if_not_yes(outer_join_overlap_table[overlapping_record["LocusId"]], catalog_name, "YesButWider")
-                        set_value_if_not_yes(new_record, f"FoundIn{overlapping_record['Source']}", "YesButNarrower")
                         set_value_if_not_yes(outer_join_overlap_table[new_record["LocusId"]], overlapping_record["Source"], "YesButNarrower")
                     elif overlapping_interval.length() > (end_1based - start_0based):
-                        set_value_if_not_yes(overlapping_record, f"FoundIn{catalog_name}", "YesButNarrower")
                         set_value_if_not_yes(outer_join_overlap_table[overlapping_record["LocusId"]], catalog_name, "YesButNarrower")
-                        set_value_if_not_yes(new_record, f"FoundIn{overlapping_record['Source']}", "YesButWider")
                         set_value_if_not_yes(outer_join_overlap_table[new_record["LocusId"]], overlapping_record["Source"], "YesButWider")
 
-            if discard_new:
-                # don't add the new record to the interval tree since it matches an existing record
-                continue
 
+        if remove_existing:
+            existing_interval["Discarded"] = True
 
-        if write_bed_files_with_new_loci:
-            motifs = parse_motifs_from_locus_structure(new_record["LocusStructure"])
-            if len(motifs) > 1:
-                print(f"Unexpected LocusStructure in {new_record}: {new_record['LocusStructure']}. Will not save to unique loci...")
-            else:
-                unique_loci.add((unmodified_chrom, start_0based, end_1based, motifs[0]))
+        if discard_new:
+            # mark this record as discarded and go to the next record in the current catalog
+            new_record["Discarded"] = True
+        else:
+            counters["added"] += 1
+            if write_bed_files_with_new_loci:
+                motifs = parse_motifs_from_locus_structure(new_record["LocusStructure"])
+                if len(motifs) > 1:
+                    print(f"Unexpected LocusStructure in {new_record}: {new_record['LocusStructure']}. Will not save to unique loci...")
+                else:
+                    unique_loci.add((unmodified_chrom, start_0based, end_1based, motifs[0]))
 
-        counters["added"] += 1
         interval_trees[chrom].add(intervaltree.Interval(start_0based, end_1based, data=new_record))
 
     print(f"Added {counters['added']:,d} out of {counters['total']:,d} ({counters['added']/(counters['total'] or 1):6.1%}) "
@@ -505,14 +502,14 @@ def add_variant_catalog_to_interval_trees(
         os.system(f"tabix -f {unique_loci_bed_filename}.gz")
         print(f"Wrote {counters['added']:,d} unique loci from {variant_catalog_filename} to {unique_loci_bed_filename}.gz")
 
-def check_whether_to_merge_adjacent_loci(previous_interval, current_interval, add_source_field=False, add_found_in_fields=False):
+def check_whether_to_merge_adjacent_loci(
+    previous_interval, current_interval, add_source_field=False):
     """Checks whether the two loci should be merged into a single locus.
 
     Args:
         previous_interval (intervaltree.Interval): The previous locus
         current_interval (intervaltree.Interval): The current locus
         add_source_field (bool): see the --add-source-field option
-        add_found_in_fields (bool): see the --add-found-in-fields option
     Return:
         bool: True if the two loci should be merged into a single locus
         intervaltree.Interval: The merged locus if the two loci should be merged, otherwise None
@@ -552,7 +549,7 @@ def check_whether_to_merge_adjacent_loci(previous_interval, current_interval, ad
         "VariantType": "Repeat",
     }
 
-    if add_source_field or add_found_in_fields:
+    if add_source_field:
         if not previous_interval.data.get("Source"):
             raise ValueError(f"'Source' field not found in record {previous_interval.data}")
         if not current_interval.data.get("Source"):
@@ -579,17 +576,17 @@ def check_whether_to_merge_adjacent_loci(previous_interval, current_interval, ad
 
 def convert_interval_trees_to_output_records(
     interval_trees,
+    outer_join_overlap_table=None,
     merge_adjacent_loci_with_same_motif=False,
     add_source_field=False,
-    add_found_in_fields=False,
 ):
     """Converts the IntervalTrees to a generator for output catalog records.
 
     Args:
         interval_trees (dict): a dictionary that maps chromosome names to IntervalTree objects for overlap detection
+        outer_join_overlap_table (dict): a dictionary that maps locus IDs to a dictionary of catalog name to locus presence
         merge_adjacent_loci_with_same_motif (bool): see the --merge-adjacent-loci-with-same-motif option
         add_source_field (bool): see the --add-source-field option
-        add_found_in_fields (bool): see the --add-found-in-fields option
     Yield:
         dict: A dictionary representing a record in the output catalog
     """
@@ -598,8 +595,16 @@ def convert_interval_trees_to_output_records(
     if not merge_adjacent_loci_with_same_motif:
         for interval_tree in interval_trees.values():
             for interval in sorted(interval_tree, key=lambda i: (i.begin, i.end)):
+                new_record = interval.data
+                if new_record.get("Discarded"):
+                    continue
+
+                if outer_join_overlap_table:
+                    for catalog_name, value in outer_join_overlap_table[new_record["LocusId"]].items():
+                        new_record[f"FoundIn{catalog_name}"] = value
+
                 counter += 1
-                yield interval.data
+                yield new_record
     else:
         merged_counter = 0
         for interval_tree in interval_trees.values():
@@ -611,13 +616,17 @@ def convert_interval_trees_to_output_records(
                     continue
 
                 should_merge, merged_interval = check_whether_to_merge_adjacent_loci(
-                    previous_interval, interval, add_source_field=add_source_field, add_found_in_fields=add_found_in_fields)
+                    previous_interval, interval, add_source_field=add_source_field)
                 if should_merge:
                     merged_counter += 1
                     previous_interval = merged_interval
                     continue
 
-                yield previous_interval.data
+                new_record = previous_interval.data
+                if new_record.get("Discarded"):
+                    continue
+
+                yield new_record
                 previous_interval = interval
 
             if previous_interval is not None:
@@ -709,7 +718,7 @@ def main():
     interval_trees = collections.defaultdict(intervaltree.IntervalTree)
 
     outer_join_overlap_table = None
-    if args.write_outer_join_overlap_table:
+    if args.write_outer_join_overlap_table or args.add_found_in_fields:
         outer_join_overlap_table = collections.defaultdict(dict)  # for each locus found in any catalog, maps its LocusId to a dictionary of catalog name to locus presence
 
     for i, (catalog_name, path, file_type) in enumerate(paths):
@@ -717,8 +726,7 @@ def main():
             catalog_name, path, file_type, interval_trees, outer_join_overlap_table,
             overlapping_loci_action=args.overlapping_loci_action,
             min_overlap_fraction=args.overlap_fraction,
-            add_source_field=args.add_source_field,
-            add_found_in_fields=args.add_found_in_fields,
+            add_source_field=args.add_source_field or args.add_found_in_fields or args.write_outer_join_overlap_table,
             add_extra_fields_from_input_catalogs=args.add_extra_fields_from_input_catalogs,
             stats=stats,
             verbose=args.verbose,
@@ -735,9 +743,9 @@ def main():
     for output_format in output_formats:
         output_catalog_record_generator = convert_interval_trees_to_output_records(
             interval_trees,
+            outer_join_overlap_table=outer_join_overlap_table if args.add_found_in_fields else None,
             merge_adjacent_loci_with_same_motif=args.merge_adjacent_loci_with_same_motif,
-            add_source_field=args.add_source_field,
-            add_found_in_fields=args.add_found_in_fields)
+            add_source_field=args.add_source_field)
 
         if args.add_source_field:
             # convert the SEPARATOR_FOR_MULTIPLE_SOURCES to commas
