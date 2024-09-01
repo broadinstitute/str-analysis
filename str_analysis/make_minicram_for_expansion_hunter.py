@@ -148,10 +148,11 @@ def main():
     print(f"Exporting data for {len(intervals)} intervals to {args.cramlet}")
     cram_reader.save_to_file(args.cramlet)
 
+    total_bytes = cram_reader.get_total_bytes_loaded_from_cram()
+    total_containers = cram_reader.get_total_byte_ranges_loaded_from_cram()
     total_duration_seconds = time.time() - start_time
+    print(f"Downloaded {total_containers:,d} containers, {total_bytes/10**6:0,.1f}Mb in {round(total_duration_seconds, 2)} seconds")
     if args.output_download_stats:
-        total_containers = cram_reader.get_total_byte_ranges_loaded_from_cram()
-        total_bytes = cram_reader.get_total_bytes_loaded_from_cram()
         stats_tsv_path = re.sub("(.cramlet)?.cram$", "", args.cramlet) + ".stats.tsv"
         add_header = not os.path.isfile(stats_tsv_path) or os.path.getsize(stats_tsv_path) == 0
 
@@ -170,9 +171,7 @@ def main():
                 round(total_duration_seconds, 2),
             ])) + "\n")
 
-        if args.verbose:
-            print(f"Wrote stats to {stats_tsv_path}: Downloaded {total_containers:,d} containers, "
-                  f"{total_bytes:,d} bytes in {round(total_duration_seconds, 2)} seconds")
+        print(f"Wrote stats to {stats_tsv_path}")
 
     input_bam_file.close()
 
