@@ -16,6 +16,7 @@ import binascii
 import collections
 import gzip
 import intervaltree
+import json
 import os
 import re
 import sys
@@ -43,6 +44,12 @@ def main():
     parser.add_argument("-u", "--gcloud-project", help="Google Cloud project name to use when reading the input cram.")
     parser.add_argument("-R", "--reference-fasta", required=True, help="Reference genome FASTA file used for reading the CRAM file")
     parser.add_argument("-o", "--cramlet", help="Output file path prefix")
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("-L", "--region", action="append", help="Region(s) for which to extract reads (chr:start-end). "
+                       "For example, for the HTT repeat locus on hg38, specify chr4:3074877-3074933")
+    group.add_argument("-c", "--variant-catalog", help="Variant catalog JSON path")
+
     parser.add_argument("-i", "--crai-index-path", help="Optional path of the input CRAM index file. This can be a "
                         "local or a gs:// path")
     parser.add_argument("--verbose", action="store_true")
@@ -50,10 +57,31 @@ def main():
     parser.add_argument("-t", "--output-download-stats", action="store_true", help="Write out a TSV file with stats "
                         "about the total number of bytes and containers downloaded from the CRAM")
     parser.add_argument("input_cram", help="Input CRAM file path. This can a local or a gs:// path")
-    parser.add_argument("region", nargs="+", help="Region(s) for which to extract reads (chr:start-end). For example, "
-                                                  "for the HTT repeat locus on hg38, specify chr4:3074877-3074933")
 
     args = parser.parse_args()
+
+    if not args.input_cram.endswith(".cram"):
+        parser.error(f"Input CRAM file must have a .cram extension: {args.input_cram}")
+
+    if not args.cramlet:
+        args.cramlet = re.sub(".cram$", "", os.path.basename(args.input_cram))
+        args.cramlet += ".cramlet.cram"
+
+    if args.variant_catalog:
+        args.region = []
+        with open_file(args.variant_catalog, download_local_copy_before_opening=True) as f:
+            variant_catalog_records = json.load(f)
+            for i, record in enumerate(variant_catalog_records):
+                if "ReferenceRegion" not in record:
+                    p.error(f"Record #{i+1} does not have a ReferenceRegion field: {record}")
+
+                reference_regions = record["ReferenceRegion"]
+                if not isinstance(reference_regions, list):
+                    reference_regions = [reference_regions]
+                for region in reference_regions:
+                    if args.debug:
+                        print(f"DEBUG: Adding", record["LocusId"], "region", region)
+                    args.region.append(region)
 
     if args.debug:
         args.verbose=True
@@ -86,10 +114,6 @@ def main():
     if not file_exists(args.reference_fasta):
         parser.error(f"Reference file not found {path}")
 
-    if not args.cramlet:
-        args.cramlet = re.sub(".cram$", "", os.path.basename(args.input_cram))
-        args.cramlet += ".cramlet.cram"
-
     # create a CramIntervalRreader and use it to generate a temp CRAM file containing the CRAM header and any reads
     # overlapping the user-specified region interval(s)
     print(f"Retrieving reads within {window_size:,d}bp of", ", ".join(args.region))
@@ -112,7 +136,7 @@ def main():
             print("-"*100)
 
         genomic_regions = extract_region(
-            chrom, window_start, window_end,
+            chrom, start, end,
             input_bam=input_bam_file,
             bamlet=None,
             merge_regions_distance=args.merge_regions_distance,
@@ -149,7 +173,7 @@ def main():
         if args.verbose:
             print(f"Wrote stats to {stats_tsv_path}: Downloaded {total_containers:,d} containers, "
                   f"{total_bytes:,d} bytes in {round(total_duration_seconds, 2)} seconds")
-            
+
     input_bam_file.close()
 
 if __name__ == "__main__":

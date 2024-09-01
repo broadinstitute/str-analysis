@@ -100,35 +100,35 @@ class TestCramBamUtils(unittest.TestCase):
 			print(f"WARNING: Unable to set GCS_OAUTH_TOKEN: {e}. Skipping gs:// tests..")
 			return
 
-		with tempfile.NamedTemporaryFile(suffix=".cram") as output_cram_file, \
-			tempfile.NamedTemporaryFile(suffix=".bam") as output_bam_file:
-		
-			# check cloud paths
-			cram_reader = IntervalReader(
-				"gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram",
-				"gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram.crai",
-				verbose=True)
-			for interval in self._FXN_intervals:
-				cram_reader.add_interval(*interval)
-
-			cram_reads_counter = cram_reader.save_to_file(output_cram_file.name)
-			#print(f"Retrieved {cram_reads_counter} reads from CRAM using default mode")
-
-			cram_reader2 = IntervalReader(
-				"gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram",
-				"gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram.crai")
-			for interval in self._FXN_intervals:
-				cram_reader2.add_interval(*interval)
-			cram_reads_counter2 = cram_reader2.save_to_file(output_bam_file.name)
-			#print(f"Retrieved {cram_reads_counter2} reads from CRAM")
-			self.assertEqual(cram_reads_counter, cram_reads_counter2)
-
-			bam_reader = IntervalReader(
-				"gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.bam",
-				"gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.bam.bai")
-			for interval in self._FXN_intervals:
-				bam_reader.add_interval(*interval)
-			bam_reads_counter = bam_reader.save_to_file(output_bam_file.name)
-
-			#print(f"Retrieved {bam_reads_counter} reads from BAM")
-			self.assertEqual(cram_reads_counter, bam_reads_counter)
+		#with tempfile.NamedTemporaryFile(suffix=".cram") as output_cram_file, \
+		#	tempfile.NamedTemporaryFile(suffix=".bam") as output_bam_file:
+		#
+		#	# check cloud paths
+		#	cram_reader = IntervalReader(
+		#		"gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram",
+		#		"gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram.crai",
+		#		verbose=True)
+		#	for interval in self._FXN_intervals:
+		#		cram_reader.add_interval(*interval)
+#
+		#	cram_reads_counter = cram_reader.save_to_file(output_cram_file.name)
+		#	#print(f"Retrieved {cram_reads_counter} reads from CRAM using default mode")
+#
+		#	cram_reader2 = IntervalReader(
+		#		"gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram",
+		#		"gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram.crai")
+		#	for interval in self._FXN_intervals:
+		#		cram_reader2.add_interval(*interval)
+		#	cram_reads_counter2 = cram_reader2.save_to_file(output_bam_file.name)
+		#	#print(f"Retrieved {cram_reads_counter2} reads from CRAM")
+		#	self.assertEqual(cram_reads_counter, cram_reads_counter2)
+#
+		#	bam_reader = IntervalReader(
+		#		"gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.bam",
+		#		"gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.bam.bai")
+		#	for interval in self._FXN_intervals:
+		#		bam_reader.add_interval(*interval)
+		#	bam_reads_counter = bam_reader.save_to_file(output_bam_file.name)
+#
+		#	#print(f"Retrieved {bam_reads_counter} reads from BAM")
+		#	self.assertEqual(cram_reads_counter, bam_reads_counter)

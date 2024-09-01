@@ -44,7 +44,7 @@ def parse_crai_index(crai_path, cram_path):
 	end_of_cram_header_byte_offset = None
 	interval_trees = {}
 
-	with open_file(crai_path, download_local_copy_before_opening=True, gunzip=True) as crai_file:
+	with open_file(crai_path, download_local_copy_before_opening=True, gunzip=True, is_text_file=True) as crai_file:
 		for i, line in enumerate(crai_file):
 			fields = line.strip().split("\t")
 			if len(fields) != len(CRAI_FILE_HEADER):
@@ -235,7 +235,11 @@ class IntervalReader:
 			temp_cram_container_file = tempfile.NamedTemporaryFile(suffix=local_path_suffix)
 			if self._debug:
 				print(f"DEBUG: Writing containers to {temp_cram_container_file.name}")
-			self._load_cram_containers(temp_cram_container_file)
+			bytes_written = self._load_cram_containers(temp_cram_container_file)
+			if bytes_written == 0:
+				print(f"WARNING: No CRAM containers were loaded from {self._cram_or_bam_path}")
+				return 0
+
 			if self._debug:
 				print(f"DEBUG: {temp_cram_container_file.name} has file size "
 					  f"{os.path.getsize(temp_cram_container_file.name):,d} bytes")
@@ -374,6 +378,9 @@ class IntervalReader:
 		"""Load all CRAM containers that overlap the genomic intervals added so far to the given file handle.
 		Args:
 			cram_container_file (file): A file handle which is already open for writing in binary mode
+
+		Returns:
+			int: Number of bytes written to the given file handle (not counting the CRAM header and footer)
 		"""
 		if self._verbose:
 			print(f"Copying requested CRAM containers to {cram_container_file.name}")
@@ -384,13 +391,13 @@ class IntervalReader:
 			reference_sequence_id = self._chrom_index_lookup[normalize_chromosome_name(chrom)]
 			if reference_sequence_id not in self._crai_interval_trees:
 				print(f"WARNING: No CRAI entries found for {chrom} (reference_sequence_id={reference_sequence_id})")
-				return
+				return 0
 
 			crai_interval_tree = self._crai_interval_trees[reference_sequence_id]
 			overlapping_crai_intervals = list(crai_interval_tree.overlap(start_0based, end))
 			if not overlapping_crai_intervals:
 				print(f"WARNING: None of the {len(crai_interval_tree)} CRAI entries on {chrom} overlap {chrom}:{start_0based}-{end}")
-				return
+				return 0
 
 			if self._verbose:
 				print(f"Found {len(overlapping_crai_intervals):4,d} CRAI entries that overlapped {chrom}:{start_0based}-{end}")
@@ -423,9 +430,11 @@ class IntervalReader:
 		if self._debug:
 			print(f"DEBUG: Wrote CRAM header [0-{len(self._cram_header_bytes):,d}] (hash: {hashlib.md5(self._cram_header_bytes).hexdigest()[:20]})")
 		cram_container_file.write(self._cram_header_bytes)
+		bytes_counter = 0
 		for bytes_start, bytes_end in merged_byte_ranges:
 			cram_container_bytes = self._get_byte_range(bytes_start, bytes_end)
 			cram_container_file.write(cram_container_bytes)
+			bytes_counter += len(cram_container_bytes)
 			if self._debug:
 				print(f"DEBUG: Wrote byte range [{bytes_start:,d}-{bytes_end:,d}] (hash: {hashlib.md5(cram_container_bytes).hexdigest()[:20]})")
 
@@ -440,6 +449,8 @@ class IntervalReader:
 		if self._verbose and self._total_byte_ranges_loaded_from_cram > 0:
 			print(f"Copied {self._total_bytes_loaded_from_cram/10**6:5.1f}Mb total from {self._cram_or_bam_path}  to  {cram_container_file.name}")
 
+		return bytes_counter
+
 	def _init_chrom_index_lookup(self):
 		"""Initialize a chromosome name to chromosome index lookup dictionary by reading the CRAM or BAM header and
 		parsing the list of reference sequence names and in order.
@@ -450,10 +461,12 @@ class IntervalReader:
 			# load the CRAM header from the temp file using pysam to get the list of reference sequence names
 			was_verbose = self._verbose
 			self._verbose = False
-			self._load_cram_containers(cram_header_file)
+			bytes_written = self._load_cram_containers(cram_header_file)
 			self._verbose = was_verbose
 
-			pysam.index(cram_header_file.name)
+			if bytes_written > 0:
+				pysam.index(cram_header_file.name)
+
 			# By default, if a file is opened in mode 'r', it is checked for a valid header (`check_header` = True)
 			# and a definition of chromosome names (`check_sq` = True).
 			with pysam.AlignmentFile(cram_header_file.name) as file:

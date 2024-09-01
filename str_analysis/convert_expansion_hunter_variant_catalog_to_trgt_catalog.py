@@ -29,6 +29,10 @@ def main():
 
     if not args.output_file:
         args.output_file = re.sub(".json(.gz)?$", "", args.expansion_hunter_catalog) + ".trgt.bed"
+    elif not args.output_file.endswith(".bed") and not args.output_file.endswith(".bed.gz"):
+        p.error(f"Output file does not have a .bed extension: {args.output_file}")
+    elif args.output_file.endswith(".gz"):
+        args.output_file = args.output_file[:-3]
 
     if args.keep_wide_boundaries and not args.split_adjacent_repeats:
         p.error("The --wide-boundaries option can only be used in combination with the --split-adjacent-repeats option")
@@ -135,7 +139,8 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
     bgzip_step = "| bgzip" if output_file_path.endswith("gz") else ""
     os.system(f"bedtools sort -i {output_file_path} {bgzip_step} > {output_file_path}.sorted")
     os.system(f"mv {output_file_path}.sorted {output_file_path}")
-
+    #os.system(f"bgzip -f {output_file_path}")
+    #os.system(f"tabix -f {output_file_path}.gz")
     print(f"Wrote {counter:,d} rows to {output_file_path}")
 
 
