@@ -45,7 +45,7 @@ def main():
                         "user-specified region(s). This is useful for including read pairs that may overlap the region(s)")
     parser.add_argument("-u", "--gcloud-project", help="Google Cloud project name to use when reading the input cram.")
     parser.add_argument("-R", "--reference-fasta", required=True, help="Reference genome FASTA file used for reading the CRAM file")
-    parser.add_argument("-o", "--cramlet", help="Output file path prefix")
+    parser.add_argument("-o", "--output-cram", help="Output file path prefix")
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("-L", "--region", action="append", help="Region(s) for which to extract reads (chr:start-end). "
@@ -65,9 +65,11 @@ def main():
     if not args.input_cram.endswith(".cram"):
         parser.error(f"Input CRAM file must have a .cram extension: {args.input_cram}")
 
-    if not args.cramlet:
-        args.cramlet = re.sub(".cram$", "", os.path.basename(args.input_cram))
-        args.cramlet += ".cramlet.cram"
+    if not args.output_cram:
+        args.output_cram = re.sub(".cram$", "", os.path.basename(args.input_cram))
+        args.output_cram += ".subset.cram"
+    elif not args.output_cram.endswith(".cram"):
+        parser.error(f"Output CRAM file must have a .cram extension: {args.output_cram}")
 
     if args.variant_catalog:
         args.region = []
@@ -145,15 +147,16 @@ def main():
         for genomic_region in genomic_regions:
             cram_reader.add_interval(*genomic_region)
 
-    print(f"Exporting data for {len(intervals)} intervals to {args.cramlet}")
-    cram_reader.save_to_file(args.cramlet)
+    print(f"Exporting data for {len(intervals)} intervals to {args.output_cram}")
+    cram_reader.save_to_file(args.output_cram)
 
     total_bytes = cram_reader.get_total_bytes_loaded_from_cram()
     total_containers = cram_reader.get_total_byte_ranges_loaded_from_cram()
     total_duration_seconds = time.time() - start_time
     print(f"Downloaded {total_containers:,d} containers, {total_bytes/10**6:0,.1f}Mb in {round(total_duration_seconds, 2)} seconds")
     if args.output_download_stats:
-        stats_tsv_path = re.sub("(.cramlet)?.cram$", "", args.cramlet) + ".stats.tsv"
+        stats_tsv_path = re.sub(".cram$", "", os.path.basename(args.input_cram))
+        stats_tsv_path += ".stats.tsv"
         add_header = not os.path.isfile(stats_tsv_path) or os.path.getsize(stats_tsv_path) == 0
 
         with open(stats_tsv_path, "a") as stats_file:
