@@ -39,7 +39,10 @@ def open_file(path, *, download_local_copy_before_opening=False, gunzip=False, i
                 file = open(path, mode="rb")
             return file
 
-    return io.TextIOWrapper(file, encoding="utf-8")
+    if is_text_file:
+        return io.TextIOWrapper(file, encoding="utf-8")
+    else:
+        return file
 
 
 def file_exists(path):
