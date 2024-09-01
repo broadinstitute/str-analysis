@@ -674,9 +674,10 @@ def print_catalog_stats(interval_trees):
     chrom_counters = collections.defaultdict(int)
     for chrom, interval_tree in interval_trees.items():
         for interval in interval_tree:
+            if interval.data.get("Discarded"):
+                continue
             chrom_type = chrom.upper() if any(c in chrom.upper() for c in "XYM") else "autosomes"
             chrom_counters[chrom_type] += 1
-            
             total += 1
             motifs = parse_motifs_from_locus_structure(interval.data["LocusStructure"])
             for motif in motifs:
