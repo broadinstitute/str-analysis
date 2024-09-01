@@ -2,6 +2,7 @@
 
 import argparse
 import collections
+import json
 import ijson
 import re
 import sqlite3
