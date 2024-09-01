@@ -9,9 +9,9 @@ import tqdm
 from str_analysis.utils.file_utils import open_file
 
 GENE_MODELS = {
-    "gencode": "/tmp/gencode.v46.basic.annotation.gtf.gz", #gs://str-truth-set/hg38/ref/other/gencode.v46.basic.annotation.gtf.gz",
+    "gencode": "gs://str-truth-set/hg38/ref/other/gencode.v46.basic.annotation.gtf.gz",
     "mane": "gs://str-truth-set/hg38/ref/other/MANE.GRCh38.v1.3.ensembl_genomic.gtf.gz",
-    "refseq": "/tmp/hg38.ncbiRefSeq.gtf.gz", #"gs://str-truth-set/hg38/ref/other/hg38.ncbiRefSeq.gtf.gz",
+    "refseq": "gs://str-truth-set/hg38/ref/other/hg38.ncbiRefSeq.gtf.gz",
 }
 
 
@@ -76,7 +76,7 @@ def parse_gtf_to_interval_trees(gtf_path=GENE_MODELS["gencode"], verbose=False, 
 def generate_gtf_records(gtf_path):
     """Parse the GTF file"""
 
-    gtf_file = open_file(gtf_path, is_text_file=True)
+    gtf_file = open_file(gtf_path, is_text_file=True, download_local_copy_before_opening=True)
     for i, line in enumerate(gtf_file):
         if line.startswith("#"):
             continue
