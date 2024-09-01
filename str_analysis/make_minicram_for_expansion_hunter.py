@@ -41,6 +41,8 @@ def main():
         "When retrieving mates, regions that are within this distance of each other will be merged "
         "and retrieved using a single disk read operation. To reduce number of the disk reads, increase "
         "this parameter, or decrease it to reduce the total number of bytes read.")
+    parser.add_argument("-w", "--window-size", type=int, default=1000, help="Window size in bp to include around the "
+                        "user-specified region(s). This is useful for including read pairs that may overlap the region(s)")
     parser.add_argument("-u", "--gcloud-project", help="Google Cloud project name to use when reading the input cram.")
     parser.add_argument("-R", "--reference-fasta", required=True, help="Reference genome FASTA file used for reading the CRAM file")
     parser.add_argument("-o", "--cramlet", help="Output file path prefix")
@@ -86,8 +88,6 @@ def main():
     if args.debug:
         args.verbose=True
 
-    window_size = 2000
-
     start_time = time.time()
 
     # validate args
@@ -98,8 +98,8 @@ def main():
         except ValueError as e:
             parser.error(f"Unable to parse region {region}: {e}")
 
-        window_start = start - window_size
-        window_end = end + window_size
+        window_start = start - args.window_size
+        window_end = end + args.window_size
         intervals.append((chrom, window_start, window_end))
 
     if not args.input_cram.endswith(".cram"):
@@ -116,7 +116,7 @@ def main():
 
     # create a CramIntervalRreader and use it to generate a temp CRAM file containing the CRAM header and any reads
     # overlapping the user-specified region interval(s)
-    print(f"Retrieving reads within {window_size:,d}bp of", ", ".join(args.region))
+    print(f"Retrieving reads within {args.window_size:,d}bp of", ", ".join(args.region))
     cram_reader = IntervalReader(args.input_cram, input_crai_path, verbose=args.verbose, debug=args.debug,
                                  reference_fasta_path=args.reference_fasta, cache_byte_ranges=True)
 
