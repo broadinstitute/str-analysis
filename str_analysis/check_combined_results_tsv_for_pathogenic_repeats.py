@@ -231,7 +231,6 @@ def load_results_tables(args):
             "VariantId",
 
             args.sample_analysis_status_column,
-            "Sample_coded_phenotype",
             args.sample_phenotypes_column,
             "Sample_genome_version",
 
@@ -263,7 +262,7 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
 
     for column_name in (
             args.sample_affected_status_column, args.sample_sex_column, args.sample_analysis_status_column,
-            "Sample_coded_phenotype", args.sample_genome_version_column,
+            args.sample_genome_version_column,
     ):
         # split values like a; b; b; and collapse to a; b
         locus_df.loc[:, column_name] = locus_df[column_name].apply(
@@ -475,7 +474,6 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
             "RepeatUnit",
 
             args.sample_analysis_status_column,
-            "Sample_coded_phenotype",
             args.sample_phenotypes_column,
         ]]
 
@@ -484,7 +482,6 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
             args.sample_affected_status_column: "affected",
             args.sample_sex_column: "sex",
             args.sample_analysis_status_column: "analysis_status",
-            "Sample_coded_phenotype": "coded_phenotype",
             args.sample_phenotypes_column: "hpo",
             args.sample_genome_version_column: "genome",
             "GenotypeConfidenceInterval": "GenotypeCI",
