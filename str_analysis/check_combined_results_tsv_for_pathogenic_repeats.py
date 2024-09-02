@@ -25,6 +25,7 @@ import subprocess
 from ast import literal_eval
 
 import pandas as pd
+from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from tabulate import tabulate
 
 
@@ -36,21 +37,6 @@ REQUIRED_COLUMNS = [
     "CI end: Allele 2",
 ]
 
-OPTIONAL_COLUMNS = [
-    "RepeatUnit",
-    "VariantId",
-
-    "Sample_analysis_status",
-    "Sample_coded_phenotype",
-    "Sample_phenotypes",
-    "Sample_genome_version",
-
-    "VariantCatalog_Inheritance",
-    "VariantCatalog_Diseases",
-
-    "Genotype",
-    "GenotypeConfidenceInterval",
-]
 
 GNOMAD_STR_TABLE_PATH = "https://gnomad-public-us-east-1.s3.amazonaws.com/release/3.1.3/tsv/gnomAD_STR_genotypes__2022_01_20.tsv.gz"
 
@@ -63,6 +49,13 @@ def run(command):
 
 def parse_args():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    p.add_argument("--sample-metadata-table", help="Optional path of a table that contains sample metadata columns. "
+        "If specified, this table will be joined with the combined_tsv_table before proceeding with the analysis.")
+    p.add_argument("--metadata-table-sample-id-column", default="sample_id", help="Name of the column in the metadata "
+        "table that contains the sample id")
+
+    #p.add_argument("--variant-catalog", help="Optional path of an ExpansionHunter variant catalog in JSON format. "
+    #    "If specified, fields from the catalog will be added to the combined_tsv_table before proceeding with the analysis.")
     grp = p.add_argument_group()
     grp.add_argument("--use-affected", action="store_true", help="Use affected status to determine which samples to "
         "include in the output for each locus. Only include those affected samples that have larger expansions than "
@@ -117,6 +110,12 @@ def parse_args():
         if not os.path.isfile(combined_tsv_path):
             p.error(f"{combined_tsv_path} not found")
 
+    if args.sample_metadata_table and not os.path.isfile(args.sample_metadata_table):
+        p.error(f"{args.sample_metadata_table} not found")
+
+    #if args.variant_catalog and not os.path.isfile(args.variant_catalog):
+    #    p.error(f"{args.variant_catalog} not found")
+
     if not args.use_affected and not args.use_thresholds:
         p.error("Must specify --use-thresholds or --use-affected")
 
@@ -155,7 +154,8 @@ def load_gnomad_df():
         gnomad_df.loc[:, column_name] = value
 
     gnomad_df.loc[:, "Id"] = "gnomAD:" + gnomad_df["Id"]
-    gnomad_df.loc[:, "VariantId"] = gnomad_df["LocusId"]
+    if "VariantId" in gnomad_df.columns:
+        gnomad_df.loc[:, "LocusId"] = gnomad_df["VariantId"]
 
     gnomad_df.loc[:, ("CI1", "CI2")] = gnomad_df["GenotypeConfidenceInterval"].str.split("/", expand=True)
     gnomad_df.loc[:, "CI1"] = gnomad_df["CI1"].fillna("")
@@ -176,12 +176,36 @@ def load_gnomad_df():
 
 def load_results_tables(args):
     all_dfs = []
+
+    sample_metadata_df = None
+    if args.sample_metadata_table:
+        sample_metadata_df = pd.read_table(args.sample_metadata_table, dtype=str)
+        if args.metadata_table_sample_id_column not in sample_metadata_df.columns:
+            raise ValueError(f"Metadata table {args.sample_metadata_table} is missing the sample id column: "
+                             f"{args.metadata_table_sample_id_column}. Use --metadata-table-sample-id-column to "
+                             f"specify the correct sample id column name in this table.")
+
+        # drop duplicates
+        before = len(sample_metadata_df)
+        sample_metadata_df = sample_metadata_df.drop_duplicates(subset=args.metadata_table_sample_id_column)
+        if len(sample_metadata_df) != before:
+            print(f"Dropped {before - len(sample_metadata_df):,d} duplicate rows ({(before - len(sample_metadata_df)) / before:.1%}) "
+                  f"based on {args.metadata_table_sample_id_column} from {args.sample_metadata_table}")
+
+        sample_metadata_df.set_index(args.metadata_table_sample_id_column, inplace=True)
+
     for combined_tsv_path in args.combined_tsv_path:
 
         # read in table
         df = pd.read_table(combined_tsv_path, low_memory=False, dtype=str)
-        df.loc[:, "Num Repeats: Allele 1"] = df["Num Repeats: Allele 1"].fillna(0).astype(int)
-        df.loc[:, "Num Repeats: Allele 2"] = df["Num Repeats: Allele 2"].fillna(0).astype(int)
+        if sample_metadata_df is not None:
+            len_before_join = len(df)
+
+            df = df.set_index(args.sample_id_column).join(sample_metadata_df, how="left").reset_index()
+            if len_before_join != len(df):
+                raise ValueError(f"Sample metadata table join error: expected {len_before_join:,d} rows, got {len(df):,d}")
+        df.loc[:, "Num Repeats: Allele 1"] = df["Num Repeats: Allele 1"].fillna(0).astype(float).astype(int)
+        df.loc[:, "Num Repeats: Allele 2"] = df["Num Repeats: Allele 2"].fillna(0).astype(float).astype(int)
 
         df.loc[:, "Num Repeats: Min Allele 1, 2"] = df.apply(lambda row: (
             min(row["Num Repeats: Allele 1"], row["Num Repeats: Allele 2"])
@@ -200,6 +224,23 @@ def load_results_tables(args):
 
         if missing_required_columns:
             raise ValueError(f"{combined_tsv_path} is missing these required columns: {missing_required_columns}")
+
+
+        OPTIONAL_COLUMNS = [
+            "RepeatUnit",
+            "VariantId",
+
+            args.sample_analysis_status_column,
+            "Sample_coded_phenotype",
+            args.sample_phenotypes_column,
+            "Sample_genome_version",
+
+            "VariantCatalog_Inheritance",
+            "VariantCatalog_Diseases",
+
+            "Genotype",
+            "GenotypeConfidenceInterval",
+        ]
 
         # fill in values for missing optional columns
         missing_optional_columns = set(OPTIONAL_COLUMNS) - set(df.columns)
@@ -287,8 +328,9 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
 
     # replace NA with "Unknown" strings
     locus_df.loc[:, args.sample_affected_status_column] = locus_df[args.sample_affected_status_column].fillna("Unknown")
+    locus_df.loc[:, "is_male"] = locus_df[args.sample_sex_column].str.lower().str.startswith("m")  # this leaves missing values as Na
+    locus_df.loc[:, "is_female"] = locus_df[args.sample_sex_column].str.lower().str.startswith("f")  # this leaves missing values as Na
     locus_df.loc[:, args.sample_sex_column] = locus_df[args.sample_sex_column].fillna("Unknown")
-
     # create a list of dfs that are subsets of locus_df and where rows pass thresholds
     dfs_to_process = []
     if locus_id == "COMP":
@@ -332,29 +374,38 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
     # create a list of dfs to print, filtered by the pathogenic thresholds and/or affected status
     threshold = min(list(filter(None, [intermediate_threshold_min, pathogenic_threshold_min])) or [0]) if args.use_thresholds else 0
 
-    if inheritance_mode == "XR":
+    use_thresholds = False
+    if args.use_thresholds:
+        if threshold > 0:
+            use_thresholds = True
+            print(f"Filtering by pathogenic thresholds: >= {threshold} repeats")
+        else:
+            print(f"WARNING: No pathogenic thresholds found for locus {locus_id}. Skipping threshold filtering")
 
-        # split results by male/female
-        male_df = locus_df[~locus_df["Genotype"].str.contains("/")]
-        if args.use_thresholds:
+    if not use_thresholds:
+        dfs_to_process.append(locus_df)
+
+    elif use_thresholds:
+        if inheritance_mode == "XR":
+
+            # split results by male/female
+            male_df = locus_df[~locus_df["Genotype"].str.contains("/") | locus_df["is_male"]]
             male_df = male_df[
                 (male_df["CI end: Allele 1"] >= threshold)
             ].iloc[0:args.max_rows]
-        male_df = pd.concat([threshold_records_for_male_samples, male_df], ignore_index=True)
-        dfs_to_process.append(male_df)
+            male_df = pd.concat([threshold_records_for_male_samples, male_df], ignore_index=True)
+            dfs_to_process.append(male_df)
 
-        female_df = locus_df[locus_df["Genotype"].str.contains("/")]
-        if args.use_thresholds:
+            female_df = locus_df[locus_df["Genotype"].str.contains("/") | locus_df["is_female"]]
             female_df = female_df[
                 (female_df["CI end: Allele 1"] >= threshold) &
                 (female_df["CI end: Allele 2"] >= threshold)
             ].iloc[0:args.max_rows]
 
-        female_df = pd.concat([threshold_records, female_df], ignore_index=True)
-        dfs_to_process.append(female_df)
+            female_df = pd.concat([threshold_records, female_df], ignore_index=True)
+            dfs_to_process.append(female_df)
 
-    else:
-        if args.use_thresholds:
+        else:
             if inheritance_mode == "AR":
                 locus_df = locus_df[
                     (locus_df["CI end: Allele 1"] >= threshold) &
@@ -368,8 +419,8 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
                     (locus_df["CI end: Allele 2"] >= threshold)
                 ].iloc[0:args.max_rows]
 
-        locus_df = pd.concat([threshold_records, locus_df], ignore_index=True)
-        dfs_to_process.append(locus_df)
+            locus_df = pd.concat([threshold_records, locus_df], ignore_index=True)
+            dfs_to_process.append(locus_df)
 
     if args.use_affected:
         # filter by affected status
@@ -458,6 +509,7 @@ def main():
         all_locus_ids |= set(df.LocusId)
         all_sample_ids |= set(df[args.sample_id_column])
 
+    print(f"Analyzing {len(all_locus_ids):,d} locus ids")
     all_variant_ids = set()
     for df, _ in all_dfs:
         all_variant_ids |= set(df.VariantId)
@@ -552,9 +604,9 @@ def main():
             print(f"** {locus_id} from {df_source_path} **")
             locus_df = full_df[full_df.LocusId == locus_id].copy()
 
-            print(f"Found {len(locus_df):0.1f} rows for locus {locus_id}")
+            print(f"Found {len(locus_df):,d} rows for locus {locus_id}")
             if len(locus_df) == 0:
-                return
+                continue
 
             if highlight_sample_ids:
                 locus_df.loc[:, args.sample_id_column] = locus_df[args.sample_id_column].apply(
