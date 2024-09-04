@@ -55,7 +55,7 @@ setup(
             'run_reviewer = str_analysis.run_reviewer:main',
             'print_reads = str_analysis.print_reads:main',
             'make_bamlet = str_analysis.make_bamlet:main',
-            'make_cramlet_from_cram_in_google_storage = str_analysis.make_cramlet_from_cram_in_google_storage:main',
+            'make_minicram_for_exansion_hunter = str_analysis.make_minicram_for_exansion_hunter:main',
         ],
     },
     long_description_content_type="text/markdown",
