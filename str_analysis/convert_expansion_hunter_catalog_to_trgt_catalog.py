@@ -72,13 +72,13 @@ def convert_expansion_hunter_record_to_trgt_row(record, split_adjacent_repeats=F
         print(f"WARNING: Skipping locus {locus_id} because its ReferenceRegion "
               f"{chrom}:{locus_start_0based}-{locus_end_1based} has a width = "
               f"{locus_end_1based - locus_start_0based}bp")
-        continue
+        return None
 
     if "|" in locus_structure:
         print(f"WARNING: Skipping locus {locus_id} @ {chrom}:{locus_start_0based+1}-{locus_end_1based} because "
               f"its LocusStructure {locus_structure} contains a sequence swap operation '|' which is not "
               f"supported by TRGT.")
-        continue
+        return None
 
     if split_adjacent_repeats:
         for motif, reference_region in zip(motifs, reference_regions):
@@ -121,7 +121,8 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
             counter = 0
             for i, record in enumerate(iterator):
                 output_row = convert_expansion_hunter_record_to_trgt_row(record)
-                f2.write("\t".join(map(str, output_row)) + "\n")
+                if output_row is not None:
+                    f2.write("\t".join(map(str, output_row)) + "\n")
 
     bgzip_step = "| bgzip" if output_file_path.endswith("gz") else ""
     os.system(f"bedtools sort -i {output_file_path} {bgzip_step} > {output_file_path}.sorted")
