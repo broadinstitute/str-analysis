@@ -49,10 +49,11 @@ def get_variant_catalog_iterator(variant_catalog_json_or_bed, show_progress_bar=
 
     if ".json" in variant_catalog_json_or_bed:
         with open_file(variant_catalog_json_or_bed, is_text_file=True) as f:
+            iterator = ijson.items(f, "item", use_float=True)
             if show_progress_bar:
-                f = tqdm(f, unit=" records", unit_scale=True)
+                iterator = tqdm(iterator, unit=" records", unit_scale=True)
 
-            for record in ijson.items(f, "item", use_float=True):
+            for record in iterator:
                 yield record
     else:
         with open_file(variant_catalog_json_or_bed, is_text_file=True) as input_variant_catalog:
