@@ -217,7 +217,7 @@ def output_tsv(output_path, output_records):
             continue
 
         fields_that_are_lists = [
-            "ReferenceRegion", "VariantType", "ReferenceRepeatPurity", #"FractionPureRepeats", "InterruptionBaseCount", 
+            "ReferenceRegion", "ReferenceRepeats", "VariantType", "ReferenceRepeatPurity",
         ]
         for i in range(len(record["ReferenceRegion"])):
             output_row = dict(record)
