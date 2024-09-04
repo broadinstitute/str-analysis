@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install --no-install-recommends --yes \
     libssl-dev \
     openssl \
     libffi-dev \
+    parallel \
     time
 
 # install htslib

@@ -5,20 +5,22 @@ the 'name' field (column 4) to contain the repeat motif.
 import argparse
 import collections
 import gzip
-import simplejson as json
+import math
 import os
 import re
 import tqdm
+import simplejson as json
 from str_analysis.utils.misc_utils import parse_interval
-
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from str_analysis.utils.eh_catalog_utils import get_variant_catalog_iterator, parse_motifs_from_locus_structure
 
 
 def main():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    p.add_argument("--batch-size", type=int, help="Optionally, split the output into many variant catalogs with "
-                                                  "at most this many loci per catalog")
+    p.add_argument("--batch-size", type=int,
+                   help="If specified, split the input variant catalog into smaller catalogs of this size. Before "
+                        "splitting, the input catalog is sorted by the normalized motif to maximize cache hit rate "
+                        " in the optimized version of ExpansionHunter (https://github.com/bw2/ExpansionHunter).")
     p.add_argument("-o", "--output-path", help="JSON variant catalog output path")
     p.add_argument("--trim", action="store_true", help="Trim loci to be a multiple of the repeat unit size")
     p.add_argument("-v", "--verbose", action="store_true")
@@ -44,7 +46,7 @@ def main():
 
     # write json records to output files
     if not args.output_path:
-        output_path_prefix = re.sub(".bed(.gz)?$", "", args.bed_or_json_path)
+        output_path_prefix = re.sub("(.bed|.json)(.gz)?$", "", args.bed_or_json_path)
     else:
         output_path_prefix = re.sub(".json(.gz)?$", "", args.output_path)
 
@@ -57,9 +59,11 @@ def main():
             json.dump(json_records, f, indent=4)
         print(f"Wrote {len(json_records):,d} to {args.output_path}")
     else:
+        total_batches = len(json_records)//args.batch_size + 1
+        oom = max(1, int(math.ceil(math.log(total_batches, 10))))
         output_path_prefix += f".{len(json_records)}_loci"
         for i in range(0, len(json_records), args.batch_size):
-            output_path = output_path_prefix + f".batch{i // args.batch_size:03d}.json"
+            output_path = output_path_prefix + f".batch_{i // args.batch_size:0{oom}d}.json"
             with open(output_path, "wt") as f:
                 json.dump(json_records[i:i + args.batch_size], f, indent=4)
         print(f"Wrote {len(json_records):,d} to {output_path_prefix}*.json")
