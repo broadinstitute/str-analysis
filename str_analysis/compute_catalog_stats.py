@@ -51,9 +51,9 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
     min_fraction_pure_bases = 1
     min_fraction_pure_bases_reference_region = None
     min_fraction_pure_bases_motif = None
-    min_fraction_pure_repeats = 1
-    min_fraction_pure_repeats_reference_region = None
-    min_fraction_pure_repeats_motif = None
+    #min_fraction_pure_repeats = 1
+    #min_fraction_pure_repeats_reference_region = None
+    #min_fraction_pure_repeats_motif = None
     min_overall_mappability = 1
     min_overall_mappability_reference_region = None
     min_overall_mappability_motif = None
@@ -66,8 +66,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
     counters = collections.defaultdict(int)
 
     locus_sizes_by_motif_size = collections.defaultdict(list)  # used to compute the median locus sizes for each motif size
-    base_purity_by_motif_size = collections.defaultdict(list)  # used to compute the mean base purity for each motif size
-    repeat_purity_by_motif_size = collections.defaultdict(list)  # used to compute the mean repeat purity for each motif size
+    reference_repeat_purity_by_motif_size = collections.defaultdict(list)  # used to compute the mean base purity for each motif size
     mappability_by_motif_size = collections.defaultdict(list)  # used to compute the mean mappability for each motif size
 
     for record in records:
@@ -76,18 +75,18 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
         if isinstance(record["ReferenceRegion"], list):
             reference_regions = record["ReferenceRegion"]
             variant_types = record["VariantType"]
-            fraction_pure_bases = record.get("FractionPureBases", [None]*len(reference_regions))
-            fraction_pure_repeats = record.get("FractionPureRepeats", [None]*len(reference_regions))
+            fraction_pure_bases = record.get("ReferenceRepeatPurity", [None]*len(reference_regions))
+            #fraction_pure_repeats = record.get("FractionPureRepeats", [None]*len(reference_regions))
 
             counters["loci_with_adjacent_repeats"] += 1
         else:
             reference_regions = [record["ReferenceRegion"]]
             variant_types = [record["VariantType"]]
-            fraction_pure_bases = [record.get("FractionPureBases")]
-            fraction_pure_repeats = [record.get("FractionPureRepeats")]
+            fraction_pure_bases = [record.get("ReferenceRepeatPurity")]
+            #fraction_pure_repeats = [record.get("FractionPureRepeats")]
 
-        for motif, reference_region, variant_type, fraction_pure_bases, fraction_pure_repeats in zip(
-                motifs, reference_regions, variant_types, fraction_pure_bases, fraction_pure_repeats):
+        for motif, reference_region, variant_type, fraction_pure_bases in zip(
+                motifs, reference_regions, variant_types, fraction_pure_bases):
             counters["total_repeat_intervals"] += 1
 
             chrom, start_0based, end = parse_interval(reference_region)
@@ -105,10 +104,8 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
 
             if motif_size <= 50:
                 locus_sizes_by_motif_size[motif_size].append(locus_size)
-                base_purity_by_motif_size[motif_size].append(fraction_pure_bases)
-                base_purity_by_motif_size['all'].append(fraction_pure_bases)
-                repeat_purity_by_motif_size[motif_size].append(fraction_pure_repeats)
-                repeat_purity_by_motif_size['all'].append(fraction_pure_repeats)
+                reference_repeat_purity_by_motif_size[motif_size].append(fraction_pure_bases)
+                reference_repeat_purity_by_motif_size['all'].append(fraction_pure_bases)
                 if "FlanksAndLocusMappability" in record:
                     mappability_by_motif_size[motif_size].append(record["FlanksAndLocusMappability"])
 
@@ -130,11 +127,11 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
                 if fraction_pure_bases == min_fraction_pure_bases:
                     min_fraction_pure_bases_reference_region = reference_region
                     min_fraction_pure_bases_motif = motif
-            if fraction_pure_repeats is not None:
-                min_fraction_pure_repeats = min(min_fraction_pure_repeats, fraction_pure_repeats)
-                if fraction_pure_repeats == min_fraction_pure_repeats:
-                    min_fraction_pure_repeats_reference_region = reference_region
-                    min_fraction_pure_repeats_motif = motif
+            #if fraction_pure_repeats is not None:
+            #    min_fraction_pure_repeats = min(min_fraction_pure_repeats, fraction_pure_repeats)
+            #    if fraction_pure_repeats == min_fraction_pure_repeats:
+            #        min_fraction_pure_repeats_reference_region = reference_region
+            #        min_fraction_pure_repeats_motif = motif
 
             if motif_size == 1:
                 counters["homopolymers"] += 1
@@ -158,7 +155,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
             counters[f"num_repeats_per_locus_detailed:{num_repeats_per_locus_detailed_bin}"] += 1
 
             if fraction_pure_bases is not None:
-                fraction_pure_bases_bin = round(int(fraction_pure_repeats*10)/10, 1)
+                fraction_pure_bases_bin = round(int(fraction_pure_bases*10)/10, 1)
                 counters[f"fraction_pure_bases:{fraction_pure_bases_bin}"] += 1
 
             # check for overlap
@@ -214,13 +211,13 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
     print("")
     print(f"   Max locus size = {max_locus_size:7,d}bp           @ {max_locus_size_reference_region} ({max_locus_size_motif})")
     if min_fraction_pure_bases_motif is not None:
-        print(f"   Min fraction pure bases   = {min_fraction_pure_bases:5.2f}    @ {min_fraction_pure_bases_reference_region} ({min_fraction_pure_bases_motif})")
-    if min_fraction_pure_repeats_motif is not None:
-        print(f"   Min fraction pure repeats = {min_fraction_pure_repeats:5.2f}    @ {min_fraction_pure_repeats_reference_region} ({min_fraction_pure_repeats_motif})")
+        print(f"   Min reference repeat purity   = {min_fraction_pure_bases:5.2f}    @ {min_fraction_pure_bases_reference_region} ({min_fraction_pure_bases_motif})")
+    #if min_fraction_pure_repeats_motif is not None:
+    #    print(f"   Min fraction pure repeats = {min_fraction_pure_repeats:5.2f}    @ {min_fraction_pure_repeats_reference_region} ({min_fraction_pure_repeats_motif})")
     if min_overall_mappability_motif is not None:
         print(f"   Min overall mappability   = {min_overall_mappability:5.2f}    @ {min_overall_mappability_reference_region} ({min_overall_mappability_motif})")
-    print(f"   Base-level   purity   median: {statistics.median(base_purity_by_motif_size['all']):0.3f},  mean: {statistics.mean(base_purity_by_motif_size['all']):0.3f}")
-    print(f"   Repeat-level purity   median: {statistics.median(repeat_purity_by_motif_size['all']):0.3f},  mean: {statistics.mean(repeat_purity_by_motif_size['all']):0.3f}")
+    if any([_ is not None for _ in reference_repeat_purity_by_motif_size['all']]) > 0:
+        print(f"   Base-level   purity   median: {statistics.median(reference_repeat_purity_by_motif_size['all']):0.3f},  mean: {statistics.mean(reference_repeat_purity_by_motif_size['all']):0.3f}")
     print("")
     print(f"          chrX: {counters['chrX']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['chrX']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
     print(f"          chrY: {counters['chrY']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['chrY']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
@@ -237,7 +234,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
 
     if min_fraction_pure_bases_motif is not None:
         print("")
-        print("Fraction pure bases distribution:")
+        print("Reference repeat purity distribution:")
         for fraction_pure_bases_bin in 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1:
             print(f"   {fraction_pure_bases_bin:10.1f}: {counters[f'fraction_pure_bases:{fraction_pure_bases_bin:.1f}']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters[f'fraction_pure_bases:{fraction_pure_bases_bin:.1f}']/counters['total_repeat_intervals']:6.1%}) repeat intervals")
 
@@ -265,7 +262,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
         "percent_5bp_motifs": "%0.1f%%" % (100 * counters["motif_size:5bp"] / counters["total_repeat_intervals"]),
         "percent_6bp_motifs": "%0.1f%%" % (100 * counters["motif_size:6bp"] / counters["total_repeat_intervals"]),
         "percent_7+bp_motifs": "%0.1f%%" % (100 * (counters["motif_size:7-24bp"] + counters["motif_size:25+bp"])/ counters["total_repeat_intervals"]),
-        "percent_pure_repeats": "%0.1f%%" % (100 * counters[f"fraction_pure_bases:1.0"] / counters["total_repeat_intervals"]),
+        "percent_pure_bases": "%0.1f%%" % (100 * counters[f"fraction_pure_bases:1.0"] / counters["total_repeat_intervals"]),
         "percent_trimmed": "%0.1f%%" % (100 * counters["trimmed"] / counters["total_repeat_intervals"]),
         "percent_overlapping": "%0.1f%%" % (100 * len(overlapping_intervals) / counters['total_repeat_intervals']),
         "count_homopolymers": counters["motif_size:1bp"],
@@ -278,7 +275,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
         "count_7+bp_motifs": counters["motif_size:7-24bp"] + counters["motif_size:25+bp"],
         "count_7-24bp_motifs": counters["motif_size:7-24bp"],
         "count_25+bp_motifs": counters["motif_size:25+bp"],
-        "count_pure_repeats": counters[f"fraction_pure_bases:1.0"],
+        "count_pure_bases": counters[f"fraction_pure_bases:1.0"],
         "count_trimmed": counters["trimmed"],
         "count_overlapping": len(overlapping_intervals),
         "min_motif_size": min_motif_size,
@@ -295,14 +292,17 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
         min_size = int(min(locus_sizes_by_motif_size[motif_size]))
         median_size = int(statistics.median(locus_sizes_by_motif_size[motif_size]))
         max_size = int(max(locus_sizes_by_motif_size[motif_size]))
-        mean_base_purity = statistics.mean(base_purity_by_motif_size[motif_size])
-        mean_repeat_purity = statistics.mean(repeat_purity_by_motif_size[motif_size])
+        if any(_ is not None for _ in reference_repeat_purity_by_motif_size[motif_size]):
+            mean_reference_repeat_purity = statistics.mean(reference_repeat_purity_by_motif_size[motif_size])
+        else:
+            mean_reference_repeat_purity = float("nan")
+
         mean_mappability = statistics.mean(mappability_by_motif_size[motif_size]) if mappability_by_motif_size[motif_size] else None
         result[f"{motif_size}bp motifs: min locus size"] = min_size
         result[f"{motif_size}bp motifs: median locus size"] = median_size
         result[f"{motif_size}bp motifs: max locus size"] = max_size
 
-        print(f"   {motif_size:3,d}bp motifs: locus size range:   {min_size:4,d} bp to {max_size:7,d} bp  (median: {int(median_size):4,d} bp) based on {len(locus_sizes_by_motif_size[motif_size]):10,d} loci. Mean base purity: {mean_base_purity:0.2f}, mean repeat purity: {mean_repeat_purity:0.2f}. ", f"Mean mappability: {mean_mappability:0.2f}" if mean_mappability is not None else "")
+        print(f"   {motif_size:3,d}bp motifs: locus size range:   {min_size:4,d} bp to {max_size:7,d} bp  (median: {int(median_size):4,d} bp) based on {len(locus_sizes_by_motif_size[motif_size]):10,d} loci. Mean base purity: {mean_reference_repeat_purity:0.2f}. ", f"Mean mappability: {mean_mappability:0.2f}" if mean_mappability is not None else "")
 
     for num_repeats_per_locus_detailed_bin in (
         "0x", "1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x", "9x", "10x",

@@ -103,12 +103,13 @@ def parse_args():
     filter_group.add_argument("-l", "--locus-id", action="append", help="Only include the locus with this locus id")
     filter_group.add_argument("-xl", "--exclude-locus-id", action="append", help="Exclude the locus with this locus id")
 
-    filter_group.add_argument("--max-interruptions", type=int, help="Maximum number of interruptions allowed in the "
-                                                                    "reference repeat sequence")
-    filter_group.add_argument("--min-base-purity", type=float, help="Minimum purity of the reference repeat sequence, "
-                              "computed as the fraction of bases that deviate from pure repeats of the given motif")
-    filter_group.add_argument("--min-repeat-purity", type=float, help="Minimum purity of the reference repeat sequence, "
-                              "computed as the fraction of repeats that deviate from pure repeats of the given motif")
+    #filter_group.add_argument("--max-interruptions", type=int, help="Maximum number of interruptions allowed in the "
+    #                                                                "reference repeat sequence")
+    filter_group.add_argument("--min-reference-repeat-purity", type=float, help="Minimum purity of the "
+                              "reference repeat sequence, computed as the fraction of bases that deviate from pure "
+                              "repeats of the given motif")
+    #filter_group.add_argument("--min-repeat-purity", type=float, help="Minimum purity of the reference repeat sequence, "
+    #                          "computed as the fraction of repeats that deviate from pure repeats of the given motif")
     filter_group.add_argument("--min-mappability", type=float, help="Minimum overall mappability of the repeat region")
     filter_group.add_argument("--discard-overlapping-intervals-with-similar-motifs", action="store_true",
                               help="Discard intervals if they overlap another interval with a similar motif")
@@ -216,7 +217,7 @@ def output_tsv(output_path, output_records):
             continue
 
         fields_that_are_lists = [
-            "ReferenceRegion", "VariantType", "InterruptionBaseCount", "FractionPureBases", "FractionPureRepeats",
+            "ReferenceRegion", "VariantType", "ReferenceRepeatPurity", #"FractionPureRepeats", "InterruptionBaseCount", 
         ]
         for i in range(len(record["ReferenceRegion"])):
             output_row = dict(record)
@@ -495,9 +496,8 @@ def main():
             continue
 
         # annotate repeat purity in the reference genome
-        interrupted_base_count_list = []
+        reference_repeats_list = []
         fraction_pure_bases_list = []
-        fraction_pure_repeats_list = []
         overlaps_other_interval = False
         overlaps_other_interval_with_similar_motif = False
         has_invalid_bases = False
@@ -517,13 +517,13 @@ def main():
                     filter_counters["row reference sequence has invalid bases"] += 1
                     break
             
-            
+
+            reference_repeats_list.append(len(ref_fasta_sequence) // len(motif))
+
             interrupted_bases_count, fraction_pure_bases, fraction_pure_repeats = compute_sequence_purity_stats(
                 ref_fasta_sequence, motif)
             
-            interrupted_base_count_list.append( interrupted_bases_count )
             fraction_pure_bases_list.append( fraction_pure_bases )
-            fraction_pure_repeats_list.append( fraction_pure_repeats )
 
             # check for overlap
             canonical_motif = compute_canonical_motif(motif, include_reverse_complement=False)
@@ -543,22 +543,15 @@ def main():
         if has_invalid_bases:
             continue
 
-        variant_catalog_record["InterruptionBaseCount"] = interrupted_base_count_list[0] if len(chroms_start_0based_ends) == 1 else interrupted_base_count_list
-        variant_catalog_record["FractionPureBases"] = fraction_pure_bases_list[0] if len(chroms_start_0based_ends) == 1 else fraction_pure_bases_list
-        variant_catalog_record["FractionPureRepeats"] = fraction_pure_repeats_list[0] if len(chroms_start_0based_ends) == 1 else fraction_pure_repeats_list
+        variant_catalog_record["ReferenceRepeats"] = reference_repeats_list[0] if len(chroms_start_0based_ends) == 1 else reference_repeats_list
+        variant_catalog_record["ReferenceRepeatPurity"] = fraction_pure_bases_list[0] if len(chroms_start_0based_ends) == 1 else fraction_pure_bases_list
 
         if args.discard_overlapping_intervals_with_similar_motifs and overlaps_other_interval_with_similar_motif:
             filter_counters[f"overlapping interval"] += 1
             continue
 
-        if args.max_interruptions is not None and variant_catalog_record["InterruptionBaseCount"] > args.max_interruptions:
-            filter_counters[f"row InterruptionBaseCount > {args.max_interruptions}"] += 1
-            continue
-        if args.min_base_purity is not None and variant_catalog_record["FractionPureBases"] < args.min_base_purity:
-            filter_counters[f"row FractionPureBases < {args.min_base_purity}"] += 1
-            continue
-        if args.min_repeat_purity is not None and variant_catalog_record["FractionPureRepeats"] < args.min_repeat_purity:
-            filter_counters[f"row FractionPureRepeats < {args.min_repeat_purity}"] += 1
+        if args.min_reference_repeat_purity is not None and variant_catalog_record["ReferenceRepeatPurity"] < args.min_reference_repeat_purity:
+            filter_counters[f"row ReferenceRepeatPurity < {args.min_reference_repeat_purity}"] += 1
             continue
 
         # compute mappability of left and right flanking sequence
