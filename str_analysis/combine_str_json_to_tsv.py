@@ -73,6 +73,11 @@ def parse_args(args_list=None):
         help="If specified, additional fields from LongTR will be added. The input json files are expected to be the "
              "result of running convert_hipstr_vcf_to_expansion_hunter_json."
     )
+    p.add_argument(
+        "--discard-hom-ref",
+        action="store_true",
+        help="Discard hom-ref calls",
+    )
 
     p.add_argument(
         "-o",
@@ -206,6 +211,7 @@ def main():
                 include_extra_hipstr_fields=args.include_extra_hipstr_fields,
                 include_extra_trgt_fields=args.include_extra_trgt_fields,
                 include_extra_longtr_fields=args.include_extra_longtr_fields,
+                discard_hom_ref=args.discard_hom_ref,
             ):
                 if just_get_header:
                     variant_table_columns.extend([k for k in variant_record.keys() if k not in variant_table_columns])
@@ -358,6 +364,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
     include_extra_hipstr_fields=False,
     include_extra_trgt_fields=False,
     include_extra_longtr_fields=False,
+    discard_hom_ref=False,
 ):
     """Converts a dictionary that represents the contents of an ExpansionHunter v3 or v4 json output file to
     a dictionary of tsv column values.
@@ -377,6 +384,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
         include_extra_hipstr_fields (bool): if True, include additional fields provided by HipSTR.
         include_extra_trgt_fields (bool): if True, include additional fields provided by TRGT.
         include_extra_longtr_fields (bool): if True, include additional fields provided by LongTR.
+        discard_hom_ref (bool): if True, discard hom-ref calls
     Yields:
         dict: dictionary representing the output tsv row
     """
@@ -457,6 +465,12 @@ def convert_expansion_hunter_json_to_tsv_columns(
         for variant_json in locus_json.get("Variants", {}).values():
             if "Genotype" not in variant_json:
                 continue
+
+            if args.discard_hom_ref:
+                _, start_0based, end = parse_interval(variant_json["ReferenceRegion"])
+                num_repeats_in_reference = int((end - start_0based) // len(variant_json["RepeatUnit"]))
+                if all(int(genotype) == num_repeats_in_reference for genotype in variant_record["Genotype"].split("/")):
+                    continue
 
             # docs @ https://github.com/Illumina/ExpansionHunter/blob/master/docs/05_OutputJsonFiles.md
             variant_record = collections.OrderedDict(locus_record)
