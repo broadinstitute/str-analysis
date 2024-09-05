@@ -111,6 +111,8 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
                                      split_adjacent_repeats=False, keep_wide_boundaries=False, set_locus_id=False,
                                      show_progress_bar=False):
     print(f"Parsing {expansion_hunter_catalog_path}")
+    counter = 0
+    total = 0
     fopen = gzip.open if expansion_hunter_catalog_path.endswith("gz") else open
     with fopen(expansion_hunter_catalog_path, "rt") as f:
         iterator = ijson.items(f, "item", use_float=True)
@@ -118,10 +120,11 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
             iterator = tqdm.tqdm(iterator, unit=" variant catalog records", unit_scale=True)
 
         with (gzip.open if output_file_path.endswith("gz") else open)(output_file_path, "wt") as f2:
-            counter = 0
             for i, record in enumerate(iterator):
+                total += 1
                 output_row = convert_expansion_hunter_record_to_trgt_row(record)
                 if output_row is not None:
+                    counter += 1
                     f2.write("\t".join(map(str, output_row)) + "\n")
 
     bgzip_step = "| bgzip" if output_file_path.endswith("gz") else ""
@@ -129,7 +132,7 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
     os.system(f"mv {output_file_path}.sorted {output_file_path}")
     #os.system(f"bgzip -f {output_file_path}")
     #os.system(f"tabix -f {output_file_path}.gz")
-    print(f"Wrote {counter:,d} rows to {output_file_path}")
+    print(f"Wrote {counter:,d} out of {total:,d} rows to {output_file_path}")
 
 
 if __name__ == "__main__":
