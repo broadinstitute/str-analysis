@@ -318,6 +318,21 @@ class IntervalReader:
 			with pysam.AlignmentFile(temp_cram_file.name) as input_file:
 				return input_file.header.to_dict()
 
+	def save_data_transfer_stats(self, stats_tsv_path=None):
+		total_bytes = self.get_total_bytes_loaded_from_cram()
+		total_containers = self.get_total_byte_ranges_loaded_from_cram()
+		print(f"Downloaded {total_containers:,d} CRAM containers and {total_bytes/10**6:0,.1f}Mb total")
+		if not stats_tsv_path:
+			stats_tsv_path = re.sub(".cram$", "", os.path.basename(self._cram_or_bam_path))
+			stats_tsv_path += ".data_transfer_stats.tsv"
+
+		with open(stats_tsv_path, "wt") as stats_file:
+			stats_file.write("\t".join(["file_path", "total_bytes_loaded", "total_containers_loaded_from_cram"]) + "\n")
+			stats_file.write("\t".join(map(str, [self._cram_or_bam_path, total_bytes, total_containers])) + "\n")
+
+		print(f"Wrote stats to {stats_tsv_path}")
+
+
 	def compute_read_stats(self):
 		"""Returns a dictionary of read stats for the added genomic intervals. The dictionary contains the following
 		keys:

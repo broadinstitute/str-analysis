@@ -56,7 +56,7 @@ def main():
                         "local or a gs:// path")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--debug", action="store_true")
-    parser.add_argument("-t", "--output-download-stats", action="store_true", help="Write out a TSV file with stats "
+    parser.add_argument("-t", "--output-data-transfer-stats", action="store_true", help="Write out a TSV file with stats "
                         "about the total number of bytes and containers downloaded from the CRAM")
     parser.add_argument("input_cram", help="Input CRAM file path. This can a local or a gs:// path")
 
@@ -154,27 +154,8 @@ def main():
     total_containers = cram_reader.get_total_byte_ranges_loaded_from_cram()
     total_duration_seconds = time.time() - start_time
     print(f"Downloaded {total_containers:,d} containers, {total_bytes/10**6:0,.1f}Mb in {round(total_duration_seconds, 2)} seconds")
-    if args.output_download_stats:
-        stats_tsv_path = re.sub(".cram$", "", os.path.basename(args.input_cram))
-        stats_tsv_path += ".stats.tsv"
-        add_header = not os.path.isfile(stats_tsv_path) or os.path.getsize(stats_tsv_path) == 0
-
-        with open(stats_tsv_path, "a") as stats_file:
-            if add_header:
-                stats_file.write("\t".join([
-                    "input_cram",
-                    "total_containers_loaded",
-                    "total_bytes_loaded",
-                    "total_duration_seconds",
-                ]) + "\n")
-            stats_file.write("\t".join(map(str, [
-                args.input_cram,
-                total_containers,
-                total_bytes,
-                round(total_duration_seconds, 2),
-            ])) + "\n")
-
-        print(f"Wrote stats to {stats_tsv_path}")
+    if args.output_data_transfer_stats:
+        cram_reader.save_data_transfer_stats()
 
     input_bam_file.close()
 
