@@ -449,7 +449,14 @@ def add_variant_catalog_to_interval_trees(
                     #    set_value_if_not_yes(outer_join_overlap_table[new_record["LocusId"]], overlapping_record["Source"], "Yes")
                     #### COMMENTED OUT because it's better to preprocess the input catalogs to trim all loci, then to do it on
                     #    the fly here, and so create redundant entries in the output table
-                    if overlapping_interval.length() < (end_1based - start_0based):
+                    if overlapping_interval.begin == start_0based and overlapping_interval.end == end_1based:
+                        # need this because the loci might have different LocusIds in the input catalogs but the exact same start and end
+                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["LocusId"]], catalog_name, "Yes")
+                        set_value_if_not_yes(outer_join_overlap_table[new_record["LocusId"]], overlapping_record["Source"], "Yes")
+                    elif overlapping_interval.length() == (end_1based - start_0based):
+                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["LocusId"]], catalog_name, "YesButShifted")
+                        set_value_if_not_yes(outer_join_overlap_table[new_record["LocusId"]], overlapping_record["Source"], "YesButShifted")
+                    elif overlapping_interval.length() < (end_1based - start_0based):
                         set_value_if_not_yes(outer_join_overlap_table[overlapping_record["LocusId"]], catalog_name, "YesButWider")
                         set_value_if_not_yes(outer_join_overlap_table[new_record["LocusId"]], overlapping_record["Source"], "YesButNarrower")
                     elif overlapping_interval.length() > (end_1based - start_0based):
@@ -579,6 +586,7 @@ def convert_interval_trees_to_output_records(
     outer_join_overlap_table=None,
     merge_adjacent_loci_with_same_motif=False,
     add_source_field=False,
+    add_found_in_fields=False,
 ):
     """Converts the IntervalTrees to a generator for output catalog records.
 
@@ -587,6 +595,7 @@ def convert_interval_trees_to_output_records(
         outer_join_overlap_table (dict): a dictionary that maps locus IDs to a dictionary of catalog name to locus presence
         merge_adjacent_loci_with_same_motif (bool): see the --merge-adjacent-loci-with-same-motif option
         add_source_field (bool): see the --add-source-field option
+        add_found_in_fields (bool): see the --add-found-in-fields option
     Yield:
         dict: A dictionary representing a record in the output catalog
     """
@@ -599,7 +608,7 @@ def convert_interval_trees_to_output_records(
                 if new_record.get("Discarded"):
                     continue
 
-                if outer_join_overlap_table:
+                if add_found_in_fields:
                     for catalog_name, value in outer_join_overlap_table[new_record["LocusId"]].items():
                         new_record[f"FoundIn{catalog_name}"] = value
 
@@ -746,7 +755,8 @@ def main():
             interval_trees,
             outer_join_overlap_table=outer_join_overlap_table if args.add_found_in_fields else None,
             merge_adjacent_loci_with_same_motif=args.merge_adjacent_loci_with_same_motif,
-            add_source_field=args.add_source_field)
+            add_source_field=args.add_source_field,
+            add_found_in_fields=args.add_found_in_fields)
 
         if args.add_source_field:
             # convert the SEPARATOR_FOR_MULTIPLE_SOURCES to commas
