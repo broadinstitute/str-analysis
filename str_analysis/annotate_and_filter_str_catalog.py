@@ -217,7 +217,7 @@ def output_tsv(output_path, output_records):
             continue
 
         fields_that_are_lists = [
-            "ReferenceRegion", "ReferenceRepeats", "VariantType", "ReferenceRepeatPurity",
+            "ReferenceRegion", "NumRepeatsInReference", "VariantType", "ReferenceRepeatPurity",
         ]
         for i in range(len(record["ReferenceRegion"])):
             output_row = dict(record)
@@ -496,7 +496,7 @@ def main():
             continue
 
         # annotate repeat purity in the reference genome
-        reference_repeats_list = []
+        num_repeats_in_reference_list = []
         fraction_pure_bases_list = []
         overlaps_other_interval = False
         overlaps_other_interval_with_similar_motif = False
@@ -518,7 +518,7 @@ def main():
                     break
             
 
-            reference_repeats_list.append(len(ref_fasta_sequence) // len(motif))
+            num_repeats_in_reference_list.append(len(ref_fasta_sequence) // len(motif))
 
             interrupted_bases_count, fraction_pure_bases, fraction_pure_repeats = compute_sequence_purity_stats(
                 ref_fasta_sequence, motif)
@@ -543,7 +543,7 @@ def main():
         if has_invalid_bases:
             continue
 
-        variant_catalog_record["ReferenceRepeats"] = reference_repeats_list[0] if len(chroms_start_0based_ends) == 1 else reference_repeats_list
+        variant_catalog_record["NumRepeatsInReference"] = num_repeats_in_reference_list[0] if len(chroms_start_0based_ends) == 1 else num_repeats_in_reference_list
         variant_catalog_record["ReferenceRepeatPurity"] = fraction_pure_bases_list[0] if len(chroms_start_0based_ends) == 1 else fraction_pure_bases_list
 
         if args.discard_overlapping_intervals_with_similar_motifs and overlaps_other_interval_with_similar_motif:
