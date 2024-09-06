@@ -563,18 +563,20 @@ def main():
         print("No rows passed filters")
         return
     final_results_df = pd.concat(results_dfs)
+    output_path = args.output_prefix
     if args.motif:
-        args.output_path = args.output_path.replace(".tsv", f".{args.motif}.tsv")
+        output_path += f".{args.motif}.tsv"
     if args.threshold:
-        args.output_path = args.output_path.replace(".tsv", f".{args.threshold}_or_more_repeats.tsv")
+        output_path += f".{args.threshold}_or_more_repeats.tsv"
     if args.inheritance_mode:
-        args.output_path = args.output_path.replace(".tsv", f".{args.inheritance_mode}_inheritance.tsv")
+        output_path += f".{args.inheritance_mode}_inheritance.tsv"
     if args.purity_threshold:
-        args.output_path = args.output_path.replace(".tsv", f".purity_{args.purity_threshold}.tsv")
+        output_path += f".purity_{args.purity_threshold}.tsv"
     if args.use_thresholds:
-        args.output_path = args.output_path.replace(".tsv", ".using_known_pathogenic_thresholds.tsv")
-    final_results_df.to_csv(args.output_path, index=False, header=True, sep="\t")
-    print(f"Wrote {len(final_results_df)} rows to {args.output_path}")
+        output_path += ".using_known_pathogenic_thresholds.tsv"
+
+    final_results_df.to_csv(output_path, index=False, header=True, sep="\t")
+    print(f"Wrote {len(final_results_df)} rows to {output_path}")
 
     #for locus_id, count in sorted(dict(final_results_df.groupby("LocusId").count()[args.sample_id_column]).items()):
     #   print(f"{count:10,d}  {locus_id} rows")
