@@ -95,8 +95,8 @@ def parse_args():
                    "table that contains the paternal sample id")
     p.add_argument("--sample-maternal-id-column", default="maternal_id", help="Name of the column in the combined "
                    "table that contains the maternal sample id")
-    p.add_argument("--results-path", help="Export a .tsv table of rows that pass thresholds to this path",
-                   default="pathogenic_and_intermediate_results.tsv")
+    p.add_argument("--output-prefix", help="Prefix of TSV table with results that pass thresholds.",
+                   default="passed")
 
     # Parse and validate command-line args + read in the combined table(s) from the given command_tsv_path(s)
     args = p.parse_args()
@@ -564,17 +564,17 @@ def main():
         return
     final_results_df = pd.concat(results_dfs)
     if args.motif:
-        args.results_path = args.results_path.replace(".tsv", f".{args.motif}.tsv")
+        args.output_path = args.output_path.replace(".tsv", f".{args.motif}.tsv")
     if args.threshold:
-        args.results_path = args.results_path.replace(".tsv", f".{args.threshold}_or_more_repeats.tsv")
+        args.output_path = args.output_path.replace(".tsv", f".{args.threshold}_or_more_repeats.tsv")
     if args.inheritance_mode:
-        args.results_path = args.results_path.replace(".tsv", f".{args.inheritance_mode}_inheritance.tsv")
+        args.output_path = args.output_path.replace(".tsv", f".{args.inheritance_mode}_inheritance.tsv")
     if args.purity_threshold:
-        args.results_path = args.results_path.replace(".tsv", f".purity_{args.purity_threshold}.tsv")
+        args.output_path = args.output_path.replace(".tsv", f".purity_{args.purity_threshold}.tsv")
     if args.use_thresholds:
-        args.results_path = args.results_path.replace(".tsv", ".using_known_pathogenic_thresholds.tsv")
-    final_results_df.to_csv(args.results_path, index=False, header=True, sep="\t")
-    print(f"Wrote {len(final_results_df)} rows to {args.results_path}")
+        args.output_path = args.output_path.replace(".tsv", ".using_known_pathogenic_thresholds.tsv")
+    final_results_df.to_csv(args.output_path, index=False, header=True, sep="\t")
+    print(f"Wrote {len(final_results_df)} rows to {args.output_path}")
 
     #for locus_id, count in sorted(dict(final_results_df.groupby("LocusId").count()[args.sample_id_column]).items()):
     #   print(f"{count:10,d}  {locus_id} rows")

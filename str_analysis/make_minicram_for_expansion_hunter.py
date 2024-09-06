@@ -56,7 +56,7 @@ def main():
                         "local or a gs:// path")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--debug", action="store_true")
-    parser.add_argument("-t", "--output-data-transfer-stats", action="store_true", help="Write out a TSV file with stats "
+    parser.add_argument("--output-data-transfer-stats", action="store_true", help="Write out a TSV file with stats "
                         "about the total number of bytes and containers downloaded from the CRAM")
     parser.add_argument("input_cram", help="Input CRAM file path. This can a local or a gs:// path")
 
