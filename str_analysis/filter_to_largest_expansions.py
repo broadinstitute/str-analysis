@@ -31,7 +31,7 @@ def parse_args():
 		parser.error(f"Input table not found: {args.input_table}")
 
 	if not args.output_prefix:
-		args.output_prefix = args.input_table.replace(".tsv", "")
+		args.output_prefix = args.input_table.replace(".tsv", "").replace(".gz", "")
 
 	return args
 
@@ -68,8 +68,12 @@ def process_table(df, args, by_long_allele=True):
 	df = df.groupby("LocusId").head(args.n)
 	print(f"Kept {len(df):,d} out of {total:,d} ({len(df) / total:.2%}) rows after filtering to top {args.n} genotypes per locus")
 
-	output_path = f"{args.output_prefix}.top_{args.n}_by_{'long' if by_long_allele else 'short'}_allele.tsv.gz"
+	output_path = args.output_prefix
+	if args.min_purity:
+		output_path += f".purity_{args.min_purity}"
+	output_path += f".top_{args.n}_by_{'long' if by_long_allele else 'short'}_allele.tsv.gz"
 	df.to_csv(output_path, sep="\t", index=False)
+	print(f"Wrote {len(df):,d} rows to {output_path}")
 
 
 def main():
@@ -86,6 +90,9 @@ def main():
 		by_long_allele_settings = [True, False]
 
 	for by_long_allele in by_long_allele_settings:
+		if len(by_long_allele_settings) > 1:
+			print(f"="*80)
+			print(f"Processing {args.input_table} with sorting by {'long' if by_long_allele else 'short'} allele")
 		process_table(df, args, by_long_allele)
 
 if __name__ == "__main__":
