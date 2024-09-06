@@ -48,15 +48,15 @@ def filter_by_purity(min_purity_threshold, both_alleles=False):
 
 
 def process_table(df, args, by_long_allele=True):
+	total = len(df)
 	if args.min_purity:
-		print(f"Filtering to genotypes with at least {args.min_purity} purity")
-		before = len(df)
 		if by_long_allele:
+			print(f"Filtering to genotypes with long allele purity of at least {args.min_purity}")
 			df = df[df["AllelePurity"].apply(filter_by_purity(args.min_purity, both_alleles=False))]
 		else:
+			print(f"Filtering to genotypes where both alleles have purity of at least {args.min_purity}")
 			df = df[df["AllelePurity"].apply(filter_by_purity(args.min_purity, both_alleles=True))]
-
-		print(f"Kept {len(df):,d} out of {before:,d} ({len(df) / before:.2%}) rows after filtering by purity")
+		print(f"Kept {len(df):,d} out of {total:,d} ({len(df) / total:.2%}) rows after filtering by purity")
 
 	print(f"Sorting by {'long' if by_long_allele else 'short'} allele")
 	if by_long_allele:
@@ -64,10 +64,9 @@ def process_table(df, args, by_long_allele=True):
 	else:
 		df.sort_values(["Num Repeats: Allele 1", "Num Repeats: Allele 2"], ascending=False, inplace=True)
 
-	before = len(df)
 	print(f"Filtering to top {args.n} genotypes per locus")
 	df = df.groupby("LocusId").head(args.n)
-	print(f"Kept {len(df):,d} out of {before:,d} ({len(df) / before:.2%}) rows after filtering to top {args.n} genotypes per locus")
+	print(f"Kept {len(df):,d} out of {total:,d} ({len(df) / total:.2%}) rows after filtering to top {args.n} genotypes per locus")
 
 	output_path = f"{args.output_prefix}.top_{args.n}_by_{'long' if by_long_allele else 'short'}_allele.tsv.gz"
 	df.to_csv(output_path, sep="\t", index=False)
