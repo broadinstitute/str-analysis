@@ -15,9 +15,9 @@ import pandas as pd
 def parse_args():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("-n", type=int, default=50, help="Number of genotypes to keep per locus")
-	parser.add_argument("-o", "--output-path", help="Output TSV path")
+	parser.add_argument("-o", "--output-prefix", help="Output TSV path")
 	parser.add_argument("--min-purity", type=float, help="Optionally apply a purity threshold before filtering")
-	group = parser.add_mutually_exclusive_group(required=True)
+	group = parser.add_mutually_exclusive_group()
 	group.add_argument("--by-long-allele", action="store_true", help="Filter by long allele")
 	group.add_argument("--by-short-allele", action="store_true", help="Filter by short allele")
 	parser.add_argument("input_table", help="Input table with genotypes to filter")
@@ -30,11 +30,8 @@ def parse_args():
 	if not os.path.isfile(args.input_table):
 		parser.error(f"Input table not found: {args.input_table}")
 
-	if not args.output_path:
-		which_allele = "long" if args.by_long_allele else "short"
-		args.output_path = args.input_table.replace(".tsv", f".top_{args.n}_by_{which_allele}_allele.tsv")
-	elif not args.output_path.endswith(".tsv") and not args.output_path.endswith(".tsv.gz"):
-			parser.error("Output path must have a .tsv or .tsv.gz extension")
+	if not args.output_prefix:
+		args.output_prefix = args.input_table.replace(".tsv", "")
 
 	return args
 
@@ -50,34 +47,47 @@ def filter_by_purity(min_purity_threshold, both_alleles=False):
 	return filter_func
 
 
+def process_table(df, args, by_long_allele=True):
+	if args.min_purity:
+		print(f"Filtering to genotypes with at least {args.min_purity} purity")
+		before = len(df)
+		if by_long_allele:
+			df = df[df["AllelePurity"].apply(filter_by_purity(args.min_purity, both_alleles=False))]
+		else:
+			df = df[df["AllelePurity"].apply(filter_by_purity(args.min_purity, both_alleles=True))]
+
+		print(f"Kept {len(df):,d} out of {before:,d} ({len(df) / before:.2%}) rows after filtering by purity")
+
+	print(f"Sorting by {'long' if by_long_allele else 'short'} allele")
+	if by_long_allele:
+		df.sort_values(["Num Repeats: Allele 2", "Num Repeats: Allele 1"], ascending=False, inplace=True)
+	else:
+		df.sort_values(["Num Repeats: Allele 1", "Num Repeats: Allele 2"], ascending=False, inplace=True)
+
+	before = len(df)
+	print(f"Filtering to top {args.n} genotypes per locus")
+	df = df.groupby("LocusId").head(args.n)
+	print(f"Kept {len(df):,d} out of {before:,d} ({len(df) / before:.2%}) rows after filtering to top {args.n} genotypes per locus")
+
+	output_path = f"{args.output_prefix}.top_{args.n}_by_{'long' if by_long_allele else 'short'}_allele.tsv.gz"
+	df.to_csv(output_path, sep="\t", index=False)
+
+
 def main():
 	args = parse_args()
 	print(f"Parsing {args.input_table}")
 	df = pd.read_table(args.input_table)
 	print(f"Parsed {len(df):,d} rows from {args.input_table}")
 
-	if args.min_purity:
-		print(f"Filtering to genotypes with at least {args.min_purity} purity")
-		before = len(df)
-		if args.by_short_allele:
-			df = df[df["AllelePurity"].apply(filter_by_purity(args.min_purity, both_alleles=True))]
-		elif args.by_long_allele:
-			df = df[df["AllelePurity"].apply(filter_by_purity(args.min_purity, both_alleles=False))]
-		print(f"Kept {len(df):,d} out of {before:,d} ({len(df) / before:.2%}) rows after filtering by purity")
-
-	print(f"Sorting by {'long' if args.by_long_allele else 'short'} allele")
 	if args.by_long_allele:
-		df.sort_values(["Num Repeats: Allele 2", "Num Repeats: Allele 1"], ascending=False, inplace=True)
+		by_long_allele_settings = [False]
 	elif args.by_short_allele:
-		df.sort_values(["Num Repeats: Allele 1", "Num Repeats: Allele 2"], ascending=False, inplace=True)
+		by_long_allele_settings = [True]
 	else:
-		raise ValueError("Must specify either --by-long-allele or --by-short-allele")
+		by_long_allele_settings = [True, False]
 
-	before = len(df)
-	print(f"Filtering to top {args.n} genotypes per locus")
-	df = df.groupby("LocusId").head(args.n)
-	print(f"Kept {len(df):,d} out of {before:,d} ({len(df) / before:.2%}) rows after filtering to top {args.n} genotypes per locus")
-	df.to_csv(args.output_path, sep="\t", index=False)
+	for by_long_allele in by_long_allele_settings:
+		process_table(df, args, by_long_allele)
 
 if __name__ == "__main__":
 	main()
