@@ -37,6 +37,8 @@ def main():
 	parser.add_argument("--include-unmapped-read-pairs", action="store_true",
 						help="Output read pairs where both mates are unmapped. This can be specified in addition to or "
 							 "instead of -L intervals.")
+    parser.add_argument("--output-data-transfer-stats", action="store_true", help="Write out a TSV file with stats "
+                        "about the total number of bytes and containers downloaded from the CRAM")
 	parser.add_argument("--verbose", action="store_true")
 	parser.add_argument("--debug", action="store_true")
 	parser.add_argument("input_bam_or_cram", help="Input BAM or CRAM file. This can be a local or a gs:// path")
@@ -85,22 +87,27 @@ def main():
 					if len(fields) < 3:
 						parser.error(f"Expected at least 3 columns in line {line}")
 					chrom, start, end = fields[:3]
-
 					start_offset = 1 if interval.endswith(".interval_list") else 0
 					start = int(start) - start_offset  # convert to 0-based coordinates
+					if start > end:
+						parser.error(f"start coordinate {start} is greater than the end coordinate {end}")
 					reader.add_interval(chrom, start - args.padding, int(end) + args.padding)
 		else:
 			try:
 				if ":" in interval:
 					chrom, start_0based, end = parse_interval(interval)
+					if start_0based > end:
+						parser.error(f"start coordinate {start_0based} is greater than end coordinate {end}")
 					reader.add_interval(chrom, start_0based - args.padding, end + args.padding)
 				else:
 					chrom = interval
 					reader.add_interval(chrom, 0, 10**9)
-			except ValueError:
-				parser.error(f"Invalid interval {interval}")
+			except ValueError as e:
+				parser.error(f"Invalid interval {interval}  {e}")
 
 	read_counts = reader.save_to_file(args.output)
+	if args.output_data_transfer_stats:
+		reader.save_data_transfer_stats()
 	reader.close()
 
 if __name__ == "__main__":
