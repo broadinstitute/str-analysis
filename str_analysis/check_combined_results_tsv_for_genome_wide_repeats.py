@@ -172,6 +172,18 @@ def compute_threshold_lookup_by_motif(variant_catalog_path):
     return threshold_lookup
 
 
+def filter_by_purity(min_purity_threshold, both_alleles=False):
+	def filter_func(allele_purity_values):
+		if both_alleles:
+			return all(p != "." and float(p) >= min_purity_threshold for p in allele_purity_values.split(","))
+		else:
+			allele_purity_values = allele_purity_values.split(",")
+			p = allele_purity_values[-1]
+			return p != "." and float(p) >= min_purity_threshold
+
+	return filter_func
+
+
 def normalize_column_name(c):
     """Normalize column name"""
     return c.replace(" ", "_").replace(":", "_").replace(",", "_")
@@ -226,14 +238,9 @@ def load_results_table(args):
             raise ValueError(f"Sample metadata table join error: expected {len_before_join:,d} rows, got {len(df):,d}")
 
     if args.purity_threshold:
-        def passes_purity_threshold(p):
-            purity = [float(x) for x in p.split(",") if x != "."]
-            if len(purity) == 0:
-                return True
-            return purity[0] >= args.purity_threshold and purity[-1] >= args.purity_threshold
-
         before = len(df)
-        df = df[df["AllelePurity"].apply(passes_purity_threshold)]
+        check_both_alleles = args.inheritance_mode == "AR" or args.inheritance_mode == "XR"
+        df = df[df["AllelePurity"].apply(filter_by_purity(args.purity_threshold, both_alleles=check_both_alleles))]
         print(f"Kept {len(df):,d} out of {before:,d} ({len(df)/before:0.1%}) rows ({len(set(df.LocusId)):,d} loci) that passed purity threshold of {args.purity_threshold}")
 
 
