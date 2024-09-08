@@ -20,6 +20,8 @@ def parse_args():
 	group = parser.add_mutually_exclusive_group()
 	group.add_argument("--by-long-allele", action="store_true", help="Filter by long allele")
 	group.add_argument("--by-short-allele", action="store_true", help="Filter by short allele")
+	parser.add_argument("--discard-non-polymorphic-loci", action="store_true", help="Discard loci where all alleles are "
+                        "within +/-2 repeats of the mode allele size")
 	parser.add_argument("input_table", help="Input table with genotypes to filter")
 
 	args = parser.parse_args()
@@ -58,7 +60,7 @@ def get_stdev_of_allele_histogram_dict(allele_histogram_dict):
     return (sum((repeat_number - mean) ** 2 * count for repeat_number, count in allele_histogram_dict.items()) / total) ** 0.5
 
 
-def add_allele_histogram(df, histogram_key, stdev_key):
+def compute_locus_id_to_allele_histogram_dict(df):
 	locus_id_to_histogram_dict = collections.defaultdict(collections.Counter)
 	for locus_id, locus_df in df.groupby("LocusId"):
 		for c in ["Num Repeats: Allele 1", "Num Repeats: Allele 2"]:
@@ -66,6 +68,9 @@ def add_allele_histogram(df, histogram_key, stdev_key):
 				if pd.isna(allele_size):
 					continue
 				locus_id_to_histogram_dict[locus_id][int(allele_size)] += 1
+	return locus_id_to_histogram_dict
+
+def add_allele_histogram(locus_id_to_histogram_dict, histogram_key, stdev_key):
 
 	for locus_id, histogram_dict in locus_id_to_histogram_dict.items():
 		locus_id_selector = df["LocusId"] == locus_id
@@ -76,8 +81,22 @@ def add_allele_histogram(df, histogram_key, stdev_key):
 def process_table(df, args, by_long_allele=True):
 	total = len(df)
 
+	locus_id_to_histogram_dict = compute_locus_id_to_allele_histogram_dict(df)
+	if args.discard_non_polymorphic_loci:
+		print("Discarding loci where all alleles are within +/-2 repeats of the mode allele size")
+		loci_before = len(locus_id_to_histogram_dict)
+		loci_to_discard = set()
+		for locus_id, histogram_dict in locus_id_to_histogram_dict.items():
+			mode_repeat_number = max(histogram_dict, key=histogram_dict.get)
+			if all(abs(repeat_number - mode_repeat_number) <= 2 for repeat_number in histogram_dict):
+				loci_to_discard.add(locus_id)
+		df = df[~df["LocusId"].isin(loci_to_discard)]
+		print(f"Kept {len(df):,d} out of {total:,d} ({len(df) / total:.2%}) rows and "
+			  f"{len(locus_id_to_histogram_dict)} out of {loci_before} loci ({len(locus_id_to_histogram_dict) / loci_before:.2%}) "
+			  f"after filtering out non-polymorphic loci")
+
 	if args.min_purity:
-		add_allele_histogram(df, "AlleleHistBeforePurityFilter", "AlleleStdevBeforePurityFilter")
+		add_allele_histogram(locus_id_to_histogram_dict, "AlleleHistBeforePurityFilter", "AlleleStdevBeforePurityFilter")
 		if by_long_allele:
 			print(f"Filtering to genotypes with long allele purity of at least {args.min_purity}")
 			df = df[df["AllelePurity"].apply(filter_by_purity(args.min_purity, both_alleles=False))]
@@ -85,9 +104,9 @@ def process_table(df, args, by_long_allele=True):
 			print(f"Filtering to genotypes where both alleles have purity of at least {args.min_purity}")
 			df = df[df["AllelePurity"].apply(filter_by_purity(args.min_purity, both_alleles=True))]
 		print(f"Kept {len(df):,d} out of {total:,d} ({len(df) / total:.2%}) rows after filtering by purity")
-		add_allele_histogram(df, "AlleleHist", "AlleleStdev")
+		add_allele_histogram(locus_id_to_histogram_dict, "AlleleHist", "AlleleStdev")
 	else:
-		add_allele_histogram(df, "AlleleHist", "AlleleStdev")
+		add_allele_histogram(locus_id_to_histogram_dict, "AlleleHist", "AlleleStdev")
 
 	print(f"Sorting by {'long' if by_long_allele else 'short'} allele")
 	if by_long_allele:
