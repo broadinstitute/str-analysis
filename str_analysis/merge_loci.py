@@ -23,14 +23,17 @@ def parse_args():
     parser.add_argument("-f", "--overlap-fraction", default=0.66, type=float, help="The minimum overlap for two loci "
         "to be considered as the same locus (assuming they are specified as having the same normalized motif). "
         "This is similar to the -f argument for 'bedtools intersect'.")
+    parser.add_argument("--motif-match-type", choices=("canonical", "length"), default="canonical", help="The type of "
+        "motif match to use when comparing loci. 'canonical' will require the canonical motifs to match. "
+        "'length' will only require the motifs to be the same length.")
     parser.add_argument("--add-source-field", action="store_true", help="If specified, then a Source field will be "
         "added to the output catalog to specify the filename of the original source catalog of a given locus. This "
         "requires the output format to be set to JSON.")
     parser.add_argument("--add-found-in-fields", action="store_true", help="If specified, then 'FoundIn<CatalogName>' "
         "fields will added to the output catalog to indicate which input catalogs contain this locus. "
         "This requires the output format to be set to JSON.")
-    parser.add_argument("--add-extra-fields-from-input-catalogs", action="store_true", help="If specified, then "
-        "extra fields from the input catalogs will be added to the output catalog. This requires the output format "
+    parser.add_argument("--discard-extra-fields-from-input-catalogs", action="store_true", help="If specified, then "
+        "extra fields from the input catalogs will not be copied to to the output catalog. This requires the output format "
         "to be set to JSON.")
     parser.add_argument("--merge-type", choices=("union", "intersection"), default="union", help="If 'union', then "
         "non-duplicate loci from all input catalogs will be added to the output catalog. If 'intersection', then only "
@@ -56,10 +59,10 @@ def parse_args():
     parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     parser.add_argument("--outer-join-overlap-table-min-sources", type=int, default=1, help="The minimum number of "
                         "input catalogs that a locus must be found in to be included in the outer join overlap table")
-    parser.add_argument("--write-outer-join-overlap-table", action="store_true", help="If specified, output an "
+    parser.add_argument("--write-outer-join-table", action="store_true", help="If specified, output an "
                         ".outer_join_overlap_table.tsv.gz which reports which loci are present in which input catalogs")
     parser.add_argument("--write-merge-stats-tsv", action="store_true", help="If specified, output a .merge_stats.tsv")
-    parser.add_argument("--write-bed-files-with-new-loci", action="store_true", help="If specified, then for every "
+    parser.add_argument("--write-bed-files-with-unique-loci", action="store_true", help="If specified, then for every "
                         "input catalog except the first one, this script will output a BED file that contains the new "
                         "loci introduced by that catalog. This is useful for troubleshooting catalogs and "
                         "understanding the differences between them.")
@@ -75,20 +78,20 @@ def parse_args():
 
     args = parser.parse_args()
 
-    if args.merge_adjacent_loci_with_same_motif and (args.write_outer_join_overlap_table or args.add_found_in_fields):
-        parser.error("--merge-adjacent-loci-with-same-motif can not be used with --write-outer-join-overlap-table or --add-found-in-fields")
+    if args.merge_adjacent_loci_with_same_motif and (args.write_outer_join_table or args.add_found_in_fields):
+        parser.error("--merge-adjacent-loci-with-same-motif can not be used with --write-outer-join-table or --add-found-in-fields")
     if args.merge_adjacent_loci_with_same_motif and args.merge_type == "intersection":
         parser.error("--merge-adjacent-loci-with-same-motif can not be used with --merge-type 'intersection'")
-    if args.overlapping_loci_action == "merge" and (args.write_outer_join_overlap_table or args.add_found_in_fields):
-        parser.error("--overlapping-loci-action 'merge' can not be used with --write-outer-join-overlap-table or --add-found-in-fields")
+    if args.overlapping_loci_action == "merge" and (args.write_outer_join_table or args.add_found_in_fields):
+        parser.error("--overlapping-loci-action 'merge' can not be used with --write-outer-join-table or --add-found-in-fields")
 
     if args.output_format == "BED":
         if args.add_source_field:
             parser.error("The --add-source-field option requires --output-format JSON to be specified")
         if args.add_found_in_fields:
             parser.error("The --add-found-in-fields option requires --output-format JSON to be specified")
-        if args.add_extra_fields_from_input_catalogs:
-            parser.error("The --add-extra-fields-from-input-catalogs option requires --output-format JSON to be specified")
+        if args.discard_extra_fields_from_input_catalogs:
+            parser.error("The --discard-extra-fields-from-input-catalogs option requires --output-format JSON to be specified")
 
     paths = parse_variant_catalog_paths_arg(args, parser)
 
@@ -134,7 +137,7 @@ def parse_variant_catalog_paths_arg(args, argparser):
 def get_variant_catalog_iterator(
         variant_catalog_json_or_bed,
         file_type,
-        add_extra_fields_from_input_catalogs=False,
+        discard_extra_fields_from_input_catalogs=False,
         verbose=False,
         show_progress_bar=False):
     """Takes the path of a JSON or BED file and returns an iterator over variant catalog records parsed from that file.
@@ -143,7 +146,7 @@ def get_variant_catalog_iterator(
         intervaltrees (dict): a dictionary that maps chromosome names to IntervalTrees
         variant_catalog_json_or_bed (str): path to a JSON or BED file containing variant catalog records
         file_type (str): either "JSON" or "BED"
-        add_extra_fields_from_input_catalogs (bool): If False, then only the required fields will be kept from the
+        discard_extra_fields_from_input_catalogs (bool): If False, then only the required fields will be kept from the
             input variant catalog and any extra fields will be discarded.
         verbose (bool): If True, add a progress bar
         show_progress_bar (bool): If True, then show a progress bar
@@ -152,79 +155,87 @@ def get_variant_catalog_iterator(
         print(f"Parsing {variant_catalog_json_or_bed}")
 
     if file_type == "JSON":
-        with open_file(variant_catalog_json_or_bed, is_text_file=True) as f:
-            file_iterator = ijson.items(f, "item", use_float=True)
-            if show_progress_bar:
-                file_iterator = tqdm.tqdm(file_iterator, unit=" records", unit_scale=True)
-
-            for record_i, record in enumerate(file_iterator):
-                missing_keys = REQUIRED_OUTPUT_FIELDS - record.keys()
-                if missing_keys:
-                    raise ValueError(f"Record #{record_i+1} in {variant_catalog_json_or_bed} is missing required "
-                                     f"field(s): {missing_keys}")
-
-                if not add_extra_fields_from_input_catalogs:
-                    record = {k: record[k] for k in REQUIRED_OUTPUT_FIELDS}
-
-                if isinstance(record["ReferenceRegion"], list):
-                    reference_region_count = len(record["ReferenceRegion"])
-                    start_0based, end_1based = None, None
-                    for reference_region in record["ReferenceRegion"]:
-                        unmodified_chrom, current_start_0based, current_end_1based = parse_interval(reference_region)
-                        if start_0based is None or current_start_0based < start_0based:
-                            start_0based = current_start_0based
-                        if end_1based is None or current_end_1based > end_1based:
-                            end_1based = current_end_1based
-                else:
-                    reference_region_count = 1
-                    unmodified_chrom, start_0based, end_1based = parse_interval(record["ReferenceRegion"])
-
-                motifs = parse_motifs_from_locus_structure(record["LocusStructure"])
-                if len(motifs) != reference_region_count:
-                    print(f"ERROR: {variant_catalog_json_or_bed} record {record_i+1:,d}: locus structure "
-                          f"{record['LocusStructure']} contains a different number of motifs ({len(motifs)}) than the "
-                          f"number of reference regions ({reference_region_count}): {record['ReferenceRegion']}. "
-                          f"Skipping...")
-                    continue
-
-                yield unmodified_chrom, start_0based, end_1based, record
-
+        is_json = True
     elif file_type == "BED":
-        with open_file(variant_catalog_json_or_bed, is_text_file=True) as file_iterator:
-            if show_progress_bar:
-                file_iterator = tqdm.tqdm(file_iterator, unit=" records", unit_scale=True)
+        is_json = False
+    else:
+        raise ValueError(f"Unrecognized file type: {file_type}")
 
-            for line_i, line in enumerate(file_iterator):
-                fields = line.strip().split("\t")
-                unmodified_chrom = fields[0]
-                chrom = unmodified_chrom.replace("chr", "")
-                start_0based = int(fields[1])
-                end_1based = int(fields[2])
-                if "(" in fields[3] or ")" in fields[3]:
-                    motifs = parse_motifs_from_locus_structure(fields[3])
-                    if len(motifs) != 1:
-                        filename = os.path.basename(variant_catalog_json_or_bed)
-                        print(f"WARNING: {filename} line #{line_i+1:,d}: {chrom}:{start_0based }-{end_1based} "
-                              f"locus structure {fields[3]} contains more than one motif. Skipping...")
+    try:
+        if is_json:
+            with open_file(variant_catalog_json_or_bed, is_text_file=True) as f:
+                file_iterator = ijson.items(f, "item", use_float=True)
+                if show_progress_bar:
+                    file_iterator = tqdm.tqdm(file_iterator, unit=" records", unit_scale=True)
+
+                for record_i, record in enumerate(file_iterator):
+                    missing_keys = REQUIRED_OUTPUT_FIELDS - record.keys()
+                    if missing_keys:
+                        raise ValueError(f"Record #{record_i+1} in {variant_catalog_json_or_bed} is missing required "
+                                         f"field(s): {missing_keys}")
+
+                    if discard_extra_fields_from_input_catalogs:
+                        record = {k: record[k] for k in REQUIRED_OUTPUT_FIELDS}
+
+                    if isinstance(record["ReferenceRegion"], list):
+                        reference_region_count = len(record["ReferenceRegion"])
+                        start_0based, end_1based = None, None
+                        for reference_region in record["ReferenceRegion"]:
+                            unmodified_chrom, current_start_0based, current_end_1based = parse_interval(reference_region)
+                            if start_0based is None or current_start_0based < start_0based:
+                                start_0based = current_start_0based
+                            if end_1based is None or current_end_1based > end_1based:
+                                end_1based = current_end_1based
+                    else:
+                        reference_region_count = 1
+                        unmodified_chrom, start_0based, end_1based = parse_interval(record["ReferenceRegion"])
+
+                    motifs = parse_motifs_from_locus_structure(record["LocusStructure"])
+                    if len(motifs) != reference_region_count:
+                        print(f"ERROR: {variant_catalog_json_or_bed} record {record_i+1:,d}: locus structure "
+                              f"{record['LocusStructure']} contains a different number of motifs ({len(motifs)}) than the "
+                              f"number of reference regions ({reference_region_count}): {record['ReferenceRegion']}. "
+                              f"Skipping...")
                         continue
 
-                    motif = motifs[0]
-                else:
-                    motif = fields[3]
+                    yield unmodified_chrom, start_0based, end_1based, record
 
-                record = {
-                    "LocusId": f"{chrom}-{start_0based}-{end_1based}-{motif}",
-                    "ReferenceRegion": f"{unmodified_chrom}:{start_0based}-{end_1based}",
-                    "LocusStructure": f"({motif})*",
-                    "VariantType": "Repeat",
-                }
+        else:
+            with open_file(variant_catalog_json_or_bed, is_text_file=True) as file_iterator:
+                if show_progress_bar:
+                    file_iterator = tqdm.tqdm(file_iterator, unit=" records", unit_scale=True)
 
-                yield unmodified_chrom, start_0based, end_1based, record
-    else:
-        raise ValueError(f"Unrecognized file type: {file_type} for {variant_catalog_json_or_bed}")
+                for line_i, line in enumerate(file_iterator):
+                    fields = line.strip().split("\t")
+                    unmodified_chrom = fields[0]
+                    chrom = unmodified_chrom.replace("chr", "")
+                    start_0based = int(fields[1])
+                    end_1based = int(fields[2])
+                    if "(" in fields[3] or ")" in fields[3]:
+                        motifs = parse_motifs_from_locus_structure(fields[3])
+                        if len(motifs) != 1:
+                            filename = os.path.basename(variant_catalog_json_or_bed)
+                            print(f"WARNING: {filename} line #{line_i+1:,d}: {chrom}:{start_0based }-{end_1based} "
+                                  f"locus structure {fields[3]} contains more than one motif. Skipping...")
+                            continue
 
+                        motif = motifs[0]
+                    else:
+                        motif = fields[3]
 
-def check_for_sufficient_overlap_and_motif_match(existing_interval, new_interval, counters=None, min_overlap_fraction=0.66):
+                    record = {
+                        "LocusId": f"{chrom}-{start_0based}-{end_1based}-{motif}",
+                        "ReferenceRegion": f"{unmodified_chrom}:{start_0based}-{end_1based}",
+                        "LocusStructure": f"({motif})*",
+                        "VariantType": "Repeat",
+                    }
+
+                    yield unmodified_chrom, start_0based, end_1based, record
+    except Exception as e:
+        raise ValueError(f"Error parsing {variant_catalog_json_or_bed}: {e}")
+
+def check_for_sufficient_overlap_and_motif_match(
+    existing_interval, new_interval, counters=None, min_overlap_fraction=0.66, motif_match_type="canonical"):
 
     existing_record = existing_interval.data
     new_record = new_interval.data
@@ -277,9 +288,15 @@ def check_for_sufficient_overlap_and_motif_match(existing_interval, new_interval
     if not sufficient_overlap_size and overlap_size < 2*len(longer_motif):
         return None
 
-    if existing_record_canonical_motif == new_record_canonical_motif:
+    assert motif_match_type in ("canonical", "length")
+
+    if motif_match_type == "canonical" and existing_record_canonical_motif == new_record_canonical_motif:
         if counters is not None: counters[f"overlapped an existing locus by at least {100*min_overlap_fraction}% " \
                                           f"and had the same canonical motif"] += 1
+        return existing_interval
+    elif motif_match_type == "length" and len(existing_record_canonical_motif) == len(new_record_canonical_motif):
+        if counters is not None: counters[f"overlapped an existing locus by at least {100*min_overlap_fraction}% " \
+                                          f"and had the same motif length"] += 1
         return existing_interval
     else:
         if len(existing_record_canonical_motif) <= len(new_record_canonical_motif):
@@ -304,13 +321,15 @@ def add_variant_catalog_to_interval_trees(
         outer_join_overlap_table=None,
         overlapping_loci_action="keep-first",
         min_overlap_fraction=0.01,
+        motif_match_type="canonical",
         add_source_field=False,
-        add_extra_fields_from_input_catalogs=False,
+        discard_extra_fields_from_input_catalogs=False,
         stats=None,
         verbose=False,
         verbose_overlaps=False,
         show_progress_bar=False,
-        write_bed_files_with_new_loci=False
+        write_bed_files_with_unique_loci=False,
+        output_prefix=None,
 ):
     """Parses the the given input variant catalog and adds any new unique records to the IntervalTrees.
 
@@ -322,13 +341,14 @@ def add_variant_catalog_to_interval_trees(
         outer_join_overlap_table (dict): a dictionary that maps locus IDs to a dictionary of catalog name to locus presence
         for each locus found in any catalog, maps its LocusId to a dictionary of catalog name to locus presence
         add_source_field (bool): If True, then the source file path will be added to each record as a new "Source" field
-        add_extra_fields_from_input_catalogs (bool): If False, then only the required fields will be kept in each input
+        discard_extra_fields_from_input_catalogs (bool): If False, then only the required fields will be kept in each input
             variant catalog record and any extra fields will be discarded.
         stats (dict): dictionary for tracking merge stats
         verbose (bool): If True, then print more stats about the number of records added to the output catalog
         verbose_overlaps (bool): If True, print info about loci that overlap and have similar motifs, but different bondaries.
         show_progress_bar (bool): Whether to show a progress bar
-        write_bed_files_with_new_loci (bool): If True, then write a BED file of loci not seen in previous catalogs.
+        write_bed_files_with_unique_loci (bool): If True, then write a BED file of loci not seen in previous catalogs.
+        output_prefix (str): Output filename prefix
     """
     if verbose:
         print("- "*60)
@@ -338,7 +358,7 @@ def add_variant_catalog_to_interval_trees(
     unique_loci = set()
     for unmodified_chrom, start_0based, end_1based, new_record in get_variant_catalog_iterator(
             variant_catalog_json_or_bed, file_type,
-            add_extra_fields_from_input_catalogs=add_extra_fields_from_input_catalogs,
+            discard_extra_fields_from_input_catalogs=discard_extra_fields_from_input_catalogs,
             verbose=verbose, show_progress_bar=show_progress_bar):
 
         new_interval = intervaltree.Interval(start_0based, end_1based, data=new_record)
@@ -360,7 +380,8 @@ def add_variant_catalog_to_interval_trees(
             overlap_size = overlapping_interval.overlap_size(start_0based, end_1based)
 
             existing_interval = check_for_sufficient_overlap_and_motif_match(
-                overlapping_interval, new_interval, counters=counters, min_overlap_fraction=min_overlap_fraction)
+                overlapping_interval, new_interval, counters=counters, min_overlap_fraction=min_overlap_fraction,
+                motif_match_type=motif_match_type)
             if existing_interval is not None:
                 break
 
@@ -429,7 +450,8 @@ def add_variant_catalog_to_interval_trees(
                         continue
 
                     they_match = check_for_sufficient_overlap_and_motif_match(
-                        overlapping_interval, new_interval, min_overlap_fraction=min_overlap_fraction)
+                        overlapping_interval, new_interval, min_overlap_fraction=min_overlap_fraction,
+                        motif_match_type=motif_match_type)
                     if not they_match:
                         continue
 
@@ -469,7 +491,7 @@ def add_variant_catalog_to_interval_trees(
             new_record["Discarded"] = True
         else:
             counters["added"] += 1
-            if write_bed_files_with_new_loci:
+            if write_bed_files_with_unique_loci:
                 motifs = parse_motifs_from_locus_structure(new_record["LocusStructure"])
                 if len(motifs) > 1:
                     print(f"Unexpected LocusStructure in {new_record}: {new_record['LocusStructure']}. Will not save to unique loci...")
@@ -489,8 +511,9 @@ def add_variant_catalog_to_interval_trees(
     if stats is not None:
         stats[variant_catalog_filename] = counters
 
-    if write_bed_files_with_new_loci:
-        unqiue_loci_bed_prefix = re.sub("(.json|.bed)(.gz)?$", "", os.path.basename(variant_catalog_json_or_bed))
+    if write_bed_files_with_unique_loci:
+        unqiue_loci_bed_prefix = f"{output_prefix}." if output_prefix else ""
+        unqiue_loci_bed_prefix += re.sub("(.json|.bed)(.gz)?$", "", os.path.basename(variant_catalog_json_or_bed))
         unique_loci_bed_filename = f"{unqiue_loci_bed_prefix}.unique_loci.bed"
         with open(unique_loci_bed_filename, "wt") as unique_loci_bed:
             for chrom, start_0based, end_1based, motif in sorted(unique_loci):
@@ -724,6 +747,9 @@ def replace_separator_for_multiple_entries_in_field(iterator, field_name="Source
 def main():
     args, paths = parse_args()
 
+    if not args.output_prefix:
+        args.output_prefix = f"{args.merge_type}.{len(paths)}_catalogs"
+
     stats = collections.Counter()
 
     # parse each catalog and add each new unique record to this IntervalTrees dictionary
@@ -735,19 +761,19 @@ def main():
             catalog_name, path, file_type, interval_trees, outer_join_overlap_table,
             overlapping_loci_action=args.overlapping_loci_action,
             min_overlap_fraction=args.overlap_fraction,
-            add_source_field=args.add_source_field or args.add_found_in_fields or args.write_outer_join_overlap_table,
-            add_extra_fields_from_input_catalogs=args.add_extra_fields_from_input_catalogs,
+            motif_match_type=args.motif_match_type,
+            discard_extra_fields_from_input_catalogs=args.discard_extra_fields_from_input_catalogs,
+            add_source_field=args.add_source_field or args.add_found_in_fields or args.write_outer_join_table,
             stats=stats,
             verbose=args.verbose,
             verbose_overlaps=args.verbose_overlaps,
             show_progress_bar=args.show_progress_bar,
-            write_bed_files_with_new_loci=args.write_bed_files_with_new_loci and i > 0,
+            write_bed_files_with_unique_loci=args.write_bed_files_with_unique_loci and i > 0,
+            output_prefix=args.output_prefix,
         )
 
     # write the output catalog to a file
     output_formats = [args.output_format] if args.output_format else ["JSON", "BED"]
-    if not args.output_prefix:
-        args.output_prefix = f"combined.{len(paths)}_catalogs"
 
     for output_format in output_formats:
         output_catalog_record_generator = convert_interval_trees_to_output_records(
@@ -775,7 +801,7 @@ def main():
     if args.verbose:
         print_catalog_stats(interval_trees)
 
-    if args.write_outer_join_overlap_table:
+    if args.write_outer_join_table:
         outer_join_overlap_table_path = f"{args.output_prefix}.outer_join_overlap_table.tsv.gz"
         output_counter = 0
         with gzip.open(outer_join_overlap_table_path, "wt") as outer_join_overlap_table_tsv:
