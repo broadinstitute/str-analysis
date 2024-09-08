@@ -47,9 +47,37 @@ def filter_by_purity(min_purity_threshold, both_alleles=False):
 	return filter_func
 
 
+def convert_allele_histogram_dict_to_string(allele_histogram_dict):
+    data = sorted(allele_histogram_dict.items())
+    return ",".join(f"{repeat_number}x:{allele_count}" for repeat_number, allele_count in data)
+
+
+def get_stdev_of_allele_histogram_dict(allele_histogram_dict):
+    total = sum(allele_histogram_dict.values())
+    mean = sum(repeat_number * count for repeat_number, count in allele_histogram_dict.items()) / total
+    return (sum((repeat_number - mean) ** 2 * count for repeat_number, count in allele_histogram_dict.items()) / total) ** 0.5
+
+
+def add_allele_histogram(df, histogram_key, stdev_key):
+	locus_id_to_histogram_dict = collections.defaultdict(collections.Counter)
+	for locus_id, locus_df in df.groupby("LocusId"):
+		for c in ["Num Repeats: Allele 1", "Num Repeats: Allele 2"]:
+			for allele_size in locus_df[c]:
+				if pd.isna(allele_size):
+					continue
+				locus_id_to_histogram_dict[locus_id][int(allele_size)] += 1
+
+	for locus_id, histogram_dict in locus_id_to_histogram_dict.items():
+		locus_id_selector = df["LocusId"] == locus_id
+		df.loc[locus_id_selector, histogram_key] = convert_allele_histogram_dict_to_string(histogram_dict)
+		df.loc[locus_id_selector, stdev_key] = get_stdev_of_allele_histogram_dict(histogram_dict)
+
+
 def process_table(df, args, by_long_allele=True):
 	total = len(df)
+
 	if args.min_purity:
+		add_allele_histogram(df, "AlleleHistBeforePurityFilter", "AlleleStdevBeforePurityFilter")
 		if by_long_allele:
 			print(f"Filtering to genotypes with long allele purity of at least {args.min_purity}")
 			df = df[df["AllelePurity"].apply(filter_by_purity(args.min_purity, both_alleles=False))]
@@ -57,6 +85,9 @@ def process_table(df, args, by_long_allele=True):
 			print(f"Filtering to genotypes where both alleles have purity of at least {args.min_purity}")
 			df = df[df["AllelePurity"].apply(filter_by_purity(args.min_purity, both_alleles=True))]
 		print(f"Kept {len(df):,d} out of {total:,d} ({len(df) / total:.2%}) rows after filtering by purity")
+		add_allele_histogram(df, "AlleleHist", "AlleleStdev")
+	else:
+		add_allele_histogram(df, "AlleleHist", "AlleleStdev")
 
 	print(f"Sorting by {'long' if by_long_allele else 'short'} allele")
 	if by_long_allele:
