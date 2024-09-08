@@ -32,6 +32,9 @@ def parse_args():
     parser.add_argument("--add-extra-fields-from-input-catalogs", action="store_true", help="If specified, then "
         "extra fields from the input catalogs will be added to the output catalog. This requires the output format "
         "to be set to JSON.")
+    parser.add_argument("--merge-type", choices=("union", "intersection"), default="union", help="If 'union', then "
+        "non-duplicate loci from all input catalogs will be added to the output catalog. If 'intersection', then only "
+        "loci that are present in all input catalogs will be included in the output")
     parser.add_argument("--overlapping-loci-action",
         choices=("keep-first", "keep-last", "keep-both", "keep-narrow", "keep-wider", "merge"),
         default="keep-first", help="When two loci overlap and have the same canonical motif, this option specifies "
@@ -72,19 +75,12 @@ def parse_args():
 
     args = parser.parse_args()
 
-    if args.merge_adjacent_loci_with_same_motif and args.write_outer_join_overlap_table:
-        parser.error("The --merge-adjacent-loci-with-same-motif and --write-outer-join-overlap-table combination is "
-                     "not current supported")
-    elif args.merge_adjacent_loci_with_same_motif and args.add_found_in_fields:
-        parser.error("The --merge-adjacent-loci-with-same-motif and --add-found-in-fields combination is not currently "
-                     "supported")
-    elif args.overlapping_loci_action == "merge" and args.write_outer_join_overlap_table:
-        parser.error("The --overlapping-loci-action 'merge' and --write-outer-join-overlap-table combination is not "
-                     "currently supported")
-    elif args.overlapping_loci_action == "merge" and args.add_found_in_fields:
-        parser.error("The --overlapping-loci-action 'merge' and --add-found-in-fields combination is not currently "
-                     "supported")
-
+    if args.merge_adjacent_loci_with_same_motif and (args.write_outer_join_overlap_table or args.add_found_in_fields):
+        parser.error("--merge-adjacent-loci-with-same-motif can not be used with --write-outer-join-overlap-table or --add-found-in-fields")
+    if args.merge_adjacent_loci_with_same_motif and args.merge_type == "intersection":
+        parser.error("--merge-adjacent-loci-with-same-motif can not be used with --merge-type 'intersection'")
+    if args.overlapping_loci_action == "merge" and (args.write_outer_join_overlap_table or args.add_found_in_fields):
+        parser.error("--overlapping-loci-action 'merge' can not be used with --write-outer-join-overlap-table or --add-found-in-fields")
 
     if args.output_format == "BED":
         if args.add_source_field:
@@ -449,6 +445,7 @@ def add_variant_catalog_to_interval_trees(
                     #    set_value_if_not_yes(outer_join_overlap_table[new_record["LocusId"]], overlapping_record["Source"], "Yes")
                     #### COMMENTED OUT because it's better to preprocess the input catalogs to trim all loci, then to do it on
                     #    the fly here, and so create redundant entries in the output table
+
                     if overlapping_interval.begin == start_0based and overlapping_interval.end == end_1based:
                         # need this because the loci might have different LocusIds in the input catalogs but the exact same start and end
                         set_value_if_not_yes(outer_join_overlap_table[overlapping_record["LocusId"]], catalog_name, "Yes")
@@ -481,8 +478,8 @@ def add_variant_catalog_to_interval_trees(
 
         interval_trees[chrom].add(intervaltree.Interval(start_0based, end_1based, data=new_record))
 
-    print(f"Added {counters['added']:,d} out of {counters['total']:,d} ({counters['added']/(counters['total'] or 1):6.1%}) "
-          f"records from {variant_catalog_filename} to the output catalog")
+    print(f"Kept {counters['added']:,d} out of {counters['total']:,d} ({counters['added']/(counters['total'] or 1):6.1%}) "
+          f"records from {variant_catalog_filename}")
     if verbose:
         for k, v in sorted(counters.items()):
             if k not in {"added", "total"}:
@@ -584,6 +581,7 @@ def check_whether_to_merge_adjacent_loci(
 def convert_interval_trees_to_output_records(
     interval_trees,
     outer_join_overlap_table=None,
+    only_loci_present_in_n_catalogs=None,
     merge_adjacent_loci_with_same_motif=False,
     add_source_field=False,
     add_found_in_fields=False,
@@ -593,6 +591,7 @@ def convert_interval_trees_to_output_records(
     Args:
         interval_trees (dict): a dictionary that maps chromosome names to IntervalTree objects for overlap detection
         outer_join_overlap_table (dict): a dictionary that maps locus IDs to a dictionary of catalog name to locus presence
+        only_loci_present_in_n_catalogs (int): only output loci that are present in this many catalogs
         merge_adjacent_loci_with_same_motif (bool): see the --merge-adjacent-loci-with-same-motif option
         add_source_field (bool): see the --add-source-field option
         add_found_in_fields (bool): see the --add-found-in-fields option
@@ -611,6 +610,9 @@ def convert_interval_trees_to_output_records(
                 if add_found_in_fields:
                     for catalog_name, value in outer_join_overlap_table[new_record["LocusId"]].items():
                         new_record[f"FoundIn{catalog_name}"] = value
+
+                if only_loci_present_in_n_catalogs is not None and len(outer_join_overlap_table[new_record["LocusId"]].values()) < only_loci_present_in_n_catalogs:
+                    continue
 
                 counter += 1
                 yield new_record
@@ -661,7 +663,7 @@ def write_output_catalog(output_catalog_record_iter, output_path, output_format)
         with fopen(output_path, "wt") as output_catalog:
             output_records_list = list(output_catalog_record_iter)
             json.dump(output_records_list, output_catalog, indent=4, ignore_nan=True)
-        print(f"Done writing {len(output_records_list):,d} output records to {output_path}")
+        print(f"Wrote {len(output_records_list):,d} output records to {output_path}")
 
     elif output_format == "BED":
         output_path = re.sub(".b?gz$", "", output_path)
@@ -673,7 +675,7 @@ def write_output_catalog(output_catalog_record_iter, output_path, output_format)
 
         os.system(f"bgzip -f {output_path}")
         os.system(f"tabix -f -p bed {output_path}.gz")
-        print(f"Done writing {total:,d} output records to {output_path}.gz")
+        print(f"Wrote {total:,d} output records to {output_path}.gz")
 
 
 def print_catalog_stats(interval_trees):
@@ -727,10 +729,7 @@ def main():
     # parse each catalog and add each new unique record to this IntervalTrees dictionary
     interval_trees = collections.defaultdict(intervaltree.IntervalTree)
 
-    outer_join_overlap_table = None
-    if args.write_outer_join_overlap_table or args.add_found_in_fields:
-        outer_join_overlap_table = collections.defaultdict(dict)  # for each locus found in any catalog, maps its LocusId to a dictionary of catalog name to locus presence
-
+    outer_join_overlap_table = collections.defaultdict(dict)  # for each locus found in any catalog, maps its LocusId to a dictionary of catalog name to locus presence
     for i, (catalog_name, path, file_type) in enumerate(paths):
         add_variant_catalog_to_interval_trees(
             catalog_name, path, file_type, interval_trees, outer_join_overlap_table,
@@ -753,7 +752,8 @@ def main():
     for output_format in output_formats:
         output_catalog_record_generator = convert_interval_trees_to_output_records(
             interval_trees,
-            outer_join_overlap_table=outer_join_overlap_table if args.add_found_in_fields else None,
+            outer_join_overlap_table=outer_join_overlap_table,
+            only_loci_present_in_n_catalogs=len(paths) if args.merge_type == "intersection" else None,
             merge_adjacent_loci_with_same_motif=args.merge_adjacent_loci_with_same_motif,
             add_source_field=args.add_source_field,
             add_found_in_fields=args.add_found_in_fields)
