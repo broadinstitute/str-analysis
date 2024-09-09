@@ -21,7 +21,10 @@ def parse_args():
 	group.add_argument("--by-long-allele", action="store_true", help="Filter by long allele")
 	group.add_argument("--by-short-allele", action="store_true", help="Filter by short allele")
 	parser.add_argument("--discard-non-polymorphic-loci", action="store_true", help="Discard loci where all alleles are "
-                        "within +/-2 repeats of the mode allele size")
+						"within +/-2 repeats of the mode allele size")
+	parser.add_argument("--max-entries-per-histogram", type=int,
+						help="If specified, the allele histogram strings will include no more than this many of the "
+							 "largest alleles. This can keep these strings from taking up too much space.")
 	parser.add_argument("input_table", help="Input table with genotypes to filter")
 
 	args = parser.parse_args()
@@ -69,21 +72,25 @@ def filter_by_purity(min_purity_threshold, both_alleles=False):
 	return filter_func
 
 
-def convert_allele_histogram_dict_to_string(allele_histogram_dict):
-    data = sorted(allele_histogram_dict.items())
-    return ",".join(f"{repeat_number}x:{allele_count}" for repeat_number, allele_count in data)
+def convert_allele_histogram_dict_to_string(allele_histogram_dict, max_entries=None):
+	if max_entries == 0:
+		return ""
+	data = sorted(allele_histogram_dict.items())
+	if max_entries is not None:
+		data = data[-max_entries:]
+	return ",".join(f"{repeat_number}x:{allele_count}" for repeat_number, allele_count in data)
 
 
 def get_stdev_of_allele_histogram_dict(allele_histogram_dict):
-    total = sum(allele_histogram_dict.values())
-    mean = sum(repeat_number * count for repeat_number, count in allele_histogram_dict.items()) / total
-    return (sum((repeat_number - mean) ** 2 * count for repeat_number, count in allele_histogram_dict.items()) / total) ** 0.5
+	total = sum(allele_histogram_dict.values())
+	mean = sum(repeat_number * count for repeat_number, count in allele_histogram_dict.items()) / total
+	return (sum((repeat_number - mean) ** 2 * count for repeat_number, count in allele_histogram_dict.items()) / total) ** 0.5
 
 
 def compute_locus_id_to_allele_histogram_dict(df):
 	locus_id_to_histogram_dict = collections.defaultdict(collections.Counter)
 	for locus_id, locus_df in df.groupby("LocusId"):
-		for c in ["Num Repeats: Allele 1", "Num Repeats: Allele 2"]:
+		for c in "Num Repeats: Allele 1", "Num Repeats: Allele 2":
 			for allele_size in locus_df[c]:
 				if pd.isna(allele_size):
 					continue
@@ -91,16 +98,19 @@ def compute_locus_id_to_allele_histogram_dict(df):
 	return locus_id_to_histogram_dict
 
 
-def add_allele_histogram(df, locus_id_to_histogram_dict, histogram_key, stdev_key):
-	locus_id_to_histogram_string = {}
+def add_allele_histogram(df, locus_id_to_histogram_dict, histogram_key, stdev_key, max_entries=None):
 	locus_id_to_stdev = {}
-
 	for locus_id, histogram_dict in locus_id_to_histogram_dict.items():
-		locus_id_to_histogram_string[locus_id] = convert_allele_histogram_dict_to_string(histogram_dict)
 		locus_id_to_stdev[locus_id] = get_stdev_of_allele_histogram_dict(histogram_dict)
-
-	df[histogram_key] = df["LocusId"].map(locus_id_to_histogram_string)
 	df[stdev_key] = df["LocusId"].map(locus_id_to_stdev)
+
+	if max_entries is None or max_entries > 0:
+		locus_id_to_histogram_string = {}
+		for locus_id, histogram_dict in locus_id_to_histogram_dict.items():
+			locus_id_to_histogram_string[locus_id] = convert_allele_histogram_dict_to_string(
+				histogram_dict, max_entries=max_entries)
+		df[histogram_key] = df["LocusId"].map(locus_id_to_histogram_string)
+
 
 
 def process_table(df, args, by_long_allele=True):
@@ -109,7 +119,9 @@ def process_table(df, args, by_long_allele=True):
 	print(f"Computing allele frequency histograms")
 	locus_id_to_histogram_dict = compute_locus_id_to_allele_histogram_dict(df)
 	if args.min_purity:
-		add_allele_histogram(df, locus_id_to_histogram_dict, "AlleleHistBeforePurityFilter", "AlleleStdevBeforePurityFilter")
+		add_allele_histogram(
+			df, locus_id_to_histogram_dict, "AlleleHistBeforePurityFilter", "AlleleStdevBeforePurityFilter",
+			max_entries=args.max_entries_per_histogram)
 		if by_long_allele:
 			print(f"Filtering to genotypes with long allele purity of at least {args.min_purity}")
 			df = df[df["AllelePurity"].apply(filter_by_purity(args.min_purity, both_alleles=False))]
@@ -120,9 +132,11 @@ def process_table(df, args, by_long_allele=True):
 		print(f"Kept {len(df):,d} out of {total:,d} ({len(df) / total:.1%}) rows after filtering by purity")
 
 		locus_id_to_histogram_dict = compute_locus_id_to_allele_histogram_dict(df)
-		add_allele_histogram(df, locus_id_to_histogram_dict, "AlleleHist", "AlleleStdev")
+		add_allele_histogram(df, locus_id_to_histogram_dict, "AlleleHist", "AlleleStdev",
+							 max_entries=args.max_entries_per_histogram)
 	else:
-		add_allele_histogram(df, locus_id_to_histogram_dict, "AlleleHist", "AlleleStdev")
+		add_allele_histogram(df, locus_id_to_histogram_dict, "AlleleHist", "AlleleStdev",
+							 max_entries=args.max_entries_per_histogram)
 
 	print(f"Sorting by {'long' if by_long_allele else 'short'} allele")
 	if by_long_allele:
