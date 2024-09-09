@@ -106,6 +106,7 @@ def add_allele_histogram(df, locus_id_to_histogram_dict, histogram_key, stdev_ke
 def process_table(df, args, by_long_allele=True):
 	total = len(df)
 
+	print(f"Computing allele frequency histograms")
 	locus_id_to_histogram_dict = compute_locus_id_to_allele_histogram_dict(df)
 	if args.min_purity:
 		add_allele_histogram(df, locus_id_to_histogram_dict, "AlleleHistBeforePurityFilter", "AlleleStdevBeforePurityFilter")
