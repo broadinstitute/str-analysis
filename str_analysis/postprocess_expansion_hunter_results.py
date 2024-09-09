@@ -38,7 +38,7 @@ def main():
     if args.discard_hom_ref:
         args.output_prefix += ".without_hom_ref"
     else:
-        args.output_prefix += ".filtered"
+        args.output_prefix += ".postprocessed"
 
     if args.output_format == "JSON":
         output_filename = f"{args.output_prefix}.json.gz"
