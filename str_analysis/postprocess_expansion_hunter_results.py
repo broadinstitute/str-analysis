@@ -1,29 +1,22 @@
-#!/usr/bin/env python3
-
 import argparse
 import collections
 import gzip
 import simplejson as json
 import logging
 import os
-import pathlib
-import re
-import sys
-
-import numpy as np
 import pandas as pd
 from pprint import pformat
+import sys
 
-from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.combine_str_json_to_tsv import convert_expansion_hunter_json_to_tsv_columns, parse_json_file
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
-ALREADY_WARNED_ABOUT = set()  # used for logging
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
 def parse_args(args_list=None):
     """Parse command line args and return the argparse args object"""
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--discard-hom-ref", action="store_true", help="Discard hom-ref calls")
+    p.add_argument("--output-format", choices=("JSON", "TSV"), default="JSON", help="Output format")
     p.add_argument("-o", "--output-prefix", help="Combined table output filename prefix")
     p.add_argument("-v", "--verbose", action="store_true", help="Print additional logging messages")
     p.add_argument("json_path", help="EpxansionHunter output json file.")
@@ -37,21 +30,22 @@ def parse_args(args_list=None):
 
 
 def main():
-    """Main"""
-
     args, parser = parse_args()
-
-    if not args.discard_hom_ref:
-        print("No filters to apply. Exiting..")
-        sys.exit(0)
 
     if not args.output_prefix:
         args.output_prefix = os.path.basename(args.json_path).replace(".json", "").replace(".gz", "")
 
     if args.discard_hom_ref:
-        output_filename = f"{args.output_prefix}.without_hom_ref.json.gz"
+        args.output_prefix += ".without_hom_ref"
     else:
-        output_filename = f"{args.output_prefix}.filtered.json.gz"
+        args.output_prefix += ".filtered"
+
+    if args.output_format == "JSON":
+        output_filename = f"{args.output_prefix}.json.gz"
+    elif args.output_format == "TSV":
+        output_filename = f"{args.output_prefix}.tsv.gz"
+    else:
+        parser.error(f"Unknown output format: {args.output_format}")
 
     try:
         json_contents = parse_json_file(args.json_path)
@@ -63,23 +57,24 @@ def main():
 
     total_loci = len(json_contents["LocusResults"])
 
-    variant_records_counter = 0
-    with gzip.open(output_filename, "wt") as variant_output_file:
-        variant_output_file.write("[")
-        for variant_record in convert_expansion_hunter_json_to_tsv_columns(
-            json_contents,
-            json_file_path=args.json_path,
-            yield_allele_records=False,
-            include_extra_expansion_hunter_fields=False,
-            discard_hom_ref=args.discard_hom_ref,
-        ):
-            if variant_records_counter > 0:
-                variant_output_file.write(", ")
-            variant_records_counter += 1
-            json.dump(variant_record, variant_output_file, indent=4)
-        variant_output_file.write("]")
-    logging.info(f"Wrote {variant_records_counter:,d} out of {total_loci:,d} records "
-                 f"({variant_records_counter / total_loci:.1%}) to {output_filename}")
+    output_records = []
+    for variant_record in convert_expansion_hunter_json_to_tsv_columns(
+        json_contents,
+        json_file_path=args.json_path,
+        yield_allele_records=False,
+        include_extra_expansion_hunter_fields=False,
+        discard_hom_ref=args.discard_hom_ref,
+    ):
+        output_records.append(variant_record)
+
+    if args.output_format == "TSV":
+        pd.DataFrame(output_records).to_csv(output_filename, sep="\t", index=False)
+    elif args.output_format == "JSON":
+        with gzip.open(output_filename, "wt") as output_file:
+            json.dump(output_records, output_file, indent=4)
+
+    logging.info(f"Wrote {len(output_records):,d} out of {total_loci:,d} records "
+                 f"({len(output_records) / total_loci:.1%}) to {output_filename}")
 
 
 if __name__ == "__main__":
