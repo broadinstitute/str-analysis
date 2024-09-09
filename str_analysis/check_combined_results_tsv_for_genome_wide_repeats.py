@@ -572,15 +572,16 @@ def main():
     final_results_df = pd.concat(results_dfs)
     output_path = args.output_prefix
     if args.motif:
-        output_path += f".{args.motif}.tsv"
+        output_path += f".{args.motif}"
     if args.threshold:
-        output_path += f".{args.threshold}_or_more_repeats.tsv"
+        output_path += f".{args.threshold}_or_more_repeats"
     if args.inheritance_mode:
-        output_path += f".{args.inheritance_mode}_inheritance.tsv"
+        output_path += f".{args.inheritance_mode}_inheritance"
     if args.purity_threshold:
-        output_path += f".purity_{args.purity_threshold}.tsv"
+        output_path += f".purity_{args.purity_threshold}"
     if args.use_thresholds:
-        output_path += ".using_known_pathogenic_thresholds.tsv"
+        output_path += ".using_known_pathogenic_thresholds"
+    output_path += ".tsv"
 
     final_results_df.to_csv(output_path, index=False, header=True, sep="\t")
     print(f"Wrote {len(final_results_df)} rows to {output_path}")
