@@ -469,7 +469,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
             if discard_hom_ref:
                 _, start_0based, end = parse_interval(variant_json["ReferenceRegion"])
                 num_repeats_in_reference = int((end - start_0based) // len(variant_json["RepeatUnit"]))
-                if all(int(genotype) == num_repeats_in_reference for genotype in variant_record["Genotype"].split("/")):
+                if all(int(genotype) == num_repeats_in_reference for genotype in variant_json["Genotype"].split("/")):
                     continue
 
             # docs @ https://github.com/Illumina/ExpansionHunter/blob/master/docs/05_OutputJsonFiles.md
