@@ -160,16 +160,16 @@ def main():
 	args = parse_args()
 	print(f"Parsing {args.input_table}")
 	df = pd.read_table(args.input_table)
-	print(f"Parsed {len(df):,d} rows from {args.input_table}")
+	print(f"Parsed {len(df):,d} rows and {len(set(df.LocusId)):,d} loci from {args.input_table}")
 
 	if args.discard_non_polymorphic_loci:
 		locus_id_to_histogram_dict = compute_locus_id_to_allele_histogram_dict(df)
 		df = discard_non_polymorphic_loci(df, locus_id_to_histogram_dict)
 
 	if args.by_long_allele:
-		by_long_allele_settings = [False]
-	elif args.by_short_allele:
 		by_long_allele_settings = [True]
+	elif args.by_short_allele:
+		by_long_allele_settings = [False]
 	else:
 		by_long_allele_settings = [True, False]
 
