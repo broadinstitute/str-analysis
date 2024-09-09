@@ -322,10 +322,10 @@ def compute_variant_summary_string(variant_record):
     reference_locus_size = end_1based - start_0based
     num_repeats_ref = int(reference_locus_size/len(repeat_unit))
 
-    if f"Repeat Size (bp): Allele 2" not in variant_record:
+    if f"Num Repeats: Allele 2" not in variant_record:
         het_or_hom = "HEMI"
         allele_numbers = [1]
-    elif variant_record[f"Repeat Size (bp): Allele 1"] == variant_record[f"Repeat Size (bp): Allele 2"]:
+    elif variant_record[f"Num Repeats: Allele 1"] == variant_record[f"Num Repeats: Allele 2"]:
         het_or_hom = "HOM"
         allele_numbers = [1]
     else:
@@ -334,7 +334,7 @@ def compute_variant_summary_string(variant_record):
 
     ins_or_del_or_ref = []
     for i in allele_numbers:
-        allele_size = int(variant_record[f"Repeat Size (bp): Allele {i}"])
+        allele_size = int(variant_record[f"Num Repeats: Allele {i}"]) * len(repeat_unit)
         if allele_size == reference_locus_size:
             ins_or_del_or_ref.append("REF")
         elif allele_size > reference_locus_size:
@@ -568,9 +568,9 @@ def convert_expansion_hunter_json_to_tsv_columns(
                     suffix = f": Allele {i+1}"
                     output_record = variant_record
 
-                output_record[f"Allele Number{suffix}"] = i + 1
+                #output_record[f"Allele Number{suffix}"] = i + 1
                 output_record[f"Num Repeats{suffix}"] = int(genotype)
-                output_record[f"Repeat Size (bp){suffix}"] = int(genotype) * len(variant_json.get("RepeatUnit", ""))
+                #output_record[f"Repeat Size (bp){suffix}"] = int(genotype) * len(variant_json.get("RepeatUnit", ""))
                 if vcf_SO_field and vcf_ADSP_field and vcf_ADFL_field and vcf_ADIR_field:
                     output_record[f"SO{suffix}"] = vcf_SO_field
                     output_record[f"ADSP{suffix}"] = int(vcf_ADSP_field)
@@ -585,9 +585,10 @@ def convert_expansion_hunter_json_to_tsv_columns(
                     output_record[f"CI start{suffix}"] = int(confidence_interval_start)
                     output_record[f"CI end{suffix}"] = int(confidence_interval_end)
                     output_record[f"CI size{suffix}"] = int(confidence_interval_end) - int(confidence_interval_start)
-                    output_record[f"CI ratio{suffix}"] = output_record[f"CI size{suffix}"]/(output_record[f"Num Repeats{suffix}"] or 1)
+                    ci_ratio = output_record[f"CI size{suffix}"]/(output_record[f"Num Repeats{suffix}"] or 1)
                     # ExpansionHunter Q score based on EnsemblTR https://github.com/gymrek-lab/EnsembleTR/blob/main/ensembletr/utils.py#L53-L59
-                    output_record[f"Q{suffix}"] = 1/np.exp(4*output_record[f"CI ratio{suffix}"])
+
+                    output_record[f"Q{suffix}"] = float(1/np.exp(4 * np.float128(ci_ratio)))
 
 
                 if include_extra_expansion_hunter_fields:
