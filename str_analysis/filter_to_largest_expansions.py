@@ -16,7 +16,9 @@ def parse_args():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("-n", type=int, default=50, help="Number of genotypes to keep per locus")
 	parser.add_argument("-o", "--output-prefix", help="Output TSV path")
-	parser.add_argument("--min-purity", type=float, help="Optionally apply a purity threshold before filtering")
+	parser.add_argument("--min-q", type=float, help="Optionally pre-filter alleles by Q score")
+	parser.add_argument("--min-purity", type=float, help="Optionally pre-filter alleles by purity")
+	parser.add_argument("--exclude-sample-ids", help="Path of file with sample IDs to exclude (one per line)")
 	group = parser.add_mutually_exclusive_group()
 	group.add_argument("--by-long-allele", action="store_true", help="Filter by long allele")
 	group.add_argument("--by-short-allele", action="store_true", help="Filter by short allele")
@@ -34,6 +36,9 @@ def parse_args():
 
 	if not os.path.isfile(args.input_table):
 		parser.error(f"Input table not found: {args.input_table}")
+
+	if args.exclude_sample_ids and not os.path.isfile(args.exclude_sample_ids):
+		parser.error(f"Exclude sample IDs file not found: {args.exclude_sample_ids}")
 
 	if not args.output_prefix:
 		args.output_prefix = args.input_table.replace(".tsv", "").replace(".gz", "")
@@ -112,7 +117,6 @@ def add_allele_histogram(df, locus_id_to_histogram_dict, histogram_key, stdev_ke
 		df[histogram_key] = df["LocusId"].map(locus_id_to_histogram_string)
 
 
-
 def process_table(df, args, by_long_allele=True):
 	total = len(df)
 
@@ -122,6 +126,7 @@ def process_table(df, args, by_long_allele=True):
 		add_allele_histogram(
 			df, locus_id_to_histogram_dict, "AlleleHistBeforePurityFilter", "AlleleStdevBeforePurityFilter",
 			max_entries=args.max_entries_per_histogram)
+
 		if by_long_allele:
 			print(f"Filtering to genotypes with long allele purity of at least {args.min_purity}")
 			df = df[df["AllelePurity"].apply(filter_by_purity(args.min_purity, both_alleles=False))]
@@ -162,9 +167,26 @@ def main():
 	df = pd.read_table(args.input_table)
 	print(f"Parsed {len(df):,d} rows and {len(set(df.LocusId)):,d} loci from {args.input_table}")
 
+	if args.exclude_sample_ids:
+		total = len(df)
+		exclude_sample_ids = set(pd.read_table(args.exclude_sample_ids, names=["SampleId"]).SampleId)
+		missing_sample_ids = exclude_sample_ids - set(df["SampleId"])
+		if missing_sample_ids:
+			raise ValueError(f"{len(missing_sample_ids):,d} out of {len(exclude_sample_ids):,d} excluded sample IDs "
+				  f"not found in input table: {missing_sample_ids}")
+		print(f"Filtering out {len(exclude_sample_ids):,d} excluded sample IDs")
+		df = df[~df["SampleId"].isin(exclude_sample_ids)]
+		print(f"Kept {len(df):,d} out of {total:,d} ({len(df) / total:.1%}) rows after filtering out excluded sample IDs")
+
 	if args.discard_non_polymorphic_loci:
 		locus_id_to_histogram_dict = compute_locus_id_to_allele_histogram_dict(df)
 		df = discard_non_polymorphic_loci(df, locus_id_to_histogram_dict)
+
+	if args.min_q:
+		total = len(df)
+		print(f"Filtering to genotypes with Q score of at least {args.min_q}")
+		df = df[(df["Q: Allele 1"] >= args.min_q) & (df["Q: Allele 2"] >= args.min_q)]
+		print(f"Kept {len(df):,d} out of {total:,d} ({len(df) / total:.1%}) rows after filtering by Q score")
 
 	if args.by_long_allele:
 		by_long_allele_settings = [True]
