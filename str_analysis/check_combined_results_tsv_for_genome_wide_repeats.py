@@ -607,6 +607,8 @@ def main():
     output_path = args.output_prefix
     if args.motif:
         output_path += f".{args.motif}"
+    if args.min_motif_size:
+        output_path += f".{args.min_motif_size}bp_min_motif_size"
     if args.threshold:
         output_path += f".{args.threshold}_or_more_repeats"
     if args.inheritance_mode:
