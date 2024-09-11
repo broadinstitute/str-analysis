@@ -193,19 +193,22 @@ def load_results_table(args):
 
     sample_metadata_df = None
     if args.sample_metadata_table:
-
+        print(f"Reading {args.sample_metadata_table}")
         sample_metadata_df = pd.read_table(args.sample_metadata_table, dtype=str)
         if args.metadata_table_sample_id_column not in sample_metadata_df.columns:
             raise ValueError(f"Metadata table {args.sample_metadata_table} is missing the sample id column: "
                              f"{args.metadata_table_sample_id_column}. Use --metadata-table-sample-id-column to "
                              f"specify the correct sample id column name in this table.")
         sample_metadata_df.set_index(args.metadata_table_sample_id_column, inplace=True)
+        print(f"Read {len(sample_metadata_df):,d} rows from {args.sample_metadata_table}")
+        print(f" - using sample id column: {args.metadata_table_sample_id_column}")
 
     # read in table
-    print(f"Reading {args.combined_tsv_path}...")
+    print(f"Reading {args.combined_tsv_path}")
     df = pd.read_table(args.combined_tsv_path, low_memory=False, dtype=str)
-
     print(f"Read {len(df):,d} rows ({len(set(df.LocusId)):,d} loci) from {args.combined_tsv_path}")
+    print(f" - using sample id column: {args.sample_id_column}")
+
     if args.locus_id:
         print(f"Filtering to locus id {args.locus_id}")
         df = df[df.LocusId == args.locus_id]
@@ -266,14 +269,23 @@ def load_results_table(args):
     genotype_map = {}
     if (args.sample_paternal_id_column and args.sample_paternal_id_column in df.columns) or (
         args.sample_maternal_id_column and args.sample_maternal_id_column in df.columns):
-        genotype_map = dict(zip(df[args.sample_id_column], df["Genotype"]))
+
+        sample_and_locus_id_to_genotype_map = {}
+        for row in df.itertuples():
+            sample_id = getattr(row, args.sample_id_column)
+            locus_id = row.LocusId
+            if not pd.isna(row.Genotype):
+                sample_and_locus_id_to_genotype_map[(sample_id, locus_id)] = row.Genotype
+
         if args.sample_paternal_id_column and args.sample_paternal_id_column in df.columns:
-            df["PaternalGenotype"] = df[args.sample_paternal_id_column].map(genotype_map)
+            df["PaternalGenotype"] = df.apply(lambda r: sample_and_locus_id_to_genotype_map.get(
+                (r[args.sample_paternal_id_column], r.LocusId)), axis=1)
             if all(df["PaternalGenotype"].isna()):
                 df.drop(columns=["PaternalGenotype"], inplace=True)
 
         if args.sample_maternal_id_column and args.sample_maternal_id_column in df.columns:
-            df["MaternalGenotype"] = df[args.sample_maternal_id_column].map(genotype_map)
+            df["MaternalGenotype"] = df.apply(lambda r: sample_and_locus_id_to_genotype_map.get(
+                (r[args.sample_maternal_id_column], r.LocusId)), axis=1)
             if all(df["MaternalGenotype"].isna()):
                 df.drop(columns=["MaternalGenotype"], inplace=True)
 
