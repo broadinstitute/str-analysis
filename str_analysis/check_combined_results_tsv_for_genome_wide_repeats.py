@@ -30,8 +30,6 @@ REQUIRED_COLUMNS = [
     "LocusId",
     "Num Repeats: Allele 1",
     "Num Repeats: Allele 2",
-    "CI end: Allele 1",
-    "CI end: Allele 2",
 ]
 
 SEPARATOR_STRING = "---"
@@ -61,6 +59,9 @@ def parse_args():
 
     p.add_argument("--locus-id", help="Filter to a single locus id for debugging")
     p.add_argument("--motif", help="If specified, only loci with this motif (normalized) will be processed")
+    p.add_argument("--min-motif-size", type=int, help="If specified, only loci with motifs of this size or larger "
+        "will be considered")
+
     p.add_argument("--threshold", type=int, help="If specified, only loci with expansions above this number of repeats "
         "will be considered")
     p.add_argument("--number-to-threshold", choices=("Num Repeats", "CI end"), default="Num Repeats", help="Which column "
@@ -217,7 +218,7 @@ def load_results_table(args):
     duplicated_df = df[df.duplicated(subset=["VariantId", args.sample_id_column])]
     if len(duplicated_df) > 0:
         print("Duplicate rows will be discarded:")
-        print(tabulate(duplicated_df.iloc[0:50], headers="keys", tablefmt="psql", showindex=range(1, len(df_to_process)+1)))
+        print(tabulate(duplicated_df.iloc[0:50], headers="keys", tablefmt="psql")) #, showindex=range(1, len(duplicated_df)+1)))
         before = len(df)
         df.drop_duplicates(subset=["VariantId", args.sample_id_column], inplace=True)
         if len(df) < before:
@@ -228,6 +229,11 @@ def load_results_table(args):
         before = len(df)
         df = df[df["CanonicalMotif"] == compute_canonical_motif(args.motif)]
         print(f"Kept {len(df):,d} out of {before:,d} rows ({len(set(df.LocusId)):,d} loci) with canonical motif {args.motif}")
+
+    if args.min_motif_size:
+        before = len(df)
+        df = df[df["RepeatUnit"].str.len() >= args.min_motif_size]
+        print(f"Kept {len(df):,d} out of {before:,d} rows ({len(set(df.LocusId)):,d} loci) with motif size >= {args.min_motif_size}")
 
     if sample_metadata_df is not None:
         len_before_join = len(df)
@@ -249,25 +255,39 @@ def load_results_table(args):
     df.loc[:, "Num Repeats: Allele 2"] = df["Num Repeats: Allele 2"].fillna(0).astype(float).astype(int)
 
     # replace NA with "Unknown" strings
-    df.loc[:, args.sample_affected_status_column] = df[args.sample_affected_status_column].fillna("Unknown")
+    #df.loc[:, args.sample_affected_status_column] = df[args.sample_affected_status_column].fillna("Unknown")
     df.loc[:, args.sample_affected_status_column] = df[args.sample_affected_status_column].replace({
         "Unaffected": "Not Affected",
         "Possibly Affected": "Unknown",
+        "Possibly affected": "Unknown",
     })
 
-    df["PaternalGenotype"]  = None
-    df["MaternalGenotype"]  = None
+    # add Paternal and Maternal genotypes to each row where applicable
+    genotype_map = {}
+    if (args.sample_paternal_id_column and args.sample_paternal_id_column in df.columns) or (
+        args.sample_maternal_id_column and args.sample_maternal_id_column in df.columns):
+        genotype_map = dict(zip(df[args.sample_id_column], df["Genotype"]))
+        if args.sample_paternal_id_column and args.sample_paternal_id_column in df.columns:
+            df["PaternalGenotype"] = df[args.sample_paternal_id_column].map(genotype_map)
+            if all(df["PaternalGenotype"].isna()):
+                df.drop(columns=["PaternalGenotype"], inplace=True)
 
+        if args.sample_maternal_id_column and args.sample_maternal_id_column in df.columns:
+            df["MaternalGenotype"] = df[args.sample_maternal_id_column].map(genotype_map)
+            if all(df["MaternalGenotype"].isna()):
+                df.drop(columns=["MaternalGenotype"], inplace=True)
 
+    df_unique_sample_ids = df.drop_duplicates([args.sample_id_column])
     unexpected_affected_column_values = set(df[args.sample_affected_status_column]) - {"Affected", "Not Affected", "Unknown"}
     if unexpected_affected_column_values:
         raise ValueError(f"Unexpected affected status values: {unexpected_affected_column_values}:  {collections.Counter(df[args.sample_affected_status_column])}")
-    print("Affected status counts:", df[args.sample_affected_status_column].value_counts())
-
+    print("Affected status counts:", dict(df_unique_sample_ids[args.sample_affected_status_column].value_counts()))
+    print(f"Examples of {args.sample_id_column} with Unknown affected status:", ", ".join(
+        df[df[args.sample_affected_status_column] == "Unknown"][args.sample_id_column][0:10]))
     unexpected_sample_sex_column_values =  set(df[args.sample_sex_column].str.lower()) - {"m", "male", "f", "female"}
     if unexpected_sample_sex_column_values:
         raise ValueError(f"Unexpected {args.sample_sex_column} values: {unexpected_sample_sex_column_values}:  {collections.Counter(df[args.sample_sex_column])}")
-    print("Sample sex counts:", df[args.sample_sex_column].value_counts())
+    print("Sample sex counts:", dict(df_unique_sample_ids[args.sample_sex_column].value_counts()))
 
     # check that all required columns are present
     missing_required_columns = (
@@ -279,6 +299,10 @@ def load_results_table(args):
 
     df.loc[:, "is_male"] = df[args.sample_sex_column].str.lower().str.startswith("m")  # this leaves missing values as Na
     df.loc[:, args.sample_sex_column] = df[args.sample_sex_column].fillna("Unknown")
+
+    if args.inheritance_mode == "XR":
+        # keep only male samples
+        df = df[df["is_male"]]
 
     print(f"Calculating additional columns")
     df.loc[:, "Num Repeats: Min Allele 1, 2"] = df.apply(lambda row: (
@@ -315,7 +339,8 @@ def load_results_table(args):
             df.loc[:, c] = None
 
     for integer_column in ("CI end: Allele 1", "CI end: Allele 2"):
-        df.loc[:, integer_column] = pd.to_numeric(df[integer_column], errors="coerce")
+        if integer_column in df.columns:
+            df.loc[:, integer_column] = pd.to_numeric(df[integer_column], errors="coerce")
 
     # sort
     df = df.sort_values(
@@ -335,21 +360,6 @@ def print_results_for_locus(args, locus_id, locus_df, threshold_lookup_by_motif=
     # Get the 1st row and use it to look up metadata values which are the same across all rows for the locus
     # (ie. Inheritance Mode)
     first_row = locus_df.iloc[0].to_dict()
-
-    # add Paternal and Maternal genotypes to each row where applicable
-    genotype_map = {}
-    if (args.sample_paternal_id_column and args.sample_paternal_id_column in locus_df.columns) or (
-        args.sample_maternal_id_column and args.sample_maternal_id_column in locus_df.columns):
-        genotype_map = dict(zip(locus_df[args.sample_id_column], locus_df["Genotype"]))
-        if args.sample_paternal_id_column and args.sample_paternal_id_column in locus_df.columns:
-            locus_df["PaternalGenotype"] = locus_df[args.sample_paternal_id_column].map(genotype_map)
-            if all(locus_df["PaternalGenotype"].isna()):
-                locus_df.drop(columns=["PaternalGenotype"], inplace=True)
-
-        if args.sample_maternal_id_column and args.sample_maternal_id_column in locus_df.columns:
-            locus_df["MaternalGenotype"] = locus_df[args.sample_maternal_id_column].map(genotype_map)
-            if all(locus_df["MaternalGenotype"].isna()):
-                locus_df.drop(columns=["MaternalGenotype"], inplace=True)
 
     reference_region = first_row["ReferenceRegion"]
     motif = first_row.get(args.motif_column)
@@ -544,11 +554,30 @@ def print_results_for_locus(args, locus_id, locus_df, threshold_lookup_by_motif=
 def main():
     args = parse_args()
 
+    # print args
     threshold_lookup_by_motif = None
     if args.known_pathogenic_variant_catalog and args.use_thresholds:
         threshold_lookup_by_motif = compute_threshold_lookup_by_motif(args.known_pathogenic_variant_catalog)
 
     df = load_results_table(args)
+
+    # print example values
+    print("Settings:")
+    for k, v in vars(args).items():
+        print(f"  {k:50s}: {v}")
+    current_row = None
+    max_values = 0
+    for i, (_, row) in enumerate(df.iterrows()):
+        non_null_values_count = sum(1 for c in df.columns if not pd.isna(row[c]))
+        if non_null_values_count > max_values:
+            max_values = non_null_values_count
+            current_row = row
+
+        if i > 100:
+            print("\nExample row:")
+            for key, value in current_row.to_dict().items():
+                print(f"  {key:30s}: {value}")
+            break
 
     print(f"Analyzing {len(set(df.LocusId)):,d} locus ids")
     variant_ids_that_are_not_locus_ids = set(df.VariantId) - set(df.LocusId)
