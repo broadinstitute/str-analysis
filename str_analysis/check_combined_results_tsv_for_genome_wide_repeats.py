@@ -204,8 +204,8 @@ def load_results_table(args):
     # read in table
     print(f"Reading {args.combined_tsv_path}...")
     df = pd.read_table(args.combined_tsv_path, low_memory=False, dtype=str)
-    print(f"Read {len(df):,d} rows ({len(set(df.LocusId)):,d} loci) from {args.combined_tsv_path}")
 
+    print(f"Read {len(df):,d} rows ({len(set(df.LocusId)):,d} loci) from {args.combined_tsv_path}")
     if args.locus_id:
         print(f"Filtering to locus id {args.locus_id}")
         df = df[df.LocusId == args.locus_id]
@@ -278,16 +278,20 @@ def load_results_table(args):
                 df.drop(columns=["MaternalGenotype"], inplace=True)
 
     df_unique_sample_ids = df.drop_duplicates([args.sample_id_column])
-    unexpected_affected_column_values = set(df[args.sample_affected_status_column]) - {"Affected", "Not Affected", "Unknown"}
-    if unexpected_affected_column_values:
-        raise ValueError(f"Unexpected affected status values: {unexpected_affected_column_values}:  {collections.Counter(df[args.sample_affected_status_column])}")
     print("Affected status counts:", dict(df_unique_sample_ids[args.sample_affected_status_column].value_counts()))
     print(f"Examples of {args.sample_id_column} with Unknown affected status:", ", ".join(
         df[df[args.sample_affected_status_column] == "Unknown"][args.sample_id_column][0:10]))
+    if sum(~df[args.sample_affected_status_column].isin({"Affected", "Not Affected", "Unknown"})) > 0:
+        print(f"Examples of {args.sample_id_column} with other affected status:", ", ".join(
+            df[df[args.sample_affected_status_column].isin({"Affected", "Not Affected", "Unknown"})][args.sample_id_column][0:10]))
+    unexpected_affected_column_values = set(df[args.sample_affected_status_column]) - {"Affected", "Not Affected", "Unknown"}
+    if unexpected_affected_column_values:
+        raise ValueError(f"Unexpected affected status values: {unexpected_affected_column_values}:  {collections.Counter(df[args.sample_affected_status_column])}")
+
+    print("Sample sex counts:", dict(df_unique_sample_ids[args.sample_sex_column].value_counts()))
     unexpected_sample_sex_column_values =  set(df[args.sample_sex_column].str.lower()) - {"m", "male", "f", "female"}
     if unexpected_sample_sex_column_values:
         raise ValueError(f"Unexpected {args.sample_sex_column} values: {unexpected_sample_sex_column_values}:  {collections.Counter(df[args.sample_sex_column])}")
-    print("Sample sex counts:", dict(df_unique_sample_ids[args.sample_sex_column].value_counts()))
 
     # check that all required columns are present
     missing_required_columns = (
@@ -301,8 +305,9 @@ def load_results_table(args):
     df.loc[:, args.sample_sex_column] = df[args.sample_sex_column].fillna("Unknown")
 
     if args.inheritance_mode == "XR":
-        # keep only male samples
+        # keep only chrX loci and male samples
         df = df[df["is_male"]]
+        df = df[df["ReferenceRegion"].str.startswith("X") | df["ReferenceRegion"].str.startswith("chrX")]
 
     print(f"Calculating additional columns")
     df.loc[:, "Num Repeats: Min Allele 1, 2"] = df.apply(lambda row: (
