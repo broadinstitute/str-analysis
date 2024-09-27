@@ -67,7 +67,7 @@ def process_variant_catalog(variant_catalog_path, output_file_path, show_progres
 
                     f2.write("\t".join(map(str, [
                         chrom,
-                        start_0based + 1,  # GangSTR beds are 1-based
+                        start_0based + 1,  # LongTR BED files use 1-based coords.
                         end_1based,
                         len(repeat_unit),
                         int((end_1based - start_0based)/len(repeat_unit)),
