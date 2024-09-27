@@ -10,8 +10,8 @@ import pyfaidx
 import re
 import tqdm
 
+from str_analysis.utils.eh_catalog_utils import get_variant_catalog_iterator
 from str_analysis.utils.misc_utils import parse_interval
-from utils.eh_catalog_utils import get_variant_catalog_iterator
 
 # based on https://github.com/Illumina/ExpansionHunter/blob/master/ehunter/io/LocusSpecDecoding.cpp#L70-L79
 MAX_N_IN_FLANKS = 5
@@ -20,7 +20,8 @@ def main():
 	p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	p.add_argument("-o", "--output-file", help="JSON catalog output file path")
 	p.add_argument("-R", "--reference-fasta-path", help="Reference genome fasta path.", required=True)
-	p.add_argument("--region-extension-length", type=int, default=1000, help="Length of flanking regions")
+	p.add_argument("--region-extension-length", type=int, default=1000, help="Length of flanking regions. This "
+				   "matches ExpansionHunter's identical command-line option")
 	p.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
 	p.add_argument("-f", "--output-list-of-filtered-loci", help="Output a list of filtered loci to this TXT file path")
 	p.add_argument("-v", "--verbose", action="store_true")
@@ -74,7 +75,8 @@ def main():
 		if total_Ns_in_flanks > MAX_N_IN_FLANKS:
 			locus_id = record["LocusId"]
 			if args.verbose:
-				print(f"Skipping locus {locus_id} because it has {total_Ns_in_flanks} Ns in the flanks")
+				print(f"Skipping locus {locus_id} because it has {total_Ns_in_flanks} Ns in a "
+					  f"+/- {num_flanking_bases:,d}bp window around the locus")
 			if output_list_of_filtered_loci_file:
 				output_list_of_filtered_loci_file.write(f"{locus_id}\n")
 			filtered_loci_counter += 1
@@ -87,7 +89,7 @@ def main():
 	output_file.write("]")
 	output_file.close()
 	print(f"Wrote {output_record_counter:,d} records to {args.output_file}")
-	
+
 	if output_list_of_filtered_loci_file:
 		print(f"Wrote {filtered_loci_counter:,d} loci to {args.output_list_of_filtered_loci}")
 		output_list_of_filtered_loci_file.close()
