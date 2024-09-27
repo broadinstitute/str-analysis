@@ -11,7 +11,7 @@ MAX_TOTAL_ADJACENT_REGION_SIZE = 1000
 
 # TandemRepeatFinder can output repeat stretch that overlap by several base pairs - for example:
 # ATXN8OS repeats db records are chr13|70139352|70139385|TAC|..|ATXN8OS and chr13|70139384|70139429|CTG|..|ATXN8OS
-# Allow overlap for this overlap.
+# Allow overlap of at most this many bases.
 MAX_OVERLAP_BETWEEN_ADJACENT_REPEATS = 3
 
 
