@@ -119,7 +119,8 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
         if show_progress_bar:
             iterator = tqdm.tqdm(iterator, unit=" variant catalog records", unit_scale=True)
 
-        with (gzip.open if output_file_path.endswith("gz") else open)(output_file_path, "wt") as f2:
+        fopen2 = gzip.open if output_file_path.endswith("gz") else open
+        with fopen2(output_file_path, "wt") as f2:
             for i, record in enumerate(iterator):
                 total += 1
                 output_row = convert_expansion_hunter_record_to_trgt_row(record)

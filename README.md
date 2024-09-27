@@ -38,6 +38,7 @@ docker run -it weisburd/str-analysis:latest
     as well as a FAM or PED file with parent/child relationships, and outputs a table of mendelian violations in the callset.
   * **simulate_str_expansions** - uses [wgsim](https://github.com/hammer/wgsim) to generate .bam files with simulated read data containing STR expansions 
     at a given locus, and having a given number of repeats, motif, zygosity, etc.
+  * **filter_out_loci_with_Ns_in_flanks** - removes loci from an ExpansionHunter catalog if their flanks contain enough Ns to trigger an ExpansionHunter error.
 
 
 * ExpansionHunterDenovo output post-processing:

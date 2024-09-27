@@ -56,6 +56,7 @@ setup(
             'print_reads = str_analysis.print_reads:main',
             'make_bamlet = str_analysis.make_bamlet:main',
             'make_minicram_for_exansion_hunter = str_analysis.make_minicram_for_exansion_hunter:main',
+            'filter_out_loci_with_Ns_in_flanks = str_analysis.filter_out_loci_with_Ns_in_flanks:main',
         ],
     },
     long_description_content_type="text/markdown",
