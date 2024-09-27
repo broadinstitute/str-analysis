@@ -50,8 +50,8 @@ def parse_args():
 
     annotations_group = parser.add_argument_group("annotations")
     annotations_group.add_argument("--known-disease-associated-loci",
-        help="ExpansionHunter catalog .json file with all known disease-associated loci",
-        default="~/code/str-analysis/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json")
+        help="ExpansionHunter catalog .json file with all known disease-associated loci")
+    #default="~/code/str-analysis/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json")
     #default="https://raw.githubusercontent.com/broadinstitute/str-analysis/main/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json")
     annotations_group.add_argument("--genes-gtf", help="Gene models gtf file path or url.")
     annotations_group.add_argument("--gene-models-source", action="append", help="Source of the genes-gtf file. "
@@ -138,7 +138,7 @@ def parse_args():
 
     if not args.skip_gene_annotations and args.genes_gtf and not file_exists(os.path.expanduser(args.genes_gtf)):
         parser.error(f"File not found: {args.genes_gtf}")
-    if not args.skip_disease_loci_annotations and not file_exists(os.path.expanduser(args.known_disease_associated_loci)):
+    if not args.skip_disease_loci_annotations and args.known_disease_associated_loci and not file_exists(os.path.expanduser(args.known_disease_associated_loci)):
         parser.error(f"File not found: {args.known_disease_associated_loci}")
     if not file_exists(os.path.expanduser(args.variant_catalog_json_or_bed)):
         parser.error(f"File not found: {args.variant_catalog_json_or_bed}")
@@ -148,7 +148,8 @@ def parse_args():
 
 
 KNOWN_DISEASE_ASSOCIATED_LOCI_COLUMNS = [
-    'LocusId', 'LocusStructure', 'RepeatUnit', 'MainReferenceRegion', 'Gene', 'GeneRegion', 'GeneId']
+    "LocusId", "LocusStructure", "RepeatUnit", "MainReferenceRegion", "Gene", "GeneRegion", "GeneId", "Diseases",
+]
 
 
 def parse_known_disease_associated_loci(args, parser):
@@ -157,6 +158,8 @@ def parse_known_disease_associated_loci(args, parser):
         known_disease_loci_df = known_disease_loci_df[KNOWN_DISEASE_ASSOCIATED_LOCI_COLUMNS]
     except Exception as e:
         parser.error(f"Couldn't read known disease-associated loci catalog from {args.known_disease_associated_loci}: {e}")
+
+    known_disease_loci_df = known_disease_loci_df[known_disease_loci_df.Diseases.apply(len) > 0]
 
     canonical_motifs = set()
 
@@ -286,7 +289,7 @@ def main():
         mappability_bigwig = pyBigWig.open(mappability_bigwig_path)
 
     # parse known disease-associated loci
-    if not args.skip_disease_loci_annotations:
+    if args.known_disease_associated_loci and not args.skip_disease_loci_annotations:
         known_disease_associated_loci_interval_tree, known_disease_associated_motifs = parse_known_disease_associated_loci(
             args, parser)
     else:
