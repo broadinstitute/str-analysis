@@ -259,6 +259,16 @@ def compute_sequence_purity_stats(nucleotide_sequence, motif):
     return interruption_base_count, fraction_pure_bases, fraction_pure_repeats
 
 
+def count_Ns_in_flanks(fasta_obj, reference_region_chrom, reference_region_start_0based, reference_region_end, num_flanking_bases=1000):
+    left_flank_start = max(reference_region_start_0based - num_flanking_bases, 0)
+    right_flank_end = min(reference_region_end + num_flanking_bases, len(fasta_obj[reference_region_chrom]))
+
+    left_flank = fasta_obj[reference_region_chrom][left_flank_start:reference_region_start_0based]
+    right_flank = fasta_obj[reference_region_chrom][reference_region_end:right_flank_end]
+
+    total_Ns_in_flanks = left_flank.count("N") + right_flank.count("N")
+    return total_Ns_in_flanks
+
 def main():
     args, parser = parse_args()
 
@@ -557,10 +567,14 @@ def main():
             filter_counters[f"row ReferenceRepeatPurity < {args.min_reference_repeat_purity}"] += 1
             continue
 
+        chrom, left_flank_end, _ = chroms_start_0based_ends[0]
+        _, _, right_flank_start = chroms_start_0based_ends[-1]
+
+        variant_catalog_record[f"NsInFlanks"] = count_Ns_in_flanks(
+            ref_fasta, chrom, left_flank_end, right_flank_start, num_flanking_bases=1000)
+
         # compute mappability of left and right flanking sequence
         if not args.skip_mappability_annotations:
-            chrom, left_flank_end, _ = chroms_start_0based_ends[0]
-            _, _, right_flank_start = chroms_start_0based_ends[-1]
 
             mappability_left_flank = None
             left_flank_mappability_interval_start = max(1, left_flank_end - FLANK_MAPPABILITY_WINDOW_SIZE - MAPPABILITY_TRACK_KMER_SIZE)
