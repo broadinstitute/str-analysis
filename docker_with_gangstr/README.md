@@ -1,0 +1,1 @@
+This docker image contains the str-analysis python package as well as many of the most widely-used TR genotyping tools.
