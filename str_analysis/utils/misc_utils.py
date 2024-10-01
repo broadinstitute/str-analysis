@@ -66,8 +66,8 @@ def parse_key_value(key_value, delimiter="="):
 class IterCounter:
     """Wrapper around an iterator that counts the number of items that have been iterated over"""
 
-    def __init__(self, iterator):
-        self.iterator = iterator
+    def __init__(self, iterator_or_sequence):
+        self.iterator = iter(iterator_or_sequence)
         self._counter = 0
 
     def __iter__(self):
