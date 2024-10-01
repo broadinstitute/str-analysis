@@ -367,9 +367,12 @@ def add_variant_catalog_to_interval_trees(
 
         if add_source_field:
             new_record["Source"] = catalog_name
-        new_record["ChromStartEndLocusStruct"] = f"{chrom}:{start_0based}-{end_1based} {new_record['LocusStructure']}"
+
+        new_record_motifs = parse_motifs_from_locus_structure(new_record["LocusStructure"])
+        new_record_motifs_string = ",".join(compute_canonical_motif(m) for m in new_record_motifs)
+        new_record["ChromStartEndMotifs"] = f"{chrom}-{start_0based}-{end_1based}-{new_record_motifs_string}"
         if outer_join_overlap_table is not None:
-            outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]][catalog_name] = "Yes"
+            outer_join_overlap_table[new_record["ChromStartEndMotifs"]][catalog_name] = "Yes"
 
         # check for overlap with existing loci
         counters["total"] += 1
@@ -464,24 +467,24 @@ def add_variant_catalog_to_interval_trees(
 
                     #existing_record_motifs = parse_motifs_from_locus_structure(existing_record["LocusStructure"])
                     #if abs(overlapping_interval.length() - (end_1based - start_0based)) < len(existing_record_motifs[0]):
-                    #    set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndLocusStruct"]], catalog_name, "Yes")
-                    #    set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]], overlapping_record["Source"], "Yes")
+                    #    set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndMotifs"]], catalog_name, "Yes")
+                    #    set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndMotifs"]], overlapping_record["Source"], "Yes")
                     #### COMMENTED OUT because it's better to preprocess the input catalogs to trim all loci, then to do it on
                     #    the fly here, and so create redundant entries in the output table
 
                     if overlapping_interval.begin == start_0based and overlapping_interval.end == end_1based:
                         # need this because the loci might have different LocusIds in the input catalogs but the exact same start and end
-                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndLocusStruct"]], catalog_name, "Yes")
-                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]], overlapping_record["Source"], "Yes")
+                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndMotifs"]], catalog_name, "Yes")
+                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndMotifs"]], overlapping_record["Source"], "Yes")
                     elif overlapping_interval.length() == (end_1based - start_0based):
-                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndLocusStruct"]], catalog_name, "YesButShifted")
-                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]], overlapping_record["Source"], "YesButShifted")
+                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndMotifs"]], catalog_name, "YesButShifted")
+                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndMotifs"]], overlapping_record["Source"], "YesButShifted")
                     elif overlapping_interval.length() < (end_1based - start_0based):
-                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndLocusStruct"]], catalog_name, "YesButWider")
-                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]], overlapping_record["Source"], "YesButNarrower")
+                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndMotifs"]], catalog_name, "YesButWider")
+                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndMotifs"]], overlapping_record["Source"], "YesButNarrower")
                     elif overlapping_interval.length() > (end_1based - start_0based):
-                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndLocusStruct"]], catalog_name, "YesButNarrower")
-                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]], overlapping_record["Source"], "YesButWider")
+                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndMotifs"]], catalog_name, "YesButNarrower")
+                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndMotifs"]], overlapping_record["Source"], "YesButWider")
 
 
         if remove_existing:
@@ -529,6 +532,7 @@ def add_variant_catalog_to_interval_trees(
         os.system(f"bgzip -f {unique_loci_bed_filename}")
         os.system(f"tabix -f {unique_loci_bed_filename}.gz")
         print(f"Wrote {counters['added']:,d} unique loci from {variant_catalog_filename} to {unique_loci_bed_filename}.gz")
+
 
 def check_whether_to_merge_adjacent_loci(
     previous_interval, current_interval, add_source_field=False):
@@ -632,10 +636,10 @@ def convert_interval_trees_to_output_records(
                     continue
 
                 if add_found_in_fields:
-                    for catalog_name, value in outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]].items():
+                    for catalog_name, value in outer_join_overlap_table[new_record["ChromStartEndMotifs"]].items():
                         new_record[f"FoundIn{catalog_name}"] = value
 
-                if only_loci_present_in_n_catalogs is not None and len(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]].values()) < only_loci_present_in_n_catalogs:
+                if only_loci_present_in_n_catalogs is not None and len(outer_join_overlap_table[new_record["ChromStartEndMotifs"]].values()) < only_loci_present_in_n_catalogs:
                     continue
 
                 counter += 1
@@ -686,7 +690,7 @@ def write_output_catalog(output_catalog_record_iter, output_path, output_format)
         output_catalog_record_list = []
         for record in output_catalog_record_iter:
             record = dict(record)
-            del record["ChromStartEndLocusStruct"]
+            del record["ChromStartEndMotifs"]
             output_catalog_record_list.append(record)
 
         fopen = gzip.open if output_path.endswith("gz") else open
@@ -846,6 +850,7 @@ def main():
                 output_counter += 1
                 merge_stats_tsv.write("\t".join(map(str, output_row)) + "\n")
             print(f"Wrote {output_counter:,d} rows to {merge_stats_output_tsv_path}")
+
 
 if __name__ == "__main__":
     main()
