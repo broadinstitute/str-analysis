@@ -2,7 +2,7 @@ FROM bitnami/minideb:bullseye
 
 RUN apt-get update && apt-get install --no-install-recommends --yes \
     ca-certificates \
-    wget -q \
+    wget \
     curl \
     pkg-config \
     procps \
