@@ -464,8 +464,8 @@ def add_variant_catalog_to_interval_trees(
 
                     #existing_record_motifs = parse_motifs_from_locus_structure(existing_record["LocusStructure"])
                     #if abs(overlapping_interval.length() - (end_1based - start_0based)) < len(existing_record_motifs[0]):
-                    #    set_value_if_not_yes(outer_join_overlap_table[overlapping_record["LocusId"]], catalog_name, "Yes")
-                    #    set_value_if_not_yes(outer_join_overlap_table[new_record["LocusId"]], overlapping_record["Source"], "Yes")
+                    #    set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndLocusStruct"]], catalog_name, "Yes")
+                    #    set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]], overlapping_record["Source"], "Yes")
                     #### COMMENTED OUT because it's better to preprocess the input catalogs to trim all loci, then to do it on
                     #    the fly here, and so create redundant entries in the output table
 
@@ -632,10 +632,10 @@ def convert_interval_trees_to_output_records(
                     continue
 
                 if add_found_in_fields:
-                    for catalog_name, value in outer_join_overlap_table[new_record["LocusId"]].items():
+                    for catalog_name, value in outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]].items():
                         new_record[f"FoundIn{catalog_name}"] = value
 
-                if only_loci_present_in_n_catalogs is not None and len(outer_join_overlap_table[new_record["LocusId"]].values()) < only_loci_present_in_n_catalogs:
+                if only_loci_present_in_n_catalogs is not None and len(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]].values()) < only_loci_present_in_n_catalogs:
                     continue
 
                 counter += 1
@@ -683,8 +683,13 @@ def write_output_catalog(output_catalog_record_iter, output_path, output_format)
 
     # write the output catalog to the output file in the requested format
     if output_format == "JSON":
+        output_catalog_record_list = []
+        for record in output_catalog_record_iter:
+            record = dict(record)
+            del record["ChromStartEndLocusStruct"]
+            output_catalog_record_list.append(record)
+
         fopen = gzip.open if output_path.endswith("gz") else open
-        output_catalog_record_list = list(output_catalog_record_iter)
         with fopen(output_path, "wt") as output_catalog:
             json.dump(output_catalog_record_list, output_catalog, indent=4, ignore_nan=True)
             #json.dump(output_catalog_record_iter, output_catalog, indent=4, ignore_nan=True)
