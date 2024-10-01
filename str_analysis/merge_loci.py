@@ -367,8 +367,9 @@ def add_variant_catalog_to_interval_trees(
 
         if add_source_field:
             new_record["Source"] = catalog_name
+        new_record["ChromStartEndLocusStruct"] = f"{chrom}:{start_0based}-{end_1based} {new_record['LocusStructure']}"
         if outer_join_overlap_table is not None:
-            outer_join_overlap_table[new_record["LocusId"]][catalog_name] = "Yes"
+            outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]][catalog_name] = "Yes"
 
         # check for overlap with existing loci
         counters["total"] += 1
@@ -470,17 +471,17 @@ def add_variant_catalog_to_interval_trees(
 
                     if overlapping_interval.begin == start_0based and overlapping_interval.end == end_1based:
                         # need this because the loci might have different LocusIds in the input catalogs but the exact same start and end
-                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["LocusId"]], catalog_name, "Yes")
-                        set_value_if_not_yes(outer_join_overlap_table[new_record["LocusId"]], overlapping_record["Source"], "Yes")
+                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndLocusStruct"]], catalog_name, "Yes")
+                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]], overlapping_record["Source"], "Yes")
                     elif overlapping_interval.length() == (end_1based - start_0based):
-                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["LocusId"]], catalog_name, "YesButShifted")
-                        set_value_if_not_yes(outer_join_overlap_table[new_record["LocusId"]], overlapping_record["Source"], "YesButShifted")
+                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndLocusStruct"]], catalog_name, "YesButShifted")
+                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]], overlapping_record["Source"], "YesButShifted")
                     elif overlapping_interval.length() < (end_1based - start_0based):
-                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["LocusId"]], catalog_name, "YesButWider")
-                        set_value_if_not_yes(outer_join_overlap_table[new_record["LocusId"]], overlapping_record["Source"], "YesButNarrower")
+                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndLocusStruct"]], catalog_name, "YesButNarrower")
+                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]], overlapping_record["Source"], "YesButWider")
                     elif overlapping_interval.length() > (end_1based - start_0based):
-                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["LocusId"]], catalog_name, "YesButNarrower")
-                        set_value_if_not_yes(outer_join_overlap_table[new_record["LocusId"]], overlapping_record["Source"], "YesButWider")
+                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndLocusStruct"]], catalog_name, "YesButWider")
+                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]], overlapping_record["Source"], "YesButNarrower")
 
 
         if remove_existing:
@@ -683,10 +684,12 @@ def write_output_catalog(output_catalog_record_iter, output_path, output_format)
     # write the output catalog to the output file in the requested format
     if output_format == "JSON":
         fopen = gzip.open if output_path.endswith("gz") else open
+        output_catalog_record_list = list(output_catalog_record_iter)
         with fopen(output_path, "wt") as output_catalog:
-            iter_counter = IterCounter(output_catalog_record_iter)
-            json.dump(iter_counter, output_catalog, indent=4, ignore_nan=True)
-        print(f"Wrote {iter_counter.total:,d} output records to {output_path}")
+            json.dump(output_catalog_record_list, output_catalog, indent=4, ignore_nan=True)
+            #json.dump(output_catalog_record_iter, output_catalog, indent=4, ignore_nan=True)
+        print(f"Wrote {len(output_catalog_record_list):,d} output records to {output_path}")
+        #print(f"Wrote output records to {output_path}")
 
     elif output_format == "BED":
         output_path = re.sub(".b?gz$", "", output_path)
