@@ -22,6 +22,7 @@ from str_analysis.utils.file_utils import open_file, file_exists, download_local
 from str_analysis.utils.find_repeat_unit import find_repeat_unit_without_allowing_interruptions
 from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval, GENE_MODELS
 from str_analysis.utils.misc_utils import parse_interval
+from str_analysis.utils.fasta_utils import get_reference_sequence_with_cache, get_chromosome_size_with_cache
 
 VALID_GENE_REGIONS = {"CDS", "UTR", "5UTR", "3UTR", "promoter", "exon", "intron", "intergenic"}
 
@@ -65,6 +66,7 @@ def parse_args():
     annotations_group.add_argument("--skip-mappability-annotations", action="store_true", help="Don't annotate known "
         "loci with mappability")
 
+    annotations_group.add_argument("--set-locus-id", action="store_true", help="Set LocusId to chrom-start_0based-end-motif")
     annotations_group.add_argument("--add-gene-region-to-locus-id", action="store_true", help="Append the gene region "
         "to each locus id")
     annotations_group.add_argument("--add-canonical-motif-to-locus-id", action="store_true", help="Append the motif "
@@ -143,6 +145,22 @@ def parse_args():
     if not file_exists(os.path.expanduser(args.variant_catalog_json_or_bed)):
         parser.error(f"File not found: {args.variant_catalog_json_or_bed}")
 
+    if args.add_gene_region_to_locus_id and not args.gene_models_source:
+        parser.error("--gene-models-source must be specified when --add-gene-region-to-locus-id is used")
+    if args.exclude_region_type and not args.gene_models_source:
+        parser.error("--gene-models-source must be specified when --exclude-region-type is used")
+    if args.region_type and not args.gene_models_source:
+        parser.error("--gene-models-source must be specified when --region-type is used")
+    if args.gene_name and not args.gene_models_source:
+        parser.error("--gene-models-source must be specified when --gene-name is used")
+    if args.exclude_gene_name and not args.gene_models_source:
+        parser.error("--gene-models-source must be specified when --exclude-gene-name is used")
+    if args.gene_id and not args.gene_models_source:
+        parser.error("--gene-models-source must be specified when --gene-id is used")
+    if args.exclude_gene_id and not args.gene_models_source:
+        parser.error("--gene-models-source must be specified when --exclude-gene-id is used")
+
+
 
     return args, parser
 
@@ -159,7 +177,7 @@ def parse_known_disease_associated_loci(args, parser):
     except Exception as e:
         parser.error(f"Couldn't read known disease-associated loci catalog from {args.known_disease_associated_loci}: {e}")
 
-    known_disease_loci_df = known_disease_loci_df[known_disease_loci_df.Diseases.apply(len) > 0]
+    known_disease_loci_df = known_disease_loci_df[known_disease_loci_df["Diseases"].apply(len) > 0]
 
     canonical_motifs = set()
 
@@ -181,7 +199,7 @@ def parse_known_disease_associated_loci(args, parser):
     return known_disease_loci_it, canonical_motifs
 
 
-def get_overlap(interval_tree, chrom, start_0based, end, canonical_motif=None):
+def get_overlap(interval_tree, chrom, start_0based, end, canonical_motif=None, requiure_exact_locus_boundaries=True):
     """Returns overlapping interval(s) from the interval tree, if any.
 
     Args:
@@ -191,18 +209,22 @@ def get_overlap(interval_tree, chrom, start_0based, end, canonical_motif=None):
         end (int): end position of the interval to check for overlap
         canonical_motif (str): the canonical motif to match. If specified, only consider an interval as overlapping if
             its motif also matches
-
+        requiure_exact_locus_boundaries (bool): if True, only consider an interval as overlapping if its start and end
+            match exactly with the given interval
     Returns:
         list of strings: locus ids of entries in the IntervalTree that overlap the given interval chrom:start_0based-end
     """
     chrom = chrom.replace("chr", "")
     for locus_interval in interval_tree[chrom].overlap(start_0based, end):
+        matching_locus_id = locus_interval.data.locus_id
         if not canonical_motif:
-            return True
+            return matching_locus_id
 
         if locus_interval.data.canonical_motif != canonical_motif:
             continue
-        matching_locus_id = locus_interval.data.locus_id
+        if requiure_exact_locus_boundaries and (locus_interval.begin != start_0based or locus_interval.end != end):
+            continue
+
         return matching_locus_id
 
     if not canonical_motif:
@@ -261,13 +283,14 @@ def compute_sequence_purity_stats(nucleotide_sequence, motif):
 
 def count_Ns_in_flanks(fasta_obj, reference_region_chrom, reference_region_start_0based, reference_region_end, num_flanking_bases=1000):
     left_flank_start = max(reference_region_start_0based - num_flanking_bases, 0)
-    right_flank_end = min(reference_region_end + num_flanking_bases, len(fasta_obj[reference_region_chrom]))
+    right_flank_end = min(reference_region_end + num_flanking_bases, get_chromosome_size_with_cache(fasta_obj, reference_region_chrom))
 
-    left_flank = fasta_obj[reference_region_chrom][left_flank_start:reference_region_start_0based]
-    right_flank = fasta_obj[reference_region_chrom][reference_region_end:right_flank_end]
+    left_flank = get_reference_sequence_with_cache(fasta_obj, reference_region_chrom, left_flank_start, reference_region_start_0based)
+    right_flank = get_reference_sequence_with_cache(fasta_obj, reference_region_chrom, reference_region_end, right_flank_end)
 
     total_Ns_in_flanks = left_flank.count("N") + right_flank.count("N")
     return total_Ns_in_flanks
+
 
 def main():
     args, parser = parse_args()
@@ -365,17 +388,17 @@ def main():
 
         # Check if the motif is actually composed of multiple repeats of a simpler motif.
         # For example, a "TTT" motif can be simplified to just a "T" homopolymer.
-        if not args.dont_simplify_motifs:
-            for i, (reference_region, motif) in enumerate(zip(reference_regions, motifs)):
-                simplified_motif = None
-    
+        for i, (reference_region, motif) in enumerate(zip(reference_regions, motifs)):
+            simplified_motif = motif
+
+            if not args.dont_simplify_motifs:
                 # the above elif clauses are an optimization to speed up the
                 simplified_motif, num_repeats, _ = find_repeat_unit_without_allowing_interruptions(
                     motif, allow_partial_repeats=False)
                 if num_repeats > 1:
                     variant_catalog_record["LocusStructure"] = variant_catalog_record["LocusStructure"].replace(
                         f"({motif})", f"({simplified_motif})")
-    
+
                     motifs[i] = simplified_motif
                     counter_key = f"replaced {len(motif)}bp motif with a simplified {len(simplified_motif)}bp motif"
                     modification_counters[counter_key] += 1
@@ -386,19 +409,27 @@ def main():
                     #          f"{locus_id} motif from {motif} to just {simplified_motif}:",
                     #          variant_catalog_record["LocusStructure"])
 
-                if args.trim_loci:
-                    # trim locus end coordinate so that the interval width is an exact multiple of the motif size
-                    chrom, start_0based, end_1based = parse_interval(reference_region)
-                    motif_size = len(simplified_motif)
-                    interval_width = end_1based - start_0based
-                    if interval_width % motif_size != 0:
-                        new_end_1based = end_1based - interval_width % motif_size
-                        if new_end_1based == start_0based:
-                            new_end_1based += motif_size
-                        variant_catalog_record["ReferenceRegion"] = f"{chrom}:{start_0based}-{new_end_1based}"
-                        reference_regions[i] = variant_catalog_record["ReferenceRegion"]
-                        counter_key = f"trimmed locus end coordinate to an exact multiple of the motif size"
-                        modification_counters[counter_key] += 1
+            if args.trim_loci:
+                # trim locus end coordinate so that the interval width is an exact multiple of the motif size
+                chrom, start_0based, end_1based = parse_interval(reference_region)
+                motif_size = len(simplified_motif)
+                interval_width = end_1based - start_0based
+                if interval_width % motif_size != 0:
+                    new_end_1based = end_1based - interval_width % motif_size
+                    if new_end_1based == start_0based:
+                        new_end_1based += motif_size
+                    variant_catalog_record["ReferenceRegion"] = f"{chrom}:{start_0based}-{new_end_1based}"
+                    reference_regions[i] = variant_catalog_record["ReferenceRegion"]
+                    counter_key = f"trimmed locus end coordinate to an exact multiple of the motif size"
+                    modification_counters[counter_key] += 1
+
+        if args.set_locus_id:
+            new_locus_ids = []
+            for reference_region, motif in zip(reference_regions, motifs):
+                chrom, start_0based, end_1based = parse_interval(reference_region)
+                chrom = chrom.replace("chr", "")
+                new_locus_ids.append(f"{chrom}-{start_0based}-{end_1based}-{motif}")
+            variant_catalog_record["LocusId"] = ",".join(new_locus_ids)
 
         # parse intervals
         chroms_start_0based_ends = [parse_interval(reference_region) for reference_region in reference_regions]
@@ -430,14 +461,20 @@ def main():
             continue
 
         # parse input variant catalog record and check for overlap with known disease-associated loci
-        matched_known_disease_associated_locus = False
-        matched_known_disease_associated_motif = False
+        matched_known_disease_associated_locus = None
+        matched_known_disease_associated_motif = None
         for canonical_motif, reference_region, chrom_start_0based_end, variant_type in zip(
                 canonical_motifs, reference_regions, chroms_start_0based_ends, variant_types):
             chrom, start_0based, end = chrom_start_0based_end
-            matched_known_disease_associated_locus |= bool(get_overlap(
-                known_disease_associated_loci_interval_tree,  chrom, start_0based, end, canonical_motif=canonical_motif))
-            matched_known_disease_associated_motif |= canonical_motif in known_disease_associated_motifs
+            known_locus = get_overlap(
+                known_disease_associated_loci_interval_tree,  chrom, start_0based, end,
+                canonical_motif=canonical_motif, requiure_exact_locus_boundaries=True)
+
+            if known_locus:
+                matched_known_disease_associated_locus = known_locus
+
+            if canonical_motif in known_disease_associated_motifs:
+                matched_known_disease_associated_motif = canonical_motif
 
         variant_catalog_record["KnownDiseaseAssociatedLocus"] = matched_known_disease_associated_locus
         variant_catalog_record["KnownDiseaseAssociatedMotif"] = matched_known_disease_associated_motif
@@ -468,45 +505,47 @@ def main():
                 args.gene_models_source = [gene_models_source]
                 GENE_MODELS[gene_models_source] = args.genes_gtf
 
-            for gene_models_source in args.gene_models_source:
-                genes_gtf = GENE_MODELS[gene_models_source]
+            if args.gene_models_source:
+                for gene_models_source in args.gene_models_source:
+                    genes_gtf = GENE_MODELS[gene_models_source]
 
-                gene_models_source = gene_models_source.title()
+                    gene_models_source = gene_models_source.title()
 
-                (
-                    variant_catalog_record[f"{gene_models_source}GeneRegion"],
-                    variant_catalog_record[f"{gene_models_source}GeneName"],
-                    variant_catalog_record[f"{gene_models_source}GeneId"],
-                    variant_catalog_record[f"{gene_models_source}TranscriptId"],
-                ) = compute_genomic_region_of_interval(
-                    spanning_interval_chrom,
-                    spanning_interval_start0_based + 1,
-                    spanning_interval_end,
-                    genes_gtf,
-                    verbose=args.verbose,
-                    show_progress_bar=args.show_progress_bar)
+                    (
+                        variant_catalog_record[f"{gene_models_source}GeneRegion"],
+                        variant_catalog_record[f"{gene_models_source}GeneName"],
+                        variant_catalog_record[f"{gene_models_source}GeneId"],
+                        variant_catalog_record[f"{gene_models_source}TranscriptId"],
+                    ) = compute_genomic_region_of_interval(
+                        spanning_interval_chrom,
+                        spanning_interval_start0_based + 1,
+                        spanning_interval_end,
+                        genes_gtf,
+                        verbose=args.verbose,
+                        show_progress_bar=args.show_progress_bar)
 
-                if variant_catalog_record[f"{gene_models_source}GeneId"] == variant_catalog_record[f"{gene_models_source}GeneName"]:
-                    del variant_catalog_record[f"{gene_models_source}GeneName"]
+                    if variant_catalog_record[f"{gene_models_source}GeneId"] == variant_catalog_record[f"{gene_models_source}GeneName"]:
+                        del variant_catalog_record[f"{gene_models_source}GeneName"]
 
-        if args.region_type and variant_catalog_record.get(f"{args.gene_models_source}GeneRegion") not in args.region_type:
-            filter_counters[f"row {args.gene_models_source}GeneRegion isn't among {args.region_type}"] += 1
-            continue
-        if args.exclude_region_type and variant_catalog_record.get(f"{args.gene_models_source}GeneRegion") in args.exclude_region_type:
-            filter_counters[f"row {args.gene_models_source}GeneRegion is one of {args.exclude_region_type}"] += 1
-            continue
-        if args.gene_name and variant_catalog_record.get(f"{args.gene_models_source}GeneName") not in args.gene_name:
-            filter_counters[f"row {args.gene_models_source}GeneName isn't among {args.gene_name}"] += 1
-            continue
-        if args.exclude_gene_name and variant_catalog_record.get(f"{args.gene_models_source}GeneName") in args.exclude_gene_name:
-            filter_counters[f"row {args.gene_models_source}GeneName is one of {args.exclude_gene_name}"] += 1
-            continue
-        if args.gene_id and variant_catalog_record.get(f"{args.gene_models_source}GeneId") not in args.gene_id:
-            filter_counters[f"row {args.gene_models_source}GeneId isn't among {args.gene_id}"] += 1
-            continue
-        if args.exclude_gene_id and variant_catalog_record.get(f"{args.gene_models_source}GeneId") in args.exclude_gene_id:
-            filter_counters[f"row {args.gene_models_source}GeneId is one of {args.exclude_gene_id}"] += 1
-            continue
+                gene_models_source = args.gene_models_source[0]
+                if args.region_type and variant_catalog_record.get(f"{gene_models_source}GeneRegion") not in args.region_type:
+                    filter_counters[f"row {gene_models_source}GeneRegion isn't among {args.region_type}"] += 1
+                    continue
+                if args.exclude_region_type and variant_catalog_record.get(f"{gene_models_source}GeneRegion") in args.exclude_region_type:
+                    filter_counters[f"row {gene_models_source}GeneRegion is one of {args.exclude_region_type}"] += 1
+                    continue
+                if args.gene_name and variant_catalog_record.get(f"{gene_models_source}GeneName") not in args.gene_name:
+                    filter_counters[f"row {gene_models_source}GeneName isn't among {args.gene_name}"] += 1
+                    continue
+                if args.exclude_gene_name and variant_catalog_record.get(f"{gene_models_source}GeneName") in args.exclude_gene_name:
+                    filter_counters[f"row {gene_models_source}GeneName is one of {args.exclude_gene_name}"] += 1
+                    continue
+                if args.gene_id and variant_catalog_record.get(f"{gene_models_source}GeneId") not in args.gene_id:
+                    filter_counters[f"row {gene_models_source}GeneId isn't among {args.gene_id}"] += 1
+                    continue
+                if args.exclude_gene_id and variant_catalog_record.get(f"{gene_models_source}GeneId") in args.exclude_gene_id:
+                    filter_counters[f"row {gene_models_source}GeneId is one of {args.exclude_gene_id}"] += 1
+                    continue
 
         # annotate repeat purity in the reference genome
         num_repeats_in_reference_list = []
@@ -621,8 +660,9 @@ def main():
                 filter_counters[f"row FlanksAndLocusMappability < {args.min_mappability}"] += 1
                 continue
 
-        if args.add_gene_region_to_locus_id:
-            gene_region = variant_catalog_record.get(f"{args.gene_models_source}GeneRegion")
+        if args.add_gene_region_to_locus_id and args.gene_models_source:
+            gene_models_source = args.gene_models_source[0]
+            gene_region = variant_catalog_record.get(f"{gene_models_source}GeneRegion")
             if gene_region:
                 variant_catalog_record["LocusId"] += "-" + gene_region.replace(" ", "").replace("'", "")
 
