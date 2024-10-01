@@ -477,11 +477,11 @@ def add_variant_catalog_to_interval_trees(
                         set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndLocusStruct"]], catalog_name, "YesButShifted")
                         set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]], overlapping_record["Source"], "YesButShifted")
                     elif overlapping_interval.length() < (end_1based - start_0based):
-                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndLocusStruct"]], catalog_name, "YesButNarrower")
-                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]], overlapping_record["Source"], "YesButWider")
-                    elif overlapping_interval.length() > (end_1based - start_0based):
                         set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndLocusStruct"]], catalog_name, "YesButWider")
                         set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]], overlapping_record["Source"], "YesButNarrower")
+                    elif overlapping_interval.length() > (end_1based - start_0based):
+                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndLocusStruct"]], catalog_name, "YesButNarrower")
+                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndLocusStruct"]], overlapping_record["Source"], "YesButWider")
 
 
         if remove_existing:
