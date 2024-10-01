@@ -1,4 +1,36 @@
 
+REFERENCE_CACHE = {}
+
+def get_reference_sequence_with_cache(fasta_obj, chrom, start_0based, end):
+    """Returns the reference nucleotides in the given interval.
+
+    Args:
+        fasta_obj (object): pysam.FastaFile object
+        chrom (str): chromosome name
+        start_0based (int): interval start coordinate
+        end (int): interval end coordinate
+
+    Return:
+        str: nucleotide sequence
+    """
+
+    if chrom not in fasta_obj:
+        raise ValueError(f"Chromosome name {chrom} doesn't match any chromosome in the reference genome: {fasta_obj.keys()}")
+
+    if chrom not in REFERENCE_CACHE:
+        REFERENCE_CACHE[chrom] = str(fasta_obj[chrom])
+
+    return REFERENCE_CACHE[chrom][start_0based: end]
+
+def get_chromosome_size_with_cache(fasta_obj, chrom):
+    if chrom not in fasta_obj:
+        raise ValueError(f"Chromosome name {chrom} doesn't match any chromosome in the reference genome: {fasta_obj.keys()}")
+
+    if chrom not in REFERENCE_CACHE:
+        REFERENCE_CACHE[chrom] = str(fasta_obj[chrom])
+
+    return len(REFERENCE_CACHE[chrom])
+
 
 def get_reference_sequence(fasta_obj, chrom, start_1based, end_1based):
     """Returns the reference nucleotides in the given interval.
