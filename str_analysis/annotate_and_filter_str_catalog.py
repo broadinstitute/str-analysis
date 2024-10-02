@@ -524,8 +524,8 @@ def main():
                         verbose=args.verbose,
                         show_progress_bar=args.show_progress_bar)
 
-                    if variant_catalog_record[f"{gene_models_source}GeneId"] == variant_catalog_record[f"{gene_models_source}GeneName"]:
-                        del variant_catalog_record[f"{gene_models_source}GeneName"]
+                    #if variant_catalog_record[f"{gene_models_source}GeneId"] == variant_catalog_record[f"{gene_models_source}GeneName"]:
+                    #    del variant_catalog_record[f"{gene_models_source}GeneName"]
 
                 gene_models_source = args.gene_models_source[0]
                 if args.region_type and variant_catalog_record.get(f"{gene_models_source}GeneRegion") not in args.region_type:
