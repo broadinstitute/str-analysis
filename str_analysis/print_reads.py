@@ -23,8 +23,7 @@ def main():
 												 "genomic intervals, or are unmapped.")
 	parser.add_argument("-u", "--gcloud-project", help="Google Cloud project to use for GCS requester pays buckets.")
 	parser.add_argument("-o", "--output", help="Output file path. If not specified, it will be based on the input filename.")
-	parser.add_argument("--read-index", help="Optional path of the input BAM or CRAM index file. This can be a local "
-											 "or a gs:// path")
+	parser.add_argument("--read-index", help="Optional path of the input BAM or CRAM index file. This can be a local or a gs:// path")
 	parser.add_argument("-R", "--reference-fasta", help="Optional reference genome FASTA file used when reading the CRAM file")
 	parser.add_argument("-L", "--interval", action="append", default=[], help="The script will output aligned reads that "
 						"overalp the given genomic interval(s). The value can be the path of a .bed file, .bed.gz file, "
@@ -37,8 +36,8 @@ def main():
 	parser.add_argument("--include-unmapped-read-pairs", action="store_true",
 						help="Output read pairs where both mates are unmapped. This can be specified in addition to or "
 							 "instead of -L intervals.")
-    parser.add_argument("--output-data-transfer-stats", action="store_true", help="Write out a TSV file with stats "
-                        "about the total number of bytes and containers downloaded from the CRAM")
+	parser.add_argument("--output-data-transfer-stats", action="store_true", help="Write out a TSV file with stats "
+						"about the total number of bytes and containers downloaded from the CRAM")
 	parser.add_argument("--verbose", action="store_true")
 	parser.add_argument("--debug", action="store_true")
 	parser.add_argument("input_bam_or_cram", help="Input BAM or CRAM file. This can be a local or a gs:// path")
@@ -89,9 +88,10 @@ def main():
 					chrom, start, end = fields[:3]
 					start_offset = 1 if interval.endswith(".interval_list") else 0
 					start = int(start) - start_offset  # convert to 0-based coordinates
+					end = int(end)
 					if start > end:
 						parser.error(f"start coordinate {start} is greater than the end coordinate {end}")
-					reader.add_interval(chrom, start - args.padding, int(end) + args.padding)
+					reader.add_interval(chrom, start - args.padding, end + args.padding)
 		else:
 			try:
 				if ":" in interval:
