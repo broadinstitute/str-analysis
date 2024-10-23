@@ -382,7 +382,13 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
             print(f"WARNING: No pathogenic thresholds found for locus {locus_id}. Skipping threshold filtering")
 
     if not use_thresholds:
-        dfs_to_process.append(locus_df)
+        if inheritance_mode == "XR":
+            male_df = locus_df[~locus_df["Genotype"].str.contains("/") | locus_df["is_male"]]
+            dfs_to_process.append(male_df)
+            female_df = locus_df[locus_df["Genotype"].str.contains("/") | locus_df["is_female"]]
+            dfs_to_process.append(female_df)
+        else:
+            dfs_to_process.append(locus_df)
 
     elif use_thresholds:
         if inheritance_mode == "XR":
