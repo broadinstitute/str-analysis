@@ -37,12 +37,6 @@ def main():
                               show_progress_bar=args.show_progress_bar)
 
     # sort records by normalized motif to maximize cache hit rate in the optimized version of ExpansionHunter
-    print("Sorting records by normalized motif")
-    def get_canonical_motif(record):
-        motif = record["LocusStructure"].strip("()*")
-        return compute_canonical_motif(motif, include_reverse_complement=True)
-
-    json_records = sorted(json_records, key=get_canonical_motif)
 
     # write json records to output files
     if not args.output_path:
@@ -52,16 +46,25 @@ def main():
 
     if not args.batch_size:
         if not args.output_path:
-            args.output_path = output_path_prefix + ".variant_catalog.json"
+            args.output_path = output_path_prefix + ".json.gz"
 
+        print(f"Writing {len(json_records):,d} records to {args.output_path}")
         fopen = gzip.open if args.output_path.endswith("gz") else open
         with fopen(args.output_path, "wt") as f:
             json.dump(json_records, f, indent=4)
         print(f"Wrote {len(json_records):,d} to {args.output_path}")
     else:
+        print("Sorting records by canonical motif")
+        def get_canonical_motif(record):
+            motif = record["LocusStructure"].strip("()*")
+            return compute_canonical_motif(motif, include_reverse_complement=True)
+
+        json_records = sorted(json_records, key=get_canonical_motif)
+
         total_batches = len(json_records)//args.batch_size + 1
         oom = max(1, int(math.ceil(math.log(total_batches, 10))))
         output_path_prefix += f".{len(json_records)}_loci"
+        print(f"Writing records to {total_batches:,d} batches with prefix {output_path_prefix}")
         for i in range(0, len(json_records), args.batch_size):
             output_path = output_path_prefix + f".batch_{i // args.batch_size:0{oom}d}.json"
             with open(output_path, "wt") as f:
