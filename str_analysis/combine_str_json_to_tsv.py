@@ -256,8 +256,8 @@ def main():
         if len(sample_metadata_lookup) != len(sample_metadata_df):
             logging.info(f"{len(sample_metadata_df) - len(sample_metadata_lookup)} duplicate sample ids in {args.sample_metadata}")
 
-    logging.info(f"Wrote {variant_records_counter:,d} records to {output_prefix}.variants.tsv")
-    logging.info(f"Wrote {allele_records_counter:,d} records to {output_prefix}.alleles.tsv")
+    logging.info(f"Wrote {variant_records_counter:,d} records to {output_prefix}.variants.tsv.gz")
+    logging.info(f"Wrote {allele_records_counter:,d} records to {output_prefix}.alleles.tsv.gz")
 
     with open(f"{output_prefix}.bed", "wt") as f:
         for bed_record in sorted(bed_file_records, key=lambda r: tuple(r[0:2])):
