@@ -411,12 +411,12 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
             dfs_to_process.append(female_df)
 
         else:
-            if inheritance_mode == "AR":
+             if inheritance_mode == "AR":
                 locus_df = locus_df[
                     (locus_df["CI end: Allele 1"] >= threshold) &
                     (locus_df["CI end: Allele 2"] >= threshold)
                 ].iloc[0:args.max_rows]
-            else:
+             else:
                 # for x-linked dominant, it's enough for one of the alleles to be above the threshold
                 # (ie. male vs. female genotyes)
                 locus_df = locus_df[
@@ -424,8 +424,8 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
                     (locus_df["CI end: Allele 2"] >= threshold)
                 ].iloc[0:args.max_rows]
 
-            locus_df = pd.concat([threshold_records, locus_df], ignore_index=True)
-            dfs_to_process.append(locus_df)
+             locus_df = pd.concat([threshold_records, locus_df], ignore_index=True)
+             dfs_to_process.append(locus_df)
 
     if args.use_affected:
         # filter by affected status
