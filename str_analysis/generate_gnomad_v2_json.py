@@ -493,8 +493,11 @@ def load_data_df(args):
         df = pd.merge(left=df, right=df_manual_review, how="left", left_on=("SampleId", "VariantId"), right_on=("SampleId", "VariantId"))
 
         print(set(df.columns))
+        # compue the number of manually reviewed samples per locus (eg. {'ABCD3': 29, 'AFF2': 231, 'AR': 28})
         manual_reviews_per_locus = df_manual_review[~df_manual_review["ManualReview1GenotypeQuality"].isna()][["VariantId", "ManualReview1GenotypeQuality"]].groupby("VariantId").count()["ManualReview1GenotypeQuality"].to_dict()
+        # same thing for the merged df
         df_manual_reviews_per_locus = df[~df["ManualReview1GenotypeQuality"].isna()][["LocusId", "ManualReview1GenotypeQuality"]].groupby("LocusId").count()["ManualReview1GenotypeQuality"].to_dict()
+        # check that merge was successful without creating duplicates etc.
         for locus_id, manual_reviews in manual_reviews_per_locus.items():
             if locus_id not in df_manual_reviews_per_locus:
                 df_manual_reviews_per_locus[locus_id] = 0
