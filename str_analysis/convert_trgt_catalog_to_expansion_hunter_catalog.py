@@ -83,7 +83,7 @@ def process_variant_catalog(trgt_bed_path_path, reference_fasta_path, output_fil
 			motifs = motifs_from_locus_structure
 			for motif in motifs:
 				if not motif or (len(set(motif) - set("ACGTN")) > 0):
-					raise ValueError(f"Invalid repeat unit in row #{i + 1}: {repeat_unit}. Line: {row}")
+					raise ValueError(f"Invalid repeat unit in row #{i + 1}: {motif}. Line: {row}")
 
 			counter["total input loci"] += 1
 

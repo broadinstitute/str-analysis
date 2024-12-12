@@ -77,7 +77,7 @@ def main():
             variant_catalog_records = json.load(f)
             for i, record in enumerate(variant_catalog_records):
                 if "ReferenceRegion" not in record:
-                    p.error(f"Record #{i+1} does not have a ReferenceRegion field: {record}")
+                    parser.error(f"Record #{i+1} does not have a ReferenceRegion field: {record}")
 
                 reference_regions = record["ReferenceRegion"]
                 if not isinstance(reference_regions, list):
@@ -114,7 +114,7 @@ def main():
         parser.error(f"CRAM index path {input_crai_path} not found")
 
     if not file_exists(args.reference_fasta):
-        parser.error(f"Reference file not found {path}")
+        parser.error(f"Reference file not found {args.reference_fasta}")
 
     # create a CramIntervalRreader and use it to generate a temp CRAM file containing the CRAM header and any reads
     # overlapping the user-specified region interval(s)

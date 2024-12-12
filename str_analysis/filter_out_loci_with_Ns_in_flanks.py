@@ -55,7 +55,7 @@ def main():
 	filtered_loci_counter = 0
 	for record in get_variant_catalog_iterator(args.variant_catalog, show_progress_bar=args.show_progress_bar):
 		if not "ReferenceRegion" in record:
-			p.error(f"ReferenceRegion not found in variant catalog record #{i+1}: {record}")
+			p.error(f"ReferenceRegion not found in variant catalog record #{output_record_counter+1}: {record}")
 
 		if isinstance(record["ReferenceRegion"], list):
 			reference_regions = record["ReferenceRegion"]

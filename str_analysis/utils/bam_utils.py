@@ -1,8 +1,5 @@
-import collections
 import logging
-import math
 import os
-import re
 import statistics
 
 import pysam

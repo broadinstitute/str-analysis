@@ -42,7 +42,7 @@ def get_adjacent_repeats(locus_interval_0based, repeat_unit, pysam_fasta_file, i
         locus_interval_0based (str): locus interval in 0-based format, e.g. "chr1:100-200"
         repeat_unit (str): repeat unit
         pysam_fasta_file (pysam.FastaFile): pysam FastaFile object
-        interval_tree (intervaltree.IntervalTree): an IntervalTree containing 0-based intervals that represent the
+        interval_tree_0based (intervaltree.IntervalTree): an IntervalTree containing 0-based intervals that represent the
             reference start and end coordinates of all TR loci found on the same chromosome as the given record.
             Adjacent repeats will be queried from this data structure.
         max_distance_between_adjacent_repeats (int): maximum distance between adjacent repeats

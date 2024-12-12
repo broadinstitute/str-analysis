@@ -9,7 +9,7 @@ import tempfile
 
 from google.cloud import storage
 
-from str_analysis.utils.file_utils import file_exists, open_file, get_file_size, get_byte_range_from_google_storage
+from str_analysis.utils.file_utils import open_file, get_file_size, get_byte_range_from_google_storage
 
 
 CRAI_FILE_HEADER = [
@@ -48,7 +48,7 @@ def parse_crai_index(crai_path, cram_path):
 		for i, line in enumerate(crai_file):
 			fields = line.strip().split("\t")
 			if len(fields) != len(CRAI_FILE_HEADER):
-				p.error(f"Expected {len(CRAI_FILE_HEADER)} columns but found {len(fields)} in line #{i} of {crai_path}: {line}")
+				raise ValueError(f"Expected {len(CRAI_FILE_HEADER)} columns but found {len(fields)} in line #{i} of {crai_path}: {line}")
 
 			crai_record = dict(zip(CRAI_FILE_HEADER, map(int, fields)))
 			if crai_record["alignment_span"] < 0:
@@ -267,7 +267,7 @@ class IntervalReader:
 		read_counter = 0
 		if self._verbose:
 			print("Writing reads to", local_path)
-		for chrom, start, end in sorted(self._get_merged_intervals(chrom_sort_order=lambda chrom: chom_order.index(normalize_chromosome_name(chrom)))):
+		for chrom, start, end in sorted(self._get_merged_intervals(chrom_sort_order=lambda ch: chom_order.index(normalize_chromosome_name(ch)))):
 			if self._debug:
 				print(f"DEBUG: Fetching {chrom}:{start}-{end} from {pysam_input_filename}")
 

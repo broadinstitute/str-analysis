@@ -15,7 +15,8 @@ def convert_trgt_locus_to_expansion_hunter_format(
             left_flank = unprocessed_locus_structure[:left_flank_end_i]
             if not unprocessed_reference_sequence.startswith(left_flank):
                 print(f"WARNING: left flank {left_flank} doesn't match reference sequence "
-                      f"{unprocessed_reference_sequence[:left_flank_end_i]} @ locus {locus_id}. Skipping...")
+                      f"{unprocessed_reference_sequence[:left_flank_end_i]} @ locus {chrom}:{start_0based}-{end_1based}. "
+                      f"Skipping...")
                 break
 
             unprocessed_reference_sequence = unprocessed_reference_sequence[len(left_flank):]

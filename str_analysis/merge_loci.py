@@ -407,7 +407,7 @@ def add_variant_catalog_to_interval_trees(
                 max_end_1based = max(end_1based, existing_interval.end)
                 existing_record_locus_structure = existing_record["LocusStructure"]
                 existing_record_motifs = parse_motifs_from_locus_structure(existing_record_locus_structure)
-                if len(current_motifs) != 1:
+                if len(existing_record_motifs) != 1:
                     raise ValueError(f"Unexpected LocusStructure in {existing_record}.")
                 existing_record_motif  = existing_record_motifs[0]
                 new_record = {
