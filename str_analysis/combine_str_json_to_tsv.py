@@ -527,6 +527,9 @@ def convert_expansion_hunter_json_to_tsv_columns(
                 variant_record["AllelePurity"] = variant_json["AP"]
                 variant_record["MeanMethylation"] = variant_json["AM"]
                 variant_record["SpanningReadsPerAllele"] = variant_json["SD"]
+                if variant_json.get("Ref") and variant_json.get("Alt"):
+                    variant_record["Ref"] = variant_json["Ref"]
+                    variant_record["Alt"] = variant_json["Alt"]
 
             if include_extra_longtr_fields:
                 variant_record["Q"] = float(variant_json["Q"])
