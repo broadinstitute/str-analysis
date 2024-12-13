@@ -393,12 +393,11 @@ def main():
     variant_catalog = []
     variant_catalog_output_path = f"{args.output_prefix}.variant_catalog.json"
     for _, row in df_loci.iterrows():
-        locus_id = row["MatchedReferenceTR"]
-        chrom, start_0based, end_1based, repeat_unit = locus_id.split("-")
-
+        repeat_unit = row["Motif"]
+        locus_id = row["MatchedReferenceTR"].replace(":", "-") + f"-{repeat_unit}"
         variant_catalog_record = {
             "LocusId": locus_id,
-            "ReferenceRegion": f"{chrom}:{start_0based}-{end_1based}",
+            "ReferenceRegion": row["MatchedReferenceTR"],
             "LocusStructure": f"({repeat_unit})*",
             "VariantType": "Repeat",
 
