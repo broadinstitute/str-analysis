@@ -36,9 +36,9 @@ $7             counts : 7.01,4.05,0.95,5.42,9.00,2.18
 """
 import argparse
 import collections
+import gzip
 import os
 import pandas as pd
-from pprint import pprint
 import re
 from tqdm import tqdm
 
@@ -383,6 +383,7 @@ def main():
     # parse EHdn tables
     locus_outlier_dfs = []
     case_control_dfs = []
+    output_dir = None
     for locus_outlier_tsv in args.ehdn_locus_outlier_tsv:
         print(f"Processing rows from {locus_outlier_tsv}")
         try:
@@ -444,7 +445,7 @@ def main():
         output_dir = args.output_dir or os.path.dirname(locus_outlier_tsv)
         output_path = os.path.join(output_dir, re.sub(".tsv", "", os.path.basename(locus_outlier_tsv))+".annotated.tsv.gz")
 
-        with open(output_path, "wt") as f:
+        with gzip.open(output_path, "wt") as f:
             output_df.to_csv(f, sep="\t", index=False)
 
         df_list.append(output_df)
@@ -453,6 +454,9 @@ def main():
 
         if args.test:
             break
+
+    if output_dir is None:
+        return
 
     # output a combined table
     for label, df_list, sort_by in [
@@ -467,7 +471,7 @@ def main():
         #combined_df = combined_df.sort_values(["Source", "MotifSize", "CanonicalMotif"], ascending=True)
         output_path = os.path.join(output_dir, f"combined.{len(df_list)}_{label}_tables.annotated.tsv.gz")
         print("Combining", len(df_list), label, "tables")
-        with open(output_path, "wt") as f:
+        with gzip.open(output_path, "wt") as f:
             combined_df.to_csv(f, sep="\t", index=False)
         print(f"Wrote {len(combined_df):,d} rows to {output_path}")
 
