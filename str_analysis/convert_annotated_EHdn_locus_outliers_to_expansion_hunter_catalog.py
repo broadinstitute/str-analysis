@@ -130,10 +130,11 @@ def parse_args():
             f"TotalSamplesAtLocus",
             "NormalizedCount",
         ]
-        if args.overlaps_with:
+        if args.matched_tr_from:
             for matched_tr_from in args.matched_tr_from:
                 expected_columns.append(f"MatchedTRFrom:{matched_tr_from}")
 
+        if args.overlaps_with:
             for overlaps_with in args.overlaps_with:
                 expected_columns.append(f"OverlapsWith:{overlaps_with}")
 
@@ -286,11 +287,11 @@ def main():
         df = df[~df["MatchedReferenceTR"].isin(args.exclude_locus_id)]
         print(f"Filter by --exclude-locus-id: filtered out {before - len(df):,d} out of {before:,d} rows ({(before - len(df)) / (before or 1):.1%}%)")
 
-    # Filter by MatchedTrFrom:
+    # Filter by MatchedTRFrom:
     for matched_tr_from in args.matched_tr_from:
         before = len(df)
-        df = df[~df[f"MatchedTrFrom:{matched_tr_from}"].isna()]
-        print(f"Filter by MatchedTrFrom:{matched_tr_from}: filtered out {before - len(df):,d} out of {before:,d} rows ({(before - len(df)) / (before or 1):.1%}%)")
+        df = df[~df[f"MatchedTRFrom:{matched_tr_from}"].isna()]
+        print(f"Filter by MatchedTRFrom:{matched_tr_from}: filtered out {before - len(df):,d} out of {before:,d} rows ({(before - len(df)) / (before or 1):.1%}%)")
 
     # Filter by OverlapsWith:
     for overlaps_with in args.overlaps_with:
@@ -337,8 +338,8 @@ def main():
     if args.exclude_matched_tr_from:
         for exclude_matched_tr_from in args.exclude_matched_tr_from:
             before = len(df)
-            df = df[df[f"MatchedTrFrom:{exclude_matched_tr_from}"].isna()]
-            print(f"Filter out MatchedTrFrom:{exclude_matched_tr_from} filtered out {before - len(df):,d} out of {before:,d} rows ({(before - len(df)) / (before or 1):.1%}%)")
+            df = df[df[f"MatchedTRFrom:{exclude_matched_tr_from}"].isna()]
+            print(f"Filter out MatchedTRFrom:{exclude_matched_tr_from} filtered out {before - len(df):,d} out of {before:,d} rows ({(before - len(df)) / (before or 1):.1%}%)")
 
     # Filter by --exclude-overlaps-with
     if args.exclude_overlaps_with:
