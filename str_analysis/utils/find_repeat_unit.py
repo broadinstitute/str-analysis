@@ -227,7 +227,7 @@ def find_repeat_unit_allowing_interruptions(sequence, allow_partial_repeats=Fals
     return sequence, 1, 1, None, False
 
 
-def extend_repeat_into_sequence_without_allowing_interruptions(repeat_unit, sequence):
+def extend_repeat_into_sequence_without_allowing_interruptions(repeat_unit, sequence, from_end=False):
     """This method walks along the given sequence from left to right, one repeat unit length at a time, and returns
     the longest stretch of repeats that exactly matches the given repeat_unit.
 
@@ -236,10 +236,15 @@ def extend_repeat_into_sequence_without_allowing_interruptions(repeat_unit, sequ
         sequence (str): a longer sequence that may contain repeats of the given repeat unit starting at the left end,
             before switching to random other sequence or repeats of a different repeat unit.
             For example: "CAGCAGCAGCTAGTGCAGTGACAGT"
+        from_end (bool): If True, the search will start from the right end of the sequence and move left.
 
     Return:
         int: The number of exact repeats of the given repeat unit found at the left end of the given sequence.
     """
+
+    if from_end:
+        sequence = sequence[::-1]
+        repeat_unit = repeat_unit[::-1]
 
     # compute the number of pure repeats
     i = 0
