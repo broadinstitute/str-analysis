@@ -258,6 +258,10 @@ class Test(unittest.TestCase):
             "A", "ATCATCATCAGTTTT")
         self.assertEqual(num_pure_repeats, 1)
 
+        num_pure_repeats = extend_repeat_into_sequence_without_allowing_interruptions(
+            "CAG", "CATCATCATCAGTTTTCAGCAG", from_end=True)
+        self.assertEqual(num_pure_repeats, 2)
+
     def test_extend_repeat_into_sequence_allowing_interruptions(self):
         num_pure_repeats, num_total_repeats, repeat_unit_interruption_index = extend_repeat_into_sequence_allowing_interruptions(
             "CA", "CACAGACATCAGTTTT", repeat_unit_interruption_index=None)
