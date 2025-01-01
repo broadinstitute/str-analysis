@@ -103,7 +103,7 @@ def simulate_reads(
     #logging.info(f"Simulating reads from a {len(reference_sequence)}bp reference sequence")
 
     # save synthetic reference to file
-    synthetic_reference_file_path = f"synthetic_reference__{output_filename_prefix}.fa"
+    synthetic_reference_file_path = f"{output_filename_prefix}.fa"
     if not force and os.path.isfile(synthetic_reference_file_path):
         logging.info(f"{synthetic_reference_file_path} already exists. Will not regenerate it.")
     else:
