@@ -328,6 +328,9 @@ def main():
         if not file_exists(path):
             parser.error(f"{path} not found")
 
+    if args.only_add_extra_fields and not args.add_extra_field:
+        parser.error("--only-add-extra-fields specified but no extra fields requested via --add-extra-field")
+
     ref_fasta = pysam.FastaFile(os.path.abspath(os.path.expanduser(args.ref_fasta)))
     ref_fasta_chromosomes = set(ref_fasta.references)
 
@@ -394,6 +397,12 @@ def main():
                     max(current_end, min_max_coords_for_chrom[current_chrom][1]))
 
     # parse args.source_of_adjacent_loci within the genomic regions spanned by the input catalog(s)
+    if not args.source_of_adjacent_loci or (
+        not args.source_of_adjacent_loci.endswith(".bed") and
+        not args.source_of_adjacent_loci.endswith(".bed.gz") and
+        not args.source_of_adjacent_loci.endswith(".bed.bgz")):
+        parser.error(f"source_of_adjacent_loci must be a .bed or .bed.gz file: {args.source_of_adjacent_loci}")
+
     interval_trees_by_chrom = collections.defaultdict(intervaltree.IntervalTree)
     for chrom, (min_start, max_end) in min_max_coords_for_chrom.items():
         interval_trees_by_chrom[chrom] = get_interval_tree_for_chrom(
@@ -447,10 +456,12 @@ def main():
                 set_variant_ids_to_locus_id_plus_motif=False,
             )
 
+            if isinstance(output_record["ReferenceRegion"], list) or output_record.get("TRsInRegion", 0) > 1:
+                counters["added adjacent loci"] += 1
+
             # check if adjacent loci were added
             if isinstance(output_record["ReferenceRegion"], list):
                 locus_ids_with_new_adjacent_repeats.append(output_record["LocusId"])
-                counters["added adjacent loci"] += 1
                 counters["total reference regions"] += len(output_record["ReferenceRegion"])
                 counters["total spacers"] += len(output_record["ReferenceRegion"]) - 1
                 output_record_key = output_record["LocusStructure"] + ";" + ";".join(output_record["ReferenceRegion"])
