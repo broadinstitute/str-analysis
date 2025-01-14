@@ -48,6 +48,9 @@ def get_reference_sequence(fasta_obj, chrom, start_1based, end_1based):
     if chrom not in fasta_obj:
         raise ValueError(f"Invalid chromosome name: {chrom}")
 
+    if fasta_obj.faidx.one_based_attributes:
+        raise ValueError("The pysam.FastaFile object must be created with `one_based_attributes=False`")
+
     chrom_obj = fasta_obj[chrom]
 
     return str(chrom_obj[start_1based - 1: end_1based])
