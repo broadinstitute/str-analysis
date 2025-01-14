@@ -74,6 +74,8 @@ def parse_args():
     p.add_argument("-l", "--locus", action="append", help="If specified, only these locus ids will be processed")
     p.add_argument("--highlight-samples", nargs="*", help="If specified, this can be the path of a text file that "
         "contains sample ids (one per line) or just 1 or more sample ids listed on the commandline")
+    p.add_argument("--hide-previously-seen-samples", action="store_true", help="If specified, previously seen samples "
+        "will be excluded from the output")
     p.add_argument("--truth-samples", help="If specified, this can be the path of a table that contains two columns: "
         "sample id and locus id. The script will then mark each sample at that locus to indicate that it's a truth "
         "sample")
@@ -164,11 +166,11 @@ def load_gnomad_df():
     gnomad_df.loc[:, ("CI start: Allele 2", "CI end: Allele 2")] = gnomad_df["CI2"].str.split("-", expand=True)
     gnomad_df.drop(columns=["CI1", "CI2", "CI start: Allele 1", "CI start: Allele 2"], inplace=True)
     gnomad_df.rename({
-        "Id": "SampleId",
-        "Sex": "Sample_sex",
+        "Id":      "SampleId",
+        "Sex":     "Sample_sex",
         "Allele1": "Num Repeats: Allele 1",
         "Allele2": "Num Repeats: Allele 2",
-        "Motif": "RepeatUnit",
+        "Motif":   "RepeatUnit",
     }, axis="columns", inplace=True)
 
     return gnomad_df
@@ -625,6 +627,9 @@ def main():
                 previously_seen_samples_for_this_locus = set(
                     previously_seen_samples_df[previously_seen_samples_df.locus_id == locus_id].sample_id)
 
+            if args.hide_previously_seen_samples:
+                locus_df = locus_df[~locus_df[args.sample_id_column].isin(previously_seen_samples_for_this_locus)]
+
             locus_df.loc[:, args.sample_id_column] = locus_df[args.sample_id_column].apply(
                 lambda s: (
                     f"*T* {s}" if s in truth_samples_for_this_locus else (
@@ -647,3 +652,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
