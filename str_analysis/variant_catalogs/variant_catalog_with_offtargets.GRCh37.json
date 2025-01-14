@@ -969,6 +969,45 @@
         ]
     },
     {
+        "LocusId": "EP400",
+        "LocusStructure": "(CAG)*",
+        "VariantType": "RareRepeat",
+        "ReferenceRegion": "chr12:132547093-132547135",
+        "RepeatUnit": "CAG",
+        "Gene": "EP400",
+        "GeneRegion": "coding: polyglutamine",
+        "GeneId": "ENST00000389561",
+        "Diseases": [
+         {
+          "Symbol": "EP400",
+          "Name": "Cerebellar Ataxia",
+          "Inheritance": "AD",
+          "PathogenicMin": 55
+         }
+        ],
+        "OfftargetRegions": [
+            "12:65957339-65957682",
+            "16:24788215-24788616",
+            "16:56849613-56849994",
+            "16:73580408-73580794",
+            "17:10898867-10899244",
+            "17:49908873-49909245",
+            "19:13318521-13318866",
+            "1:53793354-53793697",
+            "5:137929768-137930128",
+            "5:166406025-166406402",
+            "6:104467037-104467394",
+            "6:16327703-16328107",
+            "6:170870842-170871263",
+            "7:121928089-121928459",
+            "X:21385178-21385539",
+            "X:24382204-24382718",
+            "X:66764998-66765411"
+        ],
+        "MainReferenceRegion": "chr12:132547093-132547135",
+        "Inheritance": "AD"
+    },
+    {
         "LocusId": "FGF14",
         "LocusStructure": "(AAG)*",
         "VariantType": "RareRepeat",
