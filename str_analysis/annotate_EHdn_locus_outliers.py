@@ -111,7 +111,7 @@ CASE_CONTROL_COLUMNS = {"contig", "start", "end", "motif", "pvalue", "bonf_pvalu
 OVERLAP_MARGIN = 600  # bp  (fragment length)
 
 
-def get_overlapping_interval_generator(interval_tree, require_motif_match=False):
+def get_overlapping_interval_generator(interval_tree, require_motif_match=False, verbose=False):
     """This function takes a dictionary that maps chromosome name to IntervalTree of intervals on that chromosome.
     The intervals must either have 1) data == None or 2) data == 2-tuple (motif, reference_region).
     In the case of 1) the resulting function will check for simple overlap between EHdn outlier record(s) and the
@@ -129,12 +129,16 @@ def get_overlapping_interval_generator(interval_tree, require_motif_match=False)
 
         for locus_interval in interval_tree[chrom].overlap(start - OVERLAP_MARGIN, end + OVERLAP_MARGIN):
             if not require_motif_match:
+                if verbose:
+                    print(f"{chrom}:{start}-{end} outlier overlaps with known locus: {chrom}:{locus_interval.begin}-{locus_interval.end} {locus_interval.data}")
                 return True
 
             interval_canonical_motif = compute_canonical_motif(locus_interval.data[0])
             if interval_canonical_motif != outlier_table_row["CanonicalMotif"]:
                 continue
             matching_reference_region = locus_interval.data[1]
+            if verbose:
+                print(f"{chrom}:{start}-{end} outlier overlaps and matches the motif of known locus: {chrom}:{locus_interval.begin}-{locus_interval.end} {locus_interval.data}")
             return matching_reference_region
 
         if not require_motif_match:
@@ -390,6 +394,10 @@ def main():
             df = pd.read_table(locus_outlier_tsv)
         except Exception as e:
             parser.error(f"Couldn't read locus outlier results from {locus_outlier_tsv}: {e}")
+
+        if len(df) == 0:
+            print(f"WARNING: {locus_outlier_tsv} is empty. Skipping...")
+            continue
 
         # make sure the input table has the expected columns
         table_type = None
