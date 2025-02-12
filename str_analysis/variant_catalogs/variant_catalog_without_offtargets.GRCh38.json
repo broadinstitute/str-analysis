@@ -696,6 +696,26 @@
         "Inheritance": "AD"
     },
     {
+        "LocusId": "FAM193B",
+        "LocusStructure": "(CGC)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr5:177554489-177554531",
+        "RepeatUnit": "CGC",
+        "Gene": "FAM193B",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000146067",
+        "Diseases": [
+            {
+                "Symbol": "OPDM",
+                "Name": " Oculopharyngodistal myopathy",
+                "Inheritance": "AD",
+                "PathogenicMin": 190
+            }
+        ],
+        "MainReferenceRegion": "chr5:177554489-177554531",
+        "Inheritance": "AD"
+    },
+    {
         "LocusId": "FGF14",
         "LocusStructure": "(AAG)*",
         "VariantType": "Repeat",
