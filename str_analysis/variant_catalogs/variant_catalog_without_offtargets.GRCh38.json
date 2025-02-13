@@ -1133,6 +1133,29 @@
         "Inheritance": "AD"
     },
     {
+        "LocusId": "NAXE",
+        "LocusStructure": "(GGGCC)*",
+        "ReferenceRegion": "chr1:156591765-156591780",
+        "VariantType": "Repeat",
+        "RepeatUnit": "GGGCC",
+        "Gene": "NAXE",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000163382",
+        "DiscoveryYear": "2024",
+        "Diseases": [
+            {
+                "Symbol": "NME",
+                "Name": "NAXE-related mitochondrial encephalopathy",
+                "Inheritance": "AR",
+                "OMIM": "617186",
+                "NormalMax": 7,
+                "PathogenicMin": 200
+            }
+        ],
+        "MainReferenceRegion": "chr1:156591765-156591780",
+        "Inheritance": "AR"
+    },
+    {
         "LocusId": "NIPA1",
         "LocusStructure": "(GCG)*",
         "ReferenceRegion": "chr15:22786677-22786701",
@@ -1327,6 +1350,26 @@
         "Inheritance": "AR"
     },
     {
+        "LocusId": "PRE-MIR7-2",
+        "LocusStructure": "(TTTG)*",
+        "VariantType": "Repeat",
+        "ReferenceRegion": "chr15:88569433-88569449",
+        "RepeatUnit": "TTTG",
+        "Diseases": [
+            {
+                "Symbol": "CHNG3",
+                "Name": "Nongoitrous congenital hypothyroidism-3",
+                "Inheritance": "AD",
+                "OMIM": "609893",
+                "NormalMin": 4,
+                "PathogenicMin": 3,
+                "PathogenicMax": 3
+            }
+        ],
+        "MainReferenceRegion": "chr15:88569433-88569449",
+        "Inheritance": "AD"
+    },
+    {
         "LocusId": "PRNP",
         "LocusStructure": "(CCTCAGGGCGGTGGTGGCTGGGGGCAG)*(CCTCATGGTGGTGGCTGGGGGCAG)*",
         "VariantType": [
@@ -1356,6 +1399,34 @@
             }
         ],
         "MainReferenceRegion": "chr20:4699397-4699493",
+        "Inheritance": "AD"
+    },
+    {
+        "LocusId": "RAI1",
+        "LocusStructure": "(TTTTA)*",
+        "ReferenceRegion": "chr17:17808358-17808460",
+        "RepeatUnit": "TTTTA",
+        "VariantType": "Repeat",
+        "Gene": "RAI1",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000108557",
+        "DiscoveryYear": 2024,
+        "Diseases": [
+            {
+                "Symbol": "FAME8",
+                "Name": "Familial adult myoclonic epilepsy type 8",
+                "Inheritance": "AD",
+                "OMIM": "601068",
+                "PathogenicMin": 9
+            }
+        ],
+        "MainReferenceRegion": "chr17:17808358-17808460",
+        "PathogenicMotifs": [
+            "TTTCA"
+        ],
+        "BenignMotifs": [
+            "TTTTA"
+        ],
         "Inheritance": "AD"
     },
     {
