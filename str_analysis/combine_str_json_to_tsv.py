@@ -42,7 +42,8 @@ def parse_args(args_list=None):
         "--sample-metadata-key",
         help="The column name in the --sample-metdata table that contains a sample id. "
              "If not specified, 'sample_id' and other variations like 'SampleId', 'sample', and 'ParticipantId' "
-             "will be tried."
+             "will be tried.",
+        default="sample_id",
     )
     p.add_argument(
         "--include-extra-expansion-hunter-fields",
@@ -524,16 +525,11 @@ def convert_expansion_hunter_json_to_tsv_columns(
                 variant_record["DSTUTTER"] = float(variant_json["DSTUTTER"])
 
             if include_extra_trgt_fields:
-                allele_purities = variant_json["AP"].split(",")
-                variant_record["AllelePurity: Allele 1"] = allele_purities[0] if len(allele_purities) > 0 else variant_json["AP"]
-                variant_record["AllelePurity: Allele 2"] = allele_purities[1] if len(allele_purities) > 1 else ""
-                mean_methylation = variant_json["AM"].split(",")
-                variant_record["MeanMethylation: Allele 1"] = mean_methylation[0] if len(mean_methylation) > 0 else variant_json["AM"]
-                variant_record["MeanMethylation: Allele 2"] = mean_methylation[1] if len(mean_methylation) > 1 else ""
-                spanning_reads_per_allele = variant_json["SD"].split(",")
-                variant_record["SpanningReadsPerAllele: Allele 1"] = spanning_reads_per_allele[0] if len(spanning_reads_per_allele) > 0 else variant_json["SD"]
-                variant_record["SpanningReadsPerAllele: Allele 2"] = spanning_reads_per_allele[1] if len(spanning_reads_per_allele) > 1 else ""
-
+                allele_purities = variant_json.get("AP", ",").split(",")
+                mean_methylation = variant_json.get("AM", ",").split(",")
+                spanning_reads_per_allele = variant_json.get("SD", ",").split(",")
+                variant_record["AP"] = variant_json.get("AP", "")
+                variant_record["AM"] = variant_json.get("AM", "")
                 if variant_json.get("Ref") and variant_json.get("Alt"):
                     variant_record["Ref"] = variant_json["Ref"]
                     variant_record["Alt"] = variant_json["Alt"]
@@ -638,6 +634,12 @@ def convert_expansion_hunter_json_to_tsv_columns(
                     output_record[f"FractionOfReadsThatSupportsGenotype{suffix}"] = (
                         output_record[f"NumReadsTotalThatSupportGenotype{suffix}"] / float(output_record["NumReadsTotal"]) if int(output_record["NumReadsTotal"]) > 0 else 0
                     )
+
+                if include_extra_trgt_fields:
+                    if "AP" in variant_json and "AM" in variant_json and "SD" in variant_json:
+                        output_record[f"AllelePurity{suffix}"] = allele_purities[i] if len(allele_purities) > i else variant_json["AP"]
+                        output_record[f"MeanMethylation{suffix}"] = mean_methylation[i] if len(mean_methylation) > i else variant_json["AM"]
+                        output_record[f"SpanningReadsPerAllele{suffix}"] = spanning_reads_per_allele[i] if len(spanning_reads_per_allele) > i else variant_json["SD"]
 
                 for key, value in output_record.items():
                     if isinstance(value, float):
