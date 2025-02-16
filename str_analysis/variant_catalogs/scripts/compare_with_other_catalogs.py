@@ -9,6 +9,7 @@ from pprint import pformat
 import pysam
 import re
 import requests
+import sys
 
 from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
@@ -168,54 +169,64 @@ def get_stripy_dict():
 	return stripy_lookup
 
 
-def get_strchive_dict():
+def get_strchive_dict(gnomad_catalog):
 	"""Download the locus metadata json from the STRchive github repo which underlies https://harrietdashnow.com/STRchive
 
 	Return:
 		dict: locus_id -> locus_info
 	"""
+
+	gnomad_loci = {d["LocusId"] for d in gnomad_catalog}
+
 	print("Downloading loci from STRchive")
 	strchive_data = get_json_from_url(
-		"https://raw.githubusercontent.com/dashnowlab/STRchive/main/data/STRchive-database.json"
+		"https://raw.githubusercontent.com/dashnowlab/STRchive/refs/heads/main/data/STRchive-loci.json"
 	)
 
 	strchive_id_to_gnomad_map = {
-		"OPDM_ABCD3": "ABCD3",
-		"FRA2A_AFF3": "AFF3",
-		"JBS_CBL": "CBL",
-		"SCA27B_FGF14": "FGF14",
-		#"CPEO_POLG": "POLG",
-		"OPDM4_RILPL1": "RILPL1",
-		"SCA_THAP11": "THAP11",
-		"SCA4_ZFHX3": "ZFHX3",
-		"FRA7A_ZNF713": "ZNF713",
+		"pre-MIR7-2_CHNG3": "PRE-MIR7-2",
+		"HOXA13_1": "HOXA13",
+		"HOXA13_2": "HOXA13",
+		"HOXA13_3": "HOXA13",
+		"C9orf72": "C9ORF72",
+		"ARX_1": "ARX",
+		"ARX_2": "ARX",
 	}
 
 	previously_seen_gnomad_genes = set()
 	for d in strchive_data:
-		if not d["gnomAD_gene"] or not d["gnomAD_gene"].strip():
-			if d["id"] in strchive_id_to_gnomad_map:
-				d["gnomAD_gene"] = strchive_id_to_gnomad_map[d["id"]]
-			else:
-				print(f"WARNING: STRchive gnomAD_gene field not set for {d['id']}: {d['chrom']}:{d['start_hg38']}-{d['stop_hg38']}")
-		if d["gnomAD_gene"] in previously_seen_gnomad_genes:
-			print(f"WARNING: Duplicate gnomAD_gene field: {d['gnomAD_gene']}")
-		previously_seen_gnomad_genes.add(d["gnomAD_gene"])
+		if d["id"] in strchive_id_to_gnomad_map:
+			d["gnomad"] = strchive_id_to_gnomad_map[d["id"]]
+		elif d["gene"] in gnomad_loci:
+			d["gnomad"] = d["gene"]
+		elif len(d["gnomad"]) > 0:
+			d["gnomad"] = d["gnomad"][0]
+		else:
+			print(f"WARNING: STRchive locus is absent from gnomAD: {d['id']}")
+			continue
+
+		if d["gnomad"]:
+			if d["gnomad"] in previously_seen_gnomad_genes:
+				print(f"WARNING: Duplicate gnomad field: {d['gnomad']}")
+
+			previously_seen_gnomad_genes.add(d["gnomad"])
 
 	strchive_lookup = {
-		r["gnomAD_gene"]: r for r in strchive_data
+		r["gnomad"]: r for r in strchive_data if r.get("gnomad")
 	}
 
 	for d in strchive_lookup.values():
+		assert len(d["reference_motif_reference_orientation"]) == 1, d
+		d["reference_motif_reference_orientation"] = d["reference_motif_reference_orientation"][0]
 		d["CanonicalMotif"] = compute_canonical_motif(d["reference_motif_reference_orientation"])
 
 		d["Diseases"] = [{
 			"Name": d["disease"],
 			"Symbol": d["disease_id"],
-			"Inheritance": d["Inheritance"],
+			"Inheritance": ",".join(d["inheritance"]),
 			"Onset": d["age_onset"],
-			"NormalMax": d["normal_max"],
-			"IntermediateRange": d["intermediate"],
+			"NormalMax": d["benign_max"],
+			"IntermediateRange": f"{d['intermediate_min']}-{d['intermediate_max']}",
 			"PathogenicMin": d["pathogenic_min"],
 		}]
 
@@ -488,7 +499,7 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 				output(output_file, "%3s %s" % (" ", f"chr{official_EH_reference_region}  ({official_EH_repeats:4.1f} x {official_EH_motif}  {official_EH_end - official_EH_start:5d}bp) official catalog from EH repo"))
 
 			if locus_id in strchive_lookup:
-				min_left_pos = min(gnomad_start, stripy_start, strchive_start)
+				min_left_pos = min(gnomad_start, strchive_start)
 			elif locus_id in stripy_lookup:
 				min_left_pos = min(gnomad_start, stripy_start)
 			elif locus_id in trgt_lookup:
@@ -496,23 +507,11 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 			else:
 				raise ValueError(f"Unknown locus_id: {locus_id}")
 
-			output(output_file, f"%3s %-100s%{gnomad_end-min_left_pos}s" % (
+			output(output_file, f"%3s %-100s%{min(100, gnomad_end-min_left_pos)}s" % (
 				" ", f"{gnomad_reference_region}  ({gnomad_repeats:4.1f} x {gnomad_motif}  {gnomad_end - gnomad_start:5d}bp) gnomAD    {gnomad_pathogenic_min} = pathogenic.min.  hg38 seq:", gnomad_ref))
 
-			if locus_id in stripy_lookup:
-				output(output_file, f"%3s %-100s%{stripy_end-min_left_pos}s" % (
-					" ", f"{stripy_info['ReferenceRegion_hg38']}  ({stripy_repeats:4.1f} x {stripy_motif}  {stripy_end - stripy_start:5d}bp) STRipy    {stripy_pathogenic_min} = pathogenic.min.  hg38 seq:", stripy_ref))
-
-				if gnomad_differs_from_stripy:
-					output_stripy_variant_catalog.append({
-						"LocusId": f"{locus_id}_STRIPY",
-						"LocusStructure": "(" + stripy_info["Motif"] + ")*",
-						"ReferenceRegion": stripy_info["ReferenceRegion_hg38"],
-						"VariantType": "Repeat",
-					})
-
 			if locus_id in strchive_lookup:
-				output(output_file, f"%3s %-100s%{strchive_end-min_left_pos}s" % (
+				output(output_file, f"%3s %-100s%{min(100, strchive_end-min_left_pos)}s" % (
 					" ", f"{strchive_reference_region}  ({strchive_repeats:4.1f} x {strchive_motif}  {strchive_end - strchive_start:5d}bp) STRchive  {strchive_pathogenic_min} = pathogenic.min.  hg38 seq:", strchive_ref))
 
 				if gnomad_differs_from_strchive:
@@ -523,17 +522,29 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 						"VariantType": "Repeat",
 					})
 
-			if locus_id in trgt_lookup:
-				output(output_file, f"%3s %-100s%{trgt_end-min_left_pos}s" % (
-					" ", f"{trgt_reference_region}  ({trgt_repeats:4.1f} x {trgt_canonical_motif}  {trgt_end - trgt_start:5d}bp) TRGT                        hg38 seq:", trgt_ref))
+			if locus_id in stripy_lookup:
+				output(output_file, f"%3s %-100s%{min(100, stripy_end-min_left_pos)}s" % (
+					" ", f"{stripy_info['ReferenceRegion_hg38']}  ({stripy_repeats:4.1f} x {stripy_motif}  {stripy_end - stripy_start:5d}bp) STRipy    {stripy_pathogenic_min} = pathogenic.min.  hg38 seq:", stripy_ref))
 
-				if gnomad_differs_from_strchive:
-					output_trgt_variant_catalog.append({
-						"LocusId": f"{locus_id}_TRGT",
-						"LocusStructure": trgt_info["LocusStructure"],
-						"ReferenceRegion": trgt_info["ReferenceRegion"],
+				if gnomad_differs_from_stripy:
+					output_stripy_variant_catalog.append({
+						"LocusId": f"{locus_id}_STRIPY",
+						"LocusStructure": "(" + stripy_info["Motif"] + ")*",
+						"ReferenceRegion": stripy_info["ReferenceRegion_hg38"],
 						"VariantType": "Repeat",
 					})
+
+			#if locus_id in trgt_lookup:
+			#	output(output_file, f"%3s %-100s%{trgt_end-min_left_pos}s" % (
+			#		" ", f"{trgt_reference_region}  ({trgt_repeats:4.1f} x {trgt_canonical_motif}  {trgt_end - trgt_start:5d}bp) TRGT                        hg38 seq:", trgt_ref))
+
+			#	if gnomad_differs_from_strchive:
+			#		output_trgt_variant_catalog.append({
+			#			"LocusId": f"{locus_id}_TRGT",
+			#			"LocusStructure": trgt_info["LocusStructure"],
+			#			"ReferenceRegion": trgt_info["ReferenceRegion"],
+			#			"VariantType": "Repeat",
+			#		})
 
 
 	output(output_file, f"\n{counter:,d} out of {len(gnomad_records):,d} loci have a different hg38 ReferenceRegion or motif in gnomAD vs other catalogs")
@@ -565,10 +576,10 @@ def main():
 	gnomad_catalog = get_gnomad_catalog()
 	trgt_lookup = get_trgt_catalog()
 
-	strchive_lookup = get_strchive_dict()
+	strchive_lookup = get_strchive_dict(gnomad_catalog)
 	stripy_lookup = get_stripy_dict()
 
-	for compare_with in OTHER_CATALOG_NAME_TRGT,: # OTHER_CATALOG_NAME_STRIPY, OTHER_CATALOG_NAME_STRCHIVE:
+	for compare_with in OTHER_CATALOG_NAME_STRCHIVE,:  # OTHER_CATALOG_NAME_TRGT, OTHER_CATALOG_NAME_STRIPY,
 		print("="*100)
 		print(f"Comparing gnomAD with {compare_with}")
 		compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_lookup, strchive_lookup, trgt_lookup,
