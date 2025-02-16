@@ -458,6 +458,9 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 			strchive_chrom, strchive_start, strchive_end = parse_interval(strchive_reference_region)
 			strchive_repeats = (strchive_end - strchive_start)/motif_size
 			strchive_pathogenic_min = strchive_info.get("pathogenic_min")
+			if isinstance(strchive_pathogenic_min, float):
+				strchive_pathogenic_min = int(strchive_pathogenic_min)
+
 			strchive_motif = strchive_info["reference_motif_reference_orientation"]
 			strchive_canonical_motif = compute_canonical_motif(strchive_motif)
 			strchive_ref = fasta_file.fetch(strchive_chrom, strchive_start, strchive_end)
@@ -498,7 +501,9 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 				official_EH_repeats = (official_EH_end - official_EH_start)/motif_size
 				output(output_file, "%3s %s" % (" ", f"chr{official_EH_reference_region}  ({official_EH_repeats:4.1f} x {official_EH_motif}  {official_EH_end - official_EH_start:5d}bp) official catalog from EH repo"))
 
-			if locus_id in strchive_lookup:
+			if locus_id in strchive_lookup and locus_id in stripy_lookup:
+				min_left_pos = min(gnomad_start, stripy_start, strchive_start)
+			elif locus_id in strchive_lookup:
 				min_left_pos = min(gnomad_start, strchive_start)
 			elif locus_id in stripy_lookup:
 				min_left_pos = min(gnomad_start, stripy_start)
@@ -507,11 +512,11 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 			else:
 				raise ValueError(f"Unknown locus_id: {locus_id}")
 
-			output(output_file, f"%3s %-100s%{min(100, gnomad_end-min_left_pos)}s" % (
+			output(output_file, f"%3s %-100s%{min(400, gnomad_end-min_left_pos)}s" % (
 				" ", f"{gnomad_reference_region}  ({gnomad_repeats:4.1f} x {gnomad_motif}  {gnomad_end - gnomad_start:5d}bp) gnomAD    {gnomad_pathogenic_min} = pathogenic.min.  hg38 seq:", gnomad_ref))
 
 			if locus_id in strchive_lookup:
-				output(output_file, f"%3s %-100s%{min(100, strchive_end-min_left_pos)}s" % (
+				output(output_file, f"%3s %-100s%{min(400, strchive_end-min_left_pos)}s" % (
 					" ", f"{strchive_reference_region}  ({strchive_repeats:4.1f} x {strchive_motif}  {strchive_end - strchive_start:5d}bp) STRchive  {strchive_pathogenic_min} = pathogenic.min.  hg38 seq:", strchive_ref))
 
 				if gnomad_differs_from_strchive:
@@ -523,7 +528,7 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 					})
 
 			if locus_id in stripy_lookup:
-				output(output_file, f"%3s %-100s%{min(100, stripy_end-min_left_pos)}s" % (
+				output(output_file, f"%3s %-100s%{min(400, stripy_end-min_left_pos)}s" % (
 					" ", f"{stripy_info['ReferenceRegion_hg38']}  ({stripy_repeats:4.1f} x {stripy_motif}  {stripy_end - stripy_start:5d}bp) STRipy    {stripy_pathogenic_min} = pathogenic.min.  hg38 seq:", stripy_ref))
 
 				if gnomad_differs_from_stripy:
