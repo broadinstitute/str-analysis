@@ -619,7 +619,7 @@
         "LocusId": "EP400",
         "LocusStructure": "(CAG)*",
         "VariantType": "Repeat",
-        "ReferenceRegion": "chr12:132547093-132547135",
+        "ReferenceRegion": "chr12:132547093-132547156",
         "RepeatUnit": "CAG",
         "Gene": "EP400",
         "GeneRegion": "coding: polyglutamine",
@@ -632,7 +632,7 @@
           "PathogenicMin": 55
          }
         ],
-        "MainReferenceRegion": "chr12:132547093-132547135",
+        "MainReferenceRegion": "chr12:132547093-132547156",
         "Inheritance": "AD"
     },
     {
