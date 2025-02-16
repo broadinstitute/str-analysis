@@ -27,7 +27,7 @@ def parse_args():
         "motif match to use when comparing loci. 'canonical' will require the canonical motifs to match. "
         "'length' will only require the motifs to be the same length.")
     parser.add_argument("--add-found-in-fields", action="store_true", help="If specified, then 'FoundIn<CatalogName>' "
-        "fields will added to the output catalog to indicate which input catalogs contain this locus. "
+        "fields will be added to the output catalog to indicate which input catalogs contain this locus. "
         "This requires the output format to be set to JSON.")
     parser.add_argument("--discard-extra-fields-from-input-catalogs", action="store_true", help="If specified, then "
         "extra fields from the input catalogs will not be copied to to the output catalog. This requires the output format "
@@ -65,12 +65,12 @@ def parse_args():
                         "understanding the differences between them.")
     parser.add_argument("variant_catalog_json_or_bed", nargs="+", help="Paths of two or more repeat catalogs "
         "in JSON or BED format. For BED format, the chrom, start, and end should represent the repeat "
-        "interval in 0-based coordinates, and the name field (column #4) should be the repeat unit. The order in which "
-        "the catalogs are specified is important as it determines the behavior of the --overlapping-loci-action. "
+        "interval in 0-based half-open coordinates, and the name field (column #4) should be the repeat unit. The order "
+        "in which the catalogs are specified is important as it determines the behavior of the --overlapping-loci-action. "
         "By default all loci from the 1st catalog will be included in the output catalog, then all loci from the 2nd "
         "catalog that aren't represented in the 1st catalog and so on. If --add-found-in-fields is specified, each "
         "path should be preceded by a name for that catalog, followed by ':', and then the path. "
-        "For example: catalog1:/path/to/filename.bed. This name will be used in the Source field and as a key specifying "
+        "For example: catalog1:/path/to/filename.bed. The label will be used in the Source field and as a key specifying "
         "which loci are represented in that catalog.")
 
     args = parser.parse_args()
