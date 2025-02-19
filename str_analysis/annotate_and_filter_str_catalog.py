@@ -102,6 +102,7 @@ def parse_args():
     filter_group.add_argument("-om", "--only-known-disease-associated-motifs", action="store_true",
                         help="Only include loci that have known disease-associated motifs")
 
+    filter_group.add_argument("-L", "--region", action="append", help="Filter by one or more genomic regions")
     filter_group.add_argument("-l", "--locus-id", action="append", help="Only include the locus with this locus id")
     filter_group.add_argument("-xl", "--exclude-locus-id", action="append", help="Exclude the locus with this locus id")
 
@@ -199,7 +200,7 @@ def parse_known_disease_associated_loci(args, parser):
     return known_disease_loci_it, canonical_motifs
 
 
-def get_overlap(interval_tree, chrom, start_0based, end, canonical_motif=None, requiure_exact_locus_boundaries=True):
+def get_overlap(interval_tree, chrom, start_0based, end, canonical_motif=None, require_exact_locus_boundaries=True):
     """Returns overlapping interval(s) from the interval tree, if any.
 
     Args:
@@ -209,7 +210,7 @@ def get_overlap(interval_tree, chrom, start_0based, end, canonical_motif=None, r
         end (int): end position of the interval to check for overlap
         canonical_motif (str): the canonical motif to match. If specified, only consider an interval as overlapping if
             its motif also matches
-        requiure_exact_locus_boundaries (bool): if True, only consider an interval as overlapping if its start and end
+        require_exact_locus_boundaries (bool): if True, only consider an interval as overlapping if its start and end
             match exactly with the given interval
     Returns:
         list of strings: locus ids of entries in the IntervalTree that overlap the given interval chrom:start_0based-end
@@ -222,7 +223,7 @@ def get_overlap(interval_tree, chrom, start_0based, end, canonical_motif=None, r
 
         if locus_interval.data.canonical_motif != canonical_motif:
             continue
-        if requiure_exact_locus_boundaries and (locus_interval.begin != start_0based or locus_interval.end != end):
+        if require_exact_locus_boundaries and (locus_interval.begin != start_0based or locus_interval.end != end):
             continue
 
         return matching_locus_id
@@ -328,6 +329,19 @@ def main():
     else:
         known_disease_associated_motifs = set()
         known_disease_associated_loci_interval_tree = collections.defaultdict(IntervalTree)
+
+    if args.region:
+        regions_interval_tree = collections.defaultdict(IntervalTree)
+        for region in args.region:
+            try:
+                chrom, start, end = parse_interval(region)
+            except:
+                parser.error(f"Invalid -L/--region arg: {region}")
+
+            chrom = chrom.replace("chr", "").upper()
+            regions_interval_tree[chrom].add(Interval(start, end, data=argparse.Namespace(locus_id=region)))
+    else:
+        regions_interval_tree = None
 
     if not args.output_path:
         filename_prefix = re.sub("(.json|.bed)(.b?gz)?$", "", os.path.basename(args.variant_catalog_json_or_bed))
@@ -468,7 +482,7 @@ def main():
             chrom, start_0based, end = chrom_start_0based_end
             known_locus = get_overlap(
                 known_disease_associated_loci_interval_tree,  chrom, start_0based, end,
-                canonical_motif=canonical_motif, requiure_exact_locus_boundaries=True)
+                canonical_motif=canonical_motif, require_exact_locus_boundaries=True)
 
             if known_locus:
                 matched_known_disease_associated_locus = known_locus
@@ -498,6 +512,15 @@ def main():
                 spanning_interval_chrom = chrom
                 spanning_interval_start0_based = min(start_0based, spanning_interval_start0_based) if spanning_interval_start0_based is not None else start_0based
                 spanning_interval_end = max(end, spanning_interval_end) if spanning_interval_end is not None else end
+
+        if args.region:
+            if not get_overlap(regions_interval_tree,
+                                   spanning_interval_chrom,
+                                   spanning_interval_start0_based,
+                                   spanning_interval_end,
+                                   require_exact_locus_boundaries=False):
+                filter_counters[f"row doesn't overlap any region"] += 1
+                continue
 
         if not args.skip_gene_annotations:
             if args.genes_gtf:
