@@ -180,7 +180,8 @@ def get_strchive_dict(gnomad_catalog):
 
 	print("Downloading loci from STRchive")
 	strchive_data = get_json_from_url(
-		"https://raw.githubusercontent.com/dashnowlab/STRchive/refs/heads/main/data/STRchive-loci.json"
+		#"https://raw.githubusercontent.com/dashnowlab/STRchive/refs/heads/main/data/STRchive-loci.json"
+		"https://raw.githubusercontent.com/dashnowlab/STRchive/1954f32525846ae91363d3f308b840cbe772f01b/data/STRchive-loci.json"
 	)
 
 	strchive_id_to_gnomad_map = {
@@ -539,17 +540,17 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 						"VariantType": "Repeat",
 					})
 
-			#if locus_id in trgt_lookup:
-			#	output(output_file, f"%3s %-100s%{trgt_end-min_left_pos}s" % (
-			#		" ", f"{trgt_reference_region}  ({trgt_repeats:4.1f} x {trgt_canonical_motif}  {trgt_end - trgt_start:5d}bp) TRGT                        hg38 seq:", trgt_ref))
+			if locus_id in trgt_lookup:
+				output(output_file, f"%3s %-100s%{trgt_end-min_left_pos}s" % (
+					" ", f"{trgt_reference_region}  ({trgt_repeats:4.1f} x {trgt_canonical_motif}  {trgt_end - trgt_start:5d}bp) TRGT                        hg38 seq:", trgt_ref))
 
-			#	if gnomad_differs_from_strchive:
-			#		output_trgt_variant_catalog.append({
-			#			"LocusId": f"{locus_id}_TRGT",
-			#			"LocusStructure": trgt_info["LocusStructure"],
-			#			"ReferenceRegion": trgt_info["ReferenceRegion"],
-			#			"VariantType": "Repeat",
-			#		})
+				if gnomad_differs_from_strchive:
+					output_trgt_variant_catalog.append({
+						"LocusId": f"{locus_id}_TRGT",
+						"LocusStructure": trgt_info["LocusStructure"],
+						"ReferenceRegion": trgt_info["ReferenceRegion"],
+						"VariantType": "Repeat",
+					})
 
 
 	output(output_file, f"\n{counter:,d} out of {len(gnomad_records):,d} loci have a different hg38 ReferenceRegion or motif in gnomAD vs other catalogs")
