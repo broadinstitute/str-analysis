@@ -4,18 +4,20 @@ specs - one per repeat.
 """
 
 import argparse
-import ijson
+import collections
 import gzip
-import simplejson as json
+import ijson
 import re
 import tqdm
+from str_analysis.utils.eh_catalog_utils import parse_motifs_from_locus_structure
 
 from str_analysis.utils.misc_utils import parse_interval
-
+from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 
 
 def main():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    p.add_argument("--verbose", action="store_true", help="Print verbose output")
     p.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     p.add_argument("-o", "--output-file", help="bed file output path")
     p.add_argument("variant_catalog")
@@ -24,23 +26,24 @@ def main():
     if not args.output_file:
         args.output_file = re.sub(".json(.gz)?$", "", args.variant_catalog) + ".gangstr_spec.bed"
 
-    process_variant_catalog(args.variant_catalog, args.output_file, show_progress_bar=args.show_progress_bar)
+    process_variant_catalog(args.variant_catalog, args.output_file, verbose=args.verbose, show_progress_bar=args.show_progress_bar)
 
 
-def process_variant_catalog(variant_catalog_path, output_file_path, show_progress_bar=False):
+def process_variant_catalog(variant_catalog_path, output_file_path, verbose=False, show_progress_bar=False):
     print(f"Parsing {variant_catalog_path}")
     fopen = gzip.open if variant_catalog_path.endswith("gz") else open
     with fopen(variant_catalog_path, "rt") as f:
+        iterator = ijson.items(f, "item", use_float=True)
+        if show_progress_bar:
+            iterator = tqdm.tqdm(iterator, unit=" variant catalog records", unit_scale=True)
         with (gzip.open if output_file_path.endswith("gz") else open)(output_file_path, "wt") as f2:
-            iterator = ijson.items(f, "item", use_float=True)
-            if show_progress_bar:
-                iterator = tqdm.tqdm(iterator, unit=" variant catalog records", unit_scale=True)
-
+            counters = collections.Counter()
+            previously_seen_loci = set()  # dedup loci with identical chrom/start/end/canonical-motif
             for record in iterator:
-                locus_structure = record["LocusStructure"]
-                repeat_units = re.findall("[(]([A-Z]+)[)]", locus_structure)
-                if not repeat_units:
-                    raise ValueError(f"Unable to parse LocusStructure '{locus_structure}' in variant catalog record: {record}")
+                locus_id = record["LocusId"]
+                motifs = parse_motifs_from_locus_structure(record["LocusStructure"])
+                if not motifs:
+                    raise ValueError(f"Unable to parse LocusStructure '{record['LocusStructure']}' in variant catalog record: {record}")
 
                 reference_regions = record["ReferenceRegion"]
                 if not isinstance(reference_regions, list):
@@ -50,32 +53,44 @@ def process_variant_catalog(variant_catalog_path, output_file_path, show_progres
                 if not isinstance(variant_types, list):
                     variant_types = [variant_types]
 
-                if len(repeat_units) != len(reference_regions):
-                    raise ValueError(f"len(repeat_units) != len(reference_regions) in variant catalog record: {record}")
+                if len(motifs) != len(reference_regions):
+                    raise ValueError(f"len(motifs) != len(reference_regions) in variant catalog record: {record}")
 
-                if len(repeat_units) != len(variant_types):
-                    raise ValueError(f"len(repeat_units) != len(variant_types) in variant catalog record: {record}")
+                if len(motifs) != len(variant_types):
+                    raise ValueError(f"len(motifs) != len(variant_types) in variant catalog record: {record}")
 
                 offtarget_regions = record.get("OfftargetRegions", [])
-                for repeat_unit, variant_type, reference_region in zip(repeat_units, variant_types, reference_regions):
+                counters["loci"] += 1
+                for motif, variant_type, reference_region in zip(motifs, variant_types, reference_regions):
+                    counters["regions"] += 1
                     chrom, start_0based, end_1based = parse_interval(reference_region)
                     # trim the locus so that it's an exact multiple of the repeat unit size
-                    end_1based -= (end_1based - start_0based) % len(repeat_unit)
+                    end_1based -= (end_1based - start_0based) % len(motif)
                     if start_0based >= end_1based:
-                        print(f"WARNING: Skipping {repeat_unit} locus @ {chrom}:{start_0based}-{end_1based} because "
-                              f"the interval has a width = {end_1based - start_0based}bp")
+                        counters["skipped"] += 1
+                        if verbose:
+                            print(f"WARNING: Skipping record #{counters['skipped']} {locus_id} @ {chrom}:{start_0based}-{end_1based} because the interval has width {end_1based - start_0based}bp")
                         continue
 
+                    counters["output"] += 1
                     f2.write("\t".join(map(str, [
                         chrom,
                         start_0based + 1,  # GangSTR beds are 1-based
                         end_1based,
-                        len(repeat_unit),
-                        repeat_unit,
+                        len(motif),
+                        motif,
                         ",".join(offtarget_regions) if variant_type == "RareRepeat" else "",
                     ])) + "\n")
 
-    print(f"Wrote out {output_file_path}")
+                    canonical_motif = compute_canonical_motif(motif)
+                    key = (chrom, start_0based, end_1based, canonical_motif)
+                    if key in previously_seen_loci:
+                        counters["skipped"] += 1
+                        continue
+
+    print(f"Parsed {counters['loci']:,d} locus definitions containing {counters['regions']:,d} ReferenceRegions from {variant_catalog_path}")
+    print(f"Skipped {counters['skipped']:,d} records:")
+    print(f"Wrote out {counters['output']:,d} records to {output_file_path}")
 
 
 if __name__ == "__main__":

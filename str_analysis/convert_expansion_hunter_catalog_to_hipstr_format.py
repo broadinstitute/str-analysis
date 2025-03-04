@@ -59,7 +59,8 @@ def process_variant_catalog(variant_catalog_path, output_file_path, verbose=Fals
                     if start_0based >= end_1based:
                         counters["skipped"] += 1
                         counters["skipped_because_start_ge_end"] += 1
-                        print(f"WARNING: Skipping record #{counters['skipped']} {locus_id} because the interval has width {end_1based - start_0based}bp")
+                        if verbose:
+                            print(f"WARNING: Skipping record #{counters['skipped']} {locus_id} because the interval has width {end_1based - start_0based}bp")
                         continue
 
                     if len(motif) > 9 or (end_1based - start_0based) <= 1:
@@ -103,7 +104,6 @@ def process_variant_catalog(variant_catalog_path, output_file_path, verbose=Fals
         print(f"  - {counters['skipped_duplicate']:,d} records that were duplicates based on their [chrom, start, end, motif]")
 
     print(f"Wrote out {counters['output']:,d} records to {output_file_path}")
-
 
 
 if __name__ == "__main__":
