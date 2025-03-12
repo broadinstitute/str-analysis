@@ -246,7 +246,7 @@ MISSING_AGE_THRESHOLD = 0.5
 MISSING_PCR_PROTOCOL_THRESHOLD = 0.01
 
 # Expected number of known pathogenic repeats
-EXPECTED_N_KNOWN_PATHOGENIC_REPEATS = 73
+EXPECTED_N_KNOWN_PATHOGENIC_REPEATS = 78
 
 # gnomAD projects for which it's ok to release individual-level genotype data
 PUBLIC_PROJECT_NAMES = {"1000 Genomes Project", "Human Genome Diversity Project"}
@@ -648,22 +648,25 @@ def add_known_pathogenic_STR_annotations(args, gnomad_json):
             print(f"WARNING: STRipy page not found for {locus_id}")
 
     # Compute STRchive urls
-    for locus_id in gnomad_json:
-        if locus_id.startswith("ARX_"):
-            strchive_name = "ARX"
-        elif locus_id.startswith("HOXA13_"):
-            strchive_name = "HOXA13"
-        elif locus_id == "C9ORF72":
-            strchive_name = "C9orf72"
-        else:
-            strchive_name = locus_id
+    strchive_data_json = requests.get("https://raw.githubusercontent.com/dashnowlab/STRchive/refs/heads/main/data/STRchive-loci.json").json()
+    strchive_gene_to_id = {locus["gene"].upper(): locus["id"].upper() for locus in strchive_data_json}
+    strchive_gene_to_id["ARX_1"] = strchive_gene_to_id["ARX"]
+    strchive_gene_to_id["ARX_2"] = strchive_gene_to_id["ARX"]
+    strchive_gene_to_id["HOXA13_1"] = strchive_gene_to_id["HOXA13"]
+    strchive_gene_to_id["HOXA13_2"] = strchive_gene_to_id["HOXA13"]
+    strchive_gene_to_id["HOXA13_3"] = strchive_gene_to_id["HOXA13"]
+    del strchive_gene_to_id["ARX"]
+    del strchive_gene_to_id["HOXA13"]
 
-        strchive_url = f"https://strchive.org/database/{strchive_name}.html"
-        r = requests.get(strchive_url)
-        if r.ok and "invalid locus" not in r.content.decode("UTF-8").lower():
-            known_pathogenic_strs_info[locus_id]["STRchiveName"] = strchive_name
-        else:
-            print(f"WARNING: STRchive page not found for {locus_id}")
+    loci_missing_from_strchive = set(gnomad_json.keys()) - set(strchive_gene_to_id.keys())
+    for locus_id in loci_missing_from_strchive:
+        print(f"WARNING: {locus_id} is present in gnomAD but not in STRchive")
+    loci_missing_from_gnomad = set(strchive_gene_to_id.keys()) - set(gnomad_json.keys())
+    for locus_id in loci_missing_from_gnomad:
+        print(f"WARNING: {locus_id} is present in STRchive but not in gnomAD")
+
+    for locus_id in gnomad_json:
+        known_pathogenic_strs_info[locus_id]["STRchiveName"] = strchive_gene_to_id.get(locus_id)
 
     # Add the metadata to gnomad_json
     for locus_id in gnomad_json:
@@ -1352,4 +1355,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
