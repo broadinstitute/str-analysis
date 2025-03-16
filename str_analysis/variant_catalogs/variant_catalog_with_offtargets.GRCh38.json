@@ -2227,7 +2227,54 @@
                 "PathogenicMin": 9
             }
         ],
-        "MainReferenceRegion": "chr20:4699397-4699493"
+        "MainReferenceRegion": "chr20:4699397-4699493",
+        "Inheritance": "AD"
+    },
+    {
+        "LocusId": "RAI1",
+        "LocusStructure": "(TTTTA)*",
+        "ReferenceRegion": "chr17:17808416-17808460",
+        "RepeatUnit": "TTTTA",
+        "VariantType": "Repeat",
+        "Gene": "RAI1",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000108557",
+        "DiscoveryYear": 2024,
+        "Diseases": [
+            {
+                "Symbol": "FAME8",
+                "Name": "Familial adult myoclonic epilepsy type 8",
+                "Inheritance": "AD",
+                "OMIM": "601068",
+                "PathogenicMin": 9
+            }
+        ],
+        "OfftargetRegions": [
+            "chr10:94531487-94532013",
+            "chr13:71654237-71654677",
+            "chr17:46999846-47000288",
+            "chr20:17081089-17081531",
+            "chr21:23710971-23711386",
+            "chr22:21395520-21395928",
+            "chr2:44013201-44013638",
+            "chr4:21714633-21715248",
+            "chr4_KI270790v1_alt:200469-201085",
+            "chr5:116726213-116726658",
+            "chr5:55105820-55106484",
+            "chr7:151316374-151316835",
+            "chr7:75175257-75175679",
+            "chr9:110701505-110702081",
+            "chr9:25543141-25543554",
+            "chrX:6802782-6803290"
+        ],
+        "MainReferenceRegion": "chr17:17808416-17808460",
+        "PathogenicMotifs": [
+            "TTTCA"
+        ],
+        "BenignMotifs": [
+            "TTTTA"
+        ],
+        "Inheritance": "AD"
     },
     {
         "LocusId": "RAPGEF2",
