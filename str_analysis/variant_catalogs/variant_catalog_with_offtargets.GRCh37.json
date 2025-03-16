@@ -87,7 +87,7 @@
                 "Inheritance": "XR",
                 "OMIM": "313200",
                 "NormalMax": 35,
-                "PathogenicMin": 40
+                "PathogenicMin": 38
             }
         ],
         "OfftargetRegions": [
@@ -135,7 +135,7 @@
                 "Inheritance": "XR",
                 "OMIM": "300419",
                 "NormalMax": 16,
-                "PathogenicMin": 18
+                "PathogenicMin": 17
             }
         ],
         "OfftargetRegions": [
@@ -258,7 +258,7 @@
                 "Inheritance": "AD",
                 "OMIM": "125370",
                 "NormalMax": 23,
-                "PathogenicMin": 49
+                "PathogenicMin": 48
             }
         ],
         "OfftargetRegions": [
@@ -524,7 +524,7 @@
                 "Inheritance": "AD",
                 "OMIM": "608768",
                 "NormalMax": 37,
-                "PathogenicMin": 80,
+                "PathogenicMin": 71,
                 "IntermediateRange": "38-79"
             }
         ],
@@ -567,7 +567,7 @@
                 "Name": "Spinocerebellar ataxia 31",
                 "Inheritance": "AD",
                 "OMIM": "117210",
-                "PathogenicMin": 500
+                "PathogenicMin": 110
             }
         ],
         "OfftargetRegions": [
@@ -650,7 +650,7 @@
                 "Inheritance": "AD",
                 "OMIM": "183086",
                 "NormalMax": 18,
-                "PathogenicMin": 21,
+                "PathogenicMin": 20,
                 "IntermediateRange": "19-19"
             }
         ],
@@ -848,7 +848,7 @@
                 "Inheritance": "AD",
                 "OMIM": "136630",
                 "NormalMax": 23,
-                "PathogenicMin": 350
+                "PathogenicMin": 273
             }
         ],
         "OfftargetRegions": [
@@ -1042,7 +1042,7 @@
                 "Name": "Spinocerebellar ataxia 27B",
                 "Inheritance": "AD",
                 "OMIM": "620174",
-                "PathogenicMin": 335,
+                "PathogenicMin": 320,
                 "IntermediateRange": "250-335",
                 "NormalMax": 250
             }
@@ -1131,7 +1131,7 @@
                 "Inheritance": "AD",
                 "OMIM": "110100",
                 "NormalMax": 14,
-                "PathogenicMin": 19
+                "PathogenicMin": 15
             }
         ],
         "OfftargetRegions": [
@@ -1424,7 +1424,7 @@
                 "Inheritance": "AD",
                 "OMIM": "140000",
                 "NormalMax": 18,
-                "PathogenicMin": 24
+                "PathogenicMin": 22
             }
         ],
         "OfftargetRegions": [
@@ -1568,7 +1568,7 @@
                 "Inheritance": "AD",
                 "OMIM": "606438",
                 "NormalMax": 27,
-                "PathogenicMin": 41
+                "PathogenicMin": 40
             }
         ],
         "OfftargetRegions": [
@@ -1611,7 +1611,7 @@
                 "Inheritance": "AD",
                 "OMIM": "618637",
                 "NormalMax": 16,
-                "PathogenicMin": 700
+                "PathogenicMin": 161
             }
         ],
         "OfftargetRegions": [
@@ -1647,7 +1647,7 @@
                 "Inheritance": "AD",
                 "OMIM": "164310",
                 "NormalMax": 45,
-                "PathogenicMin": 93
+                "PathogenicMin": 85
             }
         ],
         "OfftargetRegions": [
@@ -2194,7 +2194,7 @@
                 "Inheritance": "AD",
                 "OMIM": "619790",
                 "NormalMax": 20,
-                "PathogenicMin": 135
+                "PathogenicMin": 120
             }
         ],
         "OfftargetRegions": [
@@ -2230,7 +2230,7 @@
                 "Inheritance": "AD",
                 "OMIM": "119600",
                 "NormalMax": 17,
-                "PathogenicMin": 27
+                "PathogenicMin": 20
             }
         ],
         "OfftargetRegions": [

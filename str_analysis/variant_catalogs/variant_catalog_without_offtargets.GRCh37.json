@@ -63,7 +63,7 @@
                 "Inheritance": "XR",
                 "OMIM": "313200",
                 "NormalMax": 35,
-                "PathogenicMin": 40
+                "PathogenicMin": 38
             }
         ],
         "MainReferenceRegion": "chrX:66765158-66765227",
@@ -93,7 +93,7 @@
                 "Inheritance": "XR",
                 "OMIM": "300419",
                 "NormalMax": 16,
-                "PathogenicMin": 18
+                "PathogenicMin": 17
             }
         ],
         "MainReferenceRegion": "chrX:25031766-25031814",
@@ -155,7 +155,7 @@
                 "Inheritance": "AD",
                 "OMIM": "125370",
                 "NormalMax": 23,
-                "PathogenicMin": 49
+                "PathogenicMin": 48
             }
         ],
         "MainReferenceRegion": "chr12:7045879-7045936",
@@ -324,7 +324,7 @@
                 "Inheritance": "AD",
                 "OMIM": "608768",
                 "NormalMax": 37,
-                "PathogenicMin": 80,
+                "PathogenicMin": 71,
                 "IntermediateRange": "38-79"
             }
         ],
@@ -348,7 +348,7 @@
                 "Name": "Spinocerebellar ataxia 31",
                 "Inheritance": "AD",
                 "OMIM": "117210",
-                "PathogenicMin": 500
+                "PathogenicMin": 110
             }
         ],
         "MainReferenceRegion": "chr16:66524301-66524356",
@@ -403,7 +403,7 @@
                 "Inheritance": "AD",
                 "OMIM": "183086",
                 "NormalMax": 18,
-                "PathogenicMin": 21,
+                "PathogenicMin": 20,
                 "IntermediateRange": "19-19"
             }
         ],
@@ -544,7 +544,7 @@
                 "Inheritance": "AD",
                 "OMIM": "136630",
                 "NormalMax": 23,
-                "PathogenicMin": 350
+                "PathogenicMin": 273
             }
         ],
         "MainReferenceRegion": "chr12:50898784-50898805",
@@ -670,7 +670,7 @@
                 "Name": "Spinocerebellar ataxia 27B",
                 "Inheritance": "AD",
                 "OMIM": "620174",
-                "PathogenicMin": 335,
+                "PathogenicMin": 320,
                 "IntermediateRange": "250-335",
                 "NormalMax": 250
             }
@@ -730,7 +730,7 @@
                 "Inheritance": "AD",
                 "OMIM": "110100",
                 "NormalMax": 14,
-                "PathogenicMin": 19
+                "PathogenicMin": 15
             }
         ],
         "MainReferenceRegion": "chr3:138664862-138664904",
@@ -884,7 +884,7 @@
                 "Inheritance": "AD",
                 "OMIM": "140000",
                 "NormalMax": 18,
-                "PathogenicMin": 24
+                "PathogenicMin": 22
             }
         ],
         "MainReferenceRegion": "chr7:27239297-27239351",
@@ -967,7 +967,7 @@
                 "Inheritance": "AD",
                 "OMIM": "606438",
                 "NormalMax": 27,
-                "PathogenicMin": 41
+                "PathogenicMin": 40
             }
         ],
         "MainReferenceRegion": "chr16:87637893-87637935",
@@ -991,7 +991,7 @@
                 "Inheritance": "AD",
                 "OMIM": "618637",
                 "NormalMax": 16,
-                "PathogenicMin": 700
+                "PathogenicMin": 161
             }
         ],
         "MainReferenceRegion": "chr10:81586139-81586160",
@@ -1015,7 +1015,7 @@
                 "Inheritance": "AD",
                 "OMIM": "164310",
                 "NormalMax": 45,
-                "PathogenicMin": 93
+                "PathogenicMin": 85
             }
         ],
         "MainReferenceRegion": "chr8:105601198-105601225",
@@ -1417,7 +1417,7 @@
                 "Inheritance": "AD",
                 "OMIM": "619790",
                 "NormalMax": 20,
-                "PathogenicMin": 135
+                "PathogenicMin": 120
             }
         ],
         "MainReferenceRegion": "chr12:124018267-124018297",
@@ -1441,7 +1441,7 @@
                 "Inheritance": "AD",
                 "OMIM": "119600",
                 "NormalMax": 17,
-                "PathogenicMin": 27
+                "PathogenicMin": 20
             }
         ],
         "MainReferenceRegion": "chr6:45390487-45390529",
