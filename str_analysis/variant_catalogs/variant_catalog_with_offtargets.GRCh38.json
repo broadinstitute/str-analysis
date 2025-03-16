@@ -1106,12 +1106,12 @@
         "GeneRegion": "coding: polyglutamine",
         "GeneId": "ENST00000389561",
         "Diseases": [
-         {
-          "Symbol": "EP400",
-          "Name": "Cerebellar Ataxia",
-          "Inheritance": "AD",
-          "PathogenicMin": 55
-         }
+            {
+                "Symbol": "EP400",
+                "Name": "Cerebellar Ataxia",
+                "Inheritance": "AD",
+                "PathogenicMin": 55
+            }
         ],
         "OfftargetRegions": [
             "chr12:65563559-65563902",
@@ -1889,6 +1889,29 @@
         ]
     },
     {
+        "LocusId": "NAXE",
+        "LocusStructure": "(GGGCC)*",
+        "ReferenceRegion": "chr1:156591765-156591780",
+        "VariantType": "RareRepeat",
+        "RepeatUnit": "GGGCC",
+        "Gene": "NAXE",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000163382",
+        "DiscoveryYear": "2024",
+        "Diseases": [
+            {
+                "Symbol": "NME",
+                "Name": "NAXE-related mitochondrial encephalopathy",
+                "Inheritance": "AR",
+                "OMIM": "617186",
+                "NormalMax": 7,
+                "PathogenicMin": 200
+            }
+        ],
+        "MainReferenceRegion": "chr1:156591765-156591780",
+        "Inheritance": "AR"
+    },
+    {
         "LocusId": "NIPA1",
         "LocusStructure": "(GCG)*",
         "ReferenceRegion": "chr15:22786677-22786701",
@@ -2199,6 +2222,26 @@
         "MainReferenceRegion": "chr9:130681606-130681639"
     },
     {
+        "LocusId": "PRE-MIR7-2",
+        "LocusStructure": "(TTTG)*",
+        "VariantType": "RareRepeat",
+        "ReferenceRegion": "chr15:88569433-88569449",
+        "RepeatUnit": "TTTG",
+        "Diseases": [
+            {
+                "Symbol": "CHNG3",
+                "Name": "Nongoitrous congenital hypothyroidism-3",
+                "Inheritance": "AD",
+                "OMIM": "609893",
+                "NormalMin": 4,
+                "PathogenicMin": 3,
+                "PathogenicMax": 3
+            }
+        ],
+        "MainReferenceRegion": "chr15:88569433-88569449",
+        "Inheritance": "AD"
+    },
+    {
         "LocusId": "PRNP",
         "LocusStructure": "(CCTCAGGGCGGTGGTGGCTGGGGGCAG)*(CCTCATGGTGGTGGCTGGGGGCAG)*",
         "VariantType": [
@@ -2235,7 +2278,7 @@
         "LocusStructure": "(TTTTA)*",
         "ReferenceRegion": "chr17:17808416-17808460",
         "RepeatUnit": "TTTTA",
-        "VariantType": "Repeat",
+        "VariantType": "RareRepeat",
         "Gene": "RAI1",
         "GeneRegion": "intron",
         "GeneId": "ENSG00000108557",
@@ -2269,10 +2312,10 @@
         ],
         "MainReferenceRegion": "chr17:17808416-17808460",
         "PathogenicMotifs": [
-            "TTTCA"
+            "ATTTC"
         ],
         "BenignMotifs": [
-            "TTTTA"
+            "ATTTT"
         ],
         "Inheritance": "AD"
     },

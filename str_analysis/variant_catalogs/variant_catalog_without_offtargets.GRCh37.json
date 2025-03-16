@@ -625,12 +625,12 @@
         "GeneRegion": "coding: polyglutamine",
         "GeneId": "ENST00000389561",
         "Diseases": [
-         {
-          "Symbol": "EP400",
-          "Name": "Cerebellar Ataxia",
-          "Inheritance": "AD",
-          "PathogenicMin": 55
-         }
+            {
+                "Symbol": "EP400",
+                "Name": "Cerebellar Ataxia",
+                "Inheritance": "AD",
+                "PathogenicMin": 55
+            }
         ],
         "MainReferenceRegion": "chr12:132547093-132547156",
         "Inheritance": "AD"
@@ -1326,12 +1326,12 @@
                 "PathogenicMin": 9
             }
         ],
-        "MainReferenceRegion": "chr17:17711730-177117744",
+        "MainReferenceRegion": "chr17:17711730-17711774",
         "PathogenicMotifs": [
-            "TTTCA"
+            "ATTTC"
         ],
         "BenignMotifs": [
-            "TTTTA"
+            "ATTTT"
         ],
         "Inheritance": "AD"
     },
