@@ -59,6 +59,18 @@
     },
     "UseOfftargetRegions": false
   },
+  "RAI1": {
+    "LocusCoords_1based": {
+      "38": "chr17:17808417-17808460",
+      "37": "17:17711731-17711774"
+    },
+    "Motifs": {
+      "REFERENCE": "ATTTT",
+      "BENIGN": ["ATTTT"],
+      "PATHOGENIC": ["ATTTC"]
+    },
+    "UseOfftargetRegions": false
+  },
   "RAPGEF2": {
     "LocusCoords_1based": {
       "38": "chr4:159342527-159342616",
