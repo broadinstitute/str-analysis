@@ -1404,7 +1404,7 @@
     {
         "LocusId": "RAI1",
         "LocusStructure": "(TTTTA)*",
-        "ReferenceRegion": "chr17:17808358-17808460",
+        "ReferenceRegion": "chr17:17808416-17808460",
         "RepeatUnit": "TTTTA",
         "VariantType": "Repeat",
         "Gene": "RAI1",
@@ -1420,7 +1420,7 @@
                 "PathogenicMin": 9
             }
         ],
-        "MainReferenceRegion": "chr17:17808358-17808460",
+        "MainReferenceRegion": "chr17:17808416-17808460",
         "PathogenicMotifs": [
             "TTTCA"
         ],
