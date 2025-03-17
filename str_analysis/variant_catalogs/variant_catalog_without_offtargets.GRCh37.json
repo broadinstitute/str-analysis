@@ -1263,6 +1263,8 @@
         "VariantType": "Repeat",
         "ReferenceRegion": "chr15:89112664-89112680",
         "RepeatUnit": "TTTG",
+        "Gene": "",
+        "GeneId": "",
         "GeneRegion": "intergenic",
         "Diseases": [
             {
