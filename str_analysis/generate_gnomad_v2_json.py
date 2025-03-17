@@ -493,10 +493,15 @@ def load_data_df(args):
         df = pd.merge(left=df, right=df_manual_review, how="left", left_on=("SampleId", "VariantId"), right_on=("SampleId", "VariantId"))
 
         print(set(df.columns))
-        # compue the number of manually reviewed samples per locus (eg. {'ABCD3': 29, 'AFF2': 231, 'AR': 28})
-        manual_reviews_per_locus = df_manual_review[~df_manual_review["ManualReview1GenotypeQuality"].isna()][["VariantId", "ManualReview1GenotypeQuality"]].groupby("VariantId").count()["ManualReview1GenotypeQuality"].to_dict()
+        # compute the number of manually reviewed samples per locus (eg. {'ABCD3': 29, 'AFF2': 231, 'AR': 28})
+        manual_reviews_per_locus = df_manual_review[~df_manual_review["ManualReviewGenotypeQualitySummary"].isna()][["VariantId", "ManualReviewGenotypeQualitySummary"]].groupby("VariantId").count()["ManualReviewGenotypeQualitySummary"].to_dict()
         # same thing for the merged df
-        df_manual_reviews_per_locus = df[~df["ManualReview1GenotypeQuality"].isna()][["LocusId", "ManualReview1GenotypeQuality"]].groupby("LocusId").count()["ManualReview1GenotypeQuality"].to_dict()
+        df_manual_reviews_per_locus = df[~df["ManualReviewGenotypeQualitySummary"].isna()][["LocusId", "ManualReviewGenotypeQualitySummary"]].groupby("LocusId").count()["ManualReviewGenotypeQualitySummary"].to_dict()
+
+        missing_loci = set(df.LocusId) - set(df_manual_reviews_per_locus.keys())
+        if missing_loci:
+            print(f"WARNING: Missing manual reviews for {len(missing_loci)} loci: {', '.join(sorted(missing_loci))}")
+
         # check that merge was successful without creating duplicates etc.
         for locus_id, manual_reviews in manual_reviews_per_locus.items():
             if locus_id not in df_manual_reviews_per_locus:
@@ -505,7 +510,7 @@ def load_data_df(args):
                 print(f"Expected {manual_reviews} manual reviews for locus {locus_id}, but found {df_manual_reviews_per_locus[locus_id]}")
 
         for column in ["ManualReview1GenotypeQuality", "ManualReview2GenotypeQuality", "ManualReviewGenotypeQualitySummary"]:
-            df[column] = df[column].fillna("not-reviewed")
+            df[column] = df[column].str.replace("NotReviewed", "not-reviewed").fillna("not-reviewed")
 
     # Parse gnomAD metadata tsv
     print(f"Loading {args.gnomad_metadata_tsv}")
@@ -936,9 +941,9 @@ def add_histograms_and_compute_readviz_paths(
             "PublicSampleId": public_sample_id,
             "Q": row["Q"],
             "Filter": row["Filter"],
-            "ManualReview1GenotypeQuality": row.get("ManualReview1GenotypeQuality"),
-            "ManualReview2GenotypeQuality": row.get("ManualReview2GenotypeQuality"),
-            "ManualReviewGenotypeQualitySummary": row.get("ManualReviewGenotypeQualitySummary"),
+            #"ManualReview1GenotypeQuality": row.get("ManualReview1GenotypeQuality"),
+            #"ManualReview2GenotypeQuality": row.get("ManualReview2GenotypeQuality"),
+            "ManualReviewGenotypeQuality": row.get("ManualReviewGenotypeQualitySummary"),
         }
 
         if public_sample_id:
@@ -990,9 +995,9 @@ def add_histograms_and_compute_readviz_paths(
                 "ReadvizFilename": encrypted_svg_filename,
                 "Q": row["Q"] if not pd.isna(row["Q"]) else None,
                 "Filter": row["Filter"] if not pd.isna(row["Filter"]) else None,
-                "ManualReview1GenotypeQuality": row.get("ManualReview1GenotypeQuality"),
-                "ManualReview2GenotypeQuality": row.get("ManualReview2GenotypeQuality"),
-                "ManualReviewGenotypeQualitySummary": row.get("ManualReviewGenotypeQualitySummary"),
+                #"ManualReview1GenotypeQuality": row.get("ManualReview1GenotypeQuality"),
+                #"ManualReview2GenotypeQuality": row.get("ManualReview2GenotypeQuality"),
+                "ManualReviewGenotypeQuality": row.get("ManualReviewGenotypeQualitySummary"),
             }
 
             if public_sample_id and public_project_id:
