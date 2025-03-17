@@ -507,7 +507,8 @@ def load_data_df(args):
             if locus_id not in df_manual_reviews_per_locus:
                 df_manual_reviews_per_locus[locus_id] = 0
             if manual_reviews != df_manual_reviews_per_locus[locus_id]:
-                print(f"Expected {manual_reviews} manual reviews for locus {locus_id}, but found {df_manual_reviews_per_locus[locus_id]}")
+                sample_id_in_manual_review_table_only = set(df_manual_review[df_manual_review["VariantId"] == locus_id]["SampleId"]) - set(df[df["LocusId"] == locus_id]["SampleId"])
+                print(f"Expected {manual_reviews} manual reviews for locus {locus_id}, but found {df_manual_reviews_per_locus[locus_id]}. Issue with merging SampleIds: {', '.join(sample_id_in_manual_review_table_only)}")
 
         for column in ["ManualReview1GenotypeQuality", "ManualReview2GenotypeQuality", "ManualReviewGenotypeQualitySummary"]:
             df[column] = df[column].str.replace("NotReviewed", "not-reviewed").fillna("not-reviewed")
