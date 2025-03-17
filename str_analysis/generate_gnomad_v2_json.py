@@ -440,7 +440,7 @@ def parse_expansion_hunter_tsv_and_non_ref_motif_tsv(expansion_hunter_tsv, non_r
         non_ref_motifs_df.loc[:, "ReadvizFilename"] = None if no_readviz_images else non_ref_motifs_df["expansion_hunter_call_reviewer_svg"]
         non_ref_motifs_df = non_ref_motifs_df[expansion_hunter_table_columns]
 
-        df = df[~df["LocusId"].isin(set(non_ref_motifs_df["LocusId"]))]
+        df = df[~df["LocusId"].isin(set(non_ref_motifs_df["LocusId"]) | {"RAI1",})]
         df = pd.concat([df, non_ref_motifs_df])
 
     df["Q"] = df.apply(compute_genotype_Q, axis=1)
@@ -649,7 +649,14 @@ def add_known_pathogenic_STR_annotations(args, gnomad_json):
 
     # Compute STRchive urls
     strchive_data_json = requests.get("https://raw.githubusercontent.com/dashnowlab/STRchive/refs/heads/main/data/STRchive-loci.json").json()
-    strchive_gene_to_id = {locus["gene"].upper(): locus["id"].upper() for locus in strchive_data_json}
+    strchive_gene_to_id = {}
+    for locus in strchive_data_json:
+        strchive_gene = locus["gene"].upper()
+        strchive_locus_id = locus["id"].upper()
+        if strchive_gene in strchive_gene_to_id:
+            print(f"WARNING: {strchive_gene} already has an ID in strchive_gene_to_id: {strchive_gene_to_id[strchive_gene]}")
+        strchive_gene_to_id[strchive_gene] = strchive_locus_id
+
     strchive_gene_to_id["ARX_1"] = strchive_gene_to_id["ARX"]
     strchive_gene_to_id["ARX_2"] = strchive_gene_to_id["ARX"]
     strchive_gene_to_id["HOXA13_1"] = strchive_gene_to_id["HOXA13"]
@@ -1334,9 +1341,9 @@ def main():
         "GenotypeConfidenceIntervalUsingOfftargetRegions",
         "Filter",
         "Q",
-        "ManualReview1GenotypeQuality",
-        "ManualReview2GenotypeQuality",
-        "ManualReviewGenotypeQualitySummary",
+        #"ManualReview1GenotypeQuality",
+        #"ManualReview2GenotypeQuality",
+        "ManualReviewGenotypeQuality",
         "ReadvizFilename",
         "PublicProjectId",
         "PublicSampleId",
