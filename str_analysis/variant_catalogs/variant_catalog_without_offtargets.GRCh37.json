@@ -15,6 +15,7 @@
                 "Symbol": "OPDM",
                 "Name": "Oculopharyngodistal myopathy (OPDM)",
                 "Inheritance": "AD",
+                "NormalMax": 44,
                 "PathogenicMin": 118
             }
         ],
@@ -38,7 +39,7 @@
                 "Name": "FRAXE mental retardation",
                 "Inheritance": "XR",
                 "OMIM": "309548",
-                "NormalMax": 25,
+                "NormalMax": 39,
                 "PathogenicMin": 200
             }
         ],
@@ -154,7 +155,7 @@
                 "Name": "Dentatorubral-pallidoluysian atrophy",
                 "Inheritance": "AD",
                 "OMIM": "125370",
-                "NormalMax": 23,
+                "NormalMax": 35,
                 "PathogenicMin": 48
             }
         ],
@@ -178,7 +179,7 @@
                 "Name": "Spinocerebellar ataxia 1",
                 "Inheritance": "AD",
                 "OMIM": "164400",
-                "NormalMax": 32,
+                "NormalMax": 35,
                 "PathogenicMin": 39,
                 "IntermediateRange": "36-38"
             }
@@ -203,7 +204,7 @@
                 "Name": "Spinocerebellar ataxia 10",
                 "Inheritance": "AD",
                 "OMIM": "603516",
-                "NormalMax": 29,
+                "NormalMax": 32,
                 "PathogenicMin": 800,
                 "IntermediateRange": "30-799"
             }
@@ -323,7 +324,7 @@
                 "Name": "Spinocerebellar ataxia 8",
                 "Inheritance": "AD",
                 "OMIM": "608768",
-                "NormalMax": 37,
+                "NormalMax": 50,
                 "PathogenicMin": 71,
                 "IntermediateRange": "38-79"
             }
@@ -493,6 +494,7 @@
                 "Name": "Epilepsy Progressive Myoclonic",
                 "Inheritance": "AR",
                 "OMIM": "254800",
+                "NormalMax": 3,
                 "PathogenicMin": 30
             }
         ],
@@ -695,7 +697,7 @@
                 "Name": "Fragile X tremor/ataxia syndrome",
                 "Inheritance": "XD",
                 "OMIM": "300623",
-                "NormalMax": 40,
+                "NormalMax": 44,
                 "PathogenicMin": 55,
                 "IntermediateRange": "41-54"
             },
@@ -704,7 +706,7 @@
                 "Name": "Fragile X Syndrome",
                 "Inheritance": "XD",
                 "OMIM": "300624",
-                "NormalMax": 40,
+                "NormalMax": 44,
                 "PathogenicMin": 201,
                 "IntermediateRange": "41-54"
             }
@@ -763,7 +765,7 @@
                 "Name": "Friedreich ataxia",
                 "Inheritance": "AR",
                 "OMIM": "229300",
-                "NormalMax": 30,
+                "NormalMax": 33,
                 "PathogenicMin": 66
             }
         ],
@@ -811,7 +813,7 @@
                 "Name": "Glutaminase deficiency with impaired intellectual development and progressive ataxia",
                 "Inheritance": "AR",
                 "OMIM": "618412",
-                "NormalMax": 26,
+                "NormalMax": 38,
                 "PathogenicMin": 680
             }
         ],
@@ -966,7 +968,7 @@
                 "Name": "Huntington disease-like 2",
                 "Inheritance": "AD",
                 "OMIM": "606438",
-                "NormalMax": 27,
+                "NormalMax": 28,
                 "PathogenicMin": 40
             }
         ],
@@ -1226,7 +1228,7 @@
                 "Name": "Spinocerebellar ataxia 12",
                 "Inheritance": "AD",
                 "OMIM": "604326",
-                "NormalMax": 31,
+                "NormalMax": 32,
                 "PathogenicMin": 51
             }
         ],
@@ -1601,7 +1603,7 @@
                 "Name": "Fuchs endothelial corneal dystrophy-3",
                 "Inheritance": "AD",
                 "OMIM": "613267",
-                "NormalMax": 31,
+                "NormalMax": 39,
                 "PathogenicMin": 50
             }
         ],
@@ -1752,7 +1754,7 @@
                 "Name": "Spinocerebellar ataxia 4",
                 "Inheritance": "AD",
                 "OMIM": "600223",
-                "NormalMax": 21,
+                "NormalMax": 26,
                 "PathogenicMin": 41
             }
         ],
