@@ -116,6 +116,11 @@ for json_path_without_offtargets, json_path_with_offtargets in json_path_pairs:
     for record_without_offtargets in catalog_without_offtargets:
         locus_id = record_without_offtargets["LocusId"]
         record_with_offtargets = next((r for r in catalog_with_offtargets if r["LocusId"] == locus_id), None)
+
+        # sync "Inheritance" field
+        #if "Inheritance" in record_without_offtargets:
+        #    record_with_offtargets["Inheritance"]  = record_without_offtargets["Inheritance"]
+
         if not record_with_offtargets:
             print(f"ERROR: {locus_id} not found in {json_path_with_offtargets}")
             continue
@@ -142,7 +147,8 @@ for json_path_without_offtargets, json_path_with_offtargets in json_path_pairs:
             elif record_without_offtargets[key] != record_with_offtargets[key]:
                 print(f"ERROR: {key} mismatch in {json_path_without_offtargets} {locus_id}: {record_without_offtargets[key]} != {record_with_offtargets[key]}")
                 continue
-
+    #with open(json_path_with_offtargets, "wt") as f:
+    #    json.dump(catalog_with_offtargets, f, indent=4)
 #%%
 
 os.chdir("../gnomad_notes")
