@@ -13,7 +13,7 @@
         "Diseases": [
             {
                 "Symbol": "OPDM",
-                "Name": "Oculopharyngodistal myopathy (OPDM)",
+                "Name": "Oculopharyngodistal myopathy",
                 "Inheritance": "AD",
                 "NormalMax": 44,
                 "PathogenicMin": 118
