@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install --no-install-recommends --yes \
     procps \
     git \
     gcc \
+    g++ \
     make \
     autoconf \
     unzip \
