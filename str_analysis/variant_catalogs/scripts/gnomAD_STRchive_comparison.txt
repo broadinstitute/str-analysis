@@ -47,7 +47,7 @@ Age of Onset:
                 DMPK                    Paediatric/Adult       Typical: 10-30 [@genereviews:NBK1165]; Range: 0-74 [@pmid:38454488].                                
               EIF4A3                          Paediatric       0 (birth)                                                                                           
                FGF14                               Adult       Typical: 42-70; Range: 21-87 [@genereviews:NBK599589; @pmid:39263992].                              
-                FMR1                   Adult, Paediatric       Typical: FXS 1 to 'first several years of life', FXTAS 60-65 [@genereviews:NBK1384]; Range: 0 [@url:https://www.uptodate.com/contents/fragile-x-syndrome-clinical-features-and-diagnosis-in-children-and-adolescents] - 78 [@pmid:17427188]; detailed description of typical symptom onset and diagnosis available from Arnold et al [@isbn:978-3-031-66932-3].
+                FMR1                   Paediatric, Adult       Typical: FXS 1 to 'first several years of life', FXTAS 60-65 [@genereviews:NBK1384]; Range: 0 [@url:https://www.uptodate.com/contents/fragile-x-syndrome-clinical-features-and-diagnosis-in-children-and-adolescents] - 78 [@pmid:17427188]; detailed description of typical symptom onset and diagnosis available from Arnold et al [@isbn:978-3-031-66932-3].
                FOXL2                          Paediatric       0 (birth)                                                                                           
                  FXN                          Paediatric       Typical: 10-15; Range: 2-80 [@genereviews:NBK1281].                                                 
                GIPC1                               Adult       Typical: 20-34 [@pmid:32413282]; Range: 14 [@pmid:32413282] - 70 [@pmid:33374016].                  
@@ -111,37 +111,23 @@ PathogenicMin for XYLT1  differs between gnomAD (110) and STRchive (72)
 PathogenicMin for ZFHX3  differs between gnomAD (41) and STRchive (46)
 PathogenicMin for ZNF713 is set to 450 in STRchive but not in gnomAD
 ------
-NormalMax for ABCD3  is set to 44 in STRchive but not in gnomAD
-NormalMax for AFF2   differs between gnomAD (25) and STRchive (39)
 NormalMax for AFF3   is set to 20 in STRchive but not in gnomAD
 NormalMax for AR     differs between gnomAD (35) and STRchive (34)
-NormalMax for ATN1   differs between gnomAD (23) and STRchive (35)
-NormalMax for ATXN1  differs between gnomAD (32) and STRchive (35)
-NormalMax for ATXN10 differs between gnomAD (29) and STRchive (32)
 NormalMax for ATXN2  differs between gnomAD (31) and STRchive (30)
 NormalMax for ATXN7  differs between gnomAD (33) and STRchive (27)
-NormalMax for ATXN8OS differs between gnomAD (37) and STRchive (50)
 NormalMax for CBL    is set to 79 in STRchive but not in gnomAD
 NormalMax for CNBP   differs between gnomAD (54) and STRchive (26)
 NormalMax for COMP   is set to 5 in STRchive but not in gnomAD
-NormalMax for CSTB   is set to 3 in STRchive but not in gnomAD
 NormalMax for DAB1   is set to 30 in STRchive but not in gnomAD
 NormalMax for DMD    is set to 33 in STRchive but not in gnomAD
 NormalMax for EIF4A3 differs between gnomAD (11) and STRchive (12)
 NormalMax for FGF14  differs between gnomAD (250) and STRchive (179)
-NormalMax for FMR1   differs between gnomAD (40) and STRchive (44)
-NormalMax for FXN    differs between gnomAD (30) and STRchive (33)
-NormalMax for GLS    differs between gnomAD (26) and STRchive (38)
-NormalMax for JPH3   differs between gnomAD (27) and STRchive (28)
 NormalMax for NOTCH2NLC differs between gnomAD (41) and STRchive (37)
 NormalMax for PABPN1 differs between gnomAD (6) and STRchive (10)
-NormalMax for PPP2R2B differs between gnomAD (31) and STRchive (32)
 NormalMax for PRE-MIR7-2 is set to 4 in STRchive but not in gnomAD
 NormalMax for RFC1   is set to 11 in STRchive but not in gnomAD
 NormalMax for RILPL1 differs between gnomAD (20) and STRchive (16)
 NormalMax for TBP    differs between gnomAD (42) and STRchive (40)
-NormalMax for TCF4   differs between gnomAD (31) and STRchive (39)
-NormalMax for ZFHX3  differs between gnomAD (21) and STRchive (26)
 NormalMax for ZNF713 is set to 22 in STRchive but not in gnomAD
 ------
 ABCD3 hg38 ReferenceRegion isn't the same between gnomAD and STRchive

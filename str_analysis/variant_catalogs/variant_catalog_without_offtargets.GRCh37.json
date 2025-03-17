@@ -1383,6 +1383,7 @@
                 "Name": "Cerebellar ataxia, neuropathy, and vestibular areflexia syndrome",
                 "Inheritance": "AR",
                 "OMIM": "614575",
+                "NormalMax": 11,
                 "PathogenicMin": 400
             }
         ],
