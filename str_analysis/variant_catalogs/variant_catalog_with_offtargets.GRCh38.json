@@ -154,7 +154,7 @@
         "Diseases": [
             {
                 "Symbol": "DEE1",
-                "Name": "Developmental and epileptic encephalopathy-1",
+                "Name": "Developmental and epileptic encephalopathy 1",
                 "Inheritance": "XR",
                 "OMIM": "308350",
                 "NormalMax": 16,
@@ -893,7 +893,7 @@
         "Diseases": [
             {
                 "Symbol": "EPM1",
-                "Name": "Epilepsy Progressive Myoclonic",
+                "Name": "Progressive myoclonic epilepsy type 1",
                 "Inheritance": "AR",
                 "OMIM": "254800",
                 "NormalMax": 3,
@@ -1269,7 +1269,7 @@
             },
             {
                 "Symbol": "FXS",
-                "Name": "Fragile X Syndrome",
+                "Name": "Fragile X syndrome",
                 "Inheritance": "XD",
                 "OMIM": "300624",
                 "NormalMax": 44,
@@ -2243,7 +2243,7 @@
         "Diseases": [
             {
                 "Symbol": "HSAN8",
-                "Name": "Hereditary sensory and autonomic neuropathy type VIII",
+                "Name": "Hereditary sensory and autonomic neuropathy type 8",
                 "Inheritance": "AR",
                 "OMIM": "616488",
                 "NormalMax": 14,
@@ -2273,6 +2273,7 @@
         "VariantType": "RareRepeat",
         "ReferenceRegion": "chr15:88569433-88569449",
         "RepeatUnit": "TTTG",
+        "GeneRegion": "intergenic",
         "Diseases": [
             {
                 "Symbol": "CHNG3",
@@ -2824,7 +2825,7 @@
         "Diseases": [
             {
                 "Symbol": "FECD3",
-                "Name": "Fuchs endothelial corneal dystrophy-3",
+                "Name": "Fuchs endothelial corneal dystrophy 3",
                 "Inheritance": "AD",
                 "OMIM": "613267",
                 "NormalMax": 39,
@@ -2866,7 +2867,7 @@
         "Diseases": [
             {
                 "Symbol": "SCA",
-                "Name": "Spinocerebellar Ataxia",
+                "Name": "Spinocerebellar ataxia",
                 "Inheritance": "AD",
                 "NormalMax": 38,
                 "PathogenicMin": 45
@@ -3012,7 +3013,7 @@
         "Diseases": [
             {
                 "Symbol": "DBQD2",
-                "Name": "Desbuquois dysplasia-2",
+                "Name": "Desbuquois dysplasia 2",
                 "Inheritance": "AR",
                 "OMIM": "615777",
                 "NormalMax": 20,
