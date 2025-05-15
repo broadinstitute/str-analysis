@@ -15,7 +15,7 @@ def get_reference_sequence_with_cache(fasta_obj, chrom, start_0based, end):
     """
 
     if chrom not in fasta_obj:
-        raise ValueError(f"Chromosome name {chrom} doesn't match any chromosome in the reference genome: {fasta_obj.keys()}")
+        raise ValueError(f"Chromosome name {chrom} doesn't match any chromosome in the reference genome: {fasta_obj.keys() if hasattr(fasta_obj, 'keys') else fasta_obj.references}")
 
     if chrom not in REFERENCE_CACHE:
         REFERENCE_CACHE[chrom] = str(fasta_obj[chrom])
@@ -24,7 +24,7 @@ def get_reference_sequence_with_cache(fasta_obj, chrom, start_0based, end):
 
 def get_chromosome_size_with_cache(fasta_obj, chrom):
     if chrom not in fasta_obj:
-        raise ValueError(f"Chromosome name {chrom} doesn't match any chromosome in the reference genome: {fasta_obj.keys()}")
+        raise ValueError(f"Chromosome name {chrom} doesn't match any chromosome in the reference genome: {fasta_obj.keys() if hasattr(fasta_obj, 'keys') else fasta_obj.references}")
 
     if chrom not in REFERENCE_CACHE:
         REFERENCE_CACHE[chrom] = str(fasta_obj[chrom])
@@ -74,4 +74,3 @@ def get_chromosome_sizes(fasta_path):
             size = int(fields[1])
             chrom_size_lookup[chrom] = size
     return chrom_size_lookup
-

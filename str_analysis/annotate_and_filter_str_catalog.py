@@ -76,6 +76,8 @@ def parse_args():
     filter_group.add_argument("--min-motif-size", type=int, help="Minimum motif size to include in the output catalog")
     filter_group.add_argument("--max-motif-size", type=int, help="Maximum motif size to include in the output catalog")
     filter_group.add_argument("-ms", "--motif-size", type=int, action="append", help="Only include loci with these motif sizes")
+    filter_group.add_argument("-xms", "--exclude-motif-size", type=int, action="append", help="Exclude loci with these motif sizes")
+
     filter_group.add_argument("-m", "--motif", action="append", help="Only include loci whose canonical motif matched "
                                                                      "the canonical motif version of the given motif")
 
@@ -312,6 +314,11 @@ def main():
     # get fasta chrom sizes
     ref_fasta = pysam.FastaFile(args.reference_fasta)
 
+    does_chrom_start_with_chr = ref_fasta.references[0].startswith("chr")
+    def normalize_chrom(chrom):
+        chrom_without_prefix = chrom.replace("chr", "")
+        return f"chr{chrom_without_prefix}" if does_chrom_start_with_chr else chrom_without_prefix
+
     ref_fasta_chromosome_sizes = dict(zip(ref_fasta.references, ref_fasta.lengths))
 
     # download and open the mappability bigWig file
@@ -338,8 +345,7 @@ def main():
             except:
                 parser.error(f"Invalid -L/--region arg: {region}")
 
-            chrom = chrom.replace("chr", "").upper()
-            regions_interval_tree[chrom].add(Interval(start, end, data=argparse.Namespace(locus_id=region)))
+            regions_interval_tree[normalize_chrom(chrom)].add(Interval(start, end, data=argparse.Namespace(locus_id=region)))
     else:
         regions_interval_tree = None
 
@@ -447,6 +453,7 @@ def main():
 
         # parse intervals
         chroms_start_0based_ends = [parse_interval(reference_region) for reference_region in reference_regions]
+        chroms_start_0based_ends = [(normalize_chrom(chrom), start_0based, end_1based) for chrom, start_0based, end_1based in chroms_start_0based_ends]
         canonical_motifs = [compute_canonical_motif(motif) for motif in motifs]
 
         # apply motif size and motif filters
@@ -458,6 +465,9 @@ def main():
             continue
         if args.motif_size and all(len(motif) not in args.motif_size for motif in motifs):
             filter_counters[f"motif size(s) not in {args.motif_size}"] += 1
+            continue
+        if args.exclude_motif_size and any(len(motif) in args.exclude_motif_size for motif in motifs):
+            filter_counters[f"motif size(s) in {args.exclude_motif_size}"] += 1
             continue
         if args.motif:
             args_canonical_motif_set = {compute_canonical_motif(motif) for motif in args.motif}
@@ -570,6 +580,7 @@ def main():
                     filter_counters[f"row {gene_models_source}GeneId is one of {args.exclude_gene_id}"] += 1
                     continue
 
+
         # annotate repeat purity in the reference genome
         num_repeats_in_reference_list = []
         fraction_pure_bases_list = []
@@ -577,7 +588,8 @@ def main():
         overlaps_other_interval_with_similar_motif = False
         has_invalid_bases = False
         for (chrom, start_0based, end), motif in zip(chroms_start_0based_ends, motifs):
-            ref_fasta_sequence = ref_fasta.fetch(chrom, start_0based, end)  # fetch uses 0-based coords
+
+            ref_fasta_sequence = ref_fasta.fetch(normalize_chrom(chrom), start_0based, end)  # fetch uses 0-based coords
             ref_fasta_sequence = ref_fasta_sequence.upper()
 
             if ((args.discard_loci_with_non_ACGT_bases_in_motif and not ACGT_REGEX.match(motif)) or
