@@ -292,10 +292,14 @@ def parse_bed_to_interval_tree(bed_file_path, name_field_is_repeat_unit=False, v
         if n is not None and i >= n:
             break
 
-        fields = line.strip().split("\t")
-        chrom = fields[0].replace("chr", "")
-        start_0based = int(fields[1])
-        end_1based = int(fields[2])
+        try:
+            fields = line.strip().split("\t")
+            chrom = fields[0].replace("chr", "")
+            start_0based = int(fields[1])
+            end_1based = int(fields[2])
+        except Exception as e:
+            raise ValueError(f"Unable to parse line #{i} in file {bed_file_path}: {e}")
+            
         if not name_field_is_repeat_unit:
             interval = Interval(start_0based, end_1based, data=None)
         else:
