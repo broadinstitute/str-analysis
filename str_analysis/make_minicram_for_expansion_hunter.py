@@ -25,7 +25,6 @@ import tempfile
 import time
 
 from google.cloud import storage
-import hailtop.fs as hfs
 
 from str_analysis.make_bamlet import extract_region
 from str_analysis.utils.cram_bam_utils import IntervalReader
