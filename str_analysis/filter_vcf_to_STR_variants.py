@@ -21,7 +21,7 @@ from str_analysis.utils.find_repeat_unit import find_repeat_unit_allowing_interr
 from str_analysis.utils.find_repeat_unit import find_repeat_unit_without_allowing_interruptions
 from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_allowing_interruptions
 from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_without_allowing_interruptions
-
+from utils.file_utils import open_file
 
 COMMON_TSV_OUTPUT_COLUMNS = [
     "Chrom",
@@ -1064,7 +1064,7 @@ def main():
         print(f"Fetching interval(s):", ", ".join(args.interval))
         vcf_iterator = (line for interval in args.interval for line in tabix_file.fetch(interval))
     else:
-        vcf_iterator = fopen(args.input_vcf_path, "rt")
+        vcf_iterator = open_file(args.input_vcf_path, is_text_file=True)
 
     if args.show_progress_bar:
         vcf_iterator = tqdm.tqdm(vcf_iterator, unit=" rows")

@@ -2,11 +2,11 @@ import logging
 logging.getLogger('asyncio').setLevel(logging.CRITICAL)
 
 import gzip
-import hailtop.fs as hfs
 import io
 import os
 import re
 import requests
+import sys
 import tempfile
 
 from google.cloud import storage
@@ -26,6 +26,11 @@ def open_file(path, *, download_local_copy_before_opening=False, gunzip=False, i
     path = os.path.expanduser(path)
     mode = "r"
     if path.startswith("gs://"):
+        try: import hailtop.fs as hfs
+        except ImportError:
+            print("ERROR: Hail is not installed. Please run: python3 -m pip install hail")
+            sys.exit(1)
+
         file = hfs.open(path, f"{mode}b", requester_pays_config=gcloud_requester_pays_project)
         if gunzip or path.endswith("gz"):
             file = gzip.GzipFile(fileobj=file, mode=mode)
@@ -47,6 +52,10 @@ def open_file(path, *, download_local_copy_before_opening=False, gunzip=False, i
 
 def file_exists(path):
     if path.startswith("gs://"):
+        try: import hailtop.fs as hfs
+        except ImportError:
+            print("ERROR: Hail is not installed. Please run: python3 -m pip install hail")
+            sys.exit(1)
         return hfs.exists(path, requester_pays_config=gcloud_requester_pays_project)
 
     path = os.path.expanduser(path)
@@ -55,6 +64,10 @@ def file_exists(path):
 
 def get_file_size(path):
     if path.startswith("gs://"):
+        try: import hailtop.fs as hfs
+        except ImportError:
+            print("ERROR: Hail is not installed. Please run: python3 -m pip install hail")
+            sys.exit(1)
         return hfs.stat(path, requester_pays_config=gcloud_requester_pays_project).size
     else:
         return os.path.getsize(os.path.expanduser(path))
@@ -69,6 +82,10 @@ def download_local_copy(url_or_google_storage_path, verbose=False):
         if not os.path.isfile(path):
             if verbose:
                 print(f"Downloading {url_or_google_storage_path} to {path}")
+            try: import hailtop.fs as hfs
+            except ImportError:
+                print("ERROR: Hail is not installed. Please run: python3 -m pip install hail")
+                sys.exit(1)
             hfs.copy(url_or_google_storage_path, f"{path}.temp", requester_pays_config=gcloud_requester_pays_project)
             os.rename(f"{path}.temp", path)
     else:
