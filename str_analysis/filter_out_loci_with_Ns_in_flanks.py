@@ -12,6 +12,7 @@ import tqdm
 
 from str_analysis.utils.eh_catalog_utils import get_variant_catalog_iterator
 from str_analysis.utils.misc_utils import parse_interval
+from str_analysis.utils.fasta_utils import create_normalize_chrom_function
 
 # based on https://github.com/Illumina/ExpansionHunter/blob/master/ehunter/io/LocusSpecDecoding.cpp#L70-L79
 MAX_N_IN_FLANKS = 5
@@ -65,6 +66,10 @@ def main():
 			reference_region_chrom, reference_region_start_0based, reference_region_end = parse_interval(
 				record["ReferenceRegion"])
 
+		has_chr_prefix = next(iter(fasta_obj.keys())).startswith("chr")
+		normalize_chrom = create_normalize_chrom_function(has_chr_prefix=has_chr_prefix)
+		reference_region_chrom = normalize_chrom(reference_region_chrom)
+
 		left_flank_start = max(reference_region_start_0based - num_flanking_bases, 0)
 		right_flank_end = min(reference_region_end + num_flanking_bases, len(fasta_obj[reference_region_chrom]))
 
@@ -97,4 +102,3 @@ def main():
 
 if __name__ == "__main__":
 	main()
-
