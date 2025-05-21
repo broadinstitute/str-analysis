@@ -74,3 +74,10 @@ def get_chromosome_sizes(fasta_path):
             size = int(fields[1])
             chrom_size_lookup[chrom] = size
     return chrom_size_lookup
+
+
+def create_normalize_chrom_function(has_chr_prefix=False):
+    def normalize_chrom(chrom):
+        chrom_without_prefix = chrom.replace("chr", "")
+        return f"chr{chrom_without_prefix}" if has_chr_prefix else chrom_without_prefix
+    return normalize_chrom

@@ -6,14 +6,17 @@ import argparse
 import gzip
 import ijson
 import os
+import pysam
 import re
 import tqdm
 
 from str_analysis.utils.misc_utils import parse_interval
+from str_analysis.utils.fasta_utils import create_normalize_chrom_function
 
 
 def main():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    p.add_argument("-R", "--reference-fasta", required=True, help="Reference genome FASTA file")
     p.add_argument("-s", "--split-adjacent-repeats", action="store_true", help="If a locus is defined "
                    "as having several adjacent repeats in the ExpansionHunter catalog, split it into separate "
                    "entries in the TRGT catalog. This can simplify downstream analysis.")
@@ -37,14 +40,18 @@ def main():
     if args.keep_wide_boundaries and not args.split_adjacent_repeats:
         p.error("The --wide-boundaries option can only be used in combination with the --split-adjacent-repeats option")
 
-    process_expansion_hunter_catalog(args.expansion_hunter_catalog, args.output_file,
+
+    if not os.path.isfile(args.reference_fasta):
+        p.error(f"Reference genome FASTA file not found: {args.reference_fasta}")
+
+    process_expansion_hunter_catalog(args.reference_fasta, args.expansion_hunter_catalog, args.output_file,
                                      split_adjacent_repeats=args.split_adjacent_repeats,
                                      keep_wide_boundaries=args.keep_wide_boundaries,
                                      set_locus_id=args.set_locus_id,
                                      show_progress_bar=args.show_progress_bar)
 
 
-def convert_expansion_hunter_record_to_trgt_row(record, split_adjacent_repeats=False,
+def convert_expansion_hunter_record_to_trgt_row(i, record, split_adjacent_repeats=False,
                                                 keep_wide_boundaries=False, set_locus_id=False):
     locus_id = record["LocusId"]
     locus_structure = record["LocusStructure"]
@@ -72,14 +79,15 @@ def convert_expansion_hunter_record_to_trgt_row(record, split_adjacent_repeats=F
         print(f"WARNING: Skipping locus {locus_id} because its ReferenceRegion "
               f"{chrom}:{locus_start_0based}-{locus_end_1based} has a width = "
               f"{locus_end_1based - locus_start_0based}bp")
-        return None
+        return []
 
     if "|" in locus_structure:
         print(f"WARNING: Skipping locus {locus_id} @ {chrom}:{locus_start_0based+1}-{locus_end_1based} because "
               f"its LocusStructure {locus_structure} contains a sequence swap operation '|' which is not "
               f"supported by TRGT.")
-        return None
+        return []
 
+    results = []
     if split_adjacent_repeats:
         for motif, reference_region in zip(motifs, reference_regions):
             chrom, start_0based, end_1based = parse_interval(reference_region)
@@ -89,27 +97,35 @@ def convert_expansion_hunter_record_to_trgt_row(record, split_adjacent_repeats=F
             else:
                 locus_label = f"{locus_id}-{motif}" if len(motifs) > 1 else locus_id
             struc = f"({motif})n"
-            return[
+            results.append([
                 chrom,
                 start_0based if not keep_wide_boundaries else locus_start_0based,
                 end_1based if not keep_wide_boundaries else locus_end_1based,
                 f"ID={locus_label};MOTIFS={motif};STRUC={struc}",
-            ]
+            ])
     else:
         motif_string = ",".join(motifs)
         # Handle the different LocusStructure regular expression operations described in
         #   https://github.com/Illumina/ExpansionHunter/blob/master/docs/04_VariantCatalogFiles.md#using-regular-expressions-to-define-locus-structure
         struc = locus_structure.replace("*", "n").replace("+", "n").replace("?", "n")
 
-        return [
+        results.append([
             chrom,
             locus_start_0based,
             locus_end_1based,
             f"ID={locus_id};MOTIFS={motif_string};STRUC={struc}",
-        ]
-def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_path,
+        ])
+
+    return results
+
+def process_expansion_hunter_catalog(reference_fasta_path, expansion_hunter_catalog_path, output_file_path,
                                      split_adjacent_repeats=False, keep_wide_boundaries=False, set_locus_id=False,
                                      show_progress_bar=False):
+
+    ref_fasta = pysam.FastaFile(reference_fasta_path)
+    does_chrom_start_with_chr = ref_fasta.references[0].startswith("chr")
+    normalize_chrom = create_normalize_chrom_function(does_chrom_start_with_chr)
+
     print(f"Parsing {expansion_hunter_catalog_path}")
     counter = 0
     total = 0
@@ -123,9 +139,11 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
         with fopen2(output_file_path, "wt") as f2:
             for i, record in enumerate(iterator):
                 total += 1
-                output_row = convert_expansion_hunter_record_to_trgt_row(record)
-                if output_row is not None:
+                for output_row in convert_expansion_hunter_record_to_trgt_row(
+                    i, record, split_adjacent_repeats=split_adjacent_repeats,
+                    keep_wide_boundaries=keep_wide_boundaries, set_locus_id=set_locus_id):
                     counter += 1
+                    output_row[0] = normalize_chrom(output_row[0])
                     f2.write("\t".join(map(str, output_row)) + "\n")
 
     bgzip_step = "| bgzip" if output_file_path.endswith("gz") else ""
