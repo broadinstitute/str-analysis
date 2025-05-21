@@ -21,7 +21,7 @@ from str_analysis.utils.find_repeat_unit import find_repeat_unit_allowing_interr
 from str_analysis.utils.find_repeat_unit import find_repeat_unit_without_allowing_interruptions
 from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_allowing_interruptions
 from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_without_allowing_interruptions
-from utils.file_utils import open_file
+from str_analysis.utils.file_utils import open_file
 
 COMMON_TSV_OUTPUT_COLUMNS = [
     "Chrom",
