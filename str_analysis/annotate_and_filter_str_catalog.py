@@ -3,7 +3,6 @@
 import argparse
 import collections
 import gzip
-import ijson
 from intervaltree import IntervalTree, Interval
 import simplejson as json
 import os

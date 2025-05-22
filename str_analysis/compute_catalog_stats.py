@@ -9,10 +9,12 @@ import tqdm
 from intervaltree import IntervalTree, Interval
 from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.eh_catalog_utils import parse_motifs_from_locus_structure, get_variant_catalog_iterator
-from str_analysis.utils.file_utils import open_file, file_exists
+from str_analysis.utils.file_utils import file_exists
 
 ACGT_REGEX = re.compile("^[ACGT]+$", re.IGNORECASE)
 ACGTN_REGEX = re.compile("^[ACGTN]+$", re.IGNORECASE)
+
+GENE_REGIONS = ["5utr", "3utr", "cds", "exon", "intergenic", "intron", "promoter"]
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Compute and print stats for annotated repeat catalogs")
@@ -69,6 +71,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
     reference_repeat_purity_by_motif_size = collections.defaultdict(list)  # used to compute the mean base purity for each motif size
     mappability_by_motif_size = collections.defaultdict(list)  # used to compute the mean mappability for each motif size
 
+    has_gene_annotations = False
     for record in records:
         counters["total"] += 1
         motifs = parse_motifs_from_locus_structure(record["LocusStructure"])
@@ -154,11 +157,22 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
             #    print(num_repeats_per_locus_bin, record["LocusId"], reference_region, motif)
             counters[f"num_repeats_per_locus_detailed:{num_repeats_per_locus_detailed_bin}"] += 1
 
+
+            if record.get("GencodeGeneRegion"):
+                has_gene_annotations = True
+                gene_region = record["GencodeGeneRegion"].lower().replace("' ", "")
+                if gene_region not in GENE_REGIONS:
+                    raise ValueError(f"Unexpected gene region: {gene_region}")
+
+                counters[f"gene_region:{gene_region}"] += 1
+                if motif_size == 3:
+                    counters[f"3bp_motif_gene_region:{gene_region}"] += 1
+
             if fraction_pure_bases is not None:
                 fraction_pure_bases_bin = round(int(fraction_pure_bases*10)/10, 1)
                 counters[f"fraction_pure_bases:{fraction_pure_bases_bin}"] += 1
 
-            # check for overlap
+            # check for overlap with other loci in the catalog
             for overlapping_interval in interval_trees[chrom].overlap(start_0based, end):
                 overlapping_interval_motif_size = overlapping_interval.data
                 larger_motif_size = max(motif_size, overlapping_interval_motif_size)
@@ -283,6 +297,13 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
         "min_locus_size": min_locus_size,
         "max_locus_size": max_locus_size,
     }
+
+    if has_gene_annotations:
+        print("Adding ")
+        for gene_region in GENE_REGIONS:
+            result[f"count_gene_region_{gene_region}"] = counters[f"gene_region:{gene_region}"]
+        for gene_region in GENE_REGIONS:
+            result[f"count_3bp_motif_gene_region_{gene_region}"] = counters[f"3bp_motif_gene_region:{gene_region}"]
 
     print("")
     print("Locus sizes at each motif size:")
