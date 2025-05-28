@@ -25,8 +25,8 @@ import subprocess
 from ast import literal_eval
 
 import pandas as pd
-from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from tabulate import tabulate
+from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 
 
 REQUIRED_COLUMNS = [
@@ -70,7 +70,10 @@ def parse_args():
         "that have smaller expansions at that locus will be ignored")
     p.add_argument("--use-gnomad", action="store_true", help="Include samples from the gnomAD v3.1 STR release"
         "@ https://gnomad.broadinstitute.org/downloads#v3-short-tandem-repeats")
-
+    p.add_argument("--look-for", choices=["expansions", "contractions"], default="expansions")
+    p.add_argument("--exclude-homopolymers", action="store_true", help="Pre-filter out homopolymer loci")
+    p.add_argument("-s", "--sample-id", action="append", help="If specified, only display loci where these sample id(s) "
+                    "are near the top of the list")
     p.add_argument("-l", "--locus", action="append", help="If specified, only these locus ids will be processed")
     p.add_argument("--highlight-samples", nargs="*", help="If specified, this can be the path of a text file that "
         "contains sample ids (one per line) or just 1 or more sample ids listed on the commandline")
@@ -181,6 +184,7 @@ def load_results_tables(args):
 
     sample_metadata_df = None
     if args.sample_metadata_table:
+        print(f"Reading {args.sample_metadata_table}")
         sample_metadata_df = pd.read_table(args.sample_metadata_table, dtype=str)
         if args.metadata_table_sample_id_column not in sample_metadata_df.columns:
             raise ValueError(f"Metadata table {args.sample_metadata_table} is missing the sample id column: "
@@ -195,6 +199,8 @@ def load_results_tables(args):
                   f"based on {args.metadata_table_sample_id_column} from {args.sample_metadata_table}")
 
         sample_metadata_df.set_index(args.metadata_table_sample_id_column, inplace=True)
+        print(f"Read {len(sample_metadata_df):,d} rows from {args.sample_metadata_table}")
+        print(f" - using sample id column: {args.metadata_table_sample_id_column}")
 
     for combined_tsv_path in args.combined_tsv_path:
 
@@ -241,6 +247,8 @@ def load_results_tables(args):
 
             "Genotype",
             "GenotypeConfidenceInterval",
+            "AM",
+            "AP",
         ]
 
         # fill in values for missing optional columns
@@ -253,6 +261,12 @@ def load_results_tables(args):
 
         for integer_column in ("CI end: Allele 1", "CI end: Allele 2"):
             df.loc[:, integer_column] = pd.to_numeric(df[integer_column], errors="coerce")
+
+        if args.exclude_homopolymers:
+            if "RepeatUnit" in df.columns:
+                df = df[df["RepeatUnit"].str.len() > 1]
+            else:
+                print("WARNING: Unable to apply --exclude-homopolymers because RepeatUnit column not found in table")
 
         all_dfs.append((df, combined_tsv_path))
 
@@ -283,13 +297,12 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
     if unexpected_affected_status_values:
         print(f"WARNING: Some rows have unexpected affected value(s): {unexpected_affected_status_values}")
 
-    # Sort
-    locus_df = locus_df.sort_values(
-        by=["Num Repeats: Allele 2", "Num Repeats: Allele 1", args.sample_affected_status_column],
-        ascending=False)
-
     # Get the 1st row and use it to look up metadata values which are the same across all rows for the locus
     # (ie. Inheritance Mode)
+    if len(locus_df) == 0:
+        print(f"WARNING: No rows found for locus {locus_id}. Skipping...")
+        return
+
     first_row = locus_df.iloc[0].to_dict()
 
     disease_info = first_row.get("VariantCatalog_Diseases")
@@ -316,6 +329,9 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
     motif = first_row.get("RepeatUnit")
     locus_description = f"{locus_id} ({reference_region}: {genome_version})  https://stripy.org/database/{locus_id}"
     inheritance_mode = first_row.get("VariantCatalog_Inheritance")
+
+    pathogenic_motifs = first_row.get("VariantCatalog_PathogenicMotifs")
+    benign_motifs = first_row.get("VariantCatalog_BenignMotifs")
     if not inheritance_mode or pd.isna(inheritance_mode):
         inheritance_mode = "XR" if "X" in reference_region else "AD"
 
@@ -326,6 +342,9 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
     print("**Inheritance**: ", inheritance_mode)
     print("**Pathogenic Threshold**: >=", pathogenic_threshold_min, "x", motif)
     print("**Intermediate Threshold**: >=", intermediate_threshold_min, "x", motif)
+    if pathogenic_motifs or benign_motifs:
+        print(f"**Pathogenic Motifs**: ", pathogenic_motifs)
+        print(f"**Benign Motifs** ", benign_motifs)
 
     # replace NA with "Unknown" strings
     locus_df.loc[:, args.sample_affected_status_column] = locus_df[args.sample_affected_status_column].fillna("Unknown")
@@ -353,10 +372,12 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
 
         threshold_record = {c: SEPARATOR_STRING for c in locus_df.columns}
         threshold_record.update({
-            "SampleId": f"**{label}**", "LocusId": locus_id, "VariantId": locus_id,
+            args.sample_id_column: f"**{label}**",
+            "LocusId": locus_id,
+            "VariantId": locus_id,
             "Genotype": f">= {threshold}",
-            "Num Repeats: Min Allele 1, 2": threshold,
-            "Num Repeats: Max Allele 1, 2": threshold,
+            "Num Repeats: Min Allele 1, 2": threshold - 1,
+            "Num Repeats: Max Allele 1, 2": threshold - 1,
             "Num Repeats: Allele 1": threshold,
             "Num Repeats: Allele 2": 0,
         })
@@ -456,13 +477,29 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
             continue
 
         if inheritance_mode in {"AR", "XR"}:
-            df_to_process = df_to_process.sort_values(
-                by=["Num Repeats: Min Allele 1, 2", args.sample_affected_status_column],
-                ascending=False)
+            if args.look_for == "expansions":
+                df_to_process = df_to_process.sort_values(
+                    by=["Num Repeats: Min Allele 1, 2", "Num Repeats: Max Allele 1, 2", args.sample_affected_status_column, args.sample_id_column],
+                    ascending=False)
+            elif args.look_for == "contractions":
+                df_to_process = df_to_process.sort_values(
+                    by=["Num Repeats: Max Allele 1, 2", "Num Repeats: Min Allele 1, 2", args.sample_affected_status_column, args.sample_id_column],
+                    ascending=True)
+            else:
+                raise ValueError(f"Unexpected look_for value: {args.look_for}")
+
         elif inheritance_mode in {"AD", "XD", "Unknown"}:
-            df_to_process = df_to_process.sort_values(
-                by=["Num Repeats: Max Allele 1, 2", args.sample_affected_status_column],
-                ascending=False)
+            if args.look_for == "expansions":
+                df_to_process = df_to_process.sort_values(
+                    by=["Num Repeats: Max Allele 1, 2", "Num Repeats: Min Allele 1, 2", args.sample_affected_status_column, args.sample_id_column],
+                    ascending=False)
+            elif args.look_for == "contractions":
+                df_to_process = df_to_process.sort_values(
+                    by=["Num Repeats: Min Allele 1, 2", "Num Repeats: Max Allele 1, 2", args.sample_affected_status_column, args.sample_id_column],
+                    ascending=True)
+            else:
+                raise ValueError(f"Unexpected look_for value: {args.look_for}")
+
         else:
             raise ValueError(f"Unexpected inheritance mode: {inheritance_mode}")
 
@@ -473,13 +510,17 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
 
             args.sample_affected_status_column,
             args.sample_sex_column,
-            args.sample_genome_version_column,
+            #args.sample_genome_version_column,
 
             "Genotype",
             "GenotypeConfidenceInterval",
 
             "VariantCatalog_Inheritance",
             "RepeatUnit",
+            "AP",
+            "AM",
+            #"Ref",
+            #"Alt",
 
             args.sample_analysis_status_column,
             args.sample_phenotypes_column,
@@ -495,6 +536,8 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
             "GenotypeConfidenceInterval": "GenotypeCI",
             "VariantCatalog_Inheritance": "Mode",
             "RepeatUnit": "Motif",
+            "AM": "Methylation",
+            "AP": "Purity",
         }, inplace=True)
 
         # Print the candidate pathogenic rows for this locus
@@ -597,6 +640,10 @@ def main():
                   f"previously seen sample table since they aren't in the main table(s): "
                   f"{set(previously_seen_samples_df.locus_id) - all_locus_ids}")
 
+    if args.sample_id:
+        arg_sample_id_set = set(args.sample_id)
+        print("Will only print loci where", " or ".join(args.sample_id), "is near the top")
+
     # Process each locus
     results_dfs = []
     for locus_id in sorted(all_locus_ids):
@@ -605,10 +652,26 @@ def main():
 
         # Filter to rows for the current locus
         for i, (full_df, df_source_path) in enumerate(all_dfs):
-            print("="*100)  # print a divider
-            print(f"** {locus_id} from {df_source_path} **")
             locus_df = full_df[full_df.LocusId == locus_id].copy()
 
+            if args.sample_id:
+                if args.look_for == "expansions":
+                    locus_df = locus_df.sort_values(
+                        by=["Num Repeats: Max Allele 1, 2", "Num Repeats: Min Allele 1, 2", args.sample_affected_status_column, args.sample_id_column],
+                        ascending=False)
+                elif args.look_for == "contractions":
+                    locus_df = locus_df.sort_values(
+                        by=["Num Repeats: Min Allele 1, 2", "Num Repeats: Max Allele 1, 2", args.sample_affected_status_column, args.sample_id_column],
+                        ascending=True)
+                else:
+                    raise ValueError(f"Unexpected look_for value: {args.look_for}")
+
+                TOP_OF_LIST = 1
+                if len(set(locus_df[args.sample_id_column].iloc[:TOP_OF_LIST]) & arg_sample_id_set) == 0:
+                    continue
+
+            print("="*100)  # print a divider
+            print(f"** {locus_id} from {df_source_path} **")
             print(f"Found {len(locus_df):,d} rows for locus {locus_id}")
             if len(locus_df) == 0:
                 continue
@@ -628,7 +691,9 @@ def main():
                     previously_seen_samples_df[previously_seen_samples_df.locus_id == locus_id].sample_id)
 
             if args.hide_previously_seen_samples:
+                before = len(locus_df)
                 locus_df = locus_df[~locus_df[args.sample_id_column].isin(previously_seen_samples_for_this_locus)]
+                print(f"--hide-previously-seen-samples: Hid {before - len(locus_df):,d} out of {before:,d} ({(before - len(locus_df))/before:0.1%}) previously seen rows for locus {locus_id}")
 
             locus_df.loc[:, args.sample_id_column] = locus_df[args.sample_id_column].apply(
                 lambda s: (
@@ -642,14 +707,16 @@ def main():
 
             results_dfs.append(results_df)
 
-    final_results_df = pd.concat(results_dfs)
-    final_results_df = final_results_df[final_results_df[args.sample_affected_status_column] != SEPARATOR_STRING]
-    final_results_df.to_csv(args.results_path, index=False, header=True, sep="\t")
-    print(f"Wrote {len(final_results_df)} rows to {args.results_path}")
-    for locus_id, count in sorted(dict(final_results_df.groupby("LocusId").count()[args.sample_id_column]).items()):
-        print(f"{count:10,d}  {locus_id} rows")
+    if results_dfs and len(list(filter(None, results_dfs))) > 0:
+        final_results_df = pd.concat(results_dfs)
+        final_results_df = final_results_df[final_results_df[args.sample_affected_status_column] != SEPARATOR_STRING]
+        final_results_df.to_csv(args.results_path, index=False, header=True, sep="\t")
+        print(f"Wrote {len(final_results_df)} rows to {args.results_path}")
 
+        for locus_id, count in sorted(dict(final_results_df.groupby("LocusId").count()[args.sample_id_column]).items()):
+            print(f"{count:10,d}  {locus_id} rows")
+
+    print("Done")
 
 if __name__ == "__main__":
     main()
-
