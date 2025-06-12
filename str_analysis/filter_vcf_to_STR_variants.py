@@ -128,6 +128,7 @@ def parse_args():
                    "and having alleles with different motifs, or one allele being an STR while the other is an SNV. "
                    "These alleles are filtered out to reduce complexity for downstream analyses.",
                    action="store_true")
+    p.add_argument("--write-fasta", help="Output a FASTA file containing all STR alleles", action="store_true")
     p.add_argument("-L", "--interval", help="Only process variants in this genomic interval (format: chrN:start-end)",
                    action="append")
     p.add_argument("input_vcf_path")
@@ -398,6 +399,12 @@ def check_if_allele_is_str(
 
         return null_result
 
+    allele_repeat_sequence = variant_bases if ins_or_del == "INS" else ""
+    if num_total_repeats_left_flank > 0:
+        allele_repeat_sequence = left_flanking_reference_sequence[-num_total_repeats_left_flank * len(repeat_unit):] + allele_repeat_sequence
+    if num_total_repeats_right_flank > 0:
+        allele_repeat_sequence = allele_repeat_sequence + right_flanking_reference_sequence[:num_total_repeats_right_flank * len(repeat_unit)]
+
     result = {
         "Chrom": chrom,
         "Pos": pos,
@@ -422,6 +429,7 @@ def check_if_allele_is_str(
         "NumPureRepeatsLeftFlank": num_pure_repeats_left_flank,
         "NumPureRepeatsRightFlank": num_pure_repeats_right_flank,
         "NumPureRepeatsInVariant": num_pure_repeats_within_variant_bases,
+        "AlleleRepeatSequence": allele_repeat_sequence,
         "FilterReason": None,
     }
 
@@ -670,6 +678,7 @@ def process_vcf_line(
         variants_tsv_writer,
         alleles_tsv_writer,
         bed_writer,
+        fasta_writer,
         args,
         counters,
         variants_per_locus_counter,
@@ -681,10 +690,11 @@ def process_vcf_line(
         vcf_line_i (int): line number of the VCF file
         vcf_fields (list): list of fields from the VCF line
         fasta_obj (pyfaidx.Fasta): Fasta object for the reference genome
-        vcf_writer (vcf.Writer): VCF writer object
-        variants_tsv_writer (csv.DictWriter): TSV writer object for the variants file
-        alleles_tsv_writer (csv.DictWriter): TSV writer object for the alleles file
-        bed_writer (csv.DictWriter): BED writer object
+        vcf_writer (open file): open file for writing VCF output
+        variants_tsv_writer (open file): open file for writing variants TSV
+        alleles_tsv_writer (open file): open file for writing the alleles TSV
+        bed_writer (open file): open file for writing BED format STR loci
+        fasta_writer (open file): open file for writing STR alleles in FASTA format
         args (argparse.Namespace): parsed command-line arguments
         counters (dict): dictionary of counters
         variants_per_locus_counter (collections.Counter): counts the number of variants that overlap a given STR locus.
@@ -919,7 +929,7 @@ def process_vcf_line(
     if bed_writer is not None:
         bed_writer.write("\t".join(map(str, [vcf_chrom, start_1based - 1, end_1based, variant_summary_string, "."])) + "\n")
 
-    for alt_allele, alt_STR_allele_spec in zip(alt_alleles, str_allele_specs):
+    for i, (alt_allele, alt_STR_allele_spec) in enumerate(zip(alt_alleles, str_allele_specs)):
         allele_tsv_record = dict(tsv_record)
         ins_or_del, summary_string = compute_variant_summary_string([alt_STR_allele_spec], het_or_hom_or_hemi_or_multi)
         allele_tsv_record.update({
@@ -935,6 +945,9 @@ def process_vcf_line(
         })
 
         alleles_tsv_writer.write("\t".join([str(allele_tsv_record.get(c, "")) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
+        if fasta_writer is not None:
+            fasta_writer.write(f">{vcf_chrom}-{start_1based - 1}-{end_1based}-{repeat_unit}-{end_1based}-allele{i+1}: {summary_string}\n")
+            fasta_writer.write(f"{alt_STR_allele_spec['AlleleRepeatSequence']}\n")
 
 
 def process_STR_loci_that_have_overlapping_variants(file_path, locus_ids_with_overlapping_variants, filtered_out_variants_vcf_writer):
@@ -1057,6 +1070,7 @@ def main():
     alleles_tsv_writer = open(f"{args.output_prefix}.alleles.tsv", "wt")
     alleles_tsv_writer.write("\t".join(ALLELE_TSV_OUTPUT_COLUMNS) + "\n")
     bed_writer = open(f"{args.output_prefix}.variants.bed", "wt") if args.write_bed_file else None
+    fasta_writer = open(f"{args.output_prefix}.fasta", "wt") if args.write_fasta else None
 
     # open the input VCF
     if args.interval:
@@ -1101,7 +1115,7 @@ def main():
 
         filter_string = process_vcf_line(
             vcf_line_i, vcf_fields, fasta_obj, vcf_writer, variants_tsv_writer,
-            alleles_tsv_writer, bed_writer, args, counters, variants_per_locus_counter, variant_intervals)
+            alleles_tsv_writer, bed_writer, fasta_writer, args, counters, variants_per_locus_counter, variant_intervals)
 
         if filter_string and args.write_vcf_with_filtered_out_variants:
             # if this variant was filtered out, record it in output VCFs

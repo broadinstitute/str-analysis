@@ -188,6 +188,7 @@ class Tests(unittest.TestCase):
             counters=counters, interruptions="no")
         self.assertEqual(len(str_specs), 1)
         self.assertDictEqual(str_specs[0], {
+            'AlleleRepeatSequence': 'CAGCAGCAGCAGCAGCAG',
             'Chrom': 'chrTest4',
             'Pos': 9,
             'Ref': 'G',
@@ -239,7 +240,9 @@ class Tests(unittest.TestCase):
             counters=counters, interruptions="no")
         self.assertEqual(len(str_specs), 1)
         self.assertEqual(filter_string, None)
-        self.assertDictEqual(str_specs[0], {'Alt': 'GAAAAAAAAAA',
+        self.assertDictEqual(str_specs[0], {
+                                        'AlleleRepeatSequence': 'AAAAAAAAAA',
+                                        'Alt': 'GAAAAAAAAAA',
                                         'Chrom': 'chrTest4',
                                         'End1Based': 9,
                                         'FilterReason': None,
@@ -289,7 +292,9 @@ class Tests(unittest.TestCase):
             counters=counters, interruptions="only-if-pure-repeats-not-found")
         self.assertEqual(len(str_specs), 1)
         self.assertEqual(filter_string, None)
-        self.assertEqual(str_specs[0], {'Alt': 'GAAAAACAAAAAAACAAAAAAAAAAAAAAAAAAAA',
+        self.assertEqual(str_specs[0], {
+                                    'AlleleRepeatSequence': 'AAAAACAAAAAAACAAAAAAAAAAAAAAAAAAAA',
+                                    'Alt': 'GAAAAACAAAAAAACAAAAAAAAAAAAAAAAAAAA',
                                     'Chrom': 'chrTest4',
                                     'End1Based': 9,
                                     'FilterReason': None,
@@ -329,7 +334,9 @@ class Tests(unittest.TestCase):
             counters=counters, interruptions="only-if-pure-repeats-not-found")
         self.assertEqual(filter_string, None)
         self.assertEqual(len(str_specs), 1)
-        self.assertEqual(str_specs[0], {'Alt': 'GAGACACAGAGAGAGAGAGAG',
+        self.assertEqual(str_specs[0], {
+                                    'AlleleRepeatSequence': 'AGAGACACAGAGAGAGAGAGAG',
+                                    'Alt': 'GAGACACAGAGAGAGAGAGAG',
                                     'Chrom': 'chrTest4',
                                     'End1Based': 9,
                                     'FilterReason': None,
@@ -361,7 +368,9 @@ class Tests(unittest.TestCase):
             counters=counters, interruptions="only-if-pure-repeats-not-found")
         self.assertEqual(len(str_specs), 1)
         self.assertEqual(filter_string, str_specs[0]["FilterReason"])
-        self.assertEqual(str_specs[0], {'Alt': 'GCAGCAGCATCAACACCAC',
+        self.assertEqual(str_specs[0], {
+                                    'AlleleRepeatSequence': 'CAGCAGCAGCATCAACACCACCAGCAG',
+                                    'Alt': 'GCAGCAGCATCAACACCAC',
                                     'Chrom': 'chrTest4',
                                     'End1Based': 15,
                                     'FilterReason': None,
@@ -411,7 +420,9 @@ class Tests(unittest.TestCase):
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters, interruptions="only-if-pure-repeats-not-found")
 
-        self.assertDictEqual(str_specs[0], {'Alt': 'GCAGCAGCAG',
+        self.assertDictEqual(str_specs[0], {
+                                            'AlleleRepeatSequence': 'CAGCAGCAGCAGCAGCAG',
+                                            'Alt': 'GCAGCAGCAG',
                                             'Chrom': 'chrTest4',
                                             'End1Based': 15,
                                             'FilterReason': None,
@@ -435,7 +446,9 @@ class Tests(unittest.TestCase):
                                             'RepeatUnit': 'CAG',
                                             'MotifInterruptionIndex': 2,
                                             'Start1Based': 7})
-        self.assertDictEqual(str_specs[1], {'Alt': 'GCAGCAGCATCAACACCAC',
+        self.assertDictEqual(str_specs[1], {
+                                            'AlleleRepeatSequence': 'CAGCAGCAGCATCAACACCACCAGCAG',
+                                            'Alt': 'GCAGCAGCATCAACACCAC',
                                             'Chrom': 'chrTest4',
                                             'End1Based': 15,
                                             'FilterReason': None,
@@ -489,7 +502,9 @@ class Tests(unittest.TestCase):
             min_str_repeats=3, min_str_length=9, min_repeat_unit_length=1, max_repeat_unit_length=50,
             counters=counters, interruptions="always")
 
-        self.assertDictEqual(str_specs[0], {'Alt': 'GCAGCAGCAG',
+        self.assertDictEqual(str_specs[0], {
+                                            'AlleleRepeatSequence': 'CAGCAGCAGCAGCAGCAG',
+                                            'Alt': 'GCAGCAGCAG',
                                             'Chrom': 'chrTest4',
                                             'End1Based': 15,
                                             'FilterReason': None,
@@ -513,7 +528,9 @@ class Tests(unittest.TestCase):
                                             'RepeatUnit': 'CAG',
                                             'MotifInterruptionIndex': 2,
                                             'Start1Based': 7})
-        self.assertDictEqual(str_specs[1], {'Alt': 'GCAGCAGCATCAACACCAC',
+        self.assertDictEqual(str_specs[1], {
+                                            'AlleleRepeatSequence': 'CAGCAGCAGCATCAACACCACCAGCAG',
+                                            'Alt': 'GCAGCAGCATCAACACCAC',
                                             'Chrom': 'chrTest4',
                                             'End1Based': 15,
                                             'FilterReason': None,
