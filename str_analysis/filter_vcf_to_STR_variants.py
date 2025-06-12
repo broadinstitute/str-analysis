@@ -946,7 +946,7 @@ def process_vcf_line(
 
         alleles_tsv_writer.write("\t".join([str(allele_tsv_record.get(c, "")) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
         if fasta_writer is not None:
-            fasta_writer.write(f">{vcf_chrom}-{start_1based - 1}-{end_1based}-{repeat_unit}-{end_1based}-allele{i+1}: {summary_string}\n")
+            fasta_writer.write(f">{vcf_chrom}-{start_1based - 1}-{end_1based}-{repeat_unit}-allele{i+1}: {summary_string}\n")
             fasta_writer.write(f"{alt_STR_allele_spec['AlleleRepeatSequence']}\n")
 
 
