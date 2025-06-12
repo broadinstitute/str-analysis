@@ -1070,7 +1070,7 @@ def main():
     alleles_tsv_writer = open(f"{args.output_prefix}.alleles.tsv", "wt")
     alleles_tsv_writer.write("\t".join(ALLELE_TSV_OUTPUT_COLUMNS) + "\n")
     bed_writer = open(f"{args.output_prefix}.variants.bed", "wt") if args.write_bed_file else None
-    fasta_writer = open(f"{args.output_prefix}.fasta", "wt") if args.write_fasta else None
+    fasta_writer = gzip.open(f"{args.output_prefix}.fasta.gz", "wt") if args.write_fasta else None
 
     # open the input VCF
     if args.interval:
