@@ -147,7 +147,7 @@ def main():
 
     args = parse_args()
 
-    output_prefix = args.output_prefix or f"combined_expansion_hunter"
+    output_prefix = args.output_prefix or f"combined"
     output_prefix += f".{len(args.json_paths)}_json_files"
 
     combined_variant_catalog_contents = []
@@ -594,7 +594,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
                     ci_ratio = output_record[f"CI size{suffix}"]/(output_record[f"Num Repeats{suffix}"] or 1)
                     # ExpansionHunter Q score based on EnsemblTR https://github.com/gymrek-lab/EnsembleTR/blob/main/ensembletr/utils.py#L53-L59
 
-                    output_record[f"Q{suffix}"] = float(1/np.exp(4 * np.float128(ci_ratio)))
+                    output_record[f"Q{suffix}"] = float(1/np.exp(4 * float(ci_ratio)))
 
 
                 if include_extra_expansion_hunter_fields:
