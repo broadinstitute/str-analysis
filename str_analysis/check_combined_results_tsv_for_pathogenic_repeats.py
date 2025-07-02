@@ -450,25 +450,7 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
              locus_df = pd.concat([threshold_records, locus_df], ignore_index=True)
              dfs_to_process.append(locus_df)
 
-    if args.use_affected:
-        # filter by affected status
-        filtered_dfs_list = []
-        for df_to_process in dfs_to_process:
-            unaffected_counter = 0
-            idx = 0
-            for affected_status in df_to_process[args.sample_affected_status_column]:
-                idx += 1
-                if affected_status and ("Not Affected" in affected_status or "Unknown" in affected_status):
-                    unaffected_counter += 1
-
-                if unaffected_counter >= args.max_n_unaffected:
-                    break
-
-            df_to_process = df_to_process.iloc[:idx]
-
-            filtered_dfs_list.append(df_to_process)
-        dfs_to_process = filtered_dfs_list
-
+        
     for i, df_to_process in enumerate(dfs_to_process):
         print(f"Found {len(df_to_process)} samples passed filters in table {i+1} out of "
               f"{len(dfs_to_process)} for locus {locus_id}")
@@ -503,6 +485,20 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
         else:
             raise ValueError(f"Unexpected inheritance mode: {inheritance_mode}")
 
+        if args.use_affected:
+            unaffected_counter = 0
+            idx = 0
+            for affected_status in df_to_process[args.sample_affected_status_column]:
+                idx += 1
+                if affected_status and ("Not Affected" in affected_status or "Unknown" in affected_status):
+                    unaffected_counter += 1
+
+                if unaffected_counter >= args.max_n_unaffected:
+                    break
+
+            df_to_process = df_to_process.iloc[:idx]
+
+            
         # Print the filtered results for this locus
         df_to_process = df_to_process[[
             args.sample_id_column,
@@ -707,7 +703,7 @@ def main():
 
             results_dfs.append(results_df)
 
-    if results_dfs and len(list(filter(None, results_dfs))) > 0:
+    if len([r for r in results_dfs if r is not None]) > 0:
         final_results_df = pd.concat(results_dfs)
         final_results_df = final_results_df[final_results_df[args.sample_affected_status_column] != SEPARATOR_STRING]
         final_results_df.to_csv(args.results_path, index=False, header=True, sep="\t")
