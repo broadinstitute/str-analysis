@@ -269,12 +269,15 @@ def load_results_table(args):
     df.loc[:, "Num Repeats: Allele 2"] = df["Num Repeats: Allele 2"].fillna(0).astype(float).astype(int)
 
     # replace NA with "Unknown" strings
-    #df.loc[:, args.sample_affected_status_column] = df[args.sample_affected_status_column].fillna("Unknown")
+    df.loc[:, args.sample_affected_status_column] = df[args.sample_affected_status_column].fillna("Unknown")
     df.loc[:, args.sample_affected_status_column] = df[args.sample_affected_status_column].replace({
         "Unaffected": "Not Affected",
         "Possibly Affected": "Unknown",
         "Possibly affected": "Unknown",
     })
+
+    df.loc[:, args.sample_sex_column] = df[args.sample_sex_column].fillna("Unknown")
+
 
     # add Paternal and Maternal genotypes to each row where applicable
     genotype_map = {}
@@ -312,7 +315,7 @@ def load_results_table(args):
         raise ValueError(f"Unexpected affected status values: {unexpected_affected_column_values}:  {collections.Counter(df[args.sample_affected_status_column])}")
 
     print("Sample sex counts:", dict(df_unique_sample_ids[args.sample_sex_column].value_counts()))
-    unexpected_sample_sex_column_values =  set(df[args.sample_sex_column].str.lower()) - {"m", "male", "f", "female"}
+    unexpected_sample_sex_column_values =  set(df[args.sample_sex_column].str.lower()) - {"m", "male", "f", "female", "unknown"}
     if unexpected_sample_sex_column_values:
         raise ValueError(f"Unexpected {args.sample_sex_column} values: {unexpected_sample_sex_column_values}:  {collections.Counter(df[args.sample_sex_column])}")
 
@@ -325,7 +328,6 @@ def load_results_table(args):
         raise ValueError(f"{args.combined_tsv_path} is missing these required columns: {missing_required_columns}")
 
     df.loc[:, "is_male"] = df[args.sample_sex_column].str.lower().str.startswith("m")  # this leaves missing values as Na
-    df.loc[:, args.sample_sex_column] = df[args.sample_sex_column].fillna("Unknown")
 
     if args.inheritance_mode == "XR":
         # keep only chrX loci and male samples
