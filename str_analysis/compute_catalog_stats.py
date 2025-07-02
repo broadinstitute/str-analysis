@@ -173,7 +173,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
                 counters[f"fraction_pure_bases:{fraction_pure_bases_bin}"] += 1
 
             # check for overlap with other loci in the catalog
-            for overlapping_interval in interval_trees[chrom].overlap(start_0based, end):
+            for overlapping_interval in interval_trees[chrom].overlap(start_0based, max(end, start_0based)):
                 overlapping_interval_motif_size = overlapping_interval.data
                 larger_motif_size = max(motif_size, overlapping_interval_motif_size)
                 if overlapping_interval.overlap_size(start_0based, end) >= 2*larger_motif_size:
