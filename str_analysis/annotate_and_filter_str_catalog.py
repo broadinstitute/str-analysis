@@ -220,9 +220,9 @@ def get_overlap(interval_tree, chrom, start_0based, end, canonical_motif=None, r
         list of strings: locus ids of entries in the IntervalTree that overlap the given interval chrom:start_0based-end
     """
     chrom = chrom.replace("chr", "")
-    if end < start_0based:
-        print(f"WARNING: end ({end}) < start_0based ({start_0based}). Diff: {end - start_0based}. Setting end to {start_0based}")
-        end = start_0based
+    if end < start_0based + 1:
+        print(f"WARNING: end ({end}) < start_0based ({start_0based}). Diff: {end - start_0based}. Setting end to {start_0based + 1}")
+        end = start_0based + 1
 
     for locus_interval in interval_tree[chrom].overlap(start_0based, end):
         matching_locus_id = locus_interval.data.locus_id
