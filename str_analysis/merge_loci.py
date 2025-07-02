@@ -372,8 +372,6 @@ def add_variant_catalog_to_interval_trees(
         remove_existing = False
         overlapping_intervals = interval_trees[chrom].overlap(start_0based, end_1based)
         for overlapping_interval in overlapping_intervals:
-            overlap_size = overlapping_interval.overlap_size(start_0based, end_1based)
-
             existing_interval = check_for_sufficient_overlap_and_motif_match(
                 overlapping_interval, new_interval, counters=counters, min_overlap_fraction=min_overlap_fraction,
                 motif_match_type=motif_match_type)
