@@ -2269,7 +2269,7 @@
         "LocusId": "RUNX2",
         "LocusStructure": "(GCN)*",
         "VariantType": "RareRepeat",
-        "ReferenceRegion": "chr6:45390487-45390529",
+        "ReferenceRegion": "chr6:45390487-45390538",
         "RepeatUnit": "GCN",
         "Gene": "RUNX2",
         "GeneRegion": "coding: polyalanine",
@@ -2316,7 +2316,7 @@
             "X:24382204-24382718",
             "X:66764998-66765411"
         ],
-        "MainReferenceRegion": "chr6:45390487-45390529",
+        "MainReferenceRegion": "chr6:45390487-45390538",
         "Inheritance": "AD"
     },
     {
