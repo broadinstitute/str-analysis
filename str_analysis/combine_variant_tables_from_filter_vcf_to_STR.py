@@ -101,8 +101,8 @@ SCHEMA_WITH_INT["MotifSize"] = pl.Int32
 SCHEMA_WITH_INT["NumRepeatsShortAllele"] = pl.Int32
 SCHEMA_WITH_INT["NumRepeatsLongAllele"] = pl.Int32
 
-ALL_LOCUS_TABLE_CHECKPOINT_FILENAME = "temp_df_all_loci.tsv.gz"
-SAMPLES_TABLE_CHECKPOINT_FILENAME = "temp_df_with_samples.tsv.gz"
+#ALL_LOCUS_TABLE_CHECKPOINT_FILENAME = "temp_df_all_loci.tsv.gz"
+#SAMPLES_TABLE_CHECKPOINT_FILENAME = "temp_df_with_samples.tsv.gz"
 
 def parse_input_tsv(sample_id, input_tsv, exclude_homopolymers = False, discard_impure_genotypes = False):
 
@@ -206,7 +206,7 @@ def create_table_of_all_loci(input_tsvs, exclude_homopolymers = False, discard_i
 
 
     if output_stats_tsv:
-        pl.DataFrame(output_stats).write_csv(output_stats_tsv, separator="\t")
+        pl.DataFrame(output_stats).write_csv(output_stats_tsv, separator="\t", float_precision=2)
         print(f"Wrote {len(output_stats):,d} rows to {output_stats_tsv}")
 
     return combined_df
@@ -487,7 +487,9 @@ def main():
 
 
     if not args.output_tsv:
-        args.output_tsv = f"joined.{len(input_tsvs)}_tables.tsv.gz"
+        exclude_homopolymers_suffix = ".excluding_homopolymers" if args.exclude_homopolymers else ""
+        discard_impure_genotypes_suffix = ".discarding_impure_genotypes" if args.discard_impure_genotypes else ""
+        args.output_tsv = f"joined.{len(input_tsvs)}_tables{exclude_homopolymers_suffix}{discard_impure_genotypes_suffix}.tsv.gz"
 
     if not args.output_tsv.endswith(".gz"):
         args.output_tsv += ".gz"
@@ -496,7 +498,7 @@ def main():
     if args.output_stats_tsv:
         output_stats_tsv = f"{filename_prefix}.stats.tsv"
 
-    table_of_all_loci_path = f"{filename_prefix}.loci.tsv.gz"
+    table_of_all_loci_path = f"{filename_prefix}.only_loci.tsv.gz"
     if not os.path.exists(table_of_all_loci_path) or args.force:
         combined_df = create_table_of_all_loci(
             input_tsvs=input_tsvs, 
