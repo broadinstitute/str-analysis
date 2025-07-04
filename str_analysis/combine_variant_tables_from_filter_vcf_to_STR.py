@@ -104,6 +104,7 @@ SCHEMA_WITH_INT["NumRepeatsLongAllele"] = pl.Int32
 #ALL_LOCUS_TABLE_CHECKPOINT_FILENAME = "temp_df_all_loci.tsv.gz"
 #SAMPLES_TABLE_CHECKPOINT_FILENAME = "temp_df_with_samples.tsv.gz"
 
+
 def parse_input_tsv(sample_id, input_tsv, exclude_homopolymers = False, discard_impure_genotypes = False):
 
     # Read with polars
@@ -113,6 +114,11 @@ def parse_input_tsv(sample_id, input_tsv, exclude_homopolymers = False, discard_
         pl.col("MotifSize").cast(pl.Int32),
         pl.col("NumRepeatsShortAllele").cast(pl.Int32),
         pl.col("NumRepeatsLongAllele").cast(pl.Int32),
+    )
+
+    # normalize the chromosome name
+    df = df.with_columns(
+        pl.col("Chrom").str.replace("chr", "").str.to_uppercase().alias("Chrom")
     )
 
     if exclude_homopolymers:
@@ -132,7 +138,24 @@ def parse_input_tsv(sample_id, input_tsv, exclude_homopolymers = False, discard_
 
     df = df.rename(rename_dict)
 
+    # sort by chrom, start, end
+    df = df.sort(["Chrom", "Start1Based", "End1Based"])
+
     return df
+
+def merge_overlapping_loci(df, verbose=True):
+
+    # sort by chrom, start, end
+    df = df.sort(["Chrom", "Start1Based", "End1Based"])
+
+    # iterate over the loci, checking for overlap between each locus and the next one, and then and create a new table with the merged loci
+    merged_df = pl.DataFrame()
+    for i in range(df.height - 1):
+        if df.row(i)["Chrom"] == df.row(i + 1)["Chrom"] and df.row(i + 1)["Start1Based"] <= df.row(i)["End1Based"]:
+            merged_df = merged_df.append(df.row(i))
+        else:
+            merged_df = merged_df.append(df.row(i))
+
 
 
 def checkpoint_combined_df(df, temp_table_path=None):
@@ -536,6 +559,9 @@ def main():
         exclude_homopolymers=args.exclude_homopolymers, 
         discard_impure_genotypes=args.discard_impure_genotypes, 
     )
+
+    # merge overlapping loci
+    #combined_df = merge_overlapping_loci(combined_df)
 
     # Sort by PER_LOCUS_COLUMNS
     combined_df = combined_df.sort(PER_LOCUS_COLUMNS)
