@@ -279,6 +279,8 @@ def merge_overlapping_loci(df, locus_id_to_sample_ids_with_non_missing_genotypes
     # Add the last row if we haven't processed it yet
     result_rows.append(row_i)
 
+    print("Done merging overlapping loci")
+
     if result_rows:
         merged_df = pl.DataFrame(result_rows, schema=df.schema)
     else:
@@ -580,11 +582,6 @@ def add_sample_columns(combined_df, sample_id_to_input_tsv, sample_id_to_dipcall
         else:
             combined_df = combined_df.drop(per_sample_columns)
 
-
-    # Merge overlapping rows
-    combined_df = merge_overlapping_loci(
-        combined_df, locus_id_to_sample_ids_with_non_missing_genotypes, merge_per_sample_columns=include_per_sample_columns)
-
     # Drop rows where TotalHaplotypes == MissingHaplotypes, keeping 10 example LocusIds from the dropped rows
     before = combined_df.height
     all_allele_sizes_are_null_df = combined_df.select(["LocusId", "TotalHaplotypes", "MissingHaplotypes"]).filter(pl.col("TotalHaplotypes") == pl.col("MissingHaplotypes"))
@@ -593,14 +590,19 @@ def add_sample_columns(combined_df, sample_id_to_input_tsv, sample_id_to_dipcall
         print(f"Dropped {before - combined_df.height:,d} rows where all allele sizes are null after filtering by confidence regions:", 
             ", ".join(all_allele_sizes_are_null_df.select(["LocusId"]).head(10).to_series().to_list()))
 
+    # Merge overlapping rows
+    combined_df = merge_overlapping_loci(
+        combined_df, locus_id_to_sample_ids_with_non_missing_genotypes, merge_per_sample_columns=include_per_sample_columns)
+
     print("Generating combined allele frequencies and other summary columns")
     combined_df = generate_combined_columns(combined_df)
 
     # Convert to integer columns
-    for c in all_allele_size_columns + ["NumRepeatsInReference", "ModeAllele"]:
-        combined_df = combined_df.with_columns(
-            pl.col(c).cast(pl.Int32)
-        )
+    combined_df = combined_df.with_columns([
+        pl.col(c).cast(pl.Int32) for c in all_allele_size_columns + ["NumRepeatsInReference", "ModeAllele"]
+    ])
+
+    print("Done adding sample columns")
 
     return combined_df
 
