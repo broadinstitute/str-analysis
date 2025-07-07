@@ -12,9 +12,10 @@ from intervaltree import IntervalTree, Interval
 import numpy as np
 import os
 import polars as pl
+import subprocess
 import tqdm
 
-BATCH_SIZE = 100
+ALL_CHROMS = list(map(str, range(1, 23))) + ["X", "Y"]
 
 """
 $1                    Chrom : chr1
@@ -101,12 +102,9 @@ SCHEMA_WITH_INT["MotifSize"] = pl.Int32
 SCHEMA_WITH_INT["NumRepeatsShortAllele"] = pl.Int32
 SCHEMA_WITH_INT["NumRepeatsLongAllele"] = pl.Int32
 
-#ALL_LOCUS_TABLE_CHECKPOINT_FILENAME = "temp_df_all_loci.tsv.gz"
-#SAMPLES_TABLE_CHECKPOINT_FILENAME = "temp_df_with_samples.tsv.gz"
 
 
-
-def parse_input_tsv(sample_id, input_tsv, exclude_homopolymers = False, discard_impure_genotypes = False):
+def parse_input_tsv(sample_id, input_tsv, exclude_homopolymers = False, discard_impure_genotypes = False, chroms_to_process = None):
 
     # Read with polars
     df = pl.read_csv(input_tsv, separator="\t", columns=PER_LOCUS_COLUMNS + SAMPLE_SPECIFIC_COLUMNS, schema_overrides=SCHEMA)
@@ -119,8 +117,11 @@ def parse_input_tsv(sample_id, input_tsv, exclude_homopolymers = False, discard_
 
     # normalize the chromosome name
     df = df.with_columns(
-        pl.col("Chrom").str.replace("chr", "").str.to_uppercase().alias("Chrom")
+        pl.col("Chrom").str.replace("chr", "").str.to_uppercase()
     )
+
+    if chroms_to_process:
+        df = df.filter(pl.col("Chrom").is_in(chroms_to_process))
 
     if exclude_homopolymers:
         df = df.filter(pl.col("MotifSize") > 1)
@@ -140,7 +141,7 @@ def parse_input_tsv(sample_id, input_tsv, exclude_homopolymers = False, discard_
     df = df.rename(rename_dict)
 
     # sort by chrom, start, end
-    #df = df.sort(["Chrom", "Start1Based", "End1Based"])
+    df = df.sort(PER_LOCUS_COLUMNS)
 
     return df
 
@@ -228,11 +229,7 @@ def merge_two_rows(keep_row, drop_row, locus_id_to_sample_ids_with_non_missing_g
 def merge_overlapping_loci(df, locus_id_to_sample_ids_with_non_missing_genotypes, merge_per_sample_columns=False, verbose=True):
 
     # sort by chrom, start, end
-    df = df.sort(["Chrom", "Start1Based", "End1Based"])
-
-    #df_temp = df
-    #df_temp = generate_combined_columns(df_temp)
-    #checkpoint_combined_df(df_temp, temp_table_path="temp_before_merge.tsv.gz")
+    df = df.sort(PER_LOCUS_COLUMNS)
 
     # iterate over the loci, checking for overlap between each locus and the next one, and then and create a new table with the merged loci
     result_rows = []
@@ -279,43 +276,27 @@ def merge_overlapping_loci(df, locus_id_to_sample_ids_with_non_missing_genotypes
     # Add the last row if we haven't processed it yet
     result_rows.append(row_i)
 
-    print("Done merging overlapping loci")
+    print(f"Merged {merged_row_counter:,d} out of {df.height:,d} ({merged_row_counter/df.height:.1%}) overlapping loci")
 
     if result_rows:
         merged_df = pl.DataFrame(result_rows, schema=df.schema)
     else:
         merged_df = pl.DataFrame(schema=df.schema)
 
-    print(f"Merged {merged_row_counter:,d} out of {df.height:,d} ({merged_row_counter/df.height:.1%}) overlapping loci")
     return merged_df
-
-
-def checkpoint_combined_df(df, temp_table_path=None):
-    # write to gzipped temp table and then read it back in
-    if temp_table_path is None:
-        temp_table_path = f"temp_df.tsv.gz"
-
-    with gzip.open(temp_table_path, "wb") as f:
-        df.write_csv(f, separator="\t")
-    print(f"Wrote {df.height:,d} loci to {temp_table_path}")
-
-    df = pl.read_csv(temp_table_path, separator="\t", schema_overrides=SCHEMA_WITH_INT)
-    print(f"Read {df.height:,d} loci from {temp_table_path}")
-
-    return df
 
 
 def get_sample_id(input_tsv):
     return os.path.basename(input_tsv).split(".")[0]
 
 
-def create_table_of_all_loci(input_tsvs, exclude_homopolymers = False, discard_impure_genotypes = False, output_stats_tsv = None):
+def create_table_of_all_loci(input_tsvs, exclude_homopolymers = False, discard_impure_genotypes = False, output_stats_tsv = None, chroms_to_process = None):
     output_stats = []
     combined_df = None
     for table_i, input_tsv in tqdm.tqdm(enumerate(input_tsvs), total=len(input_tsvs), unit=" tables"):
         sample_id = get_sample_id(input_tsv)
 
-        df = parse_input_tsv(sample_id, input_tsv, exclude_homopolymers=exclude_homopolymers, discard_impure_genotypes=discard_impure_genotypes)
+        df = parse_input_tsv(sample_id, input_tsv, exclude_homopolymers=exclude_homopolymers, discard_impure_genotypes=discard_impure_genotypes, chroms_to_process=chroms_to_process)
 
         if combined_df is None:
             locus_ids_before_join = pure_locus_ids_before_join = pure_found_in_reference_locus_ids_before_join = pure_found_in_reference_with_3_or_more_repeats_locus_ids_before_join = 0
@@ -356,9 +337,6 @@ def create_table_of_all_loci(input_tsvs, exclude_homopolymers = False, discard_i
                 "CumulativeTotalLoci": combined_df.height,
             })
 
-        #if table_i % BATCH_SIZE == 0 and table_i > 0:
-        #    combined_df = checkpoint_combined_df(combined_df, temp_table_path=ALL_LOCUS_TABLE_CHECKPOINT_FILENAME)
-
 
     if output_stats_tsv:
         pl.DataFrame(output_stats).write_csv(output_stats_tsv, separator="\t", float_precision=2)
@@ -367,7 +345,7 @@ def create_table_of_all_loci(input_tsvs, exclude_homopolymers = False, discard_i
     return combined_df
 
 
-def parse_dipcall_confidence_regions_bed_file(bed_file_path):
+def parse_dipcall_confidence_regions_bed_file(bed_file_path, chroms_to_process = None):
 
     bed_schema_overrides = {
         "Chrom": pl.Utf8,
@@ -390,12 +368,19 @@ def parse_dipcall_confidence_regions_bed_file(bed_file_path):
         print(f"WARNING: No records found in {bed_file_path}. Returning empty interval tree.")
         return confidence_region_interval_trees
 
+    dipcall_confidence_regions = dipcall_confidence_regions.with_columns(
+        pl.col("Chrom").str.replace("chr", "").str.to_uppercase()
+    )
+
+    if chroms_to_process:
+        dipcall_confidence_regions = dipcall_confidence_regions.filter(pl.col("Chrom").is_in(chroms_to_process))
+
     # Add intervals to the interval tree
     total_bases = 0
     for row in dipcall_confidence_regions.iter_rows(named=True):
         if "_" in row["Chrom"]:
             continue
-        normalized_chrom = row["Chrom"].replace("chr", "").upper()
+        normalized_chrom = row["Chrom"]
         confidence_region_interval_trees[normalized_chrom].add(Interval(row["Start0Based"], row["End1Based"]))
         total_bases += row["End1Based"] - row["Start0Based"]
     
@@ -408,7 +393,7 @@ EMPTY_INTERVAL_TREE = IntervalTree()
 def fill_in_missing_genotypes(df, sample_id, dipcall_confidence_region_interval_trees, verbose=True):
 
     def does_locus_overlap_confidence_region(row):
-        normalized_chrom = row["Chrom"].replace("chr", "").upper()
+        normalized_chrom = row["Chrom"]
         start = row["Start1Based"] - 1
         end = row["End1Based"]
 
@@ -518,7 +503,16 @@ def generate_combined_columns(combined_df):
     return combined_df
 
 
-def add_sample_columns(combined_df, sample_id_to_input_tsv, sample_id_to_dipcall_confidence_region_interval_trees, include_per_sample_columns=False, exclude_homopolymers=False, discard_impure_genotypes=False):
+def add_sample_columns(
+    combined_df, 
+    sample_id_to_input_tsv, 
+    sample_id_to_dipcall_confidence_region_interval_trees, 
+    include_per_sample_columns=False, 
+    exclude_homopolymers=False, 
+    discard_impure_genotypes=False, 
+    chroms_to_process=None,
+    verbose=False,
+):
     all_allele_size_columns = []
     locus_id_to_sample_ids_with_non_missing_genotypes = collections.defaultdict(set)  # used later for merging overlapping loci
 
@@ -535,7 +529,7 @@ def add_sample_columns(combined_df, sample_id_to_input_tsv, sample_id_to_dipcall
             print(f"Skipping {sample_id} because it already exists in the combined table")
             continue
 
-        df = parse_input_tsv(sample_id, input_tsv, exclude_homopolymers=exclude_homopolymers, discard_impure_genotypes=discard_impure_genotypes)
+        df = parse_input_tsv(sample_id, input_tsv, exclude_homopolymers=exclude_homopolymers, discard_impure_genotypes=discard_impure_genotypes, chroms_to_process=chroms_to_process)
         df = df.drop(f"IsPureRepeat:{sample_id}")
         df = df.join(combined_df.select(PER_LOCUS_COLUMNS), on=PER_LOCUS_COLUMNS, how="right", coalesce=True)
 
@@ -575,9 +569,6 @@ def add_sample_columns(combined_df, sample_id_to_input_tsv, sample_id_to_dipcall
 
         per_sample_columns = [f"NumRepeatsShortAllele:{sample_id}", f"NumRepeatsLongAllele:{sample_id}"]
         if include_per_sample_columns:
-            #if table_i % BATCH_SIZE == 0 and table_i > 0:
-            #    combined_df = checkpoint_combined_df(combined_df, temp_table_path=SAMPLES_TABLE_CHECKPOINT_FILENAME)
-
             all_allele_size_columns.extend(per_sample_columns)
         else:
             combined_df = combined_df.drop(per_sample_columns)
@@ -592,7 +583,8 @@ def add_sample_columns(combined_df, sample_id_to_input_tsv, sample_id_to_dipcall
 
     # Merge overlapping rows
     combined_df = merge_overlapping_loci(
-        combined_df, locus_id_to_sample_ids_with_non_missing_genotypes, merge_per_sample_columns=include_per_sample_columns)
+        combined_df, locus_id_to_sample_ids_with_non_missing_genotypes, merge_per_sample_columns=include_per_sample_columns, verbose=verbose)
+
 
     print("Generating combined allele frequencies and other summary columns")
     combined_df = generate_combined_columns(combined_df)
@@ -606,6 +598,10 @@ def add_sample_columns(combined_df, sample_id_to_input_tsv, sample_id_to_dipcall
 
     return combined_df
 
+def run(command):
+    print(f"Running command: {command}")
+    subprocess.check_output(command, shell=True)
+
 def main():
     parser = argparse.ArgumentParser(description="Perform an outer-join on multiple per-sample tables")
     parser.add_argument("-o", "--output-tsv", help="Combined tsv file path")
@@ -615,11 +611,15 @@ def main():
     parser.add_argument("--exclude-homopolymers", action="store_true", help="Exclude homopolymers from the output")
     parser.add_argument("--discard-impure-genotypes", action="store_true", help="Discard genotypes that are not pure repeats")
     parser.add_argument("--output-stats-tsv", action="store_true", help="If specified, will output a table with stats")
+    parser.add_argument("-b", "--batches", type=int, default=1, choices=[1, 2, 3, 4, 6, 8, 12, 24], help="When the nubmer of input sample tables if large enough to "
+                        "cause out-of-memory errors, split the input tables into batches by chromosome(s). ")
     parser.add_argument("input_tsv_and_bed_files", nargs="+", help="Input STR variant TSV files and dipcall confidence region BED files")
     parser.add_argument("--force", action="store_true", help="Force re-run even if the output file already exists")
+    parser.add_argument("--verbose", action="store_true", help="Verbose output")
     args = parser.parse_args()
 
-    
+
+    # Parse and validate TSV and BED file paths
     sample_id_to_input_tsv = {}
     dipcall_confidence_regions_bed_files = []
     for input_tsv_or_bed_file in args.input_tsv_and_bed_files:
@@ -634,7 +634,7 @@ def main():
         else:
             parser.error(f"Input file {input_tsv_or_bed_file} must have a .tsv or .tsv.gz or .bed or .bed.gz suffix.")
 
-    # Sort by file size (largest first)
+    # Sort input tables by file size (largest first)
     input_tsvs = list(sample_id_to_input_tsv.values())
     input_tsvs.sort(key=os.path.getsize, reverse=True)
 
@@ -642,6 +642,7 @@ def main():
         input_tsvs = input_tsvs[:args.n]
         sample_id_to_input_tsv = {k: v for k, v in sample_id_to_input_tsv.items() if v in set(input_tsvs)}
 
+    # Parse the per-sample DipCall BED file paths
     sample_id_to_bed_file_path = {}
     for sample_id in sample_id_to_input_tsv.keys():
         # find the dipcall confidence region bed file for this sample
@@ -662,67 +663,98 @@ def main():
 
         sample_id_to_bed_file_path[sample_id] = matching_bed_file_path
 
-
+    # Compute output path
     if not args.output_tsv:
         exclude_homopolymers_suffix = ".excluding_homopolymers" if args.exclude_homopolymers else ""
         discard_impure_genotypes_suffix = ".discarding_impure_genotypes" if args.discard_impure_genotypes else ""
         args.output_tsv = f"joined.{len(input_tsvs)}_tables{exclude_homopolymers_suffix}{discard_impure_genotypes_suffix}.tsv.gz"
 
-    if not args.output_tsv.endswith(".gz"):
-        args.output_tsv += ".gz"
 
     filename_prefix = args.output_tsv.replace(".tsv.gz", "").replace(".tsv", "")
-    
-    output_stats_tsv = f"{filename_prefix}.stats.tsv" if args.output_stats_tsv else None
 
-    table_of_all_loci_path = f"{filename_prefix}.only_loci.tsv.gz"
-    if not os.path.exists(table_of_all_loci_path) or args.force:
-        combined_df = create_table_of_all_loci(
-            input_tsvs=input_tsvs, 
+    batch_tsvs = []
+    for batch_i in range(0, args.batches):
+
+        if args.batches > 10:
+            batch_suffix = f".batch_{batch_i+1:02d}_of_{args.batches:02d}"
+        elif args.batches > 1:
+            batch_suffix = f".batch_{batch_i+1}_of_{args.batches}"
+        else:
+            batch_suffix = ""
+
+        chroms_to_process_in_current_batch = None  # by default, process all chromosomes
+        if args.batches > 1:
+            chroms_to_process_in_current_batch = ALL_CHROMS[batch_i::args.batches]
+            print("-" * 200)
+            print(f"Processing batch [{batch_i+1} out of {args.batches}] with chromosomes {','.join(chroms_to_process_in_current_batch)}")
+
+        output_stats_tsv = f"{filename_prefix}{batch_suffix}.stats.tsv" if args.output_stats_tsv else None
+        args.output_tsv = f"{filename_prefix}{batch_suffix}.tsv.gz"
+        print(f"Output file: {args.output_tsv}")
+        batch_tsvs.append(args.output_tsv)
+
+        table_of_all_loci_path = f"{filename_prefix}{batch_suffix}.only_loci.tsv.gz"
+        if not os.path.exists(table_of_all_loci_path) or args.force:
+            combined_df = create_table_of_all_loci(
+                input_tsvs=input_tsvs, 
+                exclude_homopolymers=args.exclude_homopolymers, 
+                discard_impure_genotypes=args.discard_impure_genotypes, 
+                output_stats_tsv=output_stats_tsv,
+                chroms_to_process=chroms_to_process_in_current_batch,
+            )
+            
+            with gzip.open(table_of_all_loci_path, "wb") as f:
+                combined_df.write_csv(f, separator="\t", float_precision=2)
+
+            print(f"Wrote {combined_df.height:,d} loci to {table_of_all_loci_path}")
+        else:
+            combined_df = pl.read_csv(table_of_all_loci_path, separator="\t", columns=PER_LOCUS_COLUMNS + ["IsPureRepeat"], schema_overrides=SCHEMA)
+            combined_df = combined_df.with_columns(
+                pl.col("NumRepeatsInReference").cast(pl.Int32), 
+                pl.col("MotifSize").cast(pl.Int32),
+            )
+
+            print(f"Read {combined_df.height:,d} loci from {table_of_all_loci_path}")
+
+        sample_id_to_dipcall_confidence_region_interval_trees = {}
+        for sample_id, bed_file_path in sample_id_to_bed_file_path.items():
+            sample_id_to_dipcall_confidence_region_interval_trees[sample_id] = parse_dipcall_confidence_regions_bed_file(
+                bed_file_path, chroms_to_process=chroms_to_process_in_current_batch)
+
+        combined_df = add_sample_columns(
+            combined_df, 
+            sample_id_to_input_tsv, 
+            sample_id_to_dipcall_confidence_region_interval_trees, 
+            include_per_sample_columns=args.include_per_sample_columns,
             exclude_homopolymers=args.exclude_homopolymers, 
             discard_impure_genotypes=args.discard_impure_genotypes, 
-            output_stats_tsv=output_stats_tsv,
+            chroms_to_process=chroms_to_process_in_current_batch,
+            verbose=args.verbose,
         )
-        
-        with gzip.open(table_of_all_loci_path, "wb") as f:
+
+        # Sort by PER_LOCUS_COLUMNS
+        combined_df = combined_df.sort(PER_LOCUS_COLUMNS)
+
+        # Write as gzipped file
+        with gzip.open(args.output_tsv, "wb") as f:
             combined_df.write_csv(f, separator="\t", float_precision=2)
 
-        print(f"Wrote {combined_df.height:,d} loci to {table_of_all_loci_path}")
-    else:
-        #if os.path.isfile(SAMPLES_TABLE_CHECKPOINT_FILENAME):
-        #    table_of_all_loci_path = SAMPLES_TABLE_CHECKPOINT_FILENAME
-        #    combined_df = pl.read_csv(table_of_all_loci_path, separator="\t", schema_overrides=SCHEMA)
-        #else:
-        combined_df = pl.read_csv(table_of_all_loci_path, separator="\t", columns=PER_LOCUS_COLUMNS + ["IsPureRepeat"], schema_overrides=SCHEMA)
-        combined_df = combined_df.with_columns(
-            pl.col("NumRepeatsInReference").cast(pl.Int32), 
-            pl.col("MotifSize").cast(pl.Int32),
-        )
+        print(f"Wrote combined table with {combined_df.height:,d} loci to {args.output_tsv}")
 
-        print(f"Read {combined_df.height:,d} loci from {table_of_all_loci_path}")
+    # Concatenate all the batch files into a single file
+    if args.batches > 1:
+        run(f"gunzip -c {batch_tsvs[0]} | head -n 1 > {filename_prefix}.tsv")
+        for batch_tsv in batch_tsvs:
+            run(f"gunzip -c {batch_tsv} | tail -n +2 >> {filename_prefix}.tsv") 
 
-    sample_id_to_dipcall_confidence_region_interval_trees = {}
-    for sample_id, bed_file_path in sample_id_to_bed_file_path.items():
-        sample_id_to_dipcall_confidence_region_interval_trees[sample_id] = parse_dipcall_confidence_regions_bed_file(bed_file_path)
+        combined_df = pl.read_csv(f"{filename_prefix}.tsv", separator="\t", schema_overrides=SCHEMA)
+        combined_df = combined_df.sort(PER_LOCUS_COLUMNS)
+        with gzip.open(f"{filename_prefix}.tsv.gz", "wb") as f:
+            combined_df.write_csv(f, separator="\t", float_precision=2)
+        print(f"Wrote {combined_df.height:,d} loci to {filename_prefix}.tsv.gz")
 
-    combined_df = add_sample_columns(
-        combined_df, 
-        sample_id_to_input_tsv, 
-        sample_id_to_dipcall_confidence_region_interval_trees, 
-        include_per_sample_columns=args.include_per_sample_columns,
-        exclude_homopolymers=args.exclude_homopolymers, 
-        discard_impure_genotypes=args.discard_impure_genotypes, 
-    )
-
-    # Sort by PER_LOCUS_COLUMNS
-    combined_df = combined_df.sort(PER_LOCUS_COLUMNS)
-
-    # Write as gzipped file
-    with gzip.open(args.output_tsv, "wb") as f:
-        combined_df.write_csv(f, separator="\t", float_precision=2)
-
-    print(f"Wrote combined table with {combined_df.height:,d} loci to {args.output_tsv}")
-
+        # gzip the file
+        run(f"rm -f {filename_prefix}.tsv")
 
 if __name__ == "__main__":
     main()
