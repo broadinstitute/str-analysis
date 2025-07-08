@@ -64,7 +64,7 @@ class TRFRunner:
                 output_format="dat",
                 min_motif_size=min_motif_size,
                 max_motif_size=max_motif_size,
-                keep_intermediate_files=self.output_filename_prefix is None,
+                keep_intermediate_files=self.output_filename_prefix is not None,
         ):
             yield dat_record
 
@@ -90,7 +90,7 @@ class TRFRunner:
             min_motif_size=min_motif_size,
             max_motif_size=max_motif_size,
             output_filename_prefix=self.output_filename_prefix,
-            keep_intermediate_files=self.output_filename_prefix is None,
+            keep_intermediate_files=self.output_filename_prefix is not None,
         ):
             yield record
 
@@ -178,11 +178,8 @@ def _run_tandem_repeats_finder(
             os.remove(output_dat_path)
 
     elif output_format == "html":
-
         subprocess.run(command, shell=True, stdout=subprocess.DEVNULL, check=False)
 
-        print(command)
-        os.system(f"ls -l {os.path.dirname(input_fasta_path)}")
         # read html output
         trf_output_filename_prefix = f"{os.path.basename(input_fasta_path)}.{match_score}.{mismatch_penalty}.{indel_penalty}.{pm}.{pi}.{minscore}.{max_period}"
         i = 1
@@ -193,13 +190,16 @@ def _run_tandem_repeats_finder(
                 yield record
 
             if not keep_intermediate_files:
+                # remove the TRF output html file
                 os.remove(html_file_path)
+                if os.path.isfile(f"{trf_output_filename_prefix}.{i}.html"):
+                    # also remove the TRF output summary table html file
+                    os.remove(f"{trf_output_filename_prefix}.{i}.html")
 
             i += 1
             html_file_path =  f"{trf_output_filename_prefix}.{i}.txt.html"
 
-        if not keep_intermediate_files and os.path.isfile(f"{trf_output_filename_prefix}.txt.html"):
-            os.remove(f"{trf_output_filename_prefix}.txt.html")
+
 
     else:
         raise ValueError(f"Invalid output_format: '{output_format}'. It must be either 'dat' or 'html'.")
