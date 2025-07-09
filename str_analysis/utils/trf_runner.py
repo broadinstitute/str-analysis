@@ -9,6 +9,8 @@ import traceback
 from str_analysis.utils.dat_utils import parse_dat_file
 
 
+TRF_ALIGNMENT_LINE_REGEX = re.compile(r"(\d+)\s+([-ACGTN\s]+)")
+
 class TRFRunner:
     """Class for running TandemRepeatFinder on a nucleotide sequence"""
 
@@ -188,7 +190,7 @@ class TRFRunner:
             if not period_copynumber_consensus_size_match:
                 raise ValueError(f"Could not parse period, copynumber, and consensus size from line: {lines[1]}")
 
-            period = int(period_copynumber_consensus_size_match.group(1))
+            #period = int(period_copynumber_consensus_size_match.group(1))
             copynumber = float(period_copynumber_consensus_size_match.group(2))
             consensus_size = int(period_copynumber_consensus_size_match.group(3))
 
@@ -205,99 +207,110 @@ class TRFRunner:
             lines = lines[3:]
 
             consensus_motif = None
+            final_consensus_motif = None
+            repeat_sequence = None
             repeats = []
             #repeats_and_start_indices = []
             motif_positions_with_interruptions = {}  # histogram of motif positions with interruptions
             total_mismatches = 0
             total_indels = 0
 
-            block_counter = 0
             line_i = 0
             while line_i < len(lines):
-                start_block_i = line_i
+                line_i_block_start = line_i
                 while line_i < len(lines) and lines[line_i].strip():
+                    # find the end of this the block
                     line_i += 1
 
-                lines_in_block = lines[start_block_i:line_i]
-                block_text = "\n".join(lines_in_block)
+                lines_in_block = lines[line_i_block_start:line_i]
                 line_i += 1
-                if not block_text.strip() or len(lines_in_block) < 2:
+
+                if len(lines_in_block) < 2 or not any(l.strip() for l in lines_in_block):
                     continue
 
-                try:
-                    consensus_motif_line = lines_in_block[-1]
-                    consensus_motif_match = re.search(r"(\d+)\s+([-ACGTN\s]+)", consensus_motif_line)
-                    if not consensus_motif_match:
-                        raise ValueError(f"Could not parse consensus motif from line: {consensus_motif_line}")
+                consensus_motif_line = lines_in_block[-1]
+                consensus_motif_match = TRF_ALIGNMENT_LINE_REGEX.search(consensus_motif_line)
+                if not consensus_motif_match:
+                    raise ValueError(f"Could not parse consensus motif from line: {consensus_motif_line}")
 
-                    if consensus_motif_match.group(1) != "1":
-                        # this is a continuation of the motif and alignment from the previous block
-                        continue
+                # this is a continuation of the motif and alignment from the previous block
+                is_continuation = consensus_motif_match.group(1) != "1"                    
 
-                    consensus_motif_sequence_string = consensus_motif_match.group(2)
-                    current_consensus_motif = consensus_motif_sequence_string.split(" ")[0]
-                    current_consensus_motif_without_deletions = current_consensus_motif.replace("-", "")
+                current_consensus_motif = consensus_motif_match.group(2).split(" ")[0].replace("-", "")
+                if final_consensus_motif is None:
                     if consensus_motif is None:
-                        consensus_motif = current_consensus_motif_without_deletions
-                    elif consensus_motif != current_consensus_motif_without_deletions:
-                        if line_i + 2 < len(lines):
-                            print(f"WARNING: {html_file_path} consensus motif mismatch: {current_consensus_motif_without_deletions} != {consensus_motif} at line: {consensus_motif_line}")
-                        continue
+                        assert not is_continuation, f"First block should not be a continuation in block: \n{'\n'.join(lines_in_block)}"
+                        consensus_motif = current_consensus_motif
+                    elif is_continuation:
+                        consensus_motif += current_consensus_motif
+                    else: 
+                        final_consensus_motif = consensus_motif
+                        consensus_motif = current_consensus_motif
+                else:
+                    if consensus_motif is None:
+                        assert not is_continuation, f"First block should not be a continuation in block: \n{'\n'.join(lines_in_block)}"
+                        consensus_motif = current_consensus_motif
+                    elif is_continuation:
+                        consensus_motif += current_consensus_motif
+                    else: 
+                        if consensus_motif != final_consensus_motif:
+                            print(f"WARNING: {html_file_path} consensus motif mismatch: {consensus_motif} != {final_consensus_motif} in block: \n{'\n'.join(lines_in_block)}")
+                        consensus_motif = current_consensus_motif
 
-                    repeat_sequence_line = lines_in_block[-2]
-                    repeat_sequence_match = re.search(r"(\d+)\s+([-ACGTN\s]+)", repeat_sequence_line)
-                    if not repeat_sequence_match:
-                        raise ValueError(f"Could not parse motif from line: {repeat_sequence_line}")
 
-                    repeat_sequence_string = repeat_sequence_match.group(2)
-                    total_indels += repeat_sequence_string.count("-") + consensus_motif_sequence_string.count("-")
+                repeat_sequence_line = lines_in_block[-2]
+                repeat_sequence_match = TRF_ALIGNMENT_LINE_REGEX.search(repeat_sequence_line)
+                if not repeat_sequence_match:
+                    raise ValueError(f"Could not parse motif from line: {repeat_sequence_line}")
 
-                    #repeat_sequence_start_index_0based = int(repeat_sequence_match.group(1)) - 1
 
-                    interruptions_string = None
-                    if len(lines_in_block) > 2:
-                        interruptions_line = lines_in_block[-3]
+                total_indels += repeat_sequence_match.group(2).count("-") + consensus_motif_match.group(2).count("-")
+                if not is_continuation:
+                    repeat_sequence = repeat_sequence_match.group(2)
+                else:
+                    repeat_sequence += repeat_sequence_match.group(2)
 
-                        interruptions_line_offset, _ = repeat_sequence_match.span(2)  # offset of the repeat sequence in the interruptions line
-                        interruptions_string = interruptions_line[interruptions_line_offset:]
 
-                        total_mismatches += interruptions_string.count("*")
+                interruptions_string = None
+                if len(lines_in_block) > 2:
+                    interruptions_line = lines_in_block[-3]
+
+                    interruptions_line_offset, _ = repeat_sequence_match.span(2)  # offset of the repeat sequence in the interruptions line
+                    interruptions_string = interruptions_line[interruptions_line_offset:]
+
+                    total_mismatches += interruptions_string.count("*")
+                    if self.debug:
+                        print()
+                        print(interruptions_string)
+                        print(repeat_sequence_match.group(2))
+                        print(consensus_motif_match.group(2))
+
+                interruptions_string_offset = 0
+                for repeat_motif in repeat_sequence_match.group(2).split(" "):
+                    repeats.append(repeat_motif)
+                    #repeats_and_start_indices.append((repeat_sequence_start_index_0based, motif))
+                    #repeat_sequence_start_index_0based += len(motif)
+
+                    if interruptions_string is not None:
+                        motif_interruptions = interruptions_string[interruptions_string_offset : interruptions_string_offset + len(repeat_motif)]
                         if self.debug:
-                            print()
-                            print(interruptions_string)
-                            print(repeat_sequence_string)
-                            print(consensus_motif_sequence_string)
+                            print(f"motif_interruptions: {motif_interruptions}")
+                            print(f"motif              : {repeat_motif}")
 
-                    interruptions_string_offset = 0
-                    for repeat_motif in repeat_sequence_string.split(" "):
-                        repeats.append(repeat_motif)
-                        #repeats_and_start_indices.append((repeat_sequence_start_index_0based, motif))
-                        #repeat_sequence_start_index_0based += len(motif)
+                        if "*" in motif_interruptions:
+                            pos_offset = 0 if not is_continuation else int(consensus_motif_match.group(1)) - 1
+                            for i, c in enumerate(motif_interruptions):
+                                if c == "*":
+                                    motif_positions_with_interruptions[i + 1 + pos_offset] = motif_positions_with_interruptions.get(i + 1 + pos_offset, 0) + 1
 
-                        if interruptions_string is not None:
-                            motif_interruptions = interruptions_string[interruptions_string_offset:interruptions_string_offset + len(repeat_motif)]
-                            if self.debug:
-                                print(f"motif_interruptions: {motif_interruptions}")
-                                print(f"motif              : {repeat_motif}")
-                            if "*" in motif_interruptions:
-                                for i, c in enumerate(motif_interruptions):
-                                    if c == "*":
-                                        motif_positions_with_interruptions[i + 1] = motif_positions_with_interruptions.get(i + 1, 0) + 1
+                    interruptions_string_offset += len(repeat_motif) + 1  # add +1 to account for the space between motifs
 
-                        interruptions_string_offset += len(repeat_motif) + 1  # add +1 to account for the space between motifs
-
-                except Exception as e:
-                    print(f"Error parsing {html_file_path} at lines {start_block_i} to {line_i}: {block_text}\n{e}")
-                    traceback.print_exc()
-                    continue
-
-                block_counter += 1
 
             results.append({
                 "start_0based": seq_start_index_0based,
                 "end_1based": seq_end_index,
-                "motif": consensus_motif,
-                "motif_size": len(consensus_motif),
+                "motif": final_consensus_motif,
+                "motif_size": len(final_consensus_motif),
                 #"motif_size": period,
                 #"consensus_motif_size": consensus_size,
                 "num_repeats": copynumber,
@@ -362,7 +375,7 @@ if __name__ == "__main__":
                               parse_motif_composition=parse_motif_composition, 
                               debug=DEBUG, 
                               output_filename_prefix=f"{row['sample_id']}_{column_name}",
-                              generate_motif_plot=True,
+                              generate_motif_plot=False,
                 )
 
                 # run TRF on the sequence
@@ -371,7 +384,7 @@ if __name__ == "__main__":
                 records = list(r.run_TRF(nucleotide_sequence=seq))
                 sys.stdout.write(f"{row['sample_id']:<20} {column_name}: found {len(records):,d} TRF results in {len(seq):10,d}bp sequence")
                 for trf_record_i, record in enumerate(records):
-                    print(f" "*30 + f"TRF record #{trf_record_i + 1}: score = {record['alignment_score']}, start_diff = {record['start_0based']}, end_diff = {record['repeat_sequence_length'] - record['end_1based']}, cov = {(record['end_1based'] - record['start_0based'])/record['repeat_sequence_length']}, motif = {record['motif']}")
+                    print(f" "*30 + f"TRF record #{trf_record_i + 1}: motif_size = {record['motif_size']}, score = {record['alignment_score']}, start_diff = {record['start_0based']}, end_diff = {record['repeat_sequence_length'] - record['end_1based']}, cov = {(record['end_1based'] - record['start_0based'])/record['repeat_sequence_length']}, motif = {record['motif']}")
                     if DEBUG:
                         print(record)
 
