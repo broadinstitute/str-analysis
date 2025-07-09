@@ -58,8 +58,11 @@ class TRFRunner:
         if self.generate_motif_plot and not self.parse_motif_composition:
             raise ValueError("generate_motif_plot requires parse_motif_composition to be True")
 
+
     def run_TRF(self, nucleotide_sequence, min_motif_size=None, max_motif_size=None):
-        """Run TRF on the given nucleotide sequence and return a generator of DatRecords
+        """Run TRF on the given nucleotide sequence and return a generator of records representing the TRF output for the given nucleotide sequence.
+        This code assumes the goal is to find a single repeat that covers all or most of the input sequence.
+        It is not designed to find multiple distict repeat loci within the sequence.
 
         Args:
             nucleotide_sequence (str): the nucleotide sequence to run TRF on
@@ -124,7 +127,7 @@ class TRFRunner:
             html_file_path = f"{trf_output_filename_prefix}.{i}.txt.html"
             while os.path.isfile(html_file_path):
 
-                for record in self._parse_trf_html_output(html_file_path, min_motif_size=min_motif_size, max_motif_size=max_motif_size):
+                for record in self._parse_trf_html_output(nucleotide_sequence, html_file_path, min_motif_size=min_motif_size, max_motif_size=max_motif_size):
                     if self.generate_motif_plot:
                         self.create_motif_plot(record["repeats"], record["start_0based"], record["end_1based"], record["motif"])
 
@@ -160,7 +163,7 @@ class TRFRunner:
                 os.remove(output_dat_path)
 
 
-    def _parse_trf_html_output(self, html_file_path, min_motif_size=None, max_motif_size=None):
+    def _parse_trf_html_output(self, nucleotide_sequence, html_file_path, min_motif_size=None, max_motif_size=None):
         """Parse the HTML output of TRF and return a list of motifs"""
 
         with open(html_file_path, "rt") as f:
@@ -305,6 +308,8 @@ class TRFRunner:
 
                     interruptions_string_offset += len(repeat_motif) + 1  # add +1 to account for the space between motifs
 
+            if final_consensus_motif is None:
+                final_consensus_motif = consensus_motif
 
             results.append({
                 "start_0based": seq_start_index_0based,
@@ -314,15 +319,25 @@ class TRFRunner:
                 #"motif_size": period,
                 #"consensus_motif_size": consensus_size,
                 "num_repeats": copynumber,
-                "repeat_sequence_length": seq_end_index - seq_start_index_0based,
                 "repeats": repeats,
                 #"repeats_and_start_indices": repeats_and_start_indices,
                 "total_mismatches": total_mismatches,
                 "total_indels": total_indels,
+                "alignment_length": seq_end_index - seq_start_index_0based,
                 "alignment_score": score,
                 "motif_positions_with_interruptions": motif_positions_with_interruptions,
             })
 
+        
+        # Filter out the short TRF results at a locus
+        #metric = "alignment_length"
+        result_with_max_alignment_score = max(results, key=lambda x: x["alignment_score"])
+        max_alignment_score = result_with_max_alignment_score["alignment_score"]
+
+        results = [t for t in results if t["alignment_score"] > 0.1 * max_alignment_score]
+        #results = [t for t in results if t["start_0based"] < t["motif_size"] and t["end_1based"] > len(nucleotide_sequence) - t["motif_size"]]
+
+        results.sort(key=lambda x: x["motif_size"])
         return results
 
     def create_motif_plot(self, motif_list, start_0based, end_1based, consensus_motif):
@@ -347,13 +362,6 @@ class TRFRunner:
         p.save(f'{self.output_filename_prefix}_motif_plot_{start_0based}_{end_1based}_{consensus_motif}.png', "png", width=len(consensus_motif)*0.5, height=3, limitsize=False)
 
 
-"""
-    # Selecting the best TRF result for a locus
-    result_with_max_score = max(results, key=lambda x: x["trf_score"])
-    max_score = result_with_max_score["trf_score"]
-
-    result_with_min_consensus_motif_size = min([t for t in results if t["trf_score"] > 0.8 * max_score], key=lambda x: x["trf_consensus_motif_size"])
-"""
 
 
 DEBUG=False
@@ -366,10 +374,12 @@ if __name__ == "__main__":
     df2 = pd.read_table("~/code/str-analysis/str_analysis/data/tests/ABCA7_VNTR_sequences.tsv")
     for parse_motif_composition in [True,]:
 
-        for df, column_name in [(df1, "CACNA1C_seq"),]: # (df2, "ABCA7_seq")]:
+        #for df, column_name in [(df1, "CACNA1C_seq"),  (df2, "ABCA7_seq")]:
+        #for df, column_name in [(df2, "ABCA7_seq")]:
+        for df, column_name in [(df1, "CACNA1C_seq")]:
             for _, row in df.iterrows():
-                if row['sample_id'] != "NA18939":
-                    continue
+                #if row['sample_id'] != "NA18939":
+                #    continue
 
                 r = TRFRunner("~/bin/trf409.macosx", 
                               parse_motif_composition=parse_motif_composition, 
@@ -382,9 +392,10 @@ if __name__ == "__main__":
                 seq = row[column_name]
                 #print(f"Running TRF on {len(seq):,d}bp sequence from {column_name}")
                 records = list(r.run_TRF(nucleotide_sequence=seq))
+                records = [records[0]]
                 sys.stdout.write(f"{row['sample_id']:<20} {column_name}: found {len(records):,d} TRF results in {len(seq):10,d}bp sequence")
                 for trf_record_i, record in enumerate(records):
-                    print(f" "*30 + f"TRF record #{trf_record_i + 1}: motif_size = {record['motif_size']}, score = {record['alignment_score']}, start_diff = {record['start_0based']}, end_diff = {record['repeat_sequence_length'] - record['end_1based']}, cov = {(record['end_1based'] - record['start_0based'])/record['repeat_sequence_length']}, motif = {record['motif']}")
+                    print(f" "*30 + f"TRF record #{trf_record_i + 1}: score = {record['alignment_score']:6,d}, start_diff = {record['start_0based']}, end_diff = {len(seq) - record['end_1based']}, cov = {(record['end_1based'] - record['start_0based'])/len(seq):0.1%}, motif = {record['motif']}, motif_size = {record['motif_size']}")
                     if DEBUG:
                         print(record)
 
