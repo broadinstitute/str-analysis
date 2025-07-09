@@ -57,8 +57,8 @@ def parse_dat_record(line, chromosome):
     }
 
     if len(fields) > 16:
-        dat_record['left_flank'] = fields[15]
-        dat_record['right_flank'] = fields[16]
+        dat_record['left_flank'] = fields[15] if fields[15] != "." else None
+        dat_record['right_flank'] = fields[16] if fields[16] != "." else None
 
     return DatRecord(**dat_record)
 

@@ -1,4 +1,4 @@
-"""Utils for using the TandemRepeatsFinder [Benson 1999] to find repeats in nucleotide sequences"""
+"""Utils for running TandemRepeatsFinder [Benson 1999] and parsing its output"""
 
 import os
 import re
@@ -10,7 +10,7 @@ from str_analysis.utils.dat_utils import parse_dat_file
 
 
 class TRFRunner:
-    """Class for running TandemRepeatFinder on a nucleotide sequence."""
+    """Class for running TandemRepeatFinder on a nucleotide sequence"""
 
     def __init__(self,
                  trf_executable_path,
@@ -32,8 +32,10 @@ class TRFRunner:
             pm (int): see Tandem Repeats Finder docs
             pi (int): see Tandem Repeats Finder docs
             minscore (int): see Tandem Repeats Finder docs
-            output_filename_prefix (str): if specified, the TRF output files will have this prefix. If not specified, intermediate files will be deleted.
-            parse_motif_composition (bool): if True, parse the motif composition from TRF's HTML output.
+            output_filename_prefix (str): if specified, the TRF output files will have this prefix and will not be deleted.
+                If not specified, the intermediate files will be deleted after they are parsed into in-memory data structures.
+            parse_motif_composition (bool): if True, in addition to parsing the repeat coordinates and motif, also
+                parse and return the motif composition from TRF's HTML output.
             debug (bool): if True, print debug information
         """
 
@@ -48,24 +50,36 @@ class TRFRunner:
         self.parse_motif_composition = parse_motif_composition
         self.debug = debug
 
-    def run_TRF(self, nucleotide_sequence, chromosome_name="chrN", min_motif_size=None, max_motif_size=None):
-        """Run TRF on the given nucleotide sequence and return a generator of DatRecords"""
-        temp_fasta_path = self._write_sequences_to_temp_fasta(
-            {chromosome_name : nucleotide_sequence},
-            output_filename_prefix=self.output_filename_prefix)
-
-
-        """Runs Tandem Repeats Finder on the given input fasta, parses results and returns a generator of DatRecords
+    def run_TRF(self, nucleotide_sequence, min_motif_size=None, max_motif_size=None):
+        """Run TRF on the given nucleotide sequence and return a generator of DatRecords
 
         Args:
-            input_fasta_path (str): Fasta file path to run on.
+            nucleotide_sequence (str): the nucleotide sequence to run TRF on
             min_motif_size (int): if specified, only return loci with this motif size or larger.
             max_motif_size (int): if specified, only return loci with this motif size or smaller.
 
-        Yield:
-            if output_format was = "dat", yield DatRecords each of which represents an output row from TandemRepeatFinder
-            if output_format was = "html", yield records representing
+        Yields:
+            records representing the TRF output for the given nucleotide sequence.
         """
+
+        # write the sequence to a temp FASTA file
+        if self.output_filename_prefix is None:
+            temp_fasta_file = tempfile.NamedTemporaryFile("w+", suffix=".fasta", delete=False)
+        else:
+            temp_fasta_file = open(f"{self.output_filename_prefix}.fasta", "wt")
+
+        temp_fasta_file.write(f">seq_{len(nucleotide_sequence)}bp\n")
+        temp_fasta_file.write(f"{nucleotide_sequence}\n")
+
+        temp_fasta_file.close()
+
+        if self.debug:
+            print(f"Wrote {len(nucleotide_sequence):,d}bp sequence to {temp_fasta_file.name}")
+
+        temp_fasta_path = temp_fasta_file.name
+
+
+        # compose the TRF command
         # -l 6  = maximum TR length expected (in millions) (eg, -l 3 or -l=3 for 3 million). Human genome HG38 would need -l 6
         # -h = suppress html output
         # -ngs =  more compact .dat output on multisequence files, returns 0 on success. Output is printed to the screen.
@@ -84,6 +98,7 @@ class TRFRunner:
         redirect = subprocess.DEVNULL if not self.debug else None
 
         if self.parse_motif_composition:
+            # run TRF
             subprocess.run(command, shell=True, stdout=redirect, stderr=redirect, check=False)
 
             # read html output
@@ -97,7 +112,7 @@ class TRFRunner:
             trf_output_filename_prefix += f".{max_period}"
 
             i = 1
-            html_file_path =  f"{trf_output_filename_prefix}.{i}.txt.html"
+            html_file_path = f"{trf_output_filename_prefix}.{i}.txt.html"
             while os.path.isfile(html_file_path):
 
                 for record in self._parse_trf_html_output(html_file_path, min_motif_size=min_motif_size, max_motif_size=max_motif_size):
@@ -114,11 +129,13 @@ class TRFRunner:
                 html_file_path =  f"{trf_output_filename_prefix}.{i}.txt.html"
 
         else:
+            # run TRF
             output_dat_path = f"{temp_fasta_path}.dat"
             command += f"-h -ngs > {output_dat_path}"
 
             subprocess.check_output(command, shell=True, stderr=redirect)
 
+            # parse output in .dat format
             for dat_record in parse_dat_file(output_dat_path):
                 if min_motif_size is not None and dat_record.repeat_unit_length < min_motif_size:
                     continue
@@ -129,32 +146,6 @@ class TRFRunner:
 
             if not keep_intermediate_files:
                 os.remove(output_dat_path)
-
-    def _write_sequences_to_temp_fasta(self, sequences, output_filename_prefix=None):
-        """Create a temporary .fasta file with the given nucleotide sequences.
-
-        Args:
-            sequences (dict): dictionary that maps chromosome names to nucleotide sequences
-
-        Return:
-            str: temp file path
-        """
-        if output_filename_prefix is None:
-            temp_fasta_file = tempfile.NamedTemporaryFile("w+", suffix=".fasta", delete=False)
-        else:
-            temp_fasta_file = open(f"{output_filename_prefix}.fasta", "wt")
-
-        for chromosome_name in sequences:
-            temp_fasta_file.write(f">{chromosome_name}\n")
-            temp_fasta_file.write(f"{sequences[chromosome_name]}\n")
-
-        temp_fasta_file.close()
-
-        print(f"Wrote {temp_fasta_file.name}")
-        return temp_fasta_file.name
-
-
-
 
     def _parse_trf_html_output(self, html_file_path, min_motif_size=None, max_motif_size=None):
         """Parse the HTML output of TRF and return a list of motifs"""
@@ -203,8 +194,8 @@ class TRFRunner:
             lines = lines[3:]
 
             consensus_motif = None
-            #motifs = []
-            #motifs_and_start_indices = []
+            repeats = []
+            #repeats_and_start_indices = []
             motif_positions_with_interruptions = {}  # histogram of motif positions with interruptions
             total_mismatches = 0
             total_indels = 0
@@ -262,22 +253,22 @@ class TRFRunner:
                             print(consensus_motif_sequence_string)
 
                     interruptions_string_offset = 0
-                    for motif in repeat_sequence_string.split(" "):
-                        #motifs.append(motif)
-                        #motifs_and_start_indices.append((repeat_sequence_start_index_0based, motif))
+                    for repeat_motif in repeat_sequence_string.split(" "):
+                        repeats.append(repeat_motif)
+                        #repeats_and_start_indices.append((repeat_sequence_start_index_0based, motif))
                         #repeat_sequence_start_index_0based += len(motif)
 
                         if interruptions_string is not None:
-                            motif_interruptions = interruptions_string[interruptions_string_offset:interruptions_string_offset + len(motif)]
+                            motif_interruptions = interruptions_string[interruptions_string_offset:interruptions_string_offset + len(repeat_motif)]
                             if self.debug:
                                 print(f"motif_interruptions: {motif_interruptions}")
-                                print(f"motif              : {motif}")
+                                print(f"motif              : {repeat_motif}")
                             if "*" in motif_interruptions:
                                 for i, c in enumerate(motif_interruptions):
                                     if c == "*":
                                         motif_positions_with_interruptions[i + 1] = motif_positions_with_interruptions.get(i + 1, 0) + 1
 
-                        interruptions_string_offset += len(motif) + 1  # add +1 to account for the space between motifs
+                        interruptions_string_offset += len(repeat_motif) + 1  # add +1 to account for the space between motifs
 
                 except Exception as e:
                     print(f"Error parsing {html_file_path} at lines {start_block_i} to {i}: {block_text}\n{e}")
@@ -287,17 +278,19 @@ class TRFRunner:
                 block_counter += 1
 
             results.append({
+                "start_0based": seq_start_index_0based,
+                "end_1based": seq_end_index,
                 "motif": consensus_motif,
                 "motif_size": len(consensus_motif),
                 #"motif_size": period,
                 #"consensus_motif_size": consensus_size,
                 "num_repeats": copynumber,
                 "repeat_sequence_length": seq_end_index - seq_start_index_0based,
-                #"motifs": motifs,
-                #"motifs_and_start_indices": motifs_and_start_indices,
+                "repeats": repeats,
+                #"repeats_and_start_indices": repeats_and_start_indices,
                 "total_mismatches": total_mismatches,
                 "total_indels": total_indels,
-                "score": score,
+                "alignment_score": score,
                 "motif_positions_with_interruptions": motif_positions_with_interruptions,
             })
 
@@ -317,11 +310,10 @@ if __name__ == "__main__":
     #seq = "CAG"*2 + "CTG" + "CAG"*10 + "CTG"*2 + "CAG"*100
     seq = "CAG"*5 + "TAG" + "CTG" + "CTG" + "CTA" + "CAG"*5
 
-
-    r = TRFRunner("~/bin/trf409.macosx", parse_motif_composition=True, debug=True)
-    records = list(r.run_TRF(nucleotide_sequence=seq, chromosome_name="chrN"))
-
-    print(f"Found {len(records)} TRF results in {seq}")
-    for record in records:
-        print(record)
+    for parse_motif_composition in [False, True]:
+        r = TRFRunner("~/bin/trf409.macosx", parse_motif_composition=parse_motif_composition, debug=False)
+        records = list(r.run_TRF(nucleotide_sequence=seq))
+        print(f"Found {len(records)} TRF results in {seq}")
+        for record in records:
+            print(record)
 
