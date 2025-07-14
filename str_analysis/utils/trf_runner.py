@@ -242,7 +242,7 @@ class TRFRunner:
                 current_consensus_motif = consensus_motif_match.group(2).split(" ")[0].replace("-", "")
                 if final_consensus_motif is None:
                     if consensus_motif is None:
-                        assert not is_continuation, f"First block should not be a continuation in block: \n{'\n'.join(lines_in_block)}"
+                        assert not is_continuation, f"First block should not be a continuation in block: \n" + "\n".join(lines_in_block)
                         consensus_motif = current_consensus_motif
                     elif is_continuation:
                         consensus_motif += current_consensus_motif
@@ -251,13 +251,13 @@ class TRFRunner:
                         consensus_motif = current_consensus_motif
                 else:
                     if consensus_motif is None:
-                        assert not is_continuation, f"First block should not be a continuation in block: \n{'\n'.join(lines_in_block)}"
+                        assert not is_continuation, f"First block should not be a continuation in block: \n" + "\n".join(lines_in_block)
                         consensus_motif = current_consensus_motif
                     elif is_continuation:
                         consensus_motif += current_consensus_motif
                     else: 
                         if consensus_motif != final_consensus_motif:
-                            print(f"WARNING: {html_file_path} consensus motif mismatch: {consensus_motif} != {final_consensus_motif} in block: \n{'\n'.join(lines_in_block)}")
+                            print(f"WARNING: {html_file_path} consensus motif mismatch: {consensus_motif} != {final_consensus_motif} in block: \n" + "\n".join(lines_in_block))
                         consensus_motif = current_consensus_motif
 
 
