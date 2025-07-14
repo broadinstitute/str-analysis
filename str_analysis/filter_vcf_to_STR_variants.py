@@ -3,6 +3,8 @@
 """
 This script takes a single-sample .vcf and filters it to insertions and deletions where either the REF or ALT allele
 is a short tandem repeat (STR).
+
+NOTE: The newer filter_vcf_to_tandem_repeat_variants.py represents the latest version of this algorithm.
 """
 
 import argparse
