@@ -6,7 +6,8 @@ from str_analysis.utils.trf_runner import TRFRunner
 """Interruptions will not be allowed in repeat units shorter than this threshold. Allowing for interruptions increases 
 compute time proportional to repeat unit length, so this threshold is necessary to reduce overall compute time.
 """
-MAX_INTERRUPTED_REPEAT_UNIT_LENGTH = 24
+#MAX_INTERRUPTED_REPEAT_UNIT_LENGTH = 24
+MAX_INTERRUPTED_REPEAT_UNIT_LENGTH = 6
 
 """The minimum fraction of bases that can be  pure repeats before it's no longer considered a homopolymer repeat."""
 MIN_PURE_REPEAT_FRACTION_FOR_HOMOPOLYMER_REPEATS = 9/10
@@ -227,7 +228,7 @@ def find_repeat_unit_allowing_interruptions(sequence, allow_partial_repeats=Fals
     return sequence, 1, 1, None, False
 
 
-def extend_repeat_into_sequence_without_allowing_interruptions(repeat_unit, sequence, from_end=False):
+def extend_repeat_into_sequence_without_allowing_interruptions(repeat_unit, sequence, from_end=False, verbose=False):
     """This method walks along the given sequence from left to right, one repeat unit length at a time, and returns
     the longest stretch of repeats that exactly matches the given repeat_unit.
 
@@ -237,6 +238,7 @@ def extend_repeat_into_sequence_without_allowing_interruptions(repeat_unit, sequ
             before switching to random other sequence or repeats of a different repeat unit.
             For example: "CAGCAGCAGCTAGTGCAGTGACAGT"
         from_end (bool): If True, the search will start from the right end of the sequence and move left.
+        verbose (bool): If True, print a warning if the entire sequence if found to consist of the given repeat
 
     Return:
         int: The number of exact repeats of the given repeat unit found at the left end of the given sequence.
@@ -254,14 +256,21 @@ def extend_repeat_into_sequence_without_allowing_interruptions(repeat_unit, sequ
             break
         num_pure_repeats += 1
         i += len(repeat_unit)
+    else:
+        # reached the end of the sequence without breaking, so all repeats are pure
+        if verbose:
+            print(f"WARNING: extend_repeat_into_sequence('{repeat_unit}', '{sequence[:100] + '...' if len(sequence) > 100 else ''}') "
+                  f"extended to the end of the {len(sequence)}bp sequence after finding it consists of {num_pure_repeats} repeats "
+                  f"of the {len(repeat_unit)}bp repeat unit.")
 
     return num_pure_repeats
 
 
 def extend_repeat_into_sequence_allowing_interruptions(
-        repeat_unit, 
-        sequence,
-        repeat_unit_interruption_index=None,
+    repeat_unit,
+    sequence,
+    repeat_unit_interruption_index=None,
+    verbose=False
 ):
     """This method walks along the given sequence from left to right, one repeat unit length at a time, and returns
     the longest stretch of repeats that matches the given repeat_unit, allowing for certain types of interruptions.
@@ -277,6 +286,7 @@ def extend_repeat_into_sequence_allowing_interruptions(
             allowed to be any nucleotide A,C,G, or T). Even with interruptions though, the repeat sequence must end in
             at least one pure copy of the given repeat_unit (eg. the "CAT" interruption will be included if
             the extended sequence is "CAGCAGCATCAG" , but not if it's just "CAGCAGCAT")
+        verbose (bool): If True, print a warning if the entire sequence if found to consist of the given repeat
 
     Return:
         3-tuple: (int, int, int) num_pure_repeats, num_total_repeats, repeat_unit_interruption_index
@@ -312,10 +322,10 @@ def extend_repeat_into_sequence_allowing_interruptions(
                     repeat_unit_interruption_index = current_index
 
             rest_of_sequence = match.group(2)
-            if len(rest_of_sequence) == 0:
-                print(f"WARNING: extend_repeat_into_sequence({repeat_unit}) reached the end of the "
-                      f"{len(sequence)}bp sequence: {num_total_repeats}x{repeat_unit} ==> {sequence}. "
-                      f"Consider increasing the length of the flanking sequencing.")
+            if len(rest_of_sequence) == 0 and verbose:
+                print(f"WARNING: extend_repeat_into_sequence('{repeat_unit}', '{sequence[:100] + '...' if len(sequence) > 100 else ''}') "
+                      f"extended to the end of the {len(sequence)}bp sequence after finding it consists of {num_total_repeats} repeats "
+                      f"of the {len(repeat_unit)}bp repeat unit.")
 
     return num_pure_repeats, num_total_repeats, repeat_unit_interruption_index
 

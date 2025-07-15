@@ -12,6 +12,7 @@ import argparse
 import collections
 import gzip
 import intervaltree
+import math
 import os
 from pprint import pformat
 import pyfaidx
@@ -27,6 +28,16 @@ from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_with
 from str_analysis.utils.file_utils import open_file
 from str_analysis.utils.trf_runner import TRFRunner
 
+
+DETECTION_MODE_PURE_REPEATS = "pure_repeats"
+DETECTION_MODE_ALLOW_INTERRUPTIONS = "allow_interruptions"
+DETECTION_MODE_TRF = "trf"
+
+DETECTION_MODE_ORDER = [
+    DETECTION_MODE_PURE_REPEATS,
+    DETECTION_MODE_ALLOW_INTERRUPTIONS,
+    DETECTION_MODE_TRF,
+]
 
 COMMON_TSV_OUTPUT_COLUMNS = [
     "Chrom",
@@ -48,6 +59,7 @@ COMMON_TSV_OUTPUT_COLUMNS = [
     "IsFoundInReference",
     "IsPureRepeat",
     "IsMultiallelic",
+    "DetectionMode",
 ]
 
 VARIANT_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
@@ -210,7 +222,7 @@ def check_if_allele_is_tandem_repeat_using_simple_methods(
     right_flank_start_1based,
     args,
     counters,
-    detection_mode="pure_repeats",
+    detection_mode=DETECTION_MODE_PURE_REPEATS,
 ):
     """Determine if the given allele is a tandem repeat expansion or contraction or neither.
 
@@ -226,16 +238,16 @@ def check_if_allele_is_tandem_repeat_using_simple_methods(
         right_flank_start_1based (int): 1-based start position of the right flanking sequence
         args (argparse.Namespace): command-line arguments parsed by parse_args()
         counters (dict): Dictionary of counters to collect summary stats about the number of TR variants found, etc.
-        detection_mode (str): Should be either "pure_repeats" or "allow_interruptions".
-            "pure_repeats" will only detect perfect repeats.
-            "allow_interruptions" will detect repeats where one position can vary across repeats (similar to
+        detection_mode (str): Should be either DETECTION_MODE_PURE_REPEATS or DETECTION_MODE_ALLOW_INTERRUPTIONS.
+            DETECTION_MODE_PURE_REPEATS will only detect perfect repeats.
+            DETECTION_MODE_ALLOW_INTERRUPTIONS will detect repeats where one position can vary across repeats (similar to
                 known disease-associated loci like RUNX2).
     Return:
         2-tuple (dict, str):
             dict: if the allele represents a tandem repeat, this will be a JSON record describing the tandem repeat, 
                 otherwise it will be None. The JSON record will contain the following keys:
             - "Chrom": chromosome name
-            - "DetectionMode": either "pure_repeats" or "allow_interruptions"
+            - "DetectionMode": either DETECTION_MODE_PURE_REPEATS or DETECTION_MODE_ALLOW_INTERRUPTIONS
             - "RepeatUnit": the repeat unit of the tandem repeat allele
             - "MotifInterruptionIndices": indices of interruptions in the repeat unit within the variant bases, or None if no interruptions were found
             - "IsPureRepeat": True if the allele is a pure repeat (no interruptions), False otherwise
@@ -253,7 +265,7 @@ def check_if_allele_is_tandem_repeat_using_simple_methods(
         "DetectionMode": detection_mode,
     }
 
-    if detection_mode == "pure_repeats":
+    if detection_mode == DETECTION_MODE_PURE_REPEATS:
         # check whether this variant allele + flanking sequences represent a pure tandem repeat expansion or contraction
         (
             repeat_unit,
@@ -272,7 +284,7 @@ def check_if_allele_is_tandem_repeat_using_simple_methods(
         result["MotifInterruptionIndices"] = None
         result["IsPureRepeat"] = True
 
-    elif detection_mode == "allow_interruptions":
+    elif detection_mode == DETECTION_MODE_ALLOW_INTERRUPTIONS:
         (
             repeat_unit,
             num_pure_repeats_in_variant_bases,
@@ -391,8 +403,33 @@ def check_if_allele_is_tandem_repeat_using_trf(
     """
 
     trf_runner = TRFRunner(args.trf_executable_path, parse_motif_composition=True)
+    results = list(trf_runner.run_TRF(nucleotide_sequence=variant_bases))
 
-    return None, "TRF detection is not implemented yet. Please use --dont-run-trf to disable TRF detection."
+    if len(results) > 0:
+        # make sure any detected repeats span the entire variant bases nucleotide sequence
+        for result in results:
+            if result.start_0based == 0 and result.end_1based == len(variant_bases):
+                motif_size = result.repeat_unit_length
+                break
+    else:
+        motif_size = len(variant_bases)
+
+    # try extending the repeat into the flanking sequences
+    fuzz = int(math.log10(motif_size))
+    min_motif_size = motif_size - fuzz
+    max_motif_size = motif_size + fuzz
+    results = list(trf_runner.run_TRF(variant_bases, min_motif_size, max_motif_size))
+
+    if len(results) == 0:
+        # no tandem repeat found in the variant bases
+        counters[f"TR allele filter: {FILTER_ALLELE_INDEL_WITHOUT_REPEATS}"] += 1
+        return None, FILTER_ALLELE_INDEL_WITHOUT_REPEATS
+
+    # check that the results overlap with the variant bases
+    for result in results:
+        if result.start_0based == 0 and result.end_1based == len(variant_bases):
+            # this repeat spans the entire variant bases sequence
+            break
 
 
 def process_vcf_allele(
@@ -461,14 +498,14 @@ def process_vcf_allele(
 
     chrom_size = len(fasta_obj[vcf_chrom])
 
-    detection_modes_to_try = ["pure_repeats"]
+    detection_modes_to_try = [DETECTION_MODE_PURE_REPEATS]
     if not args.dont_allow_interruptions:
-        detection_modes_to_try.append("allow_interruptions")
+        detection_modes_to_try.append(DETECTION_MODE_ALLOW_INTERRUPTIONS)
         if not args.dont_run_trf and len(variant_bases) >= 9:
             # only run TRF on indels >= 9bp
-            detection_modes_to_try.append("trf")
+            detection_modes_to_try.append(DETECTION_MODE_TRF)
 
-    for flanking_sequence_size_multiplier in 5, 30, 300, 3000:
+    for flanking_sequence_size_multiplier in 3, 30, 300, 3000:
         # start with relatively small flanking sequence sizes and increase them if it turns out that the entire flank
         # is covered by a tandem repeat
         num_flanking_bases = flanking_sequence_size_multiplier * max(len(variant_bases), 100 - 100 % len(variant_bases))
@@ -488,7 +525,7 @@ def process_vcf_allele(
         right_flanking_reference_sequence = str(fasta_obj[vcf_chrom][right_flank_start_1based : right_flank_end]).upper()
 
         for detection_mode_i, detection_mode in enumerate(detection_modes_to_try):
-            if detection_mode != "trf":
+            if detection_mode != DETECTION_MODE_TRF:
                 tandem_repeat_allele, tandem_repeat_allele_failed_filters_reason = check_if_allele_is_tandem_repeat_using_simple_methods(
                     vcf_chrom,
                     vcf_pos,
@@ -538,7 +575,7 @@ def process_vcf_allele(
     raise RuntimeError("State error: should not reach this point unless there's a tandem repeat > 300,000 kilobases")
 
 
-def postprocess_multiallelic_tandem_repeat_variants(tandem_repeat_alleles):
+def postprocess_multiallelic_tandem_repeat_variants(tandem_repeat_alleles, counters):
 
     assert len(tandem_repeat_alleles) > 1, f"called with only {len(tandem_repeat_alleles)} allele"
     assert tandem_repeat_alleles[0]["Chrom"] == tandem_repeat_alleles[1]["Chrom"]
@@ -555,7 +592,7 @@ def postprocess_multiallelic_tandem_repeat_variants(tandem_repeat_alleles):
     elif tandem_repeat_alleles[1]["MotifInterruptionIndices"] is None:
         tandem_repeat_alleles[1]["MotifInterruptionIndices"] = tandem_repeat_alleles[0]["MotifInterruptionIndices"]
 
-    if tandem_repeat_alleles[0]["DetectionMode"] != "trf" and tandem_repeat_alleles[1]["DetectionMode"] != "trf":
+    if tandem_repeat_alleles[0]["DetectionMode"] != DETECTION_MODE_TRF and tandem_repeat_alleles[1]["DetectionMode"] != DETECTION_MODE_TRF:
         if tandem_repeat_alleles[0]["MotifInterruptionIndices"] != tandem_repeat_alleles[1]["MotifInterruptionIndices"]:
             return tandem_repeat_alleles, FILTER_VARIANT_WITH_TR_ALLELES_WITH_DIFFERENT_INTERRUPTION_PATTERNS
 
@@ -571,6 +608,8 @@ def postprocess_multiallelic_tandem_repeat_variants(tandem_repeat_alleles):
         # increase the number of repeats in the alt allele to account for the added repeats in the reference
         tandem_repeat_alleles[copy_to]["NumRepeatsAlt"] += tandem_repeat_alleles[copy_from]["NumRepeatsRef"] - tandem_repeat_alleles[copy_to]["NumRepeatsRef"]
         tandem_repeat_alleles[copy_to]["NumRepeatsRef"] = tandem_repeat_alleles[copy_from]["NumRepeatsRef"]
+        tandem_repeat_alleles[copy_to]["DetectionMode"] = tandem_repeat_alleles[copy_from]["DetectionMode"]
+        counters["TR variant counts: multi-allelic variant: adjusted locus coordinates"] += 1
 
     return tandem_repeat_alleles, None
 
@@ -653,8 +692,8 @@ def process_vcf_line(
         fasta_writer (open file): open file for writing TR alleles in FASTA format
         args (argparse.Namespace): parsed command-line arguments
         counters (dict): dictionary of counters
-        variants_per_locus_counter (collections.Counter): counts the number of TR variants that overlap a given TR locus.
-        variant_intervals_0based (dict): maps chrom to IntervalTree of vcf variants for subsequent overlap checking
+        variants_per_locus_counter (collections.Counter): counts the number of TR variants that overlap a given TR locus
+        variant_intervals_0based (dict): maps chrom to list of intervaltree.Intervals representing vcf variants for subsequent overlap detection
 
     Return:
         str: a string explaining the reason this variant is not a tandem repeat, or None if the variant is a tandem repeat
@@ -674,7 +713,7 @@ def process_vcf_line(
     variant_interval = None
     if variant_intervals_0based is not None:   # and any(len(alt_allele) != len(vcf_ref) for alt_allele in alt_alleles):
         variant_interval = intervaltree.Interval(vcf_pos - 1, vcf_pos + len(vcf_ref))
-        variant_intervals_0based[vcf_chrom].add(variant_interval)
+        variant_intervals_0based[vcf_chrom].append(variant_interval)
 
     counters["variant counts: TOTAL variants"] += 1
     counters["allele counts: TOTAL alleles"] += len(alt_alleles)
@@ -733,7 +772,7 @@ def process_vcf_line(
 
     # Post-process multiallelic tandem repeat variants
     if len(tandem_repeat_alleles) > 1:
-        tandem_repeat_alleles, filter_reason = postprocess_multiallelic_tandem_repeat_variants(tandem_repeat_alleles)
+        tandem_repeat_alleles, filter_reason = postprocess_multiallelic_tandem_repeat_variants(tandem_repeat_alleles, counters)
 
         if filter_reason is not None:
             return filter_reason
@@ -790,14 +829,22 @@ def process_vcf_line(
     is_pure_repeat = tandem_repeat_alleles[0]["IsPureRepeat"]
     repeat_unit_interruption_indices = tandem_repeat_alleles[0]["MotifInterruptionIndices"]
 
+    variant_detection_mode = tandem_repeat_alleles[0]["DetectionMode"]
+    if len(tandem_repeat_alleles) > 1 and DETECTION_MODE_ORDER.index(variant_detection_mode) < DETECTION_MODE_ORDER.index(tandem_repeat_alleles[1]["DetectionMode"]):
+        # if the detection mode of the first allele is lower than the second, use the second's detection mode
+        variant_detection_mode = tandem_repeat_alleles[1]["DetectionMode"]
+
     locus_id = f"{vcf_chrom_without_chr_prefix}-{start_0based}-{end_1based}-{repeat_unit}"
     variants_per_locus_counter[locus_id] += 1
 
     # Generate output records
     if variant_interval is not None:
-        variant_intervals_0based[vcf_chrom].remove(variant_interval)
-        variant_interval = intervaltree.Interval(start_0based, max(start_0based + 1, end_1based), data=(locus_id, is_pure_repeat, repeat_unit))
-        variant_intervals_0based[vcf_chrom].add(variant_interval)
+        # replace the last interval with one that contains information about the tandem repeat
+        variant_intervals_0based[vcf_chrom][-1] = intervaltree.Interval(start_0based, max(start_0based + 1, end_1based), data={
+            "LocusId": locus_id,
+            "IsPureRepeat": is_pure_repeat,
+            "RepeatUnit": repeat_unit
+        })
 
     num_repeats_in_reference = num_repeats_in_reference
     is_homozygous = len(vcf_genotype_indices) == 2 and vcf_genotype_indices[0] == vcf_genotype_indices[1]
@@ -815,6 +862,7 @@ def process_vcf_line(
         "IsPureRepeat": is_pure_repeat,
         "NumRepeatsShortAllele": num_repeats_short_allele,
         "NumRepeatsLongAllele": num_repeats_long_allele if num_repeats_long_allele is not None else "",
+        "DetectionMode": variant_detection_mode,
     }
 
     if not is_pure_repeat:
@@ -887,7 +935,9 @@ def process_vcf_line(
             "VcfAlt": alt_allele,
             "INS_or_DEL": ins_or_del,
             "SummaryString": summary_string,
+            "DetectionMode": tandem_repeat_allele["DetectionMode"],
             "NumRepeats": tandem_repeat_allele["NumRepeatsAlt"],
+
             #"RepeatSize (bp)": tandem_repeat_allele["NumRepeatsAlt"] * len(repeat_unit),
             #"NumPureRepeats": tandem_repeat_allele["NumPureRepeatsAlt"],
             #"PureRepeatSize (bp)": tandem_repeat_allele["NumPureRepeatsAlt"] * len(repeat_unit),
@@ -1008,7 +1058,7 @@ def main():
 
     counters = collections.defaultdict(int)
     variants_per_locus_counter = collections.defaultdict(int)  # counts the number of TR variants that overlap a given TR locus.
-    variant_intervals = collections.defaultdict(intervaltree.IntervalTree)  # maps chrom to IntervalTree of variants in the input VCF
+    variant_intervals = collections.defaultdict(list)  # maps each chromosome to a list of intervaltree.Intervals representing all variants in the input VCF
 
     # open the reference genome fasta
     fasta_obj = pyfaidx.Fasta(args.reference_fasta_path, one_based_attributes=False, as_raw=True)
@@ -1088,6 +1138,7 @@ def main():
             ):
                 filtered_out_variants_vcf_writer.write("\t".join(vcf_fields) + "\n")
 
+    print(f"Starting overlap detection to filter out TR loci that overlap more than one variant in the input VCF")
     # prepare to filter out detected TR loci that overlapped one or more other variants in the VCF (ie. other TRs, non-TR indels, or SNVs).
     locus_ids_with_overlapping_variants = {}
     for locus_id, count in variants_per_locus_counter.items():
@@ -1099,17 +1150,20 @@ def main():
         locus_ids_with_overlapping_variants[locus_id] = FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_TR_VARIANTS
 
     if not args.keep_loci_that_have_overlapping_variants:
-        for _, interval_tree in variant_intervals.items():
-            for interval in interval_tree:
-                if not interval.data:
+        for _, intervals in variant_intervals.items():
+            # create an interval tree for this chromosome
+            interval_tree = intervaltree.IntervalTree(intervals)
+            for interval in intervals:
+                if interval.data is None:
                     # only check TR variants for overlap with other variants on the same chromosome
                     continue
 
-                if interval.data[0] in locus_ids_with_overlapping_variants:
+                locus_id = interval.data["LocusId"]
+                if locus_id in locus_ids_with_overlapping_variants:
                     # if the locus id is already in locus_ids_with_overlapping_variants, skip it
                     continue
 
-                repeat_unit = interval.data[2]
+                repeat_unit = interval.data["RepeatUnit"]
                 overlapping_intervals = interval_tree.overlap(interval.begin - len(repeat_unit), interval.end + len(repeat_unit))
 
                 assert len(overlapping_intervals) > 0, f"ERROR: Expected the locus interval to overlap with itself: {interval.data}"
@@ -1117,8 +1171,7 @@ def main():
                 if len(overlapping_intervals) == 1:
                     continue
 
-                locus_id, is_pure_repeat, _ = interval.data
-                if is_pure_repeat:
+                if interval.data["IsPureRepeat"]:
                     counters[f"variant filter: pure {FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS}"] += 1
                 else:
                     counters[f"variant filter: not-pure {FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS}"] += 1
