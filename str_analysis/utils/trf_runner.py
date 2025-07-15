@@ -72,6 +72,7 @@ class TRFRunner:
         Yields:
             records representing the TRF output for the given nucleotide sequence.
         """
+        assert min_motif_size is None or max_motif_size is None or min_motif_size <= max_motif_size, f"Motif size range error: min_motif_size={min_motif_size}, max_motif_size={max_motif_size}"
 
         # write the sequence to a temp FASTA file
         if self.output_filename_prefix is None:
@@ -95,8 +96,11 @@ class TRFRunner:
         # -l 6  = maximum TR length expected (in millions) (eg, -l 3 or -l=3 for 3 million). Human genome HG38 would need -l 6
         # -h = suppress html output
         # -ngs =  more compact .dat output on multisequence files, returns 0 on success. Output is printed to the screen.
-        
-        max_period = 2000  # maximum period size to report. Must be between 1 and 2000, inclusive
+        if max_motif_size is not None:
+            max_period = max_motif_size
+        else:
+            max_period = min(len(nucleotide_sequence)//2, 1000)  # maximum period size to report. Must be between 1 and 2000, inclusive
+
         command = f"{self.trf_executable_path} "
         command += f"{temp_fasta_path} "
         command += f"{self.match_score} "
@@ -127,7 +131,11 @@ class TRFRunner:
             html_file_path = f"{trf_output_filename_prefix}.{i}.txt.html"
             while os.path.isfile(html_file_path):
 
-                for record in self._parse_trf_html_output(nucleotide_sequence, html_file_path, min_motif_size=min_motif_size, max_motif_size=max_motif_size):
+                for record in self._parse_trf_html_output(
+                        nucleotide_sequence,
+                        html_file_path,
+                        min_motif_size=min_motif_size,
+                        max_motif_size=max_motif_size):
                     if self.generate_motif_plot:
                         self.create_motif_plot(record["repeats"], record["start_0based"], record["end_1based"], record["motif"])
 
