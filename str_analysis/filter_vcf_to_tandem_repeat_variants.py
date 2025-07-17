@@ -18,6 +18,9 @@ from pprint import pformat
 import pyfaidx
 import pysam
 import re
+import shutil
+import threading
+import time
 import tqdm
 
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
@@ -38,6 +41,9 @@ DETECTION_MODE_ORDER = [
     DETECTION_MODE_ALLOW_INTERRUPTIONS,
     DETECTION_MODE_TRF,
 ]
+
+CURRENT_TIMESTAMP = time.strftime("%Y%m%d_%H%M%S", time.localtime())
+TRF_FASTA_PREFIX = f"trf_working_dir/trf.{CURRENT_TIMESTAMP}"
 
 COMMON_TSV_OUTPUT_COLUMNS = [
     "Chrom",
@@ -78,17 +84,24 @@ ALLELE_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
     #"FractionPureRepeats",
 ]
 
+MAX_INDEL_SIZE = 10_000  # bp
+TOO_MANY_Ns = "N"*100
+
 FILTER_MORE_THAN_TWO_ALT_ALLELES = "more than two alt alleles"
 FILTER_UNEXPECTED_GENOTYPE_FORMAT = "unexpected genotype format"
 FILTER_ZERO_ALT_ALLELES = "variant has zero non-* alt alleles"
 #FILTER_MULTIALLELIC_VARIANT_WITH_HOMOZYGOUS_GENOTYPE = "multiallelic variant with homozygous genotype"
 
 FILTER_ALLELE_WITH_N_BASES = "contains N"
+FILTER_ALLELE_WITH_TOO_MANY_Ns_IN_FLANKS = "contains too many Ns in flanks"
+FILTER_ALLELE_TR_SPANS_TOO_MANY_BASES = "spans too many bases"
 FILTER_ALLELE_SNV_OR_MNV = "SNV/MNV"
 FILTER_ALLELE_MNV_INDEL = "complex multinucleotide indel"
 FILTER_ALLELE_INDEL_WITHOUT_REPEATS = "INDEL without repeats"
+FILTER_ALLELE_TOO_BIG = f"INDEL > {MAX_INDEL_SIZE}bp"
 FILTER_TR_ALLELE_NOT_ENOUGH_REPEATS = "is only %d repeats"
 FILTER_TR_ALLELE_DOESNT_SPAN_ENOUGH_BASE_PAIRS = "spans < %d bp"
+
 #FILTER_TR_ALLELE_PARTIAL_REPEAT = "ends in partial repeat"
 
 FILTER_TR_ALLELE_REPEAT_UNIT_TOO_SHORT = "repeat unit < %d bp"
@@ -100,6 +113,7 @@ FILTER_VARIANT_WITH_TR_ALLELES_WITH_DIFFERENT_INTERRUPTION_PATTERNS = "tandem re
 FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_TR_VARIANTS = "locus overlaps more than one TR variant"
 FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS = "locus overlaps more than one variant"
 
+WILL_RUN_TRF_ON_THIS_ALLELE_IN_2ND_PASS = "will run TRF on this allele during the 2nd pass"
 
 def parse_args():
     """Parse command-line arguments."""
@@ -109,10 +123,13 @@ def parse_args():
     p.add_argument("-R", "--reference-fasta-path", help="Reference genome fasta path.", required=True)
     p.add_argument("--dont-allow-interruptions", action="store_true", help="Only detect perfect repeats. This implicitly "
                    "also enables --dont-run-trf since detection of pure repeats does not require running TandemRepeatFinder (TRF).")
-    p.add_argument("--dont-run-trf", action="store_true", help="Don't use TRF to help detect imperfect TRs. Instead, only "
+    p.add_argument("--dont-run-trf", action="store_true", help="Don't use TandemRepeatFinder (TRF) to help detect imperfect TRs. Instead, only "
                    "use the simpler algorithm that allows one position within the repeat unit to vary across repeats.")
     p.add_argument("--trf-executable-path", help="Path to the TandemRepeatFinder (TRF) executable. This is "
                    "required unless --dont-run-trf is specified.")
+    p.add_argument("-t", "--trf-threads", default=12, type=int, help="Number of TandemRepeatFinder (TRF) instances to run in parallel.")
+    p.add_argument("--min-indel-size-to-run-trf", default=7, type=int, help="Only run TandemRepeatFinder (TRF) "
+                    "on insertions and deletions that are at least this many base pairs.")
 
     p.add_argument("--min-tandem-repeat-length", type=int, default=9, help="Only detect tandem repeat variants that are at least this long (in base pairs). "
                    "This threshold will be applied to the total repeat sequence including any repeats in the flanking sequence to the left "
@@ -210,7 +227,7 @@ def tandem_repeat_allele_failed_filters(args, repeat_unit, total_repeats, counte
     return None  # did not fail filters
 
 
-def check_if_allele_is_tandem_repeat_using_simple_methods(
+def check_if_allele_is_tandem_repeat(
     vcf_chrom,
     vcf_pos,
     vcf_ref,
@@ -222,6 +239,9 @@ def check_if_allele_is_tandem_repeat_using_simple_methods(
     right_flank_start_1based,
     args,
     counters,
+    only_generate_trf_fasta,
+    variants_to_process_using_trf,
+    variants_per_trf_fasta,
     detection_mode=DETECTION_MODE_PURE_REPEATS,
 ):
     """Determine if the given allele is a tandem repeat expansion or contraction or neither.
@@ -238,6 +258,9 @@ def check_if_allele_is_tandem_repeat_using_simple_methods(
         right_flank_start_1based (int): 1-based start position of the right flanking sequence
         args (argparse.Namespace): command-line arguments parsed by parse_args()
         counters (dict): Dictionary of counters to collect summary stats about the number of TR variants found, etc.
+        only_generate_trf_fasta (bool): if True, only generate the TRF fasta file for this variant and return None.
+        variants_to_process_using_trf (dict): maps variant IDs that should be processed using TRF to their sequence number in the TRF fasta file.
+        variants_per_trf_fasta (dict): maps TRF fasta input file path to the total number of variants in that fasta file.
         detection_mode (str): Should be either DETECTION_MODE_PURE_REPEATS or DETECTION_MODE_ALLOW_INTERRUPTIONS.
             DETECTION_MODE_PURE_REPEATS will only detect perfect repeats.
             DETECTION_MODE_ALLOW_INTERRUPTIONS will detect repeats where one position can vary across repeats (similar to
@@ -284,6 +307,9 @@ def check_if_allele_is_tandem_repeat_using_simple_methods(
         result["MotifInterruptionIndices"] = None
         result["IsPureRepeat"] = True
 
+        tandem_repeat_bases_in_left_flank = num_total_repeats_left_flank * len(repeat_unit)
+        tandem_repeat_bases_in_right_flank = num_total_repeats_right_flank * len(repeat_unit)
+
     elif detection_mode == DETECTION_MODE_ALLOW_INTERRUPTIONS:
         (
             repeat_unit,
@@ -315,6 +341,113 @@ def check_if_allele_is_tandem_repeat_using_simple_methods(
         result["MotifInterruptionIndices"] = repeat_unit_interruption_index
         result["IsPureRepeat"] = False
 
+        tandem_repeat_bases_in_left_flank = num_total_repeats_left_flank * len(repeat_unit)
+        tandem_repeat_bases_in_right_flank = num_total_repeats_right_flank * len(repeat_unit)
+
+    elif detection_mode == DETECTION_MODE_TRF:
+
+        variant_id = f"{vcf_chrom}-{vcf_pos}-"
+        variant_id += vcf_ref if len(vcf_ref) < 24 else (vcf_ref[0] + ".." + str(len(vcf_ref)) + ".." + vcf_ref[-1])
+        variant_id += "-"
+        variant_id += alt_allele if len(alt_allele) < 24 else (alt_allele[0] + ".." + str(len(alt_allele)) + ".." + alt_allele[-1])
+        variant_id += "-h" + str(abs(hash(f"{vcf_chrom}-{vcf_pos}-{vcf_ref}-{alt_allele}")))  # add a hash to make the ID unique
+
+        # determine which thread will process (or has processed) this variant
+        if variant_id not in variants_to_process_using_trf:
+            trf_thread_index = len(variants_to_process_using_trf) % args.trf_threads
+        else:
+            trf_thread_index, _ = variants_to_process_using_trf[variant_id]
+
+        trf_fasta_path = f"{TRF_FASTA_PREFIX}.t{trf_thread_index}.fa"
+
+        if only_generate_trf_fasta:
+            if variant_id in variants_to_process_using_trf:
+                raise ValueError(f"variant ID '{variant_id}' already exists in variants_to_process_using_trf")
+
+
+            with open(trf_fasta_path, "at") as f:
+                f.write(f">{variant_id}\n")
+                f.write(f"{left_flanking_reference_sequence}{variant_bases}{right_flanking_reference_sequence}\n")
+
+            variants_per_trf_fasta[trf_fasta_path] += 1
+            trf_fasta_sequence_number = variants_per_trf_fasta[trf_fasta_path]
+            variants_to_process_using_trf[variant_id] = (trf_thread_index, trf_fasta_sequence_number)
+
+            return None, WILL_RUN_TRF_ON_THIS_ALLELE_IN_2ND_PASS
+
+        # this is the 2nd pass where we need to parse the TRF output
+        if variant_id not in variants_to_process_using_trf:
+            raise ValueError(f"variant ID '{variant_id}' not found in variants_to_process_using_trf")
+
+
+        # check that the results overlap with the variant bases
+        trf_runner = TRFRunner(args.trf_executable_path, html_mode=True,
+                       min_motif_size=args.min_repeat_unit_length,
+                       max_motif_size=args.max_repeat_unit_length)
+
+        _, trf_fasta_sequence_number = variants_to_process_using_trf[variant_id]
+        trf_results = trf_runner.parse_html_results(
+            trf_fasta_path,
+            sequence_number=trf_fasta_sequence_number,
+            total_sequences=variants_per_trf_fasta[trf_fasta_path])
+
+        for trf_result in trf_results:
+            if trf_result["sequence_name"] != variant_id:
+                raise ValueError(f"TRF result sequence name '{trf_result['sequence_name']}' does not match the expected variant ID '{variant_id}'")
+
+            trf_result_length = trf_result["end_1based"] - trf_result["start_0based"]
+            if (trf_result_length < len(variant_bases)
+                or trf_result["num_repeats"] < args.min_repeats
+                or trf_result_length < args.min_tandem_repeat_length
+            ):
+                continue
+
+            tandem_repeat_bases_in_left_flank = 0
+            num_total_repeats_left_flank = 0
+            while trf_result["start_0based"] + tandem_repeat_bases_in_left_flank < len(left_flanking_reference_sequence) and num_total_repeats_left_flank < len(trf_result["repeats"]):
+                current_repeat = trf_result["repeats"][num_total_repeats_left_flank].replace("-", "")
+                tandem_repeat_bases_in_left_flank += len(current_repeat)
+                num_total_repeats_left_flank += 1
+
+            if trf_result["start_0based"] + tandem_repeat_bases_in_left_flank != len(left_flanking_reference_sequence):
+                continue
+
+            tandem_repeat_bases_in_variant_sequence = 0
+            num_total_repeats_in_variant_bases = 0
+            while tandem_repeat_bases_in_variant_sequence < len(variant_bases) and num_total_repeats_left_flank + num_total_repeats_in_variant_bases < len(trf_result["repeats"]):
+                current_repeat = trf_result["repeats"][num_total_repeats_left_flank + num_total_repeats_in_variant_bases].replace("-", "")
+                tandem_repeat_bases_in_variant_sequence += len(current_repeat)
+                num_total_repeats_in_variant_bases += 1
+
+            if tandem_repeat_bases_in_variant_sequence != len(variant_bases):
+                continue
+
+            tandem_repeat_bases_in_right_flank = 0
+            num_total_repeats_right_flank = 0
+            while tandem_repeat_bases_in_right_flank < len(right_flanking_reference_sequence) and num_total_repeats_left_flank + num_total_repeats_in_variant_bases + num_total_repeats_right_flank < len(trf_result["repeats"]):
+                current_repeat = trf_result["repeats"][num_total_repeats_left_flank + num_total_repeats_in_variant_bases + num_total_repeats_right_flank].replace("-", "")
+                tandem_repeat_bases_in_right_flank += len(current_repeat)
+                num_total_repeats_right_flank += 1
+
+            #print("="*100)
+            #print(f"   Left flank ({len(left_flanking_reference_sequence):7,d}bp): [0 - {len(left_flanking_reference_sequence):,d}]: ...{left_flanking_reference_sequence[-100:]}")
+            #print(f"Variant bases ({len(variant_bases):7,d}bp): [{len(left_flanking_reference_sequence):,d} - {len(left_flanking_reference_sequence) + len(variant_bases):,d}]: {variant_bases}")
+            #print(f"  Right flank ({len(right_flanking_reference_sequence):7,d}bp): [{len(left_flanking_reference_sequence) + len(variant_bases):,d} - {len(left_flanking_reference_sequence) + len(variant_bases) + len(right_flanking_reference_sequence):,d}]: {right_flanking_reference_sequence[:100]}...")
+#
+            #print(f"Checking TRF result: {trf_result['start_0based']:,d} - {trf_result['end_1based']:,d}  motif: {trf_result['motif']} ")
+#
+            #print("YES!!!  motif: ", trf_result["motif"],  "see", trf_result["html_file_path"])
+            #print(f"Repeats:", pformat(trf_result["repeats"]))
+
+
+            result["RepeatUnit"] = repeat_unit = trf_result["motif"]
+            result["MotifInterruptionIndices"] = trf_result["motif_positions_with_interruptions"]
+            result["IsPureRepeat"] = False
+            break
+
+        else:
+            return None, FILTER_ALLELE_INDEL_WITHOUT_REPEATS
+
     else:
         raise ValueError(f"Invalid detection_mode: '{detection_mode}'. It must be 'pure_repeats' or 'allow_interruptions'.")
 
@@ -324,8 +457,9 @@ def check_if_allele_is_tandem_repeat_using_simple_methods(
     if tandem_repeat_allele_failed_filters_reason is not None:
         return None, tandem_repeat_allele_failed_filters_reason
 
-    result["Start0Based"] = left_flank_end - num_total_repeats_left_flank * len(repeat_unit)
-    result["End1Based"] = right_flank_start_1based + num_total_repeats_right_flank * len(repeat_unit)
+    # the allele passed TR filters
+    result["Start0Based"] = left_flank_end - tandem_repeat_bases_in_left_flank
+    result["End1Based"] = right_flank_start_1based + tandem_repeat_bases_in_right_flank
 
     result["NumRepeatsRef"] = num_total_repeats_left_flank + num_total_repeats_right_flank
     result["NumRepeatsAlt"] = result["NumRepeatsRef"]
@@ -337,17 +471,18 @@ def check_if_allele_is_tandem_repeat_using_simple_methods(
         result["NumRepeatsAlt"] += num_total_repeats_in_variant_bases
 
     result["AlleleRepeatSequence"] = ""
-    if num_total_repeats_left_flank > 0:
-        result["AlleleRepeatSequence"] += left_flanking_reference_sequence[-num_total_repeats_left_flank * len(repeat_unit):]
+    if tandem_repeat_bases_in_left_flank > 0:
+        result["AlleleRepeatSequence"] += left_flanking_reference_sequence[-tandem_repeat_bases_in_left_flank:]
     if len(alt_allele) > len(vcf_ref):
         result["AlleleRepeatSequence"] += variant_bases
-    if num_total_repeats_right_flank > 0:
-        result["AlleleRepeatSequence"] += right_flanking_reference_sequence[:num_total_repeats_right_flank * len(repeat_unit)]
+    if tandem_repeat_bases_in_right_flank > 0:
+        result["AlleleRepeatSequence"] += right_flanking_reference_sequence[:tandem_repeat_bases_in_right_flank]
 
     # update counters
     counters[f"TR allele counts: TOTAL"] += 1
     counters[f"TR allele counts: {'INS' if len(vcf_ref) < len(alt_allele) else 'DEL'}"] += 1
     counters[f"TR allele motif size: {len(repeat_unit) if len(repeat_unit) < 9 else '9+'} bp"] += 1
+    counters[f"TR allele detected by: {detection_mode}"] += 1
 
     #if len(variant_bases) < 500:
     #    num_base_pairs_within_variant_bases = f"{25*int(len(variant_bases)/25)}-{25*(1+int(len(variant_bases)/25))}bp"
@@ -368,78 +503,17 @@ def check_if_allele_is_tandem_repeat_using_simple_methods(
     return result, None
 
 
-def check_if_allele_is_tandem_repeat_using_trf(
-        vcf_chrom,
-        vcf_pos,
-        vcf_ref,
-        alt_allele,
-        variant_bases,
-        left_flanking_reference_sequence,
-        right_flanking_reference_sequence,
-        left_flank_end,
-        right_flank_start_1based,
-        args,
-        counters,
-):
-    """Check if the given allele is a tandem repeat expansion or contraction by running TandemRepeatFinder (TRF).
-
-    Args:
-        vcf_chrom (str): chromosome name from the VCF file.
-        vcf_pos (int): 1-based position of the variant in the VCF file.
-        vcf_ref (str): Reference sequence at the variant position.
-        alt_allele (str): Alternate allele sequence from the VCF file.
-        variant_bases (str): Bases that were inserted or deleted in the variant allele.
-        left_flanking_reference_sequence (str): Reference sequence to the left of the variant allele.
-        right_flanking_reference_sequence (str): Reference sequence to the right of the variant allele.
-        left_flank_end (int): 1-based end position of the left flanking sequence.
-        right_flank_start_1based (int): 1-based start position of the right flanking sequence.
-        args (argparse.Namespace): Command-line arguments parsed by parse_args().
-        counters (dict, optional): Dictionary of counters to collect summary stats about the number of TR variants found, etc.
-
-    Return:
-        2-tuple (dict, str):
-            dict: if the allele represents a tandem repeat, this will be a JSON record describing the tandem repeat, otherwise it will be None.
-            str: if the allele is not a tandem repeat, this will be a string describing the reason why the allele failed tandem repeat filters, or otherwise None if it passed all filters.
-    """
-
-    trf_runner = TRFRunner(args.trf_executable_path, parse_motif_composition=True)
-    results = list(trf_runner.run_TRF(nucleotide_sequence=variant_bases))
-
-    if len(results) > 0:
-        # make sure any detected repeats span the entire variant bases nucleotide sequence
-        for result in results:
-            if result.start_0based == 0 and result.end_1based == len(variant_bases):
-                motif_size = result.repeat_unit_length
-                break
-    else:
-        motif_size = len(variant_bases)
-
-    # try extending the repeat into the flanking sequences
-    fuzz = int(math.log10(motif_size))
-    min_motif_size = motif_size - fuzz
-    max_motif_size = motif_size + fuzz
-    results = list(trf_runner.run_TRF(variant_bases, min_motif_size, max_motif_size))
-
-    if len(results) == 0:
-        # no tandem repeat found in the variant bases
-        counters[f"TR allele filter: {FILTER_ALLELE_INDEL_WITHOUT_REPEATS}"] += 1
-        return None, FILTER_ALLELE_INDEL_WITHOUT_REPEATS
-
-    # check that the results overlap with the variant bases
-    for result in results:
-        if result.start_0based == 0 and result.end_1based == len(variant_bases):
-            # this repeat spans the entire variant bases sequence
-            break
-
-
 def process_vcf_allele(
-        fasta_obj,
-        vcf_chrom,
-        vcf_pos,
-        vcf_ref,
-        alt_allele,
-        args,
-        counters,
+    fasta_obj,
+    vcf_chrom,
+    vcf_pos,
+    vcf_ref,
+    alt_allele,
+    args,
+    counters,
+    only_generate_trf_fasta,
+    variants_to_process_using_trf,
+    variants_per_trf_fasta,
 ):
     """Process a single VCF allele and determine if it represents a tandem repeat expansion or contraction.
 
@@ -451,6 +525,9 @@ def process_vcf_allele(
         alt_allele (str): Alternate allele sequence from the VCF file.
         args (argparse.Namespace): Command-line arguments parsed by parse_args().
         counters (dict, optional): Dictionary of counters to collect summary stats about the number of TR variants found, etc.
+        only_generate_trf_fasta (bool): instead of running TRF, just generate a fasta file with the nucleotide sequence to run TRF on later.
+        variants_to_process_using_trf (dict): maps variant IDs that should be processed using TRF to their sequence number in the TRF fasta file.
+        variants_per_trf_fasta (dict): maps TRF fasta input file path to the total number of variants in that fasta file.
 
     Return:
         2-tuple (dict, str):
@@ -482,6 +559,11 @@ def process_vcf_allele(
             return None, FILTER_ALLELE_MNV_INDEL
 
 
+    if len(variant_bases) > MAX_INDEL_SIZE:
+        # this is a very large indel, so we don't want to process it
+        counters[f"allele filter: {FILTER_ALLELE_TOO_BIG}"] += 1
+        return None, FILTER_ALLELE_TOO_BIG
+
     # retrieve flanking sequences to the left and right of the variant
 
     # A VCF line like this:
@@ -499,13 +581,19 @@ def process_vcf_allele(
     chrom_size = len(fasta_obj[vcf_chrom])
 
     detection_modes_to_try = [DETECTION_MODE_PURE_REPEATS]
+    flanking_sequence_size_multipliers = [3, 30, 300, 3000]
     if not args.dont_allow_interruptions:
         detection_modes_to_try.append(DETECTION_MODE_ALLOW_INTERRUPTIONS)
-        if not args.dont_run_trf and len(variant_bases) >= 9:
-            # only run TRF on indels >= 9bp
+        if not args.dont_run_trf and len(variant_bases) >= args.min_indel_size_to_run_trf:
             detection_modes_to_try.append(DETECTION_MODE_TRF)
+            # to run TRF, we need to have a large enough flanking sequence size on the first try
+            # these heuristics attempt to ensure that the flanking sequence is large enough to contain the entire repeat
+            # but without making it so large that it substantially slows down the processing of the average variant
+            flanking_sequence_size_multipliers = [
+                min(100, int(30_000 / len(variant_bases))),
+            ]
 
-    for flanking_sequence_size_multiplier in 3, 30, 300, 3000:
+    for flanking_sequence_size_multiplier in flanking_sequence_size_multipliers:
         # start with relatively small flanking sequence sizes and increase them if it turns out that the entire flank
         # is covered by a tandem repeat
         num_flanking_bases = flanking_sequence_size_multiplier * max(len(variant_bases), 100 - 100 % len(variant_bases))
@@ -524,36 +612,28 @@ def process_vcf_allele(
         left_flanking_reference_sequence = str(fasta_obj[vcf_chrom][left_flank_start_1based : left_flank_end]).upper()
         right_flanking_reference_sequence = str(fasta_obj[vcf_chrom][right_flank_start_1based : right_flank_end]).upper()
 
+        if TOO_MANY_Ns in left_flanking_reference_sequence or TOO_MANY_Ns in right_flanking_reference_sequence:
+            counters[f"allele filter: {FILTER_ALLELE_WITH_TOO_MANY_Ns_IN_FLANKS}"] += 1
+            return None, FILTER_ALLELE_WITH_TOO_MANY_Ns_IN_FLANKS
+
         for detection_mode_i, detection_mode in enumerate(detection_modes_to_try):
-            if detection_mode != DETECTION_MODE_TRF:
-                tandem_repeat_allele, tandem_repeat_allele_failed_filters_reason = check_if_allele_is_tandem_repeat_using_simple_methods(
-                    vcf_chrom,
-                    vcf_pos,
-                    vcf_ref,
-                    alt_allele,
-                    variant_bases,
-                    left_flanking_reference_sequence,
-                    right_flanking_reference_sequence,
-                    left_flank_end,
-                    right_flank_start_1based,
-                    args,
-                    counters=counters,
-                    detection_mode=detection_mode,
-                )
-            else:
-                tandem_repeat_allele, tandem_repeat_allele_failed_filters_reason = check_if_allele_is_tandem_repeat_using_trf(
-                    vcf_chrom,
-                    vcf_pos,
-                    vcf_ref,
-                    alt_allele,
-                    variant_bases,
-                    left_flanking_reference_sequence,
-                    right_flanking_reference_sequence,
-                    left_flank_end,
-                    right_flank_start_1based,
-                    args,
-                    counters=counters
-                )
+            tandem_repeat_allele, tandem_repeat_allele_failed_filters_reason = check_if_allele_is_tandem_repeat(
+                vcf_chrom,
+                vcf_pos,
+                vcf_ref,
+                alt_allele,
+                variant_bases,
+                left_flanking_reference_sequence,
+                right_flanking_reference_sequence,
+                left_flank_end,
+                right_flank_start_1based,
+                args,
+                counters=counters,
+                only_generate_trf_fasta=only_generate_trf_fasta,
+                variants_to_process_using_trf=variants_to_process_using_trf,
+                variants_per_trf_fasta=variants_per_trf_fasta,
+                detection_mode=detection_mode,
+            )
 
             if tandem_repeat_allele_failed_filters_reason is None:
                 if (tandem_repeat_allele["Start0Based"] - len(tandem_repeat_allele["RepeatUnit"]) <= left_flank_start_1based) or (
@@ -572,7 +652,12 @@ def process_vcf_allele(
         else:
             raise RuntimeError("State error: should always break out of the loop before it completes")
 
-    raise RuntimeError("State error: should not reach this point unless there's a tandem repeat > 300,000 kilobases")
+    print(f"WARNING: The tandem repeat represented by the variant {vcf_chrom}:{vcf_pos} {vcf_ref} > {alt_allele} "
+          f"covered the entire left and/or right flanking sequences (size of each flank: {num_flanking_bases:,d}bp, "
+          f"variant size: {len(variant_bases):,d}bp). Skipping...")
+
+    counters[f"allele filter: {FILTER_ALLELE_TR_SPANS_TOO_MANY_BASES}"] += 1
+    return None, FILTER_ALLELE_TR_SPANS_TOO_MANY_BASES
 
 
 def postprocess_multiallelic_tandem_repeat_variants(tandem_repeat_alleles, counters):
@@ -666,18 +751,20 @@ def compute_variant_summary_string(tandem_repeat_alleles, het_or_hom_or_multi):
 
 
 def process_vcf_line(
-        vcf_line_i,
-        vcf_fields,
-        fasta_obj,
-        vcf_writer,
-        variants_tsv_writer,
-        alleles_tsv_writer,
-        bed_writer,
-        fasta_writer,
-        args,
-        counters,
-        variants_per_locus_counter,
-        variant_intervals_0based,
+    vcf_line_i,
+    vcf_fields,
+    fasta_obj,
+    vcf_writer,
+    variants_tsv_writer,
+    alleles_tsv_writer,
+    bed_writer,
+    fasta_writer,
+    args,
+    counters,
+    variant_intervals_0based,
+    only_generate_trf_fasta,
+    variants_to_process_using_trf,
+    variants_per_trf_fasta,
 ):
     """Utility method for processing a single line from the input vcf
 
@@ -692,8 +779,10 @@ def process_vcf_line(
         fasta_writer (open file): open file for writing TR alleles in FASTA format
         args (argparse.Namespace): parsed command-line arguments
         counters (dict): dictionary of counters
-        variants_per_locus_counter (collections.Counter): counts the number of TR variants that overlap a given TR locus
         variant_intervals_0based (dict): maps chrom to list of intervaltree.Intervals representing vcf variants for subsequent overlap detection
+        only_generate_trf_fasta (bool): instead of running TRF, just generate a fasta file with the nucleotide sequence to run TRF on later.
+        variants_to_process_using_trf (dict): maps variant IDs that should be processed using TRF to their sequence number in the TRF fasta file.
+        variants_per_trf_fasta (dict): maps TRF fasta input file path to the total number of variants in that fasta file.
 
     Return:
         str: a string explaining the reason this variant is not a tandem repeat, or None if the variant is a tandem repeat
@@ -758,12 +847,18 @@ def process_vcf_line(
             alt_allele,
             args,
             counters,
+            only_generate_trf_fasta,
+            variants_to_process_using_trf,
+            variants_per_trf_fasta,
         )
 
-        if filter_reason is not None:
+        if filter_reason is not None and filter_reason != WILL_RUN_TRF_ON_THIS_ALLELE_IN_2ND_PASS:
             return filter_reason
 
         tandem_repeat_alleles.append(tandem_repeat_allele)
+
+    if only_generate_trf_fasta:
+        return WILL_RUN_TRF_ON_THIS_ALLELE_IN_2ND_PASS
 
     # Compute extra fields
     for tandem_repeat_allele in tandem_repeat_alleles:
@@ -835,7 +930,6 @@ def process_vcf_line(
         variant_detection_mode = tandem_repeat_alleles[1]["DetectionMode"]
 
     locus_id = f"{vcf_chrom_without_chr_prefix}-{start_0based}-{end_1based}-{repeat_unit}"
-    variants_per_locus_counter[locus_id] += 1
 
     # Generate output records
     if variant_interval is not None:
@@ -843,7 +937,8 @@ def process_vcf_line(
         variant_intervals_0based[vcf_chrom][-1] = intervaltree.Interval(start_0based, max(start_0based + 1, end_1based), data={
             "LocusId": locus_id,
             "IsPureRepeat": is_pure_repeat,
-            "RepeatUnit": repeat_unit
+            "RepeatUnit": repeat_unit,
+            "CanonicalMotif": canonical_motif,
         })
 
     num_repeats_in_reference = num_repeats_in_reference
@@ -880,7 +975,7 @@ def process_vcf_line(
                 else:
                     tsv_record[info_field_key] = True
 
-    if args.write_vcf_file:
+    if vcf_writer is not None:
         # write results to a VCF file
         vcf_fields[2] = variant_summary_string
         vcf_fields[4] = ",".join(alt_alleles)
@@ -918,7 +1013,8 @@ def process_vcf_line(
         raise ValueError(f"Short or long allele size is < 0: "
                          f"{num_repeats_short_allele}, {num_repeats_long_allele}  {pformat(tsv_record)}")
 
-    variants_tsv_writer.write("\t".join([str(tsv_record.get(c, "")) for c in VARIANT_TSV_OUTPUT_COLUMNS]) + "\n")
+    if variants_tsv_writer is not None:
+        variants_tsv_writer.write("\t".join([str(tsv_record.get(c, "")) for c in VARIANT_TSV_OUTPUT_COLUMNS]) + "\n")
 
     if bed_writer is not None:
         bed_writer.write("\t".join(map(str, [vcf_chrom, start_0based, end_1based, variant_summary_string, "."])) + "\n")
@@ -945,7 +1041,9 @@ def process_vcf_line(
             #                       if tandem_repeat_allele["FractionPureRepeatsAlt"] is not None else "",
         })
 
-        alleles_tsv_writer.write("\t".join([str(allele_tsv_record.get(c, "")) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
+        if alleles_tsv_writer is not None:
+            alleles_tsv_writer.write("\t".join([str(allele_tsv_record.get(c, "")) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
+
         if fasta_writer is not None:
             fasta_writer.write(f">{vcf_chrom}-{start_0based}-{end_1based}-{repeat_unit}-allele{i+1}: {summary_string}\n")
             fasta_writer.write(f"{tandem_repeat_allele['AlleleRepeatSequence']}\n")
@@ -1011,7 +1109,10 @@ def process_tandem_repeat_loci_that_have_overlapping_variants(
                 fo.write("\t".join(fields) + "\n")
 
     os.rename(f"{file_path}.temp", file_path)
-    print(f"Discarded {filtered_count:,d} out of {total:,d} rows from {file_path} as loci that overlapped more than one variant")
+    if args.keep_loci_that_have_overlapping_variants:
+        print(f"Removed {filtered_count:,d} out of {total:,d} rows from {file_path} because they were better represented by another overlapping TR variant")
+    else:
+        print(f"Discarded {filtered_count:,d} out of {total:,d} rows from {file_path} because they overlapped more than one variant")
 
 
 def print_stats(counters):
@@ -1050,49 +1151,72 @@ def run(command):
     os.system(command)
 
 
-def main():
-    args = parse_args()
+def main(args, only_generate_trf_fasta=False, variants_to_process_using_trf=None, variants_per_trf_fasta=None):
+    """Main function to process the input VCF and identify tandem repeat variants.
 
-    if not args.output_prefix:
-        args.output_prefix = re.sub(".vcf(.gz)?", "", os.path.basename(args.input_vcf_path)) + ".TRs"
-
+    Args:
+        args (argparse.Namespace): Parsed command-line arguments.
+        only_generate_trf_fasta (bool): If True, only generate the TRF fasta file without running TRF.
+        variants_to_process_using_trf (dict): maps variant IDs that should be processed using TRF to their sequence number in the TRF fasta file.
+        variants_per_trf_fasta (dict): maps TRF fasta input file path to the total number of variants in that fasta file.
+    """
     counters = collections.defaultdict(int)
-    variants_per_locus_counter = collections.defaultdict(int)  # counts the number of TR variants that overlap a given TR locus.
-    variant_intervals = collections.defaultdict(list)  # maps each chromosome to a list of intervaltree.Intervals representing all variants in the input VCF
+
+    variant_intervals = None
+    if not only_generate_trf_fasta:
+        variant_intervals = collections.defaultdict(list)  # maps each chromosome to a list of intervaltree.Intervals representing all variants in the input VCF
+
+    input_files_to_close = []
 
     # open the reference genome fasta
     fasta_obj = pyfaidx.Fasta(args.reference_fasta_path, one_based_attributes=False, as_raw=True)
+    input_files_to_close.append(fasta_obj)
 
     # open output files for writing
-    vcf_writer = open(f"{args.output_prefix}.vcf", "wt") if args.write_vcf_file else None
-    filtered_out_variants_vcf_writer = open(f"{args.output_prefix}.filtered_out_variants.vcf", "wt") if args.write_vcf_with_filtered_out_variants else None
+    vcf_writer = None
+    if args.write_vcf_file and not only_generate_trf_fasta:
+        vcf_writer = open(f"{args.output_prefix}.vcf", "wt")
 
-    variants_tsv_writer = open(f"{args.output_prefix}.variants.tsv", "wt")
-    variants_tsv_writer.write("\t".join(VARIANT_TSV_OUTPUT_COLUMNS) + "\n")
-    alleles_tsv_writer = open(f"{args.output_prefix}.alleles.tsv", "wt")
-    alleles_tsv_writer.write("\t".join(ALLELE_TSV_OUTPUT_COLUMNS) + "\n")
-    bed_writer = open(f"{args.output_prefix}.variants.bed", "wt") if args.write_bed_file else None
-    fasta_writer = gzip.open(f"{args.output_prefix}.fasta.gz", "wt") if args.write_fasta else None
+    filtered_out_variants_vcf_writer = None
+    if args.write_vcf_with_filtered_out_variants and not only_generate_trf_fasta:
+        filtered_out_variants_vcf_writer = open(f"{args.output_prefix}.filtered_out_variants.vcf", "wt")
+
+    variants_tsv_writer = alleles_tsv_writer = None
+    if not only_generate_trf_fasta:
+        variants_tsv_writer = open(f"{args.output_prefix}.variants.tsv", "wt")
+        variants_tsv_writer.write("\t".join(VARIANT_TSV_OUTPUT_COLUMNS) + "\n")
+        alleles_tsv_writer = open(f"{args.output_prefix}.alleles.tsv", "wt")
+        alleles_tsv_writer.write("\t".join(ALLELE_TSV_OUTPUT_COLUMNS) + "\n")
+
+    bed_writer = None
+    if args.write_bed_file and not only_generate_trf_fasta:
+        bed_writer = open(f"{args.output_prefix}.variants.bed", "wt")
+
+    fasta_writer = None
+    if args.write_fasta and not only_generate_trf_fasta:
+        fasta_writer = gzip.open(f"{args.output_prefix}.fasta.gz", "wt")
 
     # open the input VCF
     if args.interval:
         print(f"Fetching interval(s):", ", ".join(args.interval))
         tabix_file = pysam.TabixFile(args.input_vcf_path)
         vcf_iterator = (line for interval in args.interval for line in tabix_file.fetch(interval))
+        input_files_to_close.append(tabix_file)
     else:
         vcf_iterator = open_file(args.input_vcf_path, is_text_file=True)
+        input_files_to_close.append(vcf_iterator)
 
     if args.show_progress_bar:
-        vcf_iterator = tqdm.tqdm(vcf_iterator, unit=" rows", unit_scale=True)
+        vcf_iterator = tqdm.tqdm(vcf_iterator, unit=" variants", unit_scale=True)
 
     # iterate over all VCF rows
     vcf_line_i = 0
     for line in vcf_iterator:
         if line.startswith("##"):
             # copy the VCF header to the output
-            if args.write_vcf_file:
+            if vcf_writer is not None:
                 vcf_writer.write(line)
-            if args.write_vcf_with_filtered_out_variants:
+            if filtered_out_variants_vcf_writer is not None:
                 filtered_out_variants_vcf_writer.write(line)
 
             continue
@@ -1106,14 +1230,15 @@ def main():
                 raise ValueError(f"{args.input_vcf_path} contains {len(sample_ids)} samples, but this script only "
                                  f"supports single-sample VCFs.")
 
-            if args.write_vcf_file:
+            if vcf_writer is not None:
                 vcf_writer.write(line)
-            if args.write_vcf_with_filtered_out_variants:
+            if filtered_out_variants_vcf_writer is not None:
                 filtered_out_variants_vcf_writer.write(line)
 
             continue
 
         if vcf_line_i < args.offset:
+            vcf_line_i += 1
             continue
         if args.n is not None and vcf_line_i >= args.offset + args.n:
             break
@@ -1122,9 +1247,10 @@ def main():
 
         filter_string = process_vcf_line(
             vcf_line_i, vcf_fields, fasta_obj, vcf_writer, 
-            variants_tsv_writer, alleles_tsv_writer, bed_writer, fasta_writer, args, counters, variants_per_locus_counter, variant_intervals)
+            variants_tsv_writer, alleles_tsv_writer, bed_writer, fasta_writer, args, counters,
+            variant_intervals, only_generate_trf_fasta, variants_to_process_using_trf, variants_per_trf_fasta)
 
-        if filter_string and args.write_vcf_with_filtered_out_variants:
+        if filter_string and filtered_out_variants_vcf_writer is not None:
             # if this variant is an indel that was filtered out, write it to the filtered out variants VCF
 
             vcf_fields[6] = filter_string
@@ -1138,66 +1264,74 @@ def main():
             ):
                 filtered_out_variants_vcf_writer.write("\t".join(vcf_fields) + "\n")
 
-    print(f"Starting overlap detection to filter out TR loci that overlap more than one variant in the input VCF")
-    # prepare to filter out detected TR loci that overlapped one or more other variants in the VCF (ie. other TRs, non-TR indels, or SNVs).
+    for file_obj in input_files_to_close:
+        try:
+            file_obj.close()
+        except Exception as e:
+            print(f"WARNING: unable to close {file_obj.name}: {e}")
+
+    if only_generate_trf_fasta:
+        return
+
+    # prepare to filter out detected TR loci that overlap one or more other variants in the VCF (ie. other TRs, non-TR indels, or SNVs).
+    print(f"Starting overlap detection")
     locus_ids_with_overlapping_variants = {}
-    for locus_id, count in variants_per_locus_counter.items():
-        if count <= 1:
-            continue
-        if args.verbose:
-            print(f"WARNING: {locus_id} locus contained {count} different TR variants. It will be filtered out...")
-        counters[f"variant filter: {FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_TR_VARIANTS}"] += 1
-        locus_ids_with_overlapping_variants[locus_id] = FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_TR_VARIANTS
+    chrom_intervals_iter = variant_intervals.items()
+    if args.show_progress_bar:
+        chrom_intervals_iter = tqdm.tqdm(chrom_intervals_iter, unit=" chromosomes", unit_scale=True)
 
-    if not args.keep_loci_that_have_overlapping_variants:
-        for _, intervals in variant_intervals.items():
-            # create an interval tree for this chromosome
-            interval_tree = intervaltree.IntervalTree(intervals)
-            for interval in intervals:
-                if interval.data is None:
-                    # only check TR variants for overlap with other variants on the same chromosome
-                    continue
+    for chrom, intervals in chrom_intervals_iter:
+        # create an interval tree for this chromosome
+        interval_tree = intervaltree.IntervalTree(intervals)
+        for interval in intervals:
+            if interval.data is None:
+                # only check TR variants for overlap with other variants on the same chromosome
+                continue
 
-                locus_id = interval.data["LocusId"]
-                if locus_id in locus_ids_with_overlapping_variants:
-                    # if the locus id is already in locus_ids_with_overlapping_variants, skip it
-                    continue
+            locus_id = interval.data["LocusId"]
+            repeat_unit = interval.data["RepeatUnit"]
+            overlapping_intervals = interval_tree.overlap(interval.begin - len(repeat_unit), interval.end + len(repeat_unit))
 
-                repeat_unit = interval.data["RepeatUnit"]
-                overlapping_intervals = interval_tree.overlap(interval.begin - len(repeat_unit), interval.end + len(repeat_unit))
+            assert len(overlapping_intervals) > 0, f"ERROR: Expected the locus interval to overlap with itself: {interval.data}"
 
-                assert len(overlapping_intervals) > 0, f"ERROR: Expected the locus interval to overlap with itself: {interval.data}"
+            if len(overlapping_intervals) == 1:
+                continue
 
-                if len(overlapping_intervals) == 1:
-                    continue
-
-                if interval.data["IsPureRepeat"]:
-                    counters[f"variant filter: pure {FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS}"] += 1
-                else:
-                    counters[f"variant filter: not-pure {FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS}"] += 1
-
+            if not args.keep_loci_that_have_overlapping_variants:
+                counters[f"variant filter: {FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS}"] += 1
                 locus_ids_with_overlapping_variants[locus_id] = FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS
+            else:
+                for overlapping_interval in overlapping_intervals:
+                    if overlapping_interval.data is None:
+                        # this overlapping variant was not found to be a TR, so skip to the next overlapping variant
+                        continue
+
+                    if overlapping_interval.data["LocusId"] == locus_id:
+                        # don't compare to self
+                        continue
+
+                    # Filter out TR that overlaps another TR locus that has the same canonical motif but wider locus boundaries.
+                    # This can happen when the locus was identified by detecting pure repeats, while the other (wider) locus was
+                    # detected via interrupted repeats or by using TRF
+                    if interval.data["CanonicalMotif"] == overlapping_interval.data["CanonicalMotif"] and (
+                        (interval.end - interval.begin) < (overlapping_interval.end - overlapping_interval.begin)):
+                        counters[f"variant filter: {FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS}"] += 1
+                        locus_ids_with_overlapping_variants[locus_id] = FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS
+                        break
+
+    # remove locus_ids_with_overlapping_variants from all output files
+    if len(locus_ids_with_overlapping_variants) > 0:
+        for writer in filter(None, [variants_tsv_writer, alleles_tsv_writer, vcf_writer, bed_writer]):
+            writer.close()
+            #print(f"Filtering out {len(locus_ids_with_overlapping_variants):,d} loci from {writer.name} because they overlap "
+            #      f"more than one variant in the input VCF")
+
+            process_tandem_repeat_loci_that_have_overlapping_variants(writer.name,
+                locus_ids_with_overlapping_variants, filtered_out_variants_vcf_writer)
 
     # close and post-process all output files
-    print(f"{len(locus_ids_with_overlapping_variants):,d} loci in locus_ids_with_overlapping_variants")
-
-    for writer, discard_TR_loci_that_have_overlapping_variants in [
-        (variants_tsv_writer, True),
-        (alleles_tsv_writer, True),
-        (vcf_writer, True),
-        (bed_writer, True),
-        (filtered_out_variants_vcf_writer, False),
-    ]:
-        if writer is None:
-            continue
-
-        writer.close()
-
-        if discard_TR_loci_that_have_overlapping_variants and len(locus_ids_with_overlapping_variants) > 0:
-            print(f"Filtering out {len(locus_ids_with_overlapping_variants):,d} loci from {writer.name} because they overlap "
-                  f"more than one variant in the input VCF")
-            process_tandem_repeat_loci_that_have_overlapping_variants(
-                writer.name, locus_ids_with_overlapping_variants, filtered_out_variants_vcf_writer)
+    for writer in filter(None, [variants_tsv_writer, alleles_tsv_writer, vcf_writer, bed_writer, filtered_out_variants_vcf_writer]):
+        writer.close()   # close writers (it's ok to close a file that's already been closed)
 
         if writer.name.endswith(".tsv"):
             run(f"bgzip -f {writer.name}")
@@ -1216,9 +1350,63 @@ def main():
 
         print(f"Finished writing to {writer.name}.gz")
 
+    if not args.dont_run_trf and not args.verbose:
+        # delete the TRF fasta file directory
+        shutil.rmtree(os.path.dirname(TRF_FASTA_PREFIX))
+        print(f"Deleted {os.path.dirname(TRF_FASTA_PREFIX)} directory")
+
     print_stats(counters)
 
 
+def run_trf(args, trf_fasta_path):
+    trf_runner = TRFRunner(args.trf_executable_path, html_mode=True,
+                           min_motif_size=args.min_repeat_unit_length,
+                           max_motif_size=args.max_repeat_unit_length)
+
+    trf_runner.run_trf_on_fasta_file(os.path.basename(trf_fasta_path))
+
+
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+
+    if not args.output_prefix:
+        args.output_prefix = re.sub(".vcf(.gz)?", "", os.path.basename(args.input_vcf_path)) + ".TRs"
+
+    variants_to_process_using_trf = None
+    if not args.dont_run_trf:
+        variants_to_process_using_trf = {}
+        variants_per_trf_fasta = collections.defaultdict(int)
+
+        trf_working_dir = os.path.dirname(TRF_FASTA_PREFIX)
+        if not os.path.isdir(trf_working_dir):
+            os.makedirs(trf_working_dir)
+
+        main(args, only_generate_trf_fasta=True, variants_to_process_using_trf=variants_to_process_using_trf,
+             variants_per_trf_fasta=variants_per_trf_fasta)
+
+        # start multithreaded TRF processing
+        original_working_dir = os.getcwd()
+        os.chdir(trf_working_dir)
+
+        n_threads = min(args.trf_threads, len(variants_to_process_using_trf))
+        print(f"Launching {n_threads} TRF instance(s) to process {len(variants_to_process_using_trf):,d} insertion or deletion alleles")
+        threads = []
+        for thread_i in range(0, n_threads):
+            trf_fasta_path = f"{TRF_FASTA_PREFIX}.t{thread_i}.fa"
+
+            thread = threading.Thread(target=run_trf, args=(args, trf_fasta_path))
+            thread.start()
+            threads.append(thread)
+
+        for thread in threads:
+            thread.join()
+
+        os.chdir(original_working_dir)
+
+        print(f"Done running TRF. Parsing results...")
+
+    main(args, only_generate_trf_fasta=False, variants_to_process_using_trf=variants_to_process_using_trf,
+         variants_per_trf_fasta=variants_per_trf_fasta)
+
+
 

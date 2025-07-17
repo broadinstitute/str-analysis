@@ -8,8 +8,8 @@ import traceback
 
 from str_analysis.utils.dat_utils import parse_dat_file
 
-
-TRF_ALIGNMENT_LINE_REGEX = re.compile(r"(\d+)\s+([-ACGTN\s]+)")
+#IUPAC_CODES = "RYSWKMBDHV"
+TRF_ALIGNMENT_LINE_REGEX = re.compile(r"(\d+)\s+([-ACGTNRYSWKMBDHV\s]+)")
 
 class TRFRunner:
     """Class for running TandemRepeatFinder on a nucleotide sequence"""
@@ -21,9 +21,10 @@ class TRFRunner:
                  indel_penalty = 7,
                  pm = 80,
                  pi = 10,
-                 minscore = 24, 
-                 output_filename_prefix=None,
-                 parse_motif_composition=False,
+                 minscore = 24,
+                 min_motif_size=None,
+                 max_motif_size=None,
+                 html_mode=False,
                  generate_motif_plot=False,
                  debug=False):
         """
@@ -35,9 +36,9 @@ class TRFRunner:
             pm (int): see Tandem Repeats Finder docs
             pi (int): see Tandem Repeats Finder docs
             minscore (int): see Tandem Repeats Finder docs
-            output_filename_prefix (str): if specified, the TRF output files will have this prefix and will not be deleted.
-                If not specified, the intermediate files will be deleted after they are parsed into in-memory data structures.
-            parse_motif_composition (bool): if True, in addition to parsing the repeat coordinates and motif, also
+            min_motif_size (int): if specified, only return loci with this motif size or larger.
+            max_motif_size (int): if specified, only return loci with this motif size or smaller.
+            html_mode (bool): if True, in addition to parsing the repeat coordinates and motif, also
                 parse and return the motif composition from TRF's HTML output.
             generate_motif_plot (bool): if True, generate a logo (aka. motif) plot of the variability among different motifs observed in the repeat sequence.
             debug (bool): if True, print debug information
@@ -50,35 +51,38 @@ class TRFRunner:
         self.pm = pm
         self.pi = pi
         self.minscore = minscore
-        self.output_filename_prefix = output_filename_prefix
-        self.parse_motif_composition = parse_motif_composition
+        self.min_motif_size = min_motif_size
+        self.max_motif_size = max_motif_size
+        self.html_mode = html_mode
         self.generate_motif_plot = generate_motif_plot
         self.debug = debug
 
-        if self.generate_motif_plot and not self.parse_motif_composition:
-            raise ValueError("generate_motif_plot requires parse_motif_composition to be True")
+        if min_motif_size is not None and max_motif_size is not None and min_motif_size > max_motif_size:
+            raise ValueError(f"Motif size range error: min_motif_size={min_motif_size}, max_motif_size={max_motif_size}")
+
+        if self.generate_motif_plot and not self.html_mode:
+            raise ValueError("generate_motif_plot requires html_mode to be True")
 
 
-    def run_TRF(self, nucleotide_sequence, min_motif_size=None, max_motif_size=None):
-        """Run TRF on the given nucleotide sequence and return a generator of records representing the TRF output for the given nucleotide sequence.
-        This code assumes the goal is to find a single repeat that covers all or most of the input sequence.
+    def run_TRF_on_nucleotide_sequence(self, nucleotide_sequence, output_filename_prefix=None):
+        """Run TRF on the given nucleotide sequence and return a generator of results.This code assumes the goal is to
+        find a single repeat that covers all or most of the input sequence.
         It is not designed to find multiple distict repeat loci within the sequence.
 
         Args:
             nucleotide_sequence (str): the nucleotide sequence to run TRF on
-            min_motif_size (int): if specified, only return loci with this motif size or larger.
-            max_motif_size (int): if specified, only return loci with this motif size or smaller.
+            output_filename_prefix (str): if specified, the TRF output files will have this prefix and will not be deleted.
+                If not specified, the intermediate files will be deleted after they are parsed into in-memory data structures.
 
         Yields:
             records representing the TRF output for the given nucleotide sequence.
         """
-        assert min_motif_size is None or max_motif_size is None or min_motif_size <= max_motif_size, f"Motif size range error: min_motif_size={min_motif_size}, max_motif_size={max_motif_size}"
 
         # write the sequence to a temp FASTA file
-        if self.output_filename_prefix is None:
+        if output_filename_prefix is None:
             temp_fasta_file = tempfile.NamedTemporaryFile("w+", suffix=".fasta", delete=False)
         else:
-            temp_fasta_file = open(f"{self.output_filename_prefix}.fasta", "wt")
+            temp_fasta_file = open(f"{output_filename_prefix}.fasta", "wt")
 
         temp_fasta_file.write(f">seq_{len(nucleotide_sequence)}bp\n")
         temp_fasta_file.write(f"{nucleotide_sequence}\n")
@@ -90,19 +94,60 @@ class TRFRunner:
 
         temp_fasta_path = temp_fasta_file.name
 
-        keep_intermediate_files = self.output_filename_prefix is not None or self.debug
-        
+        keep_intermediate_files = output_filename_prefix is not None or self.debug
+
         # compose the TRF command
         # -l 6  = maximum TR length expected (in millions) (eg, -l 3 or -l=3 for 3 million). Human genome HG38 would need -l 6
         # -h = suppress html output
         # -ngs =  more compact .dat output on multisequence files, returns 0 on success. Output is printed to the screen.
-        if max_motif_size is not None:
-            max_period = max_motif_size
+        if self.max_motif_size is not None:
+            max_period = self.max_motif_size
         else:
             max_period = min(len(nucleotide_sequence)//2, 1000)  # maximum period size to report. Must be between 1 and 2000, inclusive
 
+        self.run_trf_on_fasta_file(temp_fasta_path, max_period=max_period)
+
+        if self.html_mode:
+            # parse .html output files
+            for record in self.parse_html_results(
+                    temp_fasta_path, sequence_number=1, total_sequences=1, max_period=max_period):
+
+                yield record
+
+            if not keep_intermediate_files:
+                os.remove(temp_fasta_path)
+        else:
+            # parse .dat output file
+            output_dat_path = f"{temp_fasta_path}.dat"
+            for dat_record in parse_dat_file(output_dat_path):
+                if self.min_motif_size is not None and dat_record.repeat_unit_length < self.min_motif_size:
+                    continue
+                if self.max_motif_size is not None and dat_record.repeat_unit_length > self.max_motif_size:
+                    continue
+
+                yield dat_record
+
+            if not keep_intermediate_files:
+                os.remove(output_dat_path)
+                os.remove(temp_fasta_path)
+
+
+    def run_trf_on_fasta_file(self, fasta_file_path, max_period=1000):
+        """Run TRF on a FASTA file and return a generator of records representing the TRF output for the given nucleotide sequence.
+        This code assumes the goal is to find a single repeat that covers all or most of the input sequence.
+        It is not designed to find multiple distict repeat loci within the sequence.
+
+        Args:
+            fasta_file_path (str): path to the FASTA file containing the nucleotide sequence
+
+        Yields:
+            records representing the TRF output for the given nucleotide sequence.
+        """
+        if not os.path.isfile(fasta_file_path):
+            raise FileNotFoundError(f"FASTA file not found: {fasta_file_path}")
+
         command = f"{self.trf_executable_path} "
-        command += f"{temp_fasta_path} "
+        command += f"{fasta_file_path} "
         command += f"{self.match_score} "
         command += f"{self.mismatch_penalty} "
         command += f"{self.indel_penalty} "
@@ -113,72 +158,77 @@ class TRFRunner:
 
         redirect = subprocess.DEVNULL if not self.debug else None
 
-        if self.parse_motif_composition:
+        if self.html_mode:
             # run TRF
             subprocess.run(command, shell=True, stdout=redirect, stderr=redirect, check=False)
-
-            # read html output
-            trf_output_filename_prefix = f"{os.path.basename(temp_fasta_path)}"
-            trf_output_filename_prefix += f".{self.match_score}"
-            trf_output_filename_prefix += f".{self.mismatch_penalty}"
-            trf_output_filename_prefix += f".{self.indel_penalty}"
-            trf_output_filename_prefix += f".{self.pm}"
-            trf_output_filename_prefix += f".{self.pi}"
-            trf_output_filename_prefix += f".{self.minscore}"
-            trf_output_filename_prefix += f".{max_period}"
-
-            i = 1
-            html_file_path = f"{trf_output_filename_prefix}.{i}.txt.html"
-            while os.path.isfile(html_file_path):
-
-                for record in self._parse_trf_html_output(
-                        nucleotide_sequence,
-                        html_file_path,
-                        min_motif_size=min_motif_size,
-                        max_motif_size=max_motif_size):
-                    if self.generate_motif_plot:
-                        self.create_motif_plot(record["repeats"], record["start_0based"], record["end_1based"], record["motif"])
-
-                    yield record
-
-                if not keep_intermediate_files:
-                    # remove the TRF output html file
-                    os.remove(html_file_path)
-                    if os.path.isfile(f"{trf_output_filename_prefix}.{i}.html"):
-                        # also remove the TRF output summary table html file
-                        os.remove(f"{trf_output_filename_prefix}.{i}.html")
-
-                i += 1
-                html_file_path =  f"{trf_output_filename_prefix}.{i}.txt.html"
-
         else:
-            # run TRF
-            output_dat_path = f"{temp_fasta_path}.dat"
+            output_dat_path = f"{fasta_file_path}.dat"
             command += f"-h -ngs > {output_dat_path}"
 
             subprocess.check_output(command, shell=True, stderr=redirect)
 
-            # parse output in .dat format
-            for dat_record in parse_dat_file(output_dat_path):
-                if min_motif_size is not None and dat_record.repeat_unit_length < min_motif_size:
-                    continue
-                if max_motif_size is not None and dat_record.repeat_unit_length > max_motif_size:
-                    continue
 
-                yield dat_record
+    def parse_html_results(self, fasta_file_path, sequence_number=1, total_sequences=1, max_period=1000):
 
-            if not keep_intermediate_files:
-                os.remove(output_dat_path)
+        trf_output_filename_prefix = f"{fasta_file_path}"
+        if total_sequences > 1:
+            trf_output_filename_prefix += f".s{sequence_number}"
+        trf_output_filename_prefix += f".{self.match_score}"
+        trf_output_filename_prefix += f".{self.mismatch_penalty}"
+        trf_output_filename_prefix += f".{self.indel_penalty}"
+        trf_output_filename_prefix += f".{self.pm}"
+        trf_output_filename_prefix += f".{self.pi}"
+        trf_output_filename_prefix += f".{self.minscore}"
+        trf_output_filename_prefix += f".{max_period}"
+
+        records = []
+
+        i = 1
+        html_file_path = f"{trf_output_filename_prefix}.{i}.txt.html"
+
+        while os.path.isfile(html_file_path):
+            if os.path.isfile(f"{trf_output_filename_prefix}.{i}.html"):
+                os.remove(f"{trf_output_filename_prefix}.{i}.html")
+
+            for record in self._parse_trf_html_file(html_file_path):
+                if self.generate_motif_plot:
+                    self.create_motif_plot(
+                        record["repeats"],
+                        record["start_0based"],
+                        record["end_1based"],
+                        record["motif"],
+                        output_filename_prefix=fasta_file_path)
+
+                record["html_file_path"] = html_file_path
+                record["fasta_file_path"] = f"{fasta_file_path}"
+
+                records.append(record)
+
+            i += 1
+            html_file_path = f"{trf_output_filename_prefix}.{i}.txt.html"
+
+        return records
 
 
-    def _parse_trf_html_output(self, nucleotide_sequence, html_file_path, min_motif_size=None, max_motif_size=None):
+    def _parse_trf_html_file(self, html_file_path, min_motif_size=None, max_motif_size=None):
         """Parse the HTML output of TRF and return a list of motifs"""
 
         with open(html_file_path, "rt") as f:
             html_content = f.read()
 
+
+        html_sections = html_content.split("<A NAME=")
+
+        top_section = html_sections[0]
+
+        sequence_name_match = re.search(r"Sequence:\s+([^\s]+)", top_section)
+        if not sequence_name_match:
+            raise ValueError(f"Could not parse sequence name from the top of the HTML file: {html_file_path}")
+
+        sequence_name = sequence_name_match.group(1).strip()
+
         results = []
-        for locus_i, html_section in enumerate(html_content.split("<A NAME=")[1:]):
+        for locus_i, html_section in enumerate(html_sections[1:]):
             #print(f"Parsing html section #{locus_i+1}")
 
             # find the line that starts with "Indices:"
@@ -334,21 +384,24 @@ class TRFRunner:
                 "alignment_length": seq_end_index - seq_start_index_0based,
                 "alignment_score": score,
                 "motif_positions_with_interruptions": motif_positions_with_interruptions,
+                "sequence_name": sequence_name,
             })
 
         
         # Filter out the short TRF results at a locus
         #metric = "alignment_length"
-        result_with_max_alignment_score = max(results, key=lambda x: x["alignment_score"])
-        max_alignment_score = result_with_max_alignment_score["alignment_score"]
+        if len(results) > 0:
+            result_with_max_alignment_score = max(results, key=lambda x: x["alignment_score"])
+            max_alignment_score = result_with_max_alignment_score["alignment_score"]
 
-        results = [t for t in results if t["alignment_score"] > 0.1 * max_alignment_score]
-        #results = [t for t in results if t["start_0based"] < t["motif_size"] and t["end_1based"] > len(nucleotide_sequence) - t["motif_size"]]
+            results = [t for t in results if t["alignment_score"] > 0.1 * max_alignment_score]
+            #results = [t for t in results if t["start_0based"] < t["motif_size"] and t["end_1based"] > len(nucleotide_sequence) - t["motif_size"]]
 
-        results.sort(key=lambda x: x["motif_size"])
+            results.sort(key=lambda x: x["motif_size"])
+
         return results
 
-    def create_motif_plot(self, motif_list, start_0based, end_1based, consensus_motif):
+    def create_motif_plot(self, motif_list, consensus_motif, output_filename_prefix=None):
         if not motif_list:
             raise ValueError("No motifs to plot")
 
@@ -367,7 +420,7 @@ class TRFRunner:
         from plotnineseqsuite import geom_logo, theme_seq
 
         p = ggplot() + geom_logo(filtered_motif_list, method = 'probability' ) + theme_seq()
-        p.save(f'{self.output_filename_prefix}_motif_plot_{start_0based}_{end_1based}_{consensus_motif}.png', "png", width=len(consensus_motif)*0.5, height=3, limitsize=False)
+        p.save(f"{output_filename_prefix}_motif_plot_{consensus_motif}__{len(motif_list)}_motifs.png", "png", width=len(consensus_motif)*0.5, height=3, limitsize=False)
 
 
 
@@ -380,30 +433,29 @@ if __name__ == "__main__":
     import pandas as pd
     df1 = pd.read_table("~/code/str-analysis/str_analysis/data/tests/CACNA1C_VNTR_sequences.tsv")
     df2 = pd.read_table("~/code/str-analysis/str_analysis/data/tests/ABCA7_VNTR_sequences.tsv")
-    for parse_motif_composition in [True,]:
+    html_mode = True
 
-        #for df, column_name in [(df1, "CACNA1C_seq"),  (df2, "ABCA7_seq")]:
-        #for df, column_name in [(df2, "ABCA7_seq")]:
-        for df, column_name in [(df1, "CACNA1C_seq")]:
-            for _, row in df.iterrows():
-                #if row['sample_id'] != "NA18939":
-                #    continue
+    trf_runner = TRFRunner("~/bin/trf409.macosx",
+          html_mode=html_mode,
+          debug=DEBUG,
+          generate_motif_plot=False)
 
-                r = TRFRunner("~/bin/trf409.macosx", 
-                              parse_motif_composition=parse_motif_composition, 
-                              debug=DEBUG, 
-                              output_filename_prefix=f"{row['sample_id']}_{column_name}",
-                              generate_motif_plot=False,
-                )
+    #for df, column_name in [(df2, "ABCA7_seq")]:
+    for df, column_name in [(df1, "CACNA1C_seq")]:
+        for _, row in df.iterrows():
+            #if row['sample_id'] != "NA18939":
+            #    continue
 
-                # run TRF on the sequence
-                seq = row[column_name]
-                #print(f"Running TRF on {len(seq):,d}bp sequence from {column_name}")
-                records = list(r.run_TRF(nucleotide_sequence=seq))
-                records = [records[0]]
-                sys.stdout.write(f"{row['sample_id']:<20} {column_name}: found {len(records):,d} TRF results in {len(seq):10,d}bp sequence")
-                for trf_record_i, record in enumerate(records):
-                    print(f" "*30 + f"TRF record #{trf_record_i + 1}: score = {record['alignment_score']:6,d}, start_diff = {record['start_0based']}, end_diff = {len(seq) - record['end_1based']}, cov = {(record['end_1based'] - record['start_0based'])/len(seq):0.1%}, motif = {record['motif']}, motif_size = {record['motif_size']}")
-                    if DEBUG:
-                        print(record)
+            # run TRF on the sequence
+            seq = row[column_name]
+
+            #print(f"Running TRF on {len(seq):,d}bp sequence from {column_name}")
+            records = list(trf_runner.run_TRF_on_nucleotide_sequence(nucleotide_sequence=seq))
+
+            #records = [records[0]]
+            sys.stdout.write(f"{row['sample_id']:<20} {column_name}: found {len(records):,d} TRF results in {len(seq):10,d}bp sequence")
+            for trf_record_i, record in enumerate(records):
+                print(f" "*30 + f"TRF record #{trf_record_i + 1}: score = {record['alignment_score']:6,d}, start_diff = {record['start_0based']}, end_diff = {len(seq) - record['end_1based']}, cov = {(record['end_1based'] - record['start_0based'])/len(seq):0.1%}, motif = {record['motif']}, motif_size = {record['motif_size']}")
+                if DEBUG:
+                    print(record)
 
