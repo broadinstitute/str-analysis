@@ -92,8 +92,8 @@ FILTER_UNEXPECTED_GENOTYPE_FORMAT = "unexpected genotype format"
 FILTER_ZERO_ALT_ALLELES = "variant has zero non-* alt alleles"
 #FILTER_MULTIALLELIC_VARIANT_WITH_HOMOZYGOUS_GENOTYPE = "multiallelic variant with homozygous genotype"
 
-FILTER_ALLELE_WITH_N_BASES = "contains N"
-FILTER_ALLELE_WITH_TOO_MANY_Ns_IN_FLANKS = "contains too many Ns in flanks"
+FILTER_ALLELE_WITH_N_BASES = "contains Ns in the variant sequence"
+FILTER_ALLELE_WITH_TOO_MANY_Ns_IN_FLANKS = "contains too many Ns in the flanks"
 FILTER_ALLELE_TR_SPANS_TOO_MANY_BASES = "spans too many bases"
 FILTER_ALLELE_SNV_OR_MNV = "SNV/MNV"
 FILTER_ALLELE_MNV_INDEL = "complex multinucleotide indel"
@@ -110,7 +110,7 @@ FILTER_TR_ALLELE_REPEAT_UNIT_TOO_LONG = "repeat unit > %d bp"
 FILTER_VARIANT_WITH_TR_ALLELES_WITH_DIFFERENT_MOTIFS = "tandem repeat alleles with different motifs"
 FILTER_VARIANT_WITH_TR_ALLELES_WITH_DIFFERENT_INTERRUPTION_PATTERNS = "tandem repeat alleles with different interruption patterns"
 #FILTER_VARIANT_WITH_TR_ALLELES_WITH_DIFFERENT_COORDS = "TR alleles with different coords"
-FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_TR_VARIANTS = "locus overlaps more than one TR variant"
+FILTER_TR_LOCUS_THAT_IS_BETTER_REPRESENTED_BY_AN_OVERLAPPING_TR = "locus overlaps and can be better represented by another TR locus"
 FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS = "locus overlaps more than one variant"
 
 WILL_RUN_TRF_ON_THIS_ALLELE_IN_2ND_PASS = "will run TRF on this allele during the 2nd pass"
@@ -358,7 +358,7 @@ def check_if_allele_is_tandem_repeat(
         else:
             trf_thread_index, _ = variants_to_process_using_trf[variant_id]
 
-        trf_fasta_path = f"{TRF_FASTA_PREFIX}.t{trf_thread_index}.fa"
+        trf_fasta_path = f"{TRF_FASTA_PREFIX}.thread{trf_thread_index}.fa"
 
         if only_generate_trf_fasta:
             if variant_id in variants_to_process_using_trf:
@@ -477,28 +477,6 @@ def check_if_allele_is_tandem_repeat(
         result["AlleleRepeatSequence"] += variant_bases
     if tandem_repeat_bases_in_right_flank > 0:
         result["AlleleRepeatSequence"] += right_flanking_reference_sequence[:tandem_repeat_bases_in_right_flank]
-
-    # update counters
-    counters[f"TR allele counts: TOTAL"] += 1
-    counters[f"TR allele counts: {'INS' if len(vcf_ref) < len(alt_allele) else 'DEL'}"] += 1
-    counters[f"TR allele motif size: {len(repeat_unit) if len(repeat_unit) < 9 else '9+'} bp"] += 1
-    counters[f"TR allele detected by: {detection_mode}"] += 1
-
-    #if len(variant_bases) < 500:
-    #    num_base_pairs_within_variant_bases = f"{25*int(len(variant_bases)/25)}-{25*(1+int(len(variant_bases)/25))}bp"
-    #else:
-    #    num_base_pairs_within_variant_bases = "500+bp"
-    #counters[f"TR allele size: {num_base_pairs_within_variant_bases}"] += 1
-    #
-    #if num_total_repeats_left_flank > 0 and num_total_repeats_right_flank > 0:
-    #    left_or_right = 'both left and right'
-    #elif num_total_repeats_left_flank > 0:
-    #    left_or_right = 'left'
-    #elif num_total_repeats_right_flank > 0:
-    #    left_or_right = 'right'
-    #else:
-    #    left_or_right = 'no'
-    #counters[f"TR allele reference repeats: with {left_or_right} matching ref. repeat"] += 1
 
     return result, None
 
@@ -809,7 +787,7 @@ def process_vcf_line(
 
     # check for N's in the ref or alt sequences
     if "N" in vcf_ref or "N" in vcf_alt:
-        counters[f"allele filter: N bases"] += 1
+        counters[f"allele filter: {FILTER_ALLELE_WITH_N_BASES}"] += 1
         return FILTER_ALLELE_WITH_N_BASES
 
     if not vcf_alt:
@@ -854,6 +832,15 @@ def process_vcf_line(
 
         if filter_reason is not None and filter_reason != WILL_RUN_TRF_ON_THIS_ALLELE_IN_2ND_PASS:
             return filter_reason
+
+        # update counters
+        if tandem_repeat_allele is not None:
+            counters[f"TR allele counts: TOTAL"] += 1
+            counters[f"TR allele counts: {'INS' if len(vcf_ref) < len(alt_allele) else 'DEL'}"] += 1
+            allele_repeat_unit = tandem_repeat_allele["RepeatUnit"]
+            allele_detection_mode = tandem_repeat_allele["DetectionMode"]
+            counters[f"TR allele motif size: {len(allele_repeat_unit) if len(allele_repeat_unit) < 9 else '9+'} bp"] += 1
+            counters[f"TR allele detected by: {allele_detection_mode}"] += 1
 
         tandem_repeat_alleles.append(tandem_repeat_allele)
 
@@ -1298,8 +1285,8 @@ def main(args, only_generate_trf_fasta=False, variants_to_process_using_trf=None
                 continue
 
             if not args.keep_loci_that_have_overlapping_variants:
-                counters[f"variant filter: {FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS}"] += 1
-                locus_ids_with_overlapping_variants[locus_id] = FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS
+                counters[f"variant filter: {FILTER_TR_LOCUS_THAT_IS_BETTER_REPRESENTED_BY_AN_OVERLAPPING_TR}"] += 1
+                locus_ids_with_overlapping_variants[locus_id] = FILTER_TR_LOCUS_THAT_IS_BETTER_REPRESENTED_BY_AN_OVERLAPPING_TR
             else:
                 for overlapping_interval in overlapping_intervals:
                     if overlapping_interval.data is None:
@@ -1373,6 +1360,7 @@ if __name__ == "__main__":
         args.output_prefix = re.sub(".vcf(.gz)?", "", os.path.basename(args.input_vcf_path)) + ".TRs"
 
     variants_to_process_using_trf = None
+    variants_per_trf_fasta = None
     if not args.dont_run_trf:
         variants_to_process_using_trf = {}
         variants_per_trf_fasta = collections.defaultdict(int)
@@ -1389,10 +1377,10 @@ if __name__ == "__main__":
         os.chdir(trf_working_dir)
 
         n_threads = min(args.trf_threads, len(variants_to_process_using_trf))
-        print(f"Launching {n_threads} TRF instance(s) to process {len(variants_to_process_using_trf):,d} insertion or deletion alleles")
+        print(f"Launching {n_threads} TRF instance(s) to process {len(variants_to_process_using_trf):,d} insertion & deletion alleles")
         threads = []
         for thread_i in range(0, n_threads):
-            trf_fasta_path = f"{TRF_FASTA_PREFIX}.t{thread_i}.fa"
+            trf_fasta_path = f"{TRF_FASTA_PREFIX}.thread{thread_i}.fa"
 
             thread = threading.Thread(target=run_trf, args=(args, trf_fasta_path))
             thread.start()
