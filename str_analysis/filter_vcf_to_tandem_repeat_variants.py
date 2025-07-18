@@ -414,10 +414,16 @@ def check_if_allele_is_tandem_repeat(
                 if trf_result["sequence_name"] != f"{variant_id}${left_or_right}":
                     raise ValueError(f"TRF result sequence name '{trf_result['sequence_name']}' does not match the expected variant ID '{variant_id}${left_or_right}'")
 
-                fuzz = int(math.log10(trf_result["motif_size"]))  # for large motifs, allow 1 or 2 bases of fuzziness in repeat boundaries
+                #if trf_result["motif_size"] == 30:
+                #    if left_or_right == "left":
+                #        print(variant_bases)
+                #    print(left_or_right, trf_result)
+
+                fuzz = int(math.log10(trf_result["motif_size"]) * 2) # for large motifs, allow 1 or 2 bases of fuzziness in repeat boundaries
                 if trf_result["start_0based"] > fuzz or trf_result["end_1based"] < len(variant_bases) - fuzz:
                     # repeat must start at or very close to the start of the variant bases and end at or after the end of the variant bases
                     continue
+
 
                 # check that repeat boundary matches the variant breakpoint
                 tandem_repeat_bases = trf_result["start_0based"]
@@ -426,6 +432,7 @@ def check_if_allele_is_tandem_repeat(
                     current_repeat = trf_result["repeats"][repeat_count].replace("-", "")
                     tandem_repeat_bases += len(current_repeat)
                     repeat_count += 1
+
 
                 if tandem_repeat_bases + fuzz < len(variant_bases) or tandem_repeat_bases - fuzz > len(left_flanking_reference_sequence):
                     continue
