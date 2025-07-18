@@ -194,6 +194,8 @@ class TRFRunner:
         trf_output_filename_prefix = self._get_html_results_path_prefix(
             fasta_file_path, sequence_number, total_sequences, max_period)
         html_file_path = f"{trf_output_filename_prefix}.{i}.txt.html"
+        html_summary_file_path = self._get_html_results_path_prefix(fasta_file_path, 1, 1, max_period)
+        html_summary_file_path += ".summary.html"
 
         while os.path.isfile(html_file_path):
             for record in self._parse_trf_html_file(html_file_path):
@@ -206,6 +208,8 @@ class TRFRunner:
                         output_filename_prefix=fasta_file_path)
 
                 record["html_file_path"] = html_file_path
+                record["html_file2_path"] = f"{trf_output_filename_prefix}.{i}.html"
+                record["html_summary_file_path"] = html_summary_file_path
                 record["fasta_file_path"] = f"{fasta_file_path}"
 
                 records.append(record)
