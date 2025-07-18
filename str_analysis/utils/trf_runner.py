@@ -101,9 +101,12 @@ class TRFRunner:
         # -h = suppress html output
         # -ngs =  more compact .dat output on multisequence files, returns 0 on success. Output is printed to the screen.
         if self.max_motif_size is not None:
+            # maximum period size to report. Must be between 1 and 2000, inclusive
             max_period = self.max_motif_size
         else:
-            max_period = min(len(nucleotide_sequence)//2, 1000)  # maximum period size to report. Must be between 1 and 2000, inclusive
+            max_period = len(nucleotide_sequence)//2
+
+        max_period = min(max_period, 2000)
 
         self.run_trf_on_fasta_file(temp_fasta_path, max_period=max_period)
 
@@ -167,23 +170,29 @@ class TRFRunner:
 
             subprocess.check_output(command, shell=True, stderr=redirect)
 
+    def _get_html_results_path_prefix(self, fasta_file_path, sequence_number=1, total_sequences=1, max_period=1000):
+        """Get the prefix for the TRF output HTML files based on the input FASTA file path and parameters"""
+
+        prefix = f"{fasta_file_path}"
+        if total_sequences > 1:
+            prefix += f".s{sequence_number}"
+        prefix += f".{self.match_score}"
+        prefix += f".{self.mismatch_penalty}"
+        prefix += f".{self.indel_penalty}"
+        prefix += f".{self.pm}"
+        prefix += f".{self.pi}"
+        prefix += f".{self.minscore}"
+        prefix += f".{max_period}"
+
+        return prefix
 
     def parse_html_results(self, fasta_file_path, sequence_number=1, total_sequences=1, max_period=1000):
 
-        trf_output_filename_prefix = f"{fasta_file_path}"
-        if total_sequences > 1:
-            trf_output_filename_prefix += f".s{sequence_number}"
-        trf_output_filename_prefix += f".{self.match_score}"
-        trf_output_filename_prefix += f".{self.mismatch_penalty}"
-        trf_output_filename_prefix += f".{self.indel_penalty}"
-        trf_output_filename_prefix += f".{self.pm}"
-        trf_output_filename_prefix += f".{self.pi}"
-        trf_output_filename_prefix += f".{self.minscore}"
-        trf_output_filename_prefix += f".{max_period}"
-
         records = []
-
         i = 1
+
+        trf_output_filename_prefix = self._get_html_results_path_prefix(
+            fasta_file_path, sequence_number, total_sequences, max_period)
         html_file_path = f"{trf_output_filename_prefix}.{i}.txt.html"
 
         while os.path.isfile(html_file_path):

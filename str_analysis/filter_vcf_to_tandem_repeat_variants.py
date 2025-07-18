@@ -43,7 +43,7 @@ DETECTION_MODE_ORDER = [
 ]
 
 CURRENT_TIMESTAMP = time.strftime("%Y%m%d_%H%M%S", time.localtime())
-TRF_FASTA_PREFIX = f"trf_working_dir/trf.{CURRENT_TIMESTAMP}"
+TRF_WORKING_DIR = f"trf_working_dir/{CURRENT_TIMESTAMP}"
 
 COMMON_TSV_OUTPUT_COLUMNS = [
     "Chrom",
@@ -191,6 +191,11 @@ def parse_args():
         ALLELE_TSV_OUTPUT_COLUMNS.extend(args.copy_info_field_keys_to_tsv)
 
     return args
+
+
+def get_trf_working_dir(args):
+    input_vcf_prefix = re.sub(".vcf(.gz)?$", "", os.path.basename(args.input_vcf_path))
+    return os.path.join(TRF_WORKING_DIR, f"{input_vcf_prefix}.h{abs(hash(args.input_vcf_path) % 10**9)}")
 
 
 def tandem_repeat_allele_failed_filters(args, repeat_unit, total_repeats, counters):
@@ -358,7 +363,7 @@ def check_if_allele_is_tandem_repeat(
         else:
             trf_thread_index, _ = variants_to_process_using_trf[variant_id]
 
-        trf_fasta_path = f"{TRF_FASTA_PREFIX}.thread{trf_thread_index}.fa"
+        trf_fasta_path = os.path.join(get_trf_working_dir(args), f"thread{trf_thread_index}.fa")
 
         if only_generate_trf_fasta:
             if variant_id in variants_to_process_using_trf:
@@ -1339,8 +1344,9 @@ def main(args, only_generate_trf_fasta=False, variants_to_process_using_trf=None
 
     if not args.dont_run_trf and not args.verbose:
         # delete the TRF fasta file directory
-        shutil.rmtree(os.path.dirname(TRF_FASTA_PREFIX))
-        print(f"Deleted {os.path.dirname(TRF_FASTA_PREFIX)} directory")
+        trf_working_dir = get_trf_working_dir(args)
+        shutil.rmtree(trf_working_dir)
+        print(f"Deleted {trf_working_dir} directory")
 
     print_stats(counters)
 
@@ -1365,7 +1371,7 @@ if __name__ == "__main__":
         variants_to_process_using_trf = {}
         variants_per_trf_fasta = collections.defaultdict(int)
 
-        trf_working_dir = os.path.dirname(TRF_FASTA_PREFIX)
+        trf_working_dir = get_trf_working_dir(args)
         if not os.path.isdir(trf_working_dir):
             os.makedirs(trf_working_dir)
 
@@ -1380,7 +1386,7 @@ if __name__ == "__main__":
         print(f"Launching {n_threads} TRF instance(s) to process {len(variants_to_process_using_trf):,d} insertion & deletion alleles")
         threads = []
         for thread_i in range(0, n_threads):
-            trf_fasta_path = f"{TRF_FASTA_PREFIX}.thread{thread_i}.fa"
+            trf_fasta_path = f"thread{thread_i}.fa"
 
             thread = threading.Thread(target=run_trf, args=(args, trf_fasta_path))
             thread.start()
