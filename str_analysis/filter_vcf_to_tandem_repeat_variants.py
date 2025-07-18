@@ -10,6 +10,7 @@ order to detect more VNTRs.
 
 import argparse
 import collections
+import datetime
 import gzip
 import intervaltree
 import math
@@ -20,10 +21,9 @@ import pysam
 import re
 import shutil
 import threading
-import time
 import tqdm
 
-from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
+from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif, reverse_complement
 from str_analysis.utils.find_repeat_unit import find_repeat_unit_allowing_interruptions
 from str_analysis.utils.find_repeat_unit import find_repeat_unit_without_allowing_interruptions
 from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_allowing_interruptions
@@ -42,7 +42,7 @@ DETECTION_MODE_ORDER = [
     DETECTION_MODE_TRF,
 ]
 
-CURRENT_TIMESTAMP = time.strftime("%Y%m%d_%H%M%S", time.localtime())
+CURRENT_TIMESTAMP = datetime.datetime.now().strftime("%Y%m%d_%H%M%S.%f")
 TRF_WORKING_DIR = f"trf_working_dir/{CURRENT_TIMESTAMP}"
 
 COMMON_TSV_OUTPUT_COLUMNS = [
@@ -371,12 +371,23 @@ def check_if_allele_is_tandem_repeat(
 
 
             with open(trf_fasta_path, "at") as f:
-                f.write(f">{variant_id}\n")
-                f.write(f"{left_flanking_reference_sequence}{variant_bases}{right_flanking_reference_sequence}\n")
+                # reverse the left flanking sequence + variant bases so that TRF starts detecting repeats from the
+                # end of the variant sequence rather than some random point in the flanking region. This will
+                # make it so the repeat unit is detected in the correct orientation (after being reversed back).
+                # For example, if the variant was T > TCAGCAGCAGCAG , we want TRF to detect the motif as CAG rather
+                # than AGC of GCA.
 
-            variants_per_trf_fasta[trf_fasta_path] += 1
+                left_flank_and_variant_bases_reversed = f"{left_flanking_reference_sequence}{variant_bases}"[::-1]
+                f.write(f">{variant_id}$left\n")
+                f.write(f"{left_flank_and_variant_bases_reversed}\n")
+
+                variant_bases_and_right_flank = f"{variant_bases}{right_flanking_reference_sequence}"
+                f.write(f">{variant_id}$right\n")
+                f.write(f"{variant_bases_and_right_flank}\n")
+
             trf_fasta_sequence_number = variants_per_trf_fasta[trf_fasta_path]
             variants_to_process_using_trf[variant_id] = (trf_thread_index, trf_fasta_sequence_number)
+            variants_per_trf_fasta[trf_fasta_path] += 1
 
             return None, WILL_RUN_TRF_ON_THIS_ALLELE_IN_2ND_PASS
 
@@ -391,70 +402,65 @@ def check_if_allele_is_tandem_repeat(
                        max_motif_size=args.max_repeat_unit_length)
 
         _, trf_fasta_sequence_number = variants_to_process_using_trf[variant_id]
-        trf_results = trf_runner.parse_html_results(
-            trf_fasta_path,
-            sequence_number=trf_fasta_sequence_number,
-            total_sequences=variants_per_trf_fasta[trf_fasta_path])
 
-        for trf_result in trf_results:
-            if trf_result["sequence_name"] != variant_id:
-                raise ValueError(f"TRF result sequence name '{trf_result['sequence_name']}' does not match the expected variant ID '{variant_id}'")
+        matching_trf_results = {}
+        for left_or_right in "left", "right":
+            trf_results = trf_runner.parse_html_results(
+                trf_fasta_path,
+                sequence_number=2 * trf_fasta_sequence_number + (0 if left_or_right == "left" else 1) + 1,
+                total_sequences=2 * variants_per_trf_fasta[trf_fasta_path])
 
-            trf_result_length = trf_result["end_1based"] - trf_result["start_0based"]
-            if (trf_result_length < len(variant_bases)
-                or trf_result["num_repeats"] < args.min_repeats
-                or trf_result_length < args.min_tandem_repeat_length
-            ):
-                continue
+            for trf_result in trf_results:
+                if trf_result["sequence_name"] != f"{variant_id}${left_or_right}":
+                    raise ValueError(f"TRF result sequence name '{trf_result['sequence_name']}' does not match the expected variant ID '{variant_id}${left_or_right}'")
 
-            tandem_repeat_bases_in_left_flank = 0
-            num_total_repeats_left_flank = 0
-            while trf_result["start_0based"] + tandem_repeat_bases_in_left_flank < len(left_flanking_reference_sequence) and num_total_repeats_left_flank < len(trf_result["repeats"]):
-                current_repeat = trf_result["repeats"][num_total_repeats_left_flank].replace("-", "")
-                tandem_repeat_bases_in_left_flank += len(current_repeat)
-                num_total_repeats_left_flank += 1
+                fuzz = int(math.log10(trf_result["motif_size"]))  # for large motifs, allow 1 or 2 bases of fuzziness in repeat boundaries
+                if trf_result["start_0based"] > fuzz or trf_result["end_1based"] < len(variant_bases) - fuzz:
+                    # repeat must start at or very close to the start of the variant bases and end at or after the end of the variant bases
+                    continue
 
-            if trf_result["start_0based"] + tandem_repeat_bases_in_left_flank != len(left_flanking_reference_sequence):
-                continue
+                # check that repeat boundary matches the variant breakpoint
+                tandem_repeat_bases = trf_result["start_0based"]
+                repeat_count = 0
+                while repeat_count < len(trf_result["repeats"]) and tandem_repeat_bases < len(variant_bases):
+                    current_repeat = trf_result["repeats"][repeat_count].replace("-", "")
+                    tandem_repeat_bases += len(current_repeat)
+                    repeat_count += 1
 
-            tandem_repeat_bases_in_variant_sequence = 0
-            num_total_repeats_in_variant_bases = 0
-            while tandem_repeat_bases_in_variant_sequence < len(variant_bases) and num_total_repeats_left_flank + num_total_repeats_in_variant_bases < len(trf_result["repeats"]):
-                current_repeat = trf_result["repeats"][num_total_repeats_left_flank + num_total_repeats_in_variant_bases].replace("-", "")
-                tandem_repeat_bases_in_variant_sequence += len(current_repeat)
-                num_total_repeats_in_variant_bases += 1
+                if tandem_repeat_bases + fuzz < len(variant_bases) or tandem_repeat_bases - fuzz > len(left_flanking_reference_sequence):
+                    continue
 
-            if tandem_repeat_bases_in_variant_sequence != len(variant_bases):
-                continue
+                num_total_repeats_in_variant_bases = repeat_count
 
-            tandem_repeat_bases_in_right_flank = 0
-            num_total_repeats_right_flank = 0
-            while tandem_repeat_bases_in_right_flank < len(right_flanking_reference_sequence) and num_total_repeats_left_flank + num_total_repeats_in_variant_bases + num_total_repeats_right_flank < len(trf_result["repeats"]):
-                current_repeat = trf_result["repeats"][num_total_repeats_left_flank + num_total_repeats_in_variant_bases + num_total_repeats_right_flank].replace("-", "")
-                tandem_repeat_bases_in_right_flank += len(current_repeat)
-                num_total_repeats_right_flank += 1
+                if left_or_right == "left":
+                    tandem_repeat_bases_in_left_flank = trf_result["end_1based"] - len(variant_bases)
+                    #num_total_repeats_left_flank = len(trf_result["repeats"]) - repeat_count   # this would count partial repeats
+                    num_total_repeats_left_flank = tandem_repeat_bases_in_left_flank / trf_result["motif_size"]
+                else:
+                    tandem_repeat_bases_in_right_flank = trf_result["end_1based"] - len(variant_bases)
+                    #num_total_repeats_right_flank = len(trf_result["repeats"]) - repeat_count  # this would count partial repeats
+                    num_total_repeats_right_flank = tandem_repeat_bases_in_right_flank / trf_result["motif_size"]
 
-            #print("="*100)
-            #print(f"   Left flank ({len(left_flanking_reference_sequence):7,d}bp): [0 - {len(left_flanking_reference_sequence):,d}]: ...{left_flanking_reference_sequence[-100:]}")
-            #print(f"Variant bases ({len(variant_bases):7,d}bp): [{len(left_flanking_reference_sequence):,d} - {len(left_flanking_reference_sequence) + len(variant_bases):,d}]: {variant_bases}")
-            #print(f"  Right flank ({len(right_flanking_reference_sequence):7,d}bp): [{len(left_flanking_reference_sequence) + len(variant_bases):,d} - {len(left_flanking_reference_sequence) + len(variant_bases) + len(right_flanking_reference_sequence):,d}]: {right_flanking_reference_sequence[:100]}...")
-#
-            #print(f"Checking TRF result: {trf_result['start_0based']:,d} - {trf_result['end_1based']:,d}  motif: {trf_result['motif']} ")
-#
-            #print("YES!!!  motif: ", trf_result["motif"],  "see", trf_result["html_file_path"])
-            #print(f"Repeats:", pformat(trf_result["repeats"]))
+                matching_trf_results[left_or_right] = trf_result
+                break
 
+            if matching_trf_results.get(left_or_right) is None:
+                # no matching TRF result found for this flank
+                counters[f"allele filter: TRF result not found for {left_or_right} flank"] += 1
+                return None, FILTER_ALLELE_INDEL_WITHOUT_REPEATS
 
-            result["RepeatUnit"] = repeat_unit = trf_result["motif"]
-            result["MotifInterruptionIndices"] = trf_result["motif_positions_with_interruptions"]
-            result["IsPureRepeat"] = False
-            break
-
-        else:
+        assert len(matching_trf_results) == 2, f"Expected to find 2 TRF results (for left and right flanks), but found {len(matching_trf_results)}"
+        # check that the detected motif is the same length in both flanks
+        if matching_trf_results["left"]["motif_size"] != matching_trf_results["right"]["motif_size"]:
+            counters[f"allele filter: TRF results for left and right flanks have different motif sizes"] += 1
             return None, FILTER_ALLELE_INDEL_WITHOUT_REPEATS
 
+        result["RepeatUnit"] = repeat_unit = matching_trf_results["right"]["motif"]  # use values from "right" because it's not reversed
+        result["MotifInterruptionIndices"] = ",".join(map(str, sorted([position_in_motif for position_in_motif, count in matching_trf_results["right"]["motif_positions_with_interruptions"].items()])))
+        result["IsPureRepeat"] = False
     else:
         raise ValueError(f"Invalid detection_mode: '{detection_mode}'. It must be 'pure_repeats' or 'allow_interruptions'.")
+
 
     total_repeats = num_total_repeats_left_flank + num_total_repeats_in_variant_bases + num_total_repeats_right_flank
 
@@ -933,7 +939,6 @@ def process_vcf_line(
             "CanonicalMotif": canonical_motif,
         })
 
-    num_repeats_in_reference = num_repeats_in_reference
     is_homozygous = len(vcf_genotype_indices) == 2 and vcf_genotype_indices[0] == vcf_genotype_indices[1]
     is_hemizygous = len(vcf_genotype_indices) == 1
     het_or_hom_or_hemi_or_multi = "HOM" if is_homozygous else ("MULTI" if len(alt_alleles) > 1 else ("HEMI" if is_hemizygous else "HET"))
