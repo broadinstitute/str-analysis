@@ -196,9 +196,6 @@ class TRFRunner:
         html_file_path = f"{trf_output_filename_prefix}.{i}.txt.html"
 
         while os.path.isfile(html_file_path):
-            if os.path.isfile(f"{trf_output_filename_prefix}.{i}.html"):
-                os.remove(f"{trf_output_filename_prefix}.{i}.html")
-
             for record in self._parse_trf_html_file(html_file_path):
                 if self.generate_motif_plot:
                     self.create_motif_plot(
