@@ -97,6 +97,7 @@ FILTER_TR_ALLELE_REPEAT_UNIT_TOO_LONG = "repeat unit > %d bp"
 FILTER_VARIANT_WITH_TR_ALLELES_WITH_DIFFERENT_MOTIFS = "tandem repeat alleles with different motifs"
 FILTER_VARIANT_WITH_TR_ALLELES_WITH_DIFFERENT_INTERRUPTION_PATTERNS = "tandem repeat alleles with different interruption patterns"
 #FILTER_VARIANT_WITH_TR_ALLELES_WITH_DIFFERENT_COORDS = "TR alleles with different coords"
+FILTER_DUPLICATE_TR_LOCUS = "locus already detected due to a previous variant in the VCF"
 FILTER_TR_LOCUS_THAT_IS_BETTER_REPRESENTED_BY_AN_OVERLAPPING_TR = "locus overlaps and can be better represented by another TR locus"
 FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS = "locus overlaps more than one variant"
 
@@ -168,6 +169,10 @@ def parse_args():
 
     if args.copy_info_field_keys_to_tsv:
         TSV_OUTPUT_COLUMNS.extend(args.copy_info_field_keys_to_tsv)
+
+    if args.write_vcf_with_filtered_out_variants and not args.write_vcf_file:
+        print("NOTE: enabling --write-vcf because it's necessary for --write-vcf-with-filtered-out-variants")
+        args.write_vcf_file = True
 
     args.write_bed_file = True
 
@@ -384,9 +389,7 @@ def check_if_allele_is_tandem_repeat(
 
         _, trf_fasta_sequence_number = variants_to_process_using_trf[variant_id]
 
-        matching_trf_results = {}
-        num_total_repeats_left_flank = tandem_repeat_bases_in_left_flank = 0
-        num_total_repeats_right_flank = tandem_repeat_bases_in_right_flank = 0
+        motif_size_to_matching_trf_results = collections.defaultdict(dict)
 
         for left_or_right in "left", "right":
             trf_results = trf_runner.parse_html_results(
@@ -408,17 +411,10 @@ def check_if_allele_is_tandem_repeat(
                 if trf_result["sequence_name"] != f"{variant_id}${left_or_right}":
                     raise ValueError(f"TRF result sequence name '{trf_result['sequence_name']}' does not match the expected variant ID '{variant_id}${left_or_right}'")
 
-                #if trf_result["motif_size"] == 30:
-                #    if left_or_right == "left":
-                #        print(variant_bases)
-                #    print("\n", left_or_right, trf_result)
-
                 fuzz = int(math.log10(trf_result["motif_size"]) * 2) # for large motifs, allow 1 or 2 bases of fuzziness in repeat boundaries
                 if trf_result["start_0based"] > fuzz or trf_result["end_1based"] < len(variant_bases) - fuzz:
                     # repeat must start at or very close to the start of the variant bases and end at or after the end of the variant bases
                     continue
-
-                if args.debug: print("#### STEP1")
 
                 # check that repeat boundary matches the variant breakpoint
                 tandem_repeat_bases = trf_result["start_0based"]
@@ -428,41 +424,58 @@ def check_if_allele_is_tandem_repeat(
                     tandem_repeat_bases += len(current_repeat)
                     repeat_count += 1
 
-
                 if tandem_repeat_bases + fuzz < len(variant_bases) or tandem_repeat_bases - fuzz > len(variant_bases):
                     continue
 
-                if args.debug: print("#### STEP2")
-                num_total_repeats_in_variant_bases = repeat_count
+                trf_result["num_repeats_in_variant"] = repeat_count
+                motif_size_to_matching_trf_results[trf_result["motif_size"]][left_or_right] = trf_result
 
-                if left_or_right == "left":
-                    tandem_repeat_bases_in_left_flank = trf_result["end_1based"] - len(variant_bases)
-                    num_total_repeats_left_flank = tandem_repeat_bases_in_left_flank / trf_result["motif_size"]
-                else:
-                    tandem_repeat_bases_in_right_flank = trf_result["end_1based"] - len(variant_bases)
-                    num_total_repeats_right_flank = tandem_repeat_bases_in_right_flank / trf_result["motif_size"]
-
-                matching_trf_results[left_or_right] = trf_result
-                break
-
-        if args.debug: print("#### STEP3")
-        # check that the detected motif is the same length in both flanks
-        if len(matching_trf_results) == 2 and matching_trf_results["left"]["motif_size"] != matching_trf_results["right"]["motif_size"]:
-            counters[f"allele filter: TRF results for left and right flanks have different motif sizes"] += 1
+        if len(motif_size_to_matching_trf_results) == 0:
             return None, FILTER_ALLELE_INDEL_WITHOUT_REPEATS
 
-        if args.debug: print("#### STEP4")
+        # get the entry with the smallest motif size
+        best_trf_results = None
+        for motif_size, matching_trf_results in sorted(motif_size_to_matching_trf_results.items()):
+            best_motif_size = motif_size
+            best_trf_results = matching_trf_results
+            break
 
-        if matching_trf_results.get("right") is not None:
-            result["RepeatUnit"] = repeat_unit = matching_trf_results["right"]["motif"]  # use values from "right" because it's not reversed
-            result["MotifInterruptionIndices"] = ",".join(map(str, sorted([position_in_motif for position_in_motif, count in matching_trf_results["right"]["motif_positions_with_interruptions"].items()])))
-        elif matching_trf_results.get("left") is not None:
-            result["RepeatUnit"] = repeat_unit = matching_trf_results["left"]["motif"][::-1]
-            result["MotifInterruptionIndices"] = ",".join(map(str, sorted([len(repeat_unit) - position_in_motif + 1 for position_in_motif, count in matching_trf_results["left"]["motif_positions_with_interruptions"].items()])))
+        # if the smallest motif size is 2 or less, then pick the entry with the largest alignment score instead
+        if best_motif_size <= 2 and len(motif_size_to_matching_trf_results) > 1:
+            # get the entry that has the max alignment score
+            max_alignment_score = 0
+            for motif_size, matching_trf_results in motif_size_to_matching_trf_results.items():
+                alignment_score = 0
+                for _trf_result in matching_trf_results.values():
+                    alignment_score += _trf_result["alignment_score"]
+                if alignment_score > max_alignment_score:
+                    max_alignment_score = alignment_score
+                    best_trf_results = matching_trf_results
+
+        num_total_repeats_in_variant_bases = 0
+        num_total_repeats_left_flank = tandem_repeat_bases_in_left_flank = 0
+        num_total_repeats_right_flank = tandem_repeat_bases_in_right_flank = 0
+
+
+        if best_trf_results.get("left"):
+            tandem_repeat_bases_in_left_flank = best_trf_results["left"]["end_1based"] - len(variant_bases)
+            num_total_repeats_left_flank = tandem_repeat_bases_in_left_flank / best_trf_results["left"]["motif_size"]
+            num_total_repeats_in_variant_bases = best_trf_results["left"]["num_repeats_in_variant"]
+        elif best_trf_results.get("right"):
+            tandem_repeat_bases_in_right_flank = best_trf_results["right"]["end_1based"] - len(variant_bases)
+            num_total_repeats_right_flank = tandem_repeat_bases_in_right_flank / best_trf_results["right"]["motif_size"]
         else:
             return None, FILTER_ALLELE_INDEL_WITHOUT_REPEATS
 
-        if args.debug: print("#### STEP5")
+        if best_trf_results.get("right") is not None:
+            result["RepeatUnit"] = repeat_unit = best_trf_results["right"]["motif"]  # use values from "right" because it's not reversed
+            result["MotifInterruptionIndices"] = ",".join(map(str, sorted([position_in_motif for position_in_motif, count in best_trf_results["right"]["motif_positions_with_interruptions"].items()])))
+        elif best_trf_results.get("left") is not None:
+            result["RepeatUnit"] = repeat_unit = best_trf_results["left"]["motif"][::-1]
+            result["MotifInterruptionIndices"] = ",".join(map(str, sorted([len(repeat_unit) - position_in_motif + 1 for position_in_motif, count in best_trf_results["left"]["motif_positions_with_interruptions"].items()])))
+        else:
+            return None, FILTER_ALLELE_INDEL_WITHOUT_REPEATS
+
         result["IsPureRepeat"] = False
     else:
         raise ValueError(f"Invalid detection_mode: '{detection_mode}'. It must be 'pure_repeats' or 'allow_interruptions'.")
@@ -473,8 +486,6 @@ def check_if_allele_is_tandem_repeat(
     tandem_repeat_allele_failed_filters_reason = tandem_repeat_allele_failed_filters(args, repeat_unit, total_repeats, counters=counters)
     if tandem_repeat_allele_failed_filters_reason is not None:
         return None, tandem_repeat_allele_failed_filters_reason
-
-    if args.debug: print("#### STEP6")
 
     # the allele passed TR filters
     result["Start0Based"] = left_flank_end - tandem_repeat_bases_in_left_flank
@@ -639,8 +650,6 @@ def process_vcf_allele(
                     #print(f"Extending flanking sequence beyond {num_flanking_bases}bp for {tandem_repeat_allele['Chrom']}:{tandem_repeat_allele['Start0Based']}-{tandem_repeat_allele['End1Based']} ")
                     break
 
-                if args.debug: print("#### STEP7")
-
                 # Found this allele to be a tandem repeat expansion/contraction
                 tandem_repeat_allele["INS_or_DEL"] = ins_or_del
                 return tandem_repeat_allele, None
@@ -763,6 +772,7 @@ def process_vcf_line(
     only_generate_trf_fasta,
     variants_to_process_using_trf,
     variants_per_trf_fasta,
+    tr_locus_ids,
 ):
     """Utility method for processing a single line from the input vcf
 
@@ -780,6 +790,7 @@ def process_vcf_line(
         only_generate_trf_fasta (bool): instead of running TRF, just generate a fasta file with the nucleotide sequence to run TRF on later.
         variants_to_process_using_trf (dict): maps variant IDs that should be processed using TRF to their sequence number in the TRF fasta file.
         variants_per_trf_fasta (dict): maps TRF fasta input file path to the total number of variants in that fasta file.
+        tr_locus_ids (set): locus ids of TR loci identified so far
 
     Return:
         str: a string explaining the reason this variant is not a tandem repeat, or None if the variant is a tandem repeat
@@ -845,7 +856,6 @@ def process_vcf_line(
         )
 
         if filter_reason is not None and filter_reason != WILL_RUN_TRF_ON_THIS_ALLELE_IN_2ND_PASS:
-            if args.debug: print("#### ERROR0: ", filter_reason)
             return filter_reason
 
         # update counters
@@ -872,7 +882,6 @@ def process_vcf_line(
         tandem_repeat_alleles, filter_reason = postprocess_multiallelic_tandem_repeats(tandem_repeat_alleles, counters)
 
         if filter_reason is not None:
-            if args.debug: print("#### ERROR2: ", filter_reason)
             return filter_reason
 
     # Parse the genotype
@@ -886,7 +895,6 @@ def process_vcf_line(
 
     vcf_genotype = next(iter(vcf_fields[9].split(":")))
 
-    if args.debug: print("#### STEP8")
     counters["TR variant counts: TOTAL"] += 1
 
     # Get repeat unit, start, end coords for the variant
@@ -905,6 +913,11 @@ def process_vcf_line(
 
     locus_id = f"{vcf_chrom_without_chr_prefix}-{start_0based}-{end_1based}-{repeat_unit}"
 
+    if locus_id in tr_locus_ids:
+        return FILTER_DUPLICATE_TR_LOCUS
+
+    tr_locus_ids.add(locus_id)
+
     # Generate output records
     variant_interval = intervaltree.Interval(start_0based, max(start_0based + 1, end_1based), data={
         "LocusId": locus_id,
@@ -912,6 +925,7 @@ def process_vcf_line(
         "RepeatUnit": repeat_unit,
         "CanonicalMotif": canonical_motif,
     })
+
     variant_intervals[vcf_chrom].append(variant_interval)
 
     variant_ins_or_del, summary_string = compute_summary_string(tandem_repeat_alleles)
@@ -979,7 +993,7 @@ def process_vcf_line(
         tsv_writer.write("\t".join([str(tsv_record.get(c, "")) for c in TSV_OUTPUT_COLUMNS]) + "\n")
 
     if bed_writer is not None:
-        bed_writer.write("\t".join(map(str, [vcf_chrom, start_0based, end_1based, summary_string, "."])) + "\n")
+        bed_writer.write("\t".join(map(str, [vcf_chrom, start_0based, end_1based, repeat_unit, "."])) + "\n")
 
     assert len(alt_alleles) == len(tandem_repeat_alleles), f"{len(alt_alleles)} alt alleles, but {len(tandem_repeat_alleles)} tandem repeat alleles"
 
@@ -1031,10 +1045,7 @@ def process_tandem_repeat_loci_that_have_overlapping_variants(
 
             elif file_path.endswith(".bed"):
                 chrom = fields[0].replace("chr", "")
-                summary_string_fields = fields[3].split(":")
-                if len(summary_string_fields) < 2:
-                    raise ValueError(f"Unexpected summary string format in {file_path} line: {fields}")
-                motif = summary_string_fields[1]
+                motif = fields[3]
                 locus_id = f"{chrom}-{fields[1]}-{fields[2]}-{motif}"
 
             if locus_id in locus_ids_with_overlapping_variants:
@@ -1099,6 +1110,7 @@ def main(args, only_generate_trf_fasta=False, variants_to_process_using_trf=None
     """
     counters = collections.defaultdict(int)
 
+    if args.debug: print("-"*150)
     variant_intervals = None
     if not only_generate_trf_fasta:
         variant_intervals = collections.defaultdict(list)  # maps each chromosome to a list of intervaltree.Intervals representing all variants in the input VCF
@@ -1145,6 +1157,7 @@ def main(args, only_generate_trf_fasta=False, variants_to_process_using_trf=None
         vcf_iterator = tqdm.tqdm(vcf_iterator, unit=" variants", unit_scale=True)
 
     # iterate over all VCF rows
+    tr_locus_ids = set()  # keep a running set of detected TR loci to avoid duplicates
     vcf_line_i = 0
     for line in vcf_iterator:
         if line.startswith("##"):
@@ -1183,7 +1196,7 @@ def main(args, only_generate_trf_fasta=False, variants_to_process_using_trf=None
         filter_string = process_vcf_line(
             vcf_line_i, vcf_fields, fasta_obj, vcf_writer, 
             tsv_writer, bed_writer, fasta_writer, args, counters,
-            variant_intervals, only_generate_trf_fasta, variants_to_process_using_trf, variants_per_trf_fasta)
+            variant_intervals, only_generate_trf_fasta, variants_to_process_using_trf, variants_per_trf_fasta, tr_locus_ids)
 
         if filter_string and filtered_out_variants_vcf_writer is not None:
             # if this variant is an indel that was filtered out, write it to the filtered out variants VCF
@@ -1191,9 +1204,6 @@ def main(args, only_generate_trf_fasta=False, variants_to_process_using_trf=None
             vcf_fields[6] = filter_string
 
             if filter_string not in (
-                FILTER_MORE_THAN_TWO_ALT_ALLELES,
-                FILTER_UNEXPECTED_GENOTYPE_FORMAT,
-                FILTER_ZERO_ALT_ALLELES,
                 FILTER_ALLELE_SNV_OR_MNV,
                 ";".join([FILTER_ALLELE_SNV_OR_MNV]*2),
             ):
@@ -1208,59 +1218,7 @@ def main(args, only_generate_trf_fasta=False, variants_to_process_using_trf=None
     if only_generate_trf_fasta:
         return
 
-    # prepare to filter out detected TR loci that overlap one or more other variants in the VCF (ie. other TRs, non-TR indels, or SNVs).
-    print(f"Starting overlap detection")
-    locus_ids_with_overlapping_variants = {}
-    chrom_intervals_iter = variant_intervals.items()
-    if args.show_progress_bar:
-        chrom_intervals_iter = tqdm.tqdm(chrom_intervals_iter, unit=" chromosomes", unit_scale=True)
-
-    for chrom, intervals in chrom_intervals_iter:
-        # create an interval tree for this chromosome
-        interval_tree = intervaltree.IntervalTree(intervals)
-        for interval in intervals:
-            locus_id = interval.data["LocusId"]
-            repeat_unit = interval.data["RepeatUnit"]
-            overlapping_intervals = interval_tree.overlap(interval.begin - len(repeat_unit), interval.end + len(repeat_unit))
-
-            assert len(overlapping_intervals) > 0, f"ERROR: Expected the locus interval to overlap with itself: {interval.data}"
-
-            if len(overlapping_intervals) == 1:
-                continue
-
-            for overlapping_interval in overlapping_intervals:
-                if overlapping_interval.data is None:
-                    # this overlapping variant was not found to be a TR, so skip to the next overlapping variant
-                    continue
-
-                if overlapping_interval.data["LocusId"] == locus_id:
-                    # don't compare to self
-                    continue
-
-                # Filter out TR that overlaps another TR locus that has the same canonical motif but wider locus boundaries.
-                # This can happen when the locus was identified by detecting pure repeats, while the other (wider) locus was
-                # detected via interrupted repeats or by using TRF
-                overlapping_locus_is_wider = (interval.end - interval.begin) <= (overlapping_interval.end - overlapping_interval.begin)
-                overlapping_locus_already_filtered_out =  overlapping_interval.data["LocusId"] in locus_ids_with_overlapping_variants
-                loci_have_similar_motif = interval.data["CanonicalMotif"] == overlapping_interval.data["CanonicalMotif"] or (
-                        len(interval.data["CanonicalMotif"]) > 6
-                        and len(interval.data["CanonicalMotif"]) == len(overlapping_interval.data["CanonicalMotif"]))
-
-                if  loci_have_similar_motif and overlapping_locus_is_wider and not overlapping_locus_already_filtered_out:
-                    counters[f"variant filter: {FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS}"] += 1
-                    locus_ids_with_overlapping_variants[locus_id] = FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS
-                    break
-
-
-    # remove locus_ids_with_overlapping_variants from all output files
-    if len(locus_ids_with_overlapping_variants) > 0:
-        for writer in filter(None, [tsv_writer, vcf_writer, bed_writer]):
-            writer.close()
-            #print(f"Filtering out {len(locus_ids_with_overlapping_variants):,d} loci from {writer.name} because they overlap "
-            #      f"more than one variant in the input VCF")
-
-            process_tandem_repeat_loci_that_have_overlapping_variants(writer.name,
-                locus_ids_with_overlapping_variants, filtered_out_variants_vcf_writer)
+    handle_overlapping_loci(variant_intervals, tsv_writer, vcf_writer, bed_writer, filtered_out_variants_vcf_writer, args, counters)
 
     # close and post-process all output files
     for writer in filter(None, [tsv_writer, vcf_writer, bed_writer, filtered_out_variants_vcf_writer]):
@@ -1291,6 +1249,69 @@ def main(args, only_generate_trf_fasta=False, variants_to_process_using_trf=None
 
     print_stats(counters)
 
+def handle_overlapping_loci(variant_intervals, tsv_writer, vcf_writer, bed_writer, filtered_out_variants_vcf_writer, args, counters):
+
+    # prepare to filter out detected TR loci that overlap one or more other variants in the VCF (ie. other TRs, non-TR indels, or SNVs).
+    print(f"Starting overlap detection")
+    locus_ids_with_overlapping_variants = {}
+    chrom_intervals_iter = variant_intervals.items()
+    if args.show_progress_bar:
+        chrom_intervals_iter = tqdm.tqdm(chrom_intervals_iter, unit=" chromosomes", unit_scale=True)
+
+    for chrom, intervals in chrom_intervals_iter:
+        # create an interval tree for this chromosome
+        interval_tree = intervaltree.IntervalTree(intervals)
+        for interval in intervals:
+            locus_id = interval.data["LocusId"]
+            if args.debug: print(f"#### Checking overlap with {locus_id}")
+            repeat_unit = interval.data["RepeatUnit"]
+            overlapping_intervals = interval_tree.overlap(interval.begin - len(repeat_unit), interval.end + len(repeat_unit))
+
+            assert len(overlapping_intervals) > 0, f"ERROR: Expected the locus interval to overlap with itself: {interval.data}"
+
+            if len(overlapping_intervals) == 1:
+                continue
+
+            for overlapping_interval in overlapping_intervals:
+                if overlapping_interval.data["LocusId"] == locus_id:
+                    # don't compare to self
+                    continue
+
+                # Filter out TR that overlaps another TR locus that has the same canonical motif but wider locus boundaries.
+                # This can happen when the locus was identified by detecting pure repeats, while the other (wider) locus was
+                # detected via interrupted repeats or by using TRF
+                overlapping_locus_is_wider = (interval.end - interval.begin) <= (overlapping_interval.end - overlapping_interval.begin)
+                overlapping_locus_already_filtered_out = overlapping_interval.data["LocusId"] in locus_ids_with_overlapping_variants
+                loci_have_similar_motif = interval.data["CanonicalMotif"] == overlapping_interval.data["CanonicalMotif"] or (
+                        len(interval.data["CanonicalMotif"]) > 6
+                        and len(interval.data["CanonicalMotif"]) == len(overlapping_interval.data["CanonicalMotif"])) or (
+                                                  len(interval.data["CanonicalMotif"]) > 12
+                                                  and len(interval.data["CanonicalMotif"]) - len(overlapping_interval.data["CanonicalMotif"]) <= 2
+                                          )
+
+                if args.debug: print(f"#### Checking overlap between {locus_id} and", overlapping_interval.data["LocusId"], ":",
+                                     "loci_have_similar_motif =", loci_have_similar_motif,
+                                     "overlapping_locus_is_wider =", overlapping_locus_is_wider,
+                                     "overlapping_locus_already_filtered_out = ", overlapping_locus_already_filtered_out,
+
+                                     )
+                if  loci_have_similar_motif and overlapping_locus_is_wider and not overlapping_locus_already_filtered_out:
+                    counters[f"variant filter: {FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS}"] += 1
+                    locus_ids_with_overlapping_variants[locus_id] = FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS
+                    if args.debug: print(f"########### Filtering out locus: {locus_id}")
+                    break
+
+
+    # remove locus_ids_with_overlapping_variants from all output files
+    if len(locus_ids_with_overlapping_variants) > 0:
+        for writer in filter(None, [tsv_writer, vcf_writer, bed_writer]):
+            writer.close()
+            #print(f"Filtering out {len(locus_ids_with_overlapping_variants):,d} loci from {writer.name} because they overlap "
+            #      f"more than one variant in the input VCF")
+
+            process_tandem_repeat_loci_that_have_overlapping_variants(
+                writer.name, locus_ids_with_overlapping_variants, filtered_out_variants_vcf_writer)
+
 
 def run_trf(args, trf_fasta_path):
     trf_runner = TRFRunner(args.trf_executable_path, html_mode=True,
@@ -1309,6 +1330,8 @@ if __name__ == "__main__":
     variants_to_process_using_trf = None
     variants_per_trf_fasta = None
     if not args.dont_run_trf:
+        start_time = datetime.datetime.now()
+
         variants_to_process_using_trf = {}
         variants_per_trf_fasta = collections.defaultdict(int)
 
@@ -1338,7 +1361,7 @@ if __name__ == "__main__":
 
         os.chdir(original_working_dir)
 
-        print(f"Done running TRF. Parsing results...")
+        print(f"Done running TRF. Running time: {datetime.datetime.now() - start_time}. Parsing results...")
 
     main(args, only_generate_trf_fasta=False, variants_to_process_using_trf=variants_to_process_using_trf,
          variants_per_trf_fasta=variants_per_trf_fasta)
