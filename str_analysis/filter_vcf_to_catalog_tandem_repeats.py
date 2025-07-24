@@ -86,7 +86,7 @@ FILTER_ALLELE_SNV_OR_MNV = "SNV/MNV"
 FILTER_ALLELE_MNV_INDEL = "complex multinucleotide indel"
 FILTER_ALLELE_INDEL_WITHOUT_REPEATS = "INDEL without repeats"
 FILTER_ALLELE_TOO_BIG = f"INDEL > {MAX_INDEL_SIZE}bp"
-FILTER_TR_ALLELE_NOT_ENOUGH_REPEATS = "is only %d repeats"
+FILTER_TR_ALLELE_NOT_ENOUGH_REPEATS = "contains only %d full repeats"
 FILTER_TR_ALLELE_DOESNT_SPAN_ENOUGH_BASE_PAIRS = "spans < %d bp"
 
 #FILTER_TR_ALLELE_PARTIAL_REPEAT = "ends in partial repeat"
@@ -202,8 +202,8 @@ def tandem_repeat_allele_failed_filters(args, repeat_unit, total_repeats, counte
         counters[f"allele filter: {FILTER_ALLELE_INDEL_WITHOUT_REPEATS}"] += 1
         return FILTER_ALLELE_INDEL_WITHOUT_REPEATS
     elif total_repeats < args.min_repeats:
-        counters[f"allele filter: allele consists of only {total_repeats} repeats"] += 1
-        return FILTER_TR_ALLELE_NOT_ENOUGH_REPEATS % total_repeats
+        counters[f"allele filter: allele includes only {int(total_repeats)} full repeat(s)"] += 1
+        return FILTER_TR_ALLELE_NOT_ENOUGH_REPEATS % int(total_repeats)
     elif total_repeats * len(repeat_unit) < args.min_tandem_repeat_length:
         # it has more than one repeat, so a repeat unit was found, but it was less than the minimum threshold
         counters[f"allele filter: allele sequence spans < {args.min_tandem_repeat_length}bp"] += 1
@@ -234,6 +234,7 @@ def check_if_allele_is_tandem_repeat(
     variants_to_process_using_trf,
     variants_per_trf_fasta,
     detection_mode=DETECTION_MODE_PURE_REPEATS,
+    rerun_trf_on_longer_flanking_sequences=False,
 ):
     """Determine if the given allele is a tandem repeat expansion or contraction or neither.
 
@@ -250,12 +251,17 @@ def check_if_allele_is_tandem_repeat(
         args (argparse.Namespace): command-line arguments parsed by parse_args()
         counters (dict): Dictionary of counters to collect summary stats about the number of TR variants found, etc.
         only_generate_trf_fasta (bool): if True, only generate the TRF fasta file for this variant and return None.
-        variants_to_process_using_trf (dict): maps variant IDs that should be processed using TRF to their sequence number in the TRF fasta file.
+        variants_to_process_using_trf (dict): maps variant IDs that should be processed using TRF to their sequence
+            number in the TRF fasta file.
         variants_per_trf_fasta (dict): maps TRF fasta input file path to the total number of variants in that fasta file.
-        detection_mode (str): Should be either DETECTION_MODE_PURE_REPEATS or DETECTION_MODE_ALLOW_INTERRUPTIONS.
+        detection_mode (str): Should be either DETECTION_MODE_PURE_REPEATS, DETECTION_MODE_ALLOW_INTERRUPTIONS,
+            DETECTION_MODE_TRF, or DETECTION_MODE_TRF_RERUN:
+
             DETECTION_MODE_PURE_REPEATS will only detect perfect repeats.
             DETECTION_MODE_ALLOW_INTERRUPTIONS will detect repeats where one position can vary across repeats (similar to
                 known disease-associated loci like RUNX2).
+            DETECTION_MODE_TRF will use TRF to detect more complicated imperfect repeats such as those often seen in VNTRs
+        rerun_trf_on_longer_flanking_sequences (bool): if True, use a special fasta filename to process a single variant
     Return:
         2-tuple (dict, str):
             dict: if the allele represents a tandem repeat, this will be a JSON record describing the tandem repeat, 
@@ -344,17 +350,24 @@ def check_if_allele_is_tandem_repeat(
         variant_id += "-h" + str(abs(hash(f"{vcf_chrom}-{vcf_pos}-{vcf_ref}-{alt_allele}")))  # add a hash to make the ID unique
 
         # determine which thread will process (or has processed) this variant
-        if variant_id not in variants_to_process_using_trf:
-            trf_thread_index = len(variants_to_process_using_trf) % args.trf_threads
+        if rerun_trf_on_longer_flanking_sequences:
+            trf_thread_index = 0
+            trf_fasta_filename = (
+                f"{variant_id}_"
+                f"and_left_{len(left_flanking_reference_sequence)}bp_"
+                f"and_right_{len(right_flanking_reference_sequence)}bp.fa")
         else:
-            trf_thread_index, _ = variants_to_process_using_trf[variant_id]
+            if variant_id not in variants_to_process_using_trf:
+                trf_thread_index = len(variants_to_process_using_trf) % args.trf_threads
+            else:
+                trf_thread_index, _ = variants_to_process_using_trf[variant_id]
+            trf_fasta_filename = f"thread{trf_thread_index}.fa"
 
-        trf_fasta_path = os.path.join(get_trf_working_dir(args), f"thread{trf_thread_index}.fa")
+        trf_fasta_path = os.path.join(get_trf_working_dir(args), trf_fasta_filename)
 
         if only_generate_trf_fasta:
             if variant_id in variants_to_process_using_trf:
                 raise ValueError(f"variant ID '{variant_id}' already exists in variants_to_process_using_trf")
-
 
             with open(trf_fasta_path, "at") as f:
                 # reverse the left flanking sequence + variant bases so that TRF starts detecting repeats from the
@@ -387,6 +400,9 @@ def check_if_allele_is_tandem_repeat(
                        min_motif_size=args.min_repeat_unit_length,
                        max_motif_size=args.max_repeat_unit_length)
 
+        if rerun_trf_on_longer_flanking_sequences:
+            trf_runner.run_trf_on_fasta_file(trf_fasta_path)
+
         _, trf_fasta_sequence_number = variants_to_process_using_trf[variant_id]
 
         motif_size_to_matching_trf_results = collections.defaultdict(dict)
@@ -411,7 +427,7 @@ def check_if_allele_is_tandem_repeat(
                 if trf_result["sequence_name"] != f"{variant_id}${left_or_right}":
                     raise ValueError(f"TRF result sequence name '{trf_result['sequence_name']}' does not match the expected variant ID '{variant_id}${left_or_right}'")
 
-                fuzz = int(math.log10(trf_result["motif_size"]) * 2) # for large motifs, allow 1 or 2 bases of fuzziness in repeat boundaries
+                fuzz = int(math.log10(trf_result["repeat_unit_length"]) * 2) # for large motifs, allow 1 or 2 bases of fuzziness in repeat boundaries
                 if trf_result["start_0based"] > fuzz or trf_result["end_1based"] < len(variant_bases) - fuzz:
                     # repeat must start at or very close to the start of the variant bases and end at or after the end of the variant bases
                     continue
@@ -428,7 +444,7 @@ def check_if_allele_is_tandem_repeat(
                     continue
 
                 trf_result["num_repeats_in_variant"] = repeat_count
-                motif_size_to_matching_trf_results[trf_result["motif_size"]][left_or_right] = trf_result
+                motif_size_to_matching_trf_results[trf_result["repeat_unit_length"]][left_or_right] = trf_result
 
         if len(motif_size_to_matching_trf_results) == 0:
             return None, FILTER_ALLELE_INDEL_WITHOUT_REPEATS
@@ -458,20 +474,21 @@ def check_if_allele_is_tandem_repeat(
 
 
         if best_trf_results.get("left"):
-            tandem_repeat_bases_in_left_flank = best_trf_results["left"]["end_1based"] - len(variant_bases)
-            num_total_repeats_left_flank = tandem_repeat_bases_in_left_flank / best_trf_results["left"]["motif_size"]
+            tandem_repeat_bases_in_left_flank = max(0, best_trf_results["left"]["end_1based"] - len(variant_bases))
+            num_total_repeats_left_flank = tandem_repeat_bases_in_left_flank / best_trf_results["left"]["repeat_unit_length"]
             num_total_repeats_in_variant_bases = best_trf_results["left"]["num_repeats_in_variant"]
         elif best_trf_results.get("right"):
-            tandem_repeat_bases_in_right_flank = best_trf_results["right"]["end_1based"] - len(variant_bases)
-            num_total_repeats_right_flank = tandem_repeat_bases_in_right_flank / best_trf_results["right"]["motif_size"]
+            tandem_repeat_bases_in_right_flank = max(0, best_trf_results["right"]["end_1based"] - len(variant_bases))
+            num_total_repeats_right_flank = tandem_repeat_bases_in_right_flank / best_trf_results["right"]["repeat_unit_length"]
+            num_total_repeats_in_variant_bases = best_trf_results["right"]["num_repeats_in_variant"]
         else:
             return None, FILTER_ALLELE_INDEL_WITHOUT_REPEATS
 
         if best_trf_results.get("right") is not None:
-            result["RepeatUnit"] = repeat_unit = best_trf_results["right"]["motif"]  # use values from "right" because it's not reversed
+            result["RepeatUnit"] = repeat_unit = best_trf_results["right"]["repeat_unit"]  # use values from "right" because it's not reversed
             result["MotifInterruptionIndices"] = ",".join(map(str, sorted([position_in_motif for position_in_motif, count in best_trf_results["right"]["motif_positions_with_interruptions"].items()])))
         elif best_trf_results.get("left") is not None:
-            result["RepeatUnit"] = repeat_unit = best_trf_results["left"]["motif"][::-1]
+            result["RepeatUnit"] = repeat_unit = best_trf_results["left"]["repeat_unit"][::-1]
             result["MotifInterruptionIndices"] = ",".join(map(str, sorted([len(repeat_unit) - position_in_motif + 1 for position_in_motif, count in best_trf_results["left"]["motif_positions_with_interruptions"].items()])))
         else:
             return None, FILTER_ALLELE_INDEL_WITHOUT_REPEATS
@@ -589,22 +606,19 @@ def process_vcf_allele(
     chrom_size = len(fasta_obj[vcf_chrom])
 
     detection_modes_to_try = [DETECTION_MODE_PURE_REPEATS]
-    flanking_sequence_size_multipliers = [3, 30, 300, 3000]
+    flanking_sequence_size_multipliers = [3, 30, 100, 300, 1000, 3000]
     if not args.dont_allow_interruptions:
         detection_modes_to_try.append(DETECTION_MODE_ALLOW_INTERRUPTIONS)
         if not args.dont_run_trf and len(variant_bases) >= args.min_indel_size_to_run_trf:
             detection_modes_to_try.append(DETECTION_MODE_TRF)
-            # to run TRF, we need to have a large enough flanking sequence size on the first try
-            # these heuristics attempt to ensure that the flanking sequence is large enough to contain the entire repeat
-            # but without making it so large that it substantially slows down the processing of the average variant
-            flanking_sequence_size_multipliers = [
-                min(100, int(MAX_INDEL_SIZE / len(variant_bases))),
-            ]
 
+    rerun_trf_on_longer_flanking_sequences = False
+    current_variants_to_process_using_trf = variants_to_process_using_trf
+    current_variants_per_trf_fasta = variants_per_trf_fasta
     for flanking_sequence_size_multiplier in flanking_sequence_size_multipliers:
         # start with relatively small flanking sequence sizes and increase them if it turns out that the entire flank
         # is covered by a tandem repeat
-        num_flanking_bases = flanking_sequence_size_multiplier * max(len(variant_bases), 100 - 100 % len(variant_bases))
+        num_flanking_bases = flanking_sequence_size_multiplier * max(len(variant_bases), 100)
 
         if len(vcf_ref) < len(alt_allele):
             left_flank_end = vcf_pos + len(vcf_ref) - 1
@@ -625,6 +639,34 @@ def process_vcf_allele(
             return None, FILTER_ALLELE_WITH_TOO_MANY_Ns_IN_FLANKS
 
         for detection_mode_i, detection_mode in enumerate(detection_modes_to_try):
+            if rerun_trf_on_longer_flanking_sequences and detection_mode == DETECTION_MODE_TRF:
+                # This is a special, relatively rare case where we need to rerun TRF on the same variant, but passing in
+                # longer flanking sequences. This special handling is triggered if, after running TRF in bulk mode, we
+                # find that the detected repeats entirely cover (and probably exceeded) the left and/or right flanking
+                # sequences.
+                # This causes us to fall back on running TRF on one variant at a time (for just this variant).
+                # Since this would be too slow to do for all variants by default, so we start with bulk processing, and
+                # then fall back on this special-case handling where we output a new fasta file that contains just
+                # the current variant with the longer flanks, and then immediately invoke TRF on this single-variant
+                # fasta in the second call to check_if_allele_is_tandem_repeat(..) immediately below this if statement.
+                check_if_allele_is_tandem_repeat(
+                    vcf_chrom,
+                    vcf_pos,
+                    vcf_ref,
+                    alt_allele,
+                    variant_bases,
+                    left_flanking_reference_sequence,
+                    right_flanking_reference_sequence,
+                    left_flank_end,
+                    right_flank_start_1based,
+                    args,
+                    counters=None,
+                    only_generate_trf_fasta=True,
+                    variants_to_process_using_trf=current_variants_to_process_using_trf,
+                    variants_per_trf_fasta=current_variants_per_trf_fasta,
+                    detection_mode=DETECTION_MODE_TRF,
+                    rerun_trf_on_longer_flanking_sequences=rerun_trf_on_longer_flanking_sequences)
+
             tandem_repeat_allele, tandem_repeat_allele_failed_filters_reason = check_if_allele_is_tandem_repeat(
                 vcf_chrom,
                 vcf_pos,
@@ -638,16 +680,26 @@ def process_vcf_allele(
                 args,
                 counters=counters,
                 only_generate_trf_fasta=only_generate_trf_fasta,
-                variants_to_process_using_trf=variants_to_process_using_trf,
-                variants_per_trf_fasta=variants_per_trf_fasta,
+                variants_to_process_using_trf=current_variants_to_process_using_trf,
+                variants_per_trf_fasta=current_variants_per_trf_fasta,
                 detection_mode=detection_mode,
-            )
+                rerun_trf_on_longer_flanking_sequences=rerun_trf_on_longer_flanking_sequences)
 
             if tandem_repeat_allele_failed_filters_reason is None:
                 if (tandem_repeat_allele["Start0Based"] - len(tandem_repeat_allele["RepeatUnit"]) <= left_flank_start_1based) or (
                     tandem_repeat_allele["End1Based"] + len(tandem_repeat_allele["RepeatUnit"]) >= right_flank_end):
                     # The flanking sequence was not long enough to contain the entire repeat so we need to extend the flanks and try again
                     #print(f"Extending flanking sequence beyond {num_flanking_bases}bp for {tandem_repeat_allele['Chrom']}:{tandem_repeat_allele['Start0Based']}-{tandem_repeat_allele['End1Based']} ")
+
+                    if detection_mode == DETECTION_MODE_TRF:
+                        rerun_trf_on_longer_flanking_sequences = True
+                        current_variants_to_process_using_trf = {}
+                        current_variants_per_trf_fasta = collections.defaultdict(int)
+
+                    print(f"NOTE: With detection_mode == {detection_mode}, the TR variant {vcf_chrom}:{vcf_pos} {vcf_ref} > {alt_allele} "
+                          f"spanned the entire left and/or right flanking sequences (variant size: {len(variant_bases):,d}bp, "
+                          f"flank size: {num_flanking_bases:,d}bp). Skipping...")
+
                     break
 
                 # Found this allele to be a tandem repeat expansion/contraction
@@ -659,10 +711,6 @@ def process_vcf_allele(
                 return None, tandem_repeat_allele_failed_filters_reason
         else:
             raise RuntimeError("State error: should always break out of the loop before it completes")
-
-    print(f"WARNING: The tandem repeat represented by the variant {vcf_chrom}:{vcf_pos} {vcf_ref} > {alt_allele} "
-          f"covered the entire left and/or right flanking sequences (size of each flank: {num_flanking_bases:,d}bp, "
-          f"variant size: {len(variant_bases):,d}bp). Skipping...")
 
     counters[f"allele filter: {FILTER_ALLELE_TR_SPANS_TOO_MANY_BASES}"] += 1
     return None, FILTER_ALLELE_TR_SPANS_TOO_MANY_BASES
@@ -1298,7 +1346,6 @@ def handle_overlapping_loci(variant_intervals, tsv_writer, vcf_writer, bed_write
                 if  loci_have_similar_motif and overlapping_locus_is_wider and not overlapping_locus_already_filtered_out:
                     counters[f"variant filter: {FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS}"] += 1
                     locus_ids_with_overlapping_variants[locus_id] = FILTER_TR_LOCUS_THAT_HAS_OVERLAPPING_VARIANTS
-                    if args.debug: print(f"########### Filtering out locus: {locus_id}")
                     break
 
 
