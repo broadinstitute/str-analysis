@@ -45,32 +45,37 @@ def add_offtarget_regions(
     if record["LocusStructure"].count("(") != 1 or record["LocusStructure"].count(")") != 1:
         raise ValueError(f"Unexpected LocusStructure format. Expected exactly one repeat unit in parentheses: {record}")
 
-    repeat_unit = record["LocusStructure"].strip("()*+?")
-    if set(repeat_unit) - set("ACGTN"):
-        raise ValueError(f"LocusStructure repeat unit contains non-ACGT characters: {record}")
-
-    normalized_repeat_unit = compute_canonical_motif(repeat_unit, include_reverse_complement=True)
     # retrieve off-target regions from database
     chrom, start_0based, end_1based = re.split("[:-]", record["ReferenceRegion"])
     chrom = chrom.replace("chr", "")
 
-    results = offtarget_db_connection.execute(
-        """SELECT chrom, start_1based, end_1based, read_count, fraction_of_reads
-           FROM offtargets 
-           WHERE normalized_repeat_unit = ?
-           AND ((chrom != ? AND chrom != ?) OR start_1based > ? OR end_1based < ?)
-           AND read_count >= ?
-           AND fraction_of_reads >= ?
-           ORDER BY read_count DESC""",
-        (
-            normalized_repeat_unit, f"chr{chrom}", chrom, end_1based, start_0based,
-            min_simulated_reads_absorbed, min_fraction_of_simulated_reads_absorbed,
-        )).fetchall()
-
+    repeat_units = record["LocusStructure"].strip("()*+?").split("|")
+    
     offtarget_regions = []
-    for i, offtarget_region in enumerate(results):
-        if i < max_offtarget_regions:
-            offtarget_regions.append(f"{offtarget_region[0]}:{offtarget_region[1] - 1}-{offtarget_region[2]}")
+    for repeat_unit in repeat_units:
+        if set(repeat_unit) - set("ACGTN"):
+            raise ValueError(f"LocusStructure repeat unit contains non-ACGT characters: {record}")
+
+        normalized_repeat_unit = compute_canonical_motif(repeat_unit, include_reverse_complement=True)
+
+        results = offtarget_db_connection.execute(
+            """SELECT chrom, start_1based, end_1based, read_count, fraction_of_reads
+            FROM offtargets 
+            WHERE normalized_repeat_unit = ?
+            AND ((chrom != ? AND chrom != ?) OR start_1based > ? OR end_1based < ?)
+            AND read_count >= ?
+            AND fraction_of_reads >= ?
+            ORDER BY read_count DESC""",
+            (
+                normalized_repeat_unit, f"chr{chrom}", chrom, end_1based, start_0based,
+                min_simulated_reads_absorbed, min_fraction_of_simulated_reads_absorbed,
+            )).fetchall()
+
+        for i, offtarget_region in enumerate(results):
+            if i < max_offtarget_regions:
+                new_offtartget_region = f"{offtarget_region[0]}:{offtarget_region[1] - 1}-{offtarget_region[2]}"
+                if new_offtartget_region not in offtarget_regions:
+                    offtarget_regions.append(new_offtartget_region)
 
     if offtarget_regions:
         record = record.copy()
@@ -80,8 +85,8 @@ def add_offtarget_regions(
 
     if verbose:
         print(f"Added {len(offtarget_regions)} off-target regions to {record['LocusId']} " +
-              (f"where the last off-target region accounted for {results[-1][3]} simulated read(s) "
-               f"(which was {results[-1][4]:0.1%} of all simulated reads)" if offtarget_regions else ""))
+            (f"where the last off-target region accounted for {results[-1][3]} simulated read(s) "
+            f"(which was {results[-1][4]:0.1%} of all simulated reads)" if offtarget_regions else ""))
 
 
     return record if offtarget_regions else None
@@ -149,7 +154,7 @@ def main():
                     counters["adjacent loci filter"] += 1
                     continue
 
-                if len(record.get("LocusStructure", "N").strip("(ACGT)*+?")) > 0:
+                if len(record.get("LocusStructure", "N").strip("(ACGT|)*+?")) > 0:
                     counters["non-ACGT bases filter"] += 1
                     continue
 
