@@ -660,7 +660,7 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
 
         alleles_to_process_next = alleles_to_reprocess
 
-    print(f"Found {len(tandem_repeat_alleles):,d} indel alleles that represent tandem repeat expansions or contractions")
+    print(f"Found {len(tandem_repeat_alleles):,d} indel alleles that represent perfect (or nearly perfect) tandem repeat expansions or contractions")
 
     return tandem_repeat_alleles, alleles_to_process_next_using_trf
 
