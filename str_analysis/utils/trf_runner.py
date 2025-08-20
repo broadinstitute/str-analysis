@@ -220,7 +220,7 @@ class TRFRunner:
 
         html_file_exists = os.path.isfile(html_file_path)
 
-        if self.debug and not html_file_exists:
+        if not html_file_exists and self.debug:
             print(f"WARNING: TRF HTML output file not found: {html_file_path}")
         while html_file_exists:
             for record in self._parse_trf_html_file(html_file_path):
