@@ -569,27 +569,26 @@ def main():
 
     args.input_vcf_prefix = re.sub(".vcf(.gz|.bgz)?$", "", os.path.basename(args.input_vcf_path))
 
-    counters = collections.defaultdict(int)
-
     fasta_obj = pyfaidx.Fasta(args.reference_fasta_path, one_based_attributes=False, as_raw=True)
 
+    counters = collections.defaultdict(int)
     alleles_from_vcf = parse_input_vcf_file(args, counters, fasta_obj)
 
-    alleles_that_are_tandem_repeats, alleles_to_process_next_using_trf = detect_nearly_perfect_tandem_repeats(
-        alleles_from_vcf, counters, fasta_obj, args)
+    # detect tandem repeats
+    alleles_that_are_tandem_repeats, alleles_to_process_using_trf = detect_perfect_and_almost_perfect_tandem_repeats(
+        alleles_from_vcf, counters, args)
     
     if not args.dont_run_trf:
         more_alleles_that_are_tandem_repeats = detect_tandem_repeats_using_trf(
-            alleles_to_process_next_using_trf, counters, fasta_obj, args)
+            alleles_to_process_using_trf, counters, args)
         alleles_that_are_tandem_repeats.extend(more_alleles_that_are_tandem_repeats)
 
 
     # merge overlapping tandem repeats if they have the same (or similar) repeat units
-    before_counter = len(alleles_that_are_tandem_repeats)
     alleles_that_are_tandem_repeats = merge_overlapping_tandem_repeat_loci(alleles_that_are_tandem_repeats, counters)
 
     alleles_that_are_tandem_repeats.sort(key=lambda x: (x.chrom, x.start_0based, x.end_1based))
-    print(f"Merged {before_counter - len(alleles_that_are_tandem_repeats):,d} overlapping tandem repeat alleles with very similar repeat units")
+    print(f"Merged {counters['merged']:,d} overlapping tandem repeat alleles with very similar repeat units")
 
 
     # write results to output file(s)
@@ -611,11 +610,11 @@ def main():
         write_fasta(alleles_that_are_tandem_repeats, args)
 
 
-def detect_nearly_perfect_tandem_repeats(alleles, counters, fasta_obj, args):
+def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
 
     alleles_to_process_next = [(allele, DETECTION_MODE_PURE_REPEATS) for allele in alleles]
     alleles_to_process_next_using_trf = []
-    alleles_that_are_tandem_repeats = []
+    tandem_repeat_alleles = []
     first_iteration = True
     while alleles_to_process_next:
         alleles_to_reprocess = []
@@ -657,16 +656,16 @@ def detect_nearly_perfect_tandem_repeats(alleles, counters, fasta_obj, args):
             if tandem_repeat_allele.do_repeats_cover_entire_flanking_sequence():
                 print(f"WARNING: allele {allele} was found to be a tandem repeat using detection mode {detection_mode}, but the repeats cover the entire flanking sequence even though it is longer than {MAX_FLANKING_SEQUENCE_SIZE:,}bp. Skipping...")
             else:
-                alleles_that_are_tandem_repeats.append(tandem_repeat_allele)
+                tandem_repeat_alleles.append(tandem_repeat_allele)
 
         alleles_to_process_next = alleles_to_reprocess
 
-    print(f"Found {len(alleles_that_are_tandem_repeats):,d} indel alleles that represent tandem repeat expansions or contractions")
+    print(f"Found {len(tandem_repeat_alleles):,d} indel alleles that represent tandem repeat expansions or contractions")
 
-    return alleles_that_are_tandem_repeats, alleles_to_process_next_using_trf
+    return tandem_repeat_alleles, alleles_to_process_next_using_trf
 
 
-def detect_tandem_repeats_using_trf(alleles, counters, fasta_obj, args):
+def detect_tandem_repeats_using_trf(alleles, counters, args):
     """Runs TandemRepeatFinder (TRF) on a list of indel alleles to detect tandem repeats."""
 
     # set up TRF working dir
@@ -676,11 +675,11 @@ def detect_tandem_repeats_using_trf(alleles, counters, fasta_obj, args):
         os.makedirs(trf_working_dir)
     os.chdir(trf_working_dir)
 
-    alleles_that_are_tandem_repeats = []
+    tandem_repeat_alleles = []
     first_iteration = True
     alleles_to_process_next = alleles
     while alleles_to_process_next:
-        before_counter = len(alleles_that_are_tandem_repeats)
+        before_counter = len(tandem_repeat_alleles)
 
         n_threads = min(args.trf_threads, len(alleles_to_process_next))
         print(f"Launching {n_threads} TRF instance(s) to check whether {len(alleles_to_process_next):,d} indel alleles represent tandem repeats", 
@@ -713,20 +712,20 @@ def detect_tandem_repeats_using_trf(alleles, counters, fasta_obj, args):
                     if tandem_repeat_allele.do_repeats_cover_entire_flanking_sequence():
                         print(f"WARNING: allele {allele} was found to be a tandem repeat using TRF, but the repeats cover the entire flanking sequence even though it is longer than {MAX_FLANKING_SEQUENCE_SIZE:,}bp. Skipping...")
                     else:
-                        alleles_that_are_tandem_repeats.append(tandem_repeat_allele)
+                        tandem_repeat_alleles.append(tandem_repeat_allele)
 
         alleles_to_process_next = alleles_to_reprocess
 
         elapsed = datetime.datetime.now() - start_time
-        print(f"Found {len(alleles_that_are_tandem_repeats) - before_counter:,d} additional indel alleles that represent tandem repeat expansions or contractions by running TRF for {elapsed.seconds//60}m {elapsed.seconds%60}s")
+        print(f"Found {len(tandem_repeat_alleles) - before_counter:,d} additional indel alleles that represent tandem repeat expansions or contractions by running TRF for {elapsed.seconds//60}m {elapsed.seconds%60}s")
 
     os.chdir(original_working_dir)
 
-    return alleles_that_are_tandem_repeats
+    return tandem_repeat_alleles
 
     
 def parse_input_vcf_file(args, counters, fasta_obj):
-    """Parse the input VCF file and return a list of records."""
+    """Parse the input VCF file and return a list of Allele objects."""
 
     input_files_to_close = []
     if args.interval:
@@ -828,88 +827,11 @@ def parse_input_vcf_file(args, counters, fasta_obj):
     return alleles_from_vcf
 
 
-def write_vcf(alleles_that_are_tandem_repeats, args, only_write_filtered_out_alleles=False):
-    """Parse the input VCF file and return a list of records."""
 
-    input_files_to_close = []
-    if args.interval:
-        tabix_file = pysam.TabixFile(args.input_vcf_path)
-        vcf_iterator = itertools.chain(
-            (f"{line}\n" for line in tabix_file.header), 
-            (line for interval in args.interval for line in tabix_file.fetch(interval)),
-        )
-        input_files_to_close.append(tabix_file)
-    else:
-        vcf_iterator = open_file(args.input_vcf_path, is_text_file=True)
-        input_files_to_close.append(vcf_iterator)
-
-    # iterate over all VCF rows
-    if only_write_filtered_out_alleles:
-        output_vcf_path = f"{args.output_prefix}.not_tandem_repeats.vcf"
-    else:
-        output_vcf_path = f"{args.output_prefix}.tandem_repeats.vcf"
-
-    vcf_alleles = {
-        (tr.chrom, tr.allele.pos, tr.allele.ref): tr for tr in alleles_that_are_tandem_repeats
-    }
-
-    with open(output_vcf_path, "w") as f:
-        vcf_line_i = 0
-        for line in vcf_iterator:
-            if line.startswith("#"):
-                f.write(line)
-                continue
-
-            vcf_fields = line.strip().split("\t")
-            if vcf_line_i < args.offset:
-                vcf_line_i += 1
-                continue
-
-            if args.n is not None and vcf_line_i >= args.offset + args.n:
-                break
-
-            vcf_line_i += 1
-
-            # parse the ALT allele(s)
-            vcf_chrom = vcf_fields[0]
-            vcf_pos = int(vcf_fields[1])
-            vcf_ref = vcf_fields[3].upper()
-
-
-            key = (vcf_chrom, vcf_pos, vcf_ref)
-            is_tandem_repeat = key in vcf_alleles
-            if is_tandem_repeat:
-                # append TR info to the INFO field
-                tr = vcf_alleles[key]
-                if vcf_fields[7] == ".":
-                    vcf_fields[7] = ""
-                else:
-                    vcf_fields[7] += ";"
-                vcf_fields[7] += f"MOTIF={tr.repeat_unit}"
-                vcf_fields[7] += f";MOTIF_SIZE={len(tr.repeat_unit)}"
-                vcf_fields[7] += f";START_0BASED={tr.start_0based}"
-                vcf_fields[7] += f";END={tr.end_1based}"
-                if tr.motif_interruption_indices:
-                    vcf_fields[7] += f";INTERUPTIONS={tr.motif_interruption_indices_string}"
-                vcf_fields[7] += f";DETECTED={tr.detection_mode}"
-
-                line = "\t".join(vcf_fields) + "\n"
-
-            if (not only_write_filtered_out_alleles and is_tandem_repeat) or (only_write_filtered_out_alleles and not is_tandem_repeat):
-                f.write(line)
-
-    os.system(f"bgzip -f {output_vcf_path}")
-
-    print(f"Wrote {vcf_line_i:,d} variants to {output_vcf_path}.gz")
-    
-
-def check_if_allele_is_tandem_repeat(
-    allele,
-    args,
-    counters,
-    detection_mode,
-):
-    """Determine if the given allele is a tandem repeat expansion or contraction or neither.
+def check_if_allele_is_tandem_repeat(allele, args, counters, detection_mode):
+    """Determine if the given allele is a tandem repeat expansion or contraction or not. 
+    This is done by performing a brute-force scan for perfect (or nearly perfect) repeats in the allele sequence, and then extending the repeats
+    into the flanking reference sequences.
 
     Args:
         allele (Allele): allele record
@@ -1215,11 +1137,11 @@ def run_trf(alleles, args, counters, thread_id=1):
 
 
 def are_repeat_units_similar(canonical_repeat_unit1, canonical_repeat_unit2):
-    """Check if the two repeat units are similar.
+    """Check if the two repeat units are similar enough to be considered the same repeat unit.
     
     Args:
-        canonical_repeat_unit1 (str): The canonical repeat unit of the first repeat unit.
-        canonical_repeat_unit2 (str): The canonical repeat unit of the second repeat unit.
+        canonical_repeat_unit1 (str): canonical motif #1
+        canonical_repeat_unit2 (str): canonical motif #2
     """
     
     if canonical_repeat_unit1 == canonical_repeat_unit2:
@@ -1233,6 +1155,11 @@ def are_repeat_units_similar(canonical_repeat_unit1, canonical_repeat_unit2):
 
 
 def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, counters):
+    """Merge overlapping tandem repeats
+    
+    Args:
+        tandem_repeat_alleles (list): list of TandemRepeatAllele objects
+    """
 
     # For each chromosome, create an interval tree of the tandem repeat alleles
     tandem_repeat_alleles.sort(key=lambda x: (x.chrom, x.start_0based, x.end_1based))
@@ -1270,37 +1197,12 @@ def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, counters):
 
 
 
-def print_stats(counters):
-    """Print out all the counters"""
-
-    key_prefixes = set()
-    for key, _ in counters.items():
-        tokens = key.split(":")
-        key_prefixes.add(f"{tokens[0]}:")
-
-    for print_totals_only in True, False:
-        for key_prefix in sorted(key_prefixes):
-            if print_totals_only ^ (key_prefix in ("variant counts:", "allele counts:")):
-                continue
-            current_counter = [(key, count) for key, count in counters.items() if key.startswith(key_prefix)]
-            current_counter = sorted(current_counter, key=lambda x: (-x[1], x[0]))
-            print("--------------")
-            for key, value in current_counter:
-                if key_prefix.startswith("TR"):
-                    total_key = "TR variant counts: TOTAL" if "variant" in key_prefix else "TR allele counts: TOTAL"
-                else:
-                    total_key = "variant counts: TOTAL variants" if "variant" in key_prefix else "allele counts: TOTAL alleles"
-
-                total = counters[total_key]
-                percent = f"{100*value / total:5.1f}%" if total > 0 else ""
-
-                if print_totals_only:
-                    print(f"{value:10,d}  {key}")
-                else:
-                    print(f"{value:10,d} out of {total:10,d} ({percent}) {key}")
-
-
 def need_to_reprocess_allele_with_extended_flanking_sequence(tandem_repeat_allele):
+    """Check if the tandem repeat allele needs to be reprocessed with an extended flanking sequence.
+    
+    Args:
+        tandem_repeat_allele (TandemRepeatAllele): the tandem repeat allele to check
+    """
 
     if tandem_repeat_allele.do_repeats_cover_entire_flanking_sequence():
         if tandem_repeat_allele.do_repeats_cover_entire_left_flanking_sequence():
@@ -1316,6 +1218,13 @@ def need_to_reprocess_allele_with_extended_flanking_sequence(tandem_repeat_allel
 
 
 def write_bed(tandem_repeat_alleles, args):
+    """Write the tandem repeat alleles to a BED file.
+    
+    Args:
+        tandem_repeat_alleles (list): list of TandemRepeatAllele objects
+        args (argparse.Namespace): command-line arguments parsed by parse_args()
+    """
+
     bed_output_path = f"{args.output_prefix}.tandem_repeats.bed"
     with open(bed_output_path, "w") as f:
         for tandem_repeat_allele in tandem_repeat_alleles:
@@ -1334,6 +1243,13 @@ def write_bed(tandem_repeat_alleles, args):
 
 
 def write_tsv(tandem_repeat_alleles, args):
+    """Write the tandem repeat alleles to a TSV file.
+    
+    Args:
+        tandem_repeat_alleles (list): list of TandemRepeatAllele objects
+        args (argparse.Namespace): command-line arguments parsed by parse_args()
+    """
+
     tsv_output_path = f"{args.output_prefix}.tandem_repeats.tsv"
 
     with open(tsv_output_path, "w") as f:
@@ -1381,6 +1297,14 @@ def write_tsv(tandem_repeat_alleles, args):
 
 
 def write_fasta(tandem_repeat_alleles, args):
+    """Write the tandem repeat alleles to a FASTA file. For insertion alleles, the alternate allele sequence is written while for deletion
+    alleles, the reference allele sequence is written.
+    
+    Args:
+        tandem_repeat_alleles (list): list of TandemRepeatAllele objects
+        args (argparse.Namespace): command-line arguments parsed by parse_args()
+    """
+
     fasta_output_path = f"{args.output_prefix}.tandem_repeats.fasta"
     with open(fasta_output_path, "w") as f:
         for tandem_repeat_allele in tandem_repeat_alleles:
@@ -1392,6 +1316,117 @@ def write_fasta(tandem_repeat_alleles, args):
 
     os.system(f"gzip -f {fasta_output_path}")
     print(f"Wrote {len(tandem_repeat_alleles):,d} tandem repeat sequences to {fasta_output_path}.gz")
+
+
+def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False):
+    """Write variants that either are or aren't tandem repeats to a VCF file.
+    
+    Args:
+        tandem_repeat_alleles (list): list of TandemRepeatAllele objects
+        args (argparse.Namespace): command-line arguments parsed by parse_args()
+        only_write_filtered_out_alleles (bool): if True, only write the variants that are not in the tandem_repeats_alleles list
+    """
+
+    input_files_to_close = []
+    if args.interval:
+        tabix_file = pysam.TabixFile(args.input_vcf_path)
+        vcf_iterator = itertools.chain(
+            (f"{line}\n" for line in tabix_file.header), 
+            (line for interval in args.interval for line in tabix_file.fetch(interval)),
+        )
+        input_files_to_close.append(tabix_file)
+    else:
+        vcf_iterator = open_file(args.input_vcf_path, is_text_file=True)
+        input_files_to_close.append(vcf_iterator)
+
+    # iterate over all VCF rows
+    if only_write_filtered_out_alleles:
+        output_vcf_path = f"{args.output_prefix}.not_tandem_repeats.vcf"
+    else:
+        output_vcf_path = f"{args.output_prefix}.tandem_repeats.vcf"
+
+    vcf_alleles = {
+        (tr.chrom, tr.allele.pos, tr.allele.ref): tr for tr in tandem_repeat_alleles
+    }
+
+    with open(output_vcf_path, "w") as f:
+        vcf_line_i = 0
+        for line in vcf_iterator:
+            if line.startswith("#"):
+                f.write(line)
+                continue
+
+            vcf_fields = line.strip().split("\t")
+            if vcf_line_i < args.offset:
+                vcf_line_i += 1
+                continue
+
+            if args.n is not None and vcf_line_i >= args.offset + args.n:
+                break
+
+            vcf_line_i += 1
+
+            # parse the ALT allele(s)
+            vcf_chrom = vcf_fields[0]
+            vcf_pos = int(vcf_fields[1])
+            vcf_ref = vcf_fields[3].upper()
+
+
+            key = (vcf_chrom, vcf_pos, vcf_ref)
+            is_tandem_repeat = key in vcf_alleles
+            if is_tandem_repeat:
+                # append TR info to the INFO field
+                tr = vcf_alleles[key]
+                if vcf_fields[7] == ".":
+                    vcf_fields[7] = ""
+                else:
+                    vcf_fields[7] += ";"
+                vcf_fields[7] += f"MOTIF={tr.repeat_unit}"
+                vcf_fields[7] += f";MOTIF_SIZE={len(tr.repeat_unit)}"
+                vcf_fields[7] += f";START_0BASED={tr.start_0based}"
+                vcf_fields[7] += f";END={tr.end_1based}"
+                if tr.motif_interruption_indices:
+                    vcf_fields[7] += f";INTERUPTIONS={tr.motif_interruption_indices_string}"
+                vcf_fields[7] += f";DETECTED={tr.detection_mode}"
+
+                line = "\t".join(vcf_fields) + "\n"
+
+            if (not only_write_filtered_out_alleles and is_tandem_repeat) or (only_write_filtered_out_alleles and not is_tandem_repeat):
+                f.write(line)
+
+    os.system(f"bgzip -f {output_vcf_path}")
+
+    print(f"Wrote {vcf_line_i:,d} variants to {output_vcf_path}.gz")
+    
+
+def print_stats(counters):
+    """Print out all the counters"""
+
+    key_prefixes = set()
+    for key, _ in counters.items():
+        tokens = key.split(":")
+        key_prefixes.add(f"{tokens[0]}:")
+
+    for print_totals_only in True, False:
+        for key_prefix in sorted(key_prefixes):
+            if print_totals_only ^ (key_prefix in ("variant counts:", "allele counts:")):
+                continue
+            current_counter = [(key, count) for key, count in counters.items() if key.startswith(key_prefix)]
+            current_counter = sorted(current_counter, key=lambda x: (-x[1], x[0]))
+            print("--------------")
+            for key, value in current_counter:
+                if key_prefix.startswith("TR"):
+                    total_key = "TR variant counts: TOTAL" if "variant" in key_prefix else "TR allele counts: TOTAL"
+                else:
+                    total_key = "variant counts: TOTAL variants" if "variant" in key_prefix else "allele counts: TOTAL alleles"
+
+                total = counters[total_key]
+                percent = f"{100*value / total:5.1f}%" if total > 0 else ""
+
+                if print_totals_only:
+                    print(f"{value:10,d}  {key}")
+                else:
+                    print(f"{value:10,d} out of {total:10,d} ({percent}) {key}")
 
 
 if __name__ == "__main__":
