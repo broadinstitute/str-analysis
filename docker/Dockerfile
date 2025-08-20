@@ -67,6 +67,7 @@ RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cl
     && /google-cloud-sdk/install.sh -q \
     && /google-cloud-sdk/bin/gcloud components update --quiet
 
+# install TRF
 RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1/trf409.linux64 \
     && chmod 777 trf409.linux64 \
     && mv trf409.linux64 /usr/bin/trf
