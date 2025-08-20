@@ -698,6 +698,9 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
         if os.path.isdir(trf_working_dir):
             raise ValueError(f"ERROR: TRF working directory already exists: {trf_working_dir}. Each TRF run should be in a unique directory to avoid filename collisions.")
 
+        if args.debug: 
+            print("-"*100)
+            print(f"TRF working directory: {trf_working_dir}")
         os.makedirs(trf_working_dir)
         os.chdir(trf_working_dir)
         
@@ -719,6 +722,8 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
                 for tandem_repeat_allele, filter_reason, allele in futures[thread_i].result():
                     if filter_reason:
                         counters[f"allele filter: TRF: {filter_reason}"] += 1
+                        if args.debug:
+                            print(f"TRF filtered out: {allele}, filter reason: {filter_reason}")
                         continue
                     
                     # reprocess the allele if the repeats were found tocover the entire left or right flanking sequence
@@ -736,8 +741,8 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
         alleles_to_process_next = alleles_to_reprocess
 
         elapsed = datetime.datetime.now() - start_time
-        print(f"Found {len(tandem_repeat_alleles) - before_counter:,d} additional tandem repeats after running TRF for {elapsed.seconds//60}m {elapsed.seconds%60}s")
-
+        print(f"Found {len(tandem_repeat_alleles) - before_counter:,d} additional tandem repeats after running TRF for {elapsed.seconds//60}m {elapsed.seconds%60}s"
+              + (", but will recheck " + str(len(alleles_to_process_next)) + " alleles after extending their flanking sequences" if len(alleles_to_process_next) > 0 else ""))
         os.chdir(original_working_dir)
         if not args.debug:
             shutil.rmtree(trf_working_dir)
@@ -940,10 +945,7 @@ def check_if_allele_is_tandem_repeat(allele, args, counters, detection_mode):
         is_pure_repeat,
         motif_interruption_indices)
     
-    tandem_repeat_allele_failed_filters_reason = check_if_tandem_repeat_allele_failed_filters(
-        args, 
-        tandem_repeat_allele,
-        counters=counters)
+    tandem_repeat_allele_failed_filters_reason = check_if_tandem_repeat_allele_failed_filters(args, tandem_repeat_allele)
     
     if args.debug: print(f"{detection_mode} repeats: {tandem_repeat_allele}, filter: {tandem_repeat_allele_failed_filters_reason}")
     if tandem_repeat_allele_failed_filters_reason is not None:
@@ -953,14 +955,13 @@ def check_if_allele_is_tandem_repeat(allele, args, counters, detection_mode):
 
 
 
-def check_if_tandem_repeat_allele_failed_filters(args, tandem_repeat_allele, counters):
+def check_if_tandem_repeat_allele_failed_filters(args, tandem_repeat_allele):
     """Check if the given tandem repeat allele (represented by its repeat_unit and total_repeats) passes the filters
     specified in the command-line arguments.
 
     Args:
         args (argparse.Namespace): command-line arguments parsed by parse_args()
         tandem_repeat_allele (TandemRepeatAllele): The tandem repeat allele.
-        counters (dict): Dictionary of counters to collect summary stats about the number of TR variants found, etc.
 
     Return:
         str: A string describing the reason why the allele failed filters, or None if the allele passed all filters.
@@ -1048,10 +1049,14 @@ def run_trf(alleles, args, counters, thread_id=1):
                     raise ValueError(f"TRF result sequence name '{trf_result['sequence_name']}' does not match the expected variant ID '{allele.shortened_variant_id}${left_or_right}' in \n{pformat(trf_results)}")
 
                 if trf_result["start_0based"] >= trf_result["repeat_unit_length"] or trf_result["end_1based"] <= len(allele.variant_bases) - trf_result["repeat_unit_length"]:
+                    if args.debug:
+                        print(f"TRF filtered out: {allele} because the repeat unit is {trf_result['repeat_unit_length']} bases long and starts at {trf_result['start_0based']} or because it ends at {trf_result['end_1based']} before the end of the variant ({len(allele.variant_bases)})") 
                     # repeats must start close to the start of the variant bases and end near or after the end of the variant bases
                     continue
 
                 if trf_result["repeat_unit_length"] > len(allele.variant_bases):
+                    if args.debug:
+                        print(f"TRF filtered out: {allele} because the repeat unit length ({trf_result['repeat_unit_length']}) is larger than the variant ({len(allele.variant_bases)})")
                     # to be a tandem repeat variant, it should represent an expansion or contraction by at least one repeat unit
                     continue
 
@@ -1082,7 +1087,8 @@ def run_trf(alleles, args, counters, thread_id=1):
             if matching_trf_results.get("left") and matching_trf_results.get("right") and not are_repeat_units_similar(
                 matching_trf_results["left"]["repeat_unit"], matching_trf_results["right"]["repeat_unit"]
             ):
-                    continue
+                if args.debug: print(f"TRF filtered out: {allele}, filter reason: {matching_trf_results['left']['repeat_unit']} and {matching_trf_results['right']['repeat_unit']} are not similar")
+                continue
                 
             if matching_trf_results.get("right"):
                 repeat_unit = matching_trf_results["right"]["repeat_unit"]
@@ -1106,7 +1112,8 @@ def run_trf(alleles, args, counters, thread_id=1):
                 motif_interruption_indices=motif_interruption_indices or None,
             )
             
-            filter_reason = check_if_tandem_repeat_allele_failed_filters(args, tandem_repeat_allele, counters=counters)
+            if args.debug: print(f"TRF: checking if {tandem_repeat_allele} passes filters")
+            filter_reason = check_if_tandem_repeat_allele_failed_filters(args, tandem_repeat_allele)
             if args.debug: print(f"TRF: {tandem_repeat_allele}, filter: {filter_reason}")
             if filter_reason is not None:
                 continue
@@ -1115,6 +1122,7 @@ def run_trf(alleles, args, counters, thread_id=1):
             motif_size_to_tandem_repeat_allele[motif_size] = tandem_repeat_allele
 
         if len(motif_size_to_passing_trf_results) == 0:
+            if args.debug: print(f"TRF filtered out: {allele} because it has no repeat unit that passed filters")
             results.append((None, FILTER_ALLELE_INDEL_WITHOUT_REPEATS, allele))
             continue
 
@@ -1136,7 +1144,8 @@ def run_trf(alleles, args, counters, thread_id=1):
                     max_alignment_score = alignment_score
                     best_motif_size = motif_size
 
-        results.append((motif_size_to_tandem_repeat_allele[best_motif_size], None, allele))
+        tandem_repeat_allele = motif_size_to_tandem_repeat_allele[best_motif_size]
+        results.append((tandem_repeat_allele, None, allele))
         
     return results
 
