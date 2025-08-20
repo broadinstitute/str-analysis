@@ -674,6 +674,10 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
             else:
                 tandem_repeat_alleles.append(tandem_repeat_allele)
 
+                if not args.dont_run_trf and len(tandem_repeat_allele.repeat_unit) > 6 and len(allele.variant_bases) >= args.min_indel_size_to_run_trf:
+                    # if this is a VNTR with a large motif, run TRF on it to see if it detects wider locus boundaries. The merge step can resolve redudant locus definitions.
+                    alleles_to_process_next_using_trf.append(allele)
+
         alleles_to_process_next = alleles_to_reprocess
 
     print(f"Found {len(tandem_repeat_alleles):,d} indel alleles that represent perfect (or nearly perfect) tandem repeat expansions or contractions")
