@@ -1251,7 +1251,7 @@ def write_bed(tandem_repeat_alleles, args):
                 tandem_repeat_allele.start_0based,
                 tandem_repeat_allele.end_1based,
                 tandem_repeat_allele.repeat_unit,
-                ".",
+                len(tandem_repeat_allele.repeat_unit),
             ])) + "\n")
 
     os.system(f"bgzip -f {bed_output_path}")
