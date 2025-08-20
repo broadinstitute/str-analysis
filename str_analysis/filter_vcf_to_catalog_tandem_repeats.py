@@ -1369,6 +1369,7 @@ def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False
 
     with open(output_vcf_path, "w") as f:
         vcf_line_i = 0
+        output_line_counter = 0
         for line in vcf_iterator:
             if line.startswith("#"):
                 f.write(line)
@@ -1411,10 +1412,11 @@ def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False
 
             if (not only_write_filtered_out_alleles and is_tandem_repeat) or (only_write_filtered_out_alleles and not is_tandem_repeat):
                 f.write(line)
+                output_line_counter += 1
 
     os.system(f"bgzip -f {output_vcf_path}")
 
-    print(f"Wrote {vcf_line_i:,d} variants to {output_vcf_path}.gz")
+    print(f"Wrote {output_line_counter:,d} variants to {output_vcf_path}.gz")
     
 
 def print_stats(counters):
