@@ -110,6 +110,11 @@ RUN wget -q https://github.com/bw2/REViewer/archive/refs/heads/master.zip \
 	&& cd / \
 	&& rm -r REViewer-master master.zip
 
+# install TRF
+RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1/trf409.linux64 \
+	&& chmod 777 trf409.linux64 \
+	&& mv trf409.linux64 /usr/bin/trf
+
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
 RUN python3 -m pip install --upgrade --no-cache-dir git+https://github.com/broadinstitute/str-analysis

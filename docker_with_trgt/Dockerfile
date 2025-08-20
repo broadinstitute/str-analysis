@@ -71,6 +71,11 @@ RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cl
     && /google-cloud-sdk/install.sh -q \
     && /google-cloud-sdk/bin/gcloud components update --quiet
 
+# install TRF
+RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1/trf409.linux64 \
+    && chmod 777 trf409.linux64 \
+    && mv trf409.linux64 /usr/bin/trf
+
 # install TRGT
 ENV TRGT_VERSION="1.2.0"
 RUN wget -q https://github.com/PacificBiosciences/trgt/releases/download/v${TRGT_VERSION}/trgt-v${TRGT_VERSION}-x86_64-unknown-linux-gnu.tar.gz \

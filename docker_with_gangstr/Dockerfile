@@ -73,6 +73,11 @@ RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cl
 
 ENV PATH=/google-cloud-sdk/bin:$PATH
 
+# install TRF
+RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1/trf409.linux64 \
+	&& chmod 777 trf409.linux64 \
+	&& mv trf409.linux64 /usr/bin/trf
+
 # install GangSTR from https://github.com/gymreklab/GangSTR
 ENV GANGSTR_VERSION="2.5.0-Source"
 ENV HTSLIB_CFLAGS="-I./htslib-1.9"

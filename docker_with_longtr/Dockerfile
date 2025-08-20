@@ -77,6 +77,11 @@ ENV PATH=/google-cloud-sdk/bin:$PATH
 
 RUN python3 -m pip install --upgrade cmake
 
+# install TRF
+RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1/trf409.linux64 \
+    && chmod 777 trf409.linux64 \
+    && mv trf409.linux64 /usr/bin/trf
+
 # install LongTR
 RUN git clone https://github.com/gymrek-lab/LongTR.git \
     && cd LongTR \
