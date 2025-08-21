@@ -2,11 +2,14 @@
 
 """Test script for the filter_vcf_to_catalog_tandem_repeats.py script."""
 
+import argparse
+import collections
 import unittest
 
 import pyfaidx
 
-from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele, DETECTION_MODE_PURE_REPEATS
+from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele, MinimalTandemRepeatAllele, DETECTION_MODE_PURE_REPEATS, \
+    merge_overlapping_tandem_repeat_loci, detect_perfect_and_almost_perfect_tandem_repeats
 
 
 class TestAllele(unittest.TestCase):
@@ -128,9 +131,58 @@ class TestAllele(unittest.TestCase):
             self.assertFalse(tandem_repeat_allele.do_repeats_cover_entire_right_flanking_sequence())
         
 
+    def test_detect_perfect_and_almost_perfect_tandem_repeats(self):
+        """Test the detect_perfect_and_almost_perfect_tandem_repeats function."""
+        counters = collections.defaultdict(int)
 
+        args = argparse.Namespace(
 
+            min_repeat_unit_length=1,
+            max_repeat_unit_length=1000,
+            show_progress_bar=False,
+            min_repeats=3,
+            min_tandem_repeat_length=9,
+            dont_run_trf=False,
+            debug=False,
 
+        )
+        results, alleles_to_process_next_using_trf = detect_perfect_and_almost_perfect_tandem_repeats( [
+            Allele("chr22", 10689286, "A", "ACAGCAGCAGCAGCAG", self._fasta_obj),
+        ], counters, args)
+        self.assertEqual(alleles_to_process_next_using_trf, [])
+        self.assertEqual(len(results), 1, msg=f"Expected 1 result, got {len(results)}: {results}")
+
+        # TODO add more tests here
+
+    def test_merge_overlapping_tandem_repeat_loci(self):
+        """Test the merge_overlapping_tandem_repeat_loci function."""
+
+        tandem_repeat_alleles = [
+            MinimalTandemRepeatAllele("chr17", 3, 2, "CAG", None),
+            MinimalTandemRepeatAllele("chr17", 2, 5, "CAG", None),
+            MinimalTandemRepeatAllele("chr17", 5, 14, "CAG", None),
+            MinimalTandemRepeatAllele("chr22", 10515040, 10515077, "AAGA", DETECTION_MODE_PURE_REPEATS),
+            MinimalTandemRepeatAllele("chr1", 1929384, 1929384, "AGGGTAGGGAGGGAGGGAGAGGAGGGGAGAGGGTAGGGAGGGAGAGGAGGGGGAGGGAGGGAGGGGAGGGAGGGGAG", DETECTION_MODE_PURE_REPEATS),
+            MinimalTandemRepeatAllele("chr1", 1929384, 1929490, "AGGGTAGGGAGGGAGGGAGAGGAGGGGAGAGGGTAGGGAGGGAGAGGAGGGGGAGGGAGGGAGGGGAGGGAGGGGAG", DETECTION_MODE_PURE_REPEATS),
+        ]
+        for n in range(2, 10):
+            # [tandem_repeat_alleles[0]] * n, [tandem_repeat_alleles[1]] * n, [tandem_repeat_alleles[2]] * n, 
+            for tandem_repeat_alleles_to_merge, exepected_n_results in [
+                (tandem_repeat_alleles, 3), 
+                (tandem_repeat_alleles * n, 3), 
+                ([tandem_repeat_alleles[0]] * n, 1),
+                ([tandem_repeat_alleles[1]] * n, 1),
+                ([tandem_repeat_alleles[2]] * n, 1),
+                ([tandem_repeat_alleles[3]] * n, 1),
+                ([tandem_repeat_alleles[4]] * n, 1),
+                ([tandem_repeat_alleles[5]] * n, 1),
+            ]:
+                merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles_to_merge)
+                self.assertEqual(len(merged_tandem_repeat_alleles), exepected_n_results, 
+                                 msg=f"Expected {exepected_n_results} results, got {len(merged_tandem_repeat_alleles)} when merging "
+                                     f"{len(tandem_repeat_alleles_to_merge)} tandem repeat alleles for n={n}: {tandem_repeat_alleles_to_merge}")
+
+    
     def tearDown(self):
         """Tear down the test case."""
         self._fasta_obj.close()
