@@ -4,12 +4,14 @@
 
 import argparse
 import collections
+import pkgutil
+import tempfile
 import unittest
 
 import pyfaidx
 
 from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele, MinimalTandemRepeatAllele, DETECTION_MODE_PURE_REPEATS, \
-    merge_overlapping_tandem_repeat_loci, detect_perfect_and_almost_perfect_tandem_repeats
+    merge_overlapping_tandem_repeat_loci, detect_perfect_and_almost_perfect_tandem_repeats, detect_tandem_repeats_using_trf
 
 
 class TestAllele(unittest.TestCase):
@@ -18,8 +20,14 @@ class TestAllele(unittest.TestCase):
 
     def setUp(self):
         """Set up the test case."""
-        self._fasta_obj = pyfaidx.Fasta("str_analysis/data/tests/chr22_11Mb.fa.gz", one_based_attributes=False, as_raw=True)
-        self._fasta_obj_with_one_based_attributes = pyfaidx.Fasta("str_analysis/data/tests/chr22_11Mb.fa.gz", one_based_attributes=True, as_raw=True)
+        # create file-like object around a binary string
+        fasta_data = pkgutil.get_data("str_analysis", "data/tests/chr22_11Mb.fa.gz")
+        # write it to a temporary named file
+        with tempfile.NamedTemporaryFile(suffix=".fa.gz") as fasta_file:
+            fasta_file.write(fasta_data)
+            fasta_file.flush()
+            self._fasta_obj = pyfaidx.Fasta(fasta_file.name, one_based_attributes=False, as_raw=True)
+            self._fasta_obj_with_one_based_attributes = pyfaidx.Fasta(fasta_file.name, one_based_attributes=True, as_raw=True)
         self._poly_a_insertion1 = Allele("chr22", 10513201, "T", "TAAAAA", self._fasta_obj)
         self._poly_a_insertion2 = Allele("chr22", 10513201, "T", "TAAAA", self._fasta_obj)
         self._poly_a_deletion1 = Allele("chr22", 10513201, "TAAAAA", "T", self._fasta_obj)
@@ -30,6 +38,21 @@ class TestAllele(unittest.TestCase):
 
         self._AAGA_tandem_repeat_expansion = TandemRepeatAllele(self._AAGA_insertion, "AAGA", 0, 4, 37, DETECTION_MODE_PURE_REPEATS)
         self._AAGA_tandem_repeat_contraction = TandemRepeatAllele(self._AAGA_deletion, "AAGA", 0, 4, 33, DETECTION_MODE_PURE_REPEATS)
+
+        self._default_args = argparse.Namespace(
+
+            min_repeat_unit_length=1,
+            max_repeat_unit_length=1000,
+            show_progress_bar=False,
+            min_repeats=3,
+            min_tandem_repeat_length=9,
+            dont_run_trf=False,
+            debug=False,
+            trf_working_dir=tempfile.mkdtemp(),
+            input_vcf_prefix="test",
+            trf_executable_path="trf",
+            trf_threads=2,
+        )
 
 
     def test_getters(self):
@@ -134,25 +157,32 @@ class TestAllele(unittest.TestCase):
     def test_detect_perfect_and_almost_perfect_tandem_repeats(self):
         """Test the detect_perfect_and_almost_perfect_tandem_repeats function."""
         counters = collections.defaultdict(int)
-
-        args = argparse.Namespace(
-
-            min_repeat_unit_length=1,
-            max_repeat_unit_length=1000,
-            show_progress_bar=False,
-            min_repeats=3,
-            min_tandem_repeat_length=9,
-            dont_run_trf=False,
-            debug=False,
-
-        )
-        results, alleles_to_process_next_using_trf = detect_perfect_and_almost_perfect_tandem_repeats( [
+        alleles = [
             Allele("chr22", 10689286, "A", "ACAGCAGCAGCAGCAG", self._fasta_obj),
-        ], counters, args)
-        self.assertEqual(alleles_to_process_next_using_trf, [])
-        self.assertEqual(len(results), 1, msg=f"Expected 1 result, got {len(results)}: {results}")
+        ]
+        
+        for detect_repeats_using_TRF in [False, True]:
+            if detect_repeats_using_TRF:
+                results, alleles_to_process_next_using_trf = detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, self._default_args)
+            else:
+                results = detect_tandem_repeats_using_trf(alleles, counters, self._default_args)
+                alleles_to_process_next_using_trf = []
 
-        # TODO add more tests here
+            self.assertEqual(alleles_to_process_next_using_trf, [])
+            self.assertEqual(len(results), 1, msg=f"Expected 1 result, got {len(results)}: {results}")
+
+            self.assertEqual(results[0].chrom, "chr22")
+            self.assertEqual(results[0].start_0based, 10689286)
+            self.assertEqual(results[0].end_1based, 10689286)
+            self.assertEqual(results[0].repeat_unit, "CAG")
+            self.assertEqual(results[0].num_repeats_ref, 0)
+            self.assertEqual(results[0].num_repeats_alt, 5)
+            self.assertEqual(results[0].num_repeats_in_left_flank, 0)
+            self.assertEqual(results[0].num_repeats_in_right_flank, 0)
+            self.assertEqual(results[0].num_repeats_in_variant, 5)
+            self.assertEqual(results[0].num_repeats_in_variant_and_flanks, 5)
+
+        
 
     def test_merge_overlapping_tandem_repeat_loci(self):
         """Test the merge_overlapping_tandem_repeat_loci function."""

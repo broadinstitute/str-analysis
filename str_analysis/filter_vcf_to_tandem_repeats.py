@@ -71,7 +71,7 @@ DETECTION_MODE_ORDER = [
 ]
 
 CURRENT_TIMESTAMP = datetime.datetime.now().strftime("%Y%m%d_%H%M%S.%f")
-TRF_WORKING_DIR = f"trf_working_dir/{CURRENT_TIMESTAMP}"
+TRF_WORKING_DIR = f"trf_working_dir"
 
 
 MAX_INDEL_SIZE = 100_000  # bp
@@ -96,6 +96,7 @@ def parse_args():
     """Parse command-line arguments."""
 
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
     subparsers = p.add_subparsers(dest="subcommand", required=True, title="Subcommand")
     catalog_p = subparsers.add_parser("catalog", help="step1: Discover tandem repeat loci in a VCF file.")
 
@@ -112,6 +113,7 @@ def parse_args():
     catalog_p.add_argument("--min-indel-size-to-run-trf", default=7, type=int, help="Only run TandemRepeatFinder (TRF) "
                     "on insertions and deletions that are at least this many base pairs.")
 
+    catalog_p.add_argument("--trf-working-dir", default=TRF_WORKING_DIR, help="Directory to store intermediate files for TandemRepeatFinder (TRF).")
     catalog_p.add_argument("--min-tandem-repeat-length", type=int, default=9, help="Only detect tandem repeat variants that are at least this long (in base pairs). "
                    "This threshold will be applied to the total repeat sequence including any repeats in the flanking sequence to the left "
                    "and right of the variant in addition to the inserted or deleted bases")
@@ -784,7 +786,7 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
         before_counter = len(tandem_repeat_alleles)
         start_time = datetime.datetime.now()
 
-        trf_working_dir = os.path.join(TRF_WORKING_DIR, f"{args.input_vcf_prefix}." + start_time.strftime("%Y%m%d_%H%M%S.%f"))
+        trf_working_dir = os.path.join(args.trf_working_dir, CURRENT_TIMESTAMP, f"{args.input_vcf_prefix}." + start_time.strftime("%Y%m%d_%H%M%S.%f"))
         if os.path.isdir(trf_working_dir):
             raise ValueError(f"ERROR: TRF working directory already exists: {trf_working_dir}. Each TRF run should be in a unique directory to avoid filename collisions.")
 
