@@ -154,35 +154,55 @@ class TestAllele(unittest.TestCase):
             self.assertFalse(tandem_repeat_allele.do_repeats_cover_entire_right_flanking_sequence())
         
 
-    def test_detect_perfect_and_almost_perfect_tandem_repeats(self):
+    def test_detect_tandem_repeats(self):
         """Test the detect_perfect_and_almost_perfect_tandem_repeats function."""
         counters = collections.defaultdict(int)
         alleles = [
             Allele("chr22", 10689286, "A", "ACAGCAGCAGCAGCAG", self._fasta_obj),
+            Allele("chr22", 10689288, "T", "TATTATTATTATT", self._fasta_obj),
+            Allele("chr22", 10689285, "T", "TATTATTATTATT", self._fasta_obj),
+            Allele("chr22", 10689282, "T", "TATTATTATTATT", self._fasta_obj),
+            Allele("chr22", 10689267, "T", "TATTATTATTATT", self._fasta_obj),
         ]
         
         for detect_repeats_using_TRF in [False, True]:
-            if detect_repeats_using_TRF:
+            if not detect_repeats_using_TRF:
                 results, alleles_to_process_next_using_trf = detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, self._default_args)
             else:
                 results = detect_tandem_repeats_using_trf(alleles, counters, self._default_args)
                 alleles_to_process_next_using_trf = []
 
             self.assertEqual(alleles_to_process_next_using_trf, [])
-            self.assertEqual(len(results), 1, msg=f"Expected 1 result, got {len(results)}: {results}")
+            self.assertEqual(len(results), len(alleles), msg=f"Expected {len(alleles)} results, got {len(results)}: {results}")
+    
+            msg = f"using TRF" if detect_repeats_using_TRF else "not using TRF"
 
-            self.assertEqual(results[0].chrom, "chr22")
-            self.assertEqual(results[0].start_0based, 10689286)
-            self.assertEqual(results[0].end_1based, 10689286)
-            self.assertEqual(results[0].repeat_unit, "CAG")
-            self.assertEqual(results[0].num_repeats_ref, 0)
-            self.assertEqual(results[0].num_repeats_alt, 5)
-            self.assertEqual(results[0].num_repeats_in_left_flank, 0)
-            self.assertEqual(results[0].num_repeats_in_right_flank, 0)
-            self.assertEqual(results[0].num_repeats_in_variant, 5)
-            self.assertEqual(results[0].num_repeats_in_variant_and_flanks, 5)
+            self.assertEqual(results[0].chrom, "chr22", msg=msg)
+            self.assertEqual(results[0].start_0based, 10689286, msg=msg)
+            self.assertEqual(results[0].end_1based, 10689286, msg=msg)
+            self.assertEqual(results[0].repeat_unit, "CAG", msg=msg)
+            self.assertEqual(results[0].num_repeats_ref, 0, msg=msg)
+            self.assertEqual(results[0].num_repeats_alt, 5, msg=msg)
+            self.assertEqual(results[0].num_repeats_in_left_flank, 0, msg=msg)
+            self.assertEqual(results[0].num_repeats_in_right_flank, 0, msg=msg)
+            self.assertEqual(results[0].num_repeats_in_variant, 5, msg=msg)
+            self.assertEqual(results[0].num_repeats_in_variant_and_flanks, 5, msg=msg)
 
-        
+            for results_index, i in enumerate([0, 1, 2, 7], start=1):
+                msg = (f"using TRF" if detect_repeats_using_TRF else f"not using TRF") + f" for i = {i}, allele {results[results_index].allele} result #{results_index + 1}: {results[results_index]}. Left flank: {results[results_index].allele.get_left_flanking_sequence()}. Variant: {results[results_index].allele.variant_bases}. Right flank: {results[results_index].allele.get_right_flanking_sequence()}"
+                self.assertEqual(results[results_index].chrom, "chr22", msg=msg)
+                self.assertTrue(results[results_index].start_0based == 10689265 or results[results_index].start_0based == 10689267, msg=msg)
+                self.assertEqual(results[results_index].end_1based, 10689288, msg=msg)
+                self.assertEqual(results[results_index].repeat_unit, "ATT", msg=msg)
+                self.assertEqual(results[results_index].num_repeats_ref, 7, msg=msg)
+                self.assertEqual(results[results_index].num_repeats_alt, 11, msg=msg)
+                self.assertEqual(results[results_index].num_repeats_in_left_flank, 7 - i, msg=msg)
+                self.assertEqual(results[results_index].num_repeats_in_right_flank, 0 + i, msg=msg)
+                self.assertEqual(results[results_index].num_repeats_in_variant, 4, msg=msg)
+                self.assertEqual(results[results_index].num_repeats_in_variant_and_flanks, 11, msg=msg)
+
+
+
 
     def test_merge_overlapping_tandem_repeat_loci(self):
         """Test the merge_overlapping_tandem_repeat_loci function."""

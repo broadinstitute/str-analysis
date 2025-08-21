@@ -839,6 +839,10 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
         if not args.debug:
             shutil.rmtree(trf_working_dir)
 
+    # sort results into the original order of the alleles
+    order_map = {allele.variant_id: i for i, allele in enumerate(alleles)}
+    tandem_repeat_alleles.sort(key=lambda x: order_map[x.allele.variant_id])
+
     return tandem_repeat_alleles
 
     
@@ -1236,7 +1240,7 @@ def run_trf(alleles, args, thread_id=1):
 
         tandem_repeat_allele = motif_size_to_tandem_repeat_allele[best_motif_size]
         results.append((tandem_repeat_allele, None, allele))
-        
+
     return results
 
 
