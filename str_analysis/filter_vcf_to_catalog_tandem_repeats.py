@@ -684,7 +684,7 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
 
         alleles_to_process_next = alleles_to_reprocess
 
-    print(f"Found {len(tandem_repeat_alleles):,d} indel alleles that represent perfect (or nearly perfect) tandem repeat expansions or contractions")
+    print(f"Found {sum(1 for tr in tandem_repeat_alleles if tr.is_pure_repeat):,d} perfect tandem repeat alleles and {sum(1 for tr in tandem_repeat_alleles if not tr.is_pure_repeat):,d} nearly-perfect tandem repeat alleles")
 
     return tandem_repeat_alleles, alleles_to_process_next_using_trf
 
@@ -750,7 +750,7 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
 
         elapsed = datetime.datetime.now() - start_time
         print(f"Found {len(tandem_repeat_alleles) - before_counter:,d} additional tandem repeats after running TRF for {elapsed.seconds//60}m {elapsed.seconds%60}s"
-              + (", but will recheck " + str(len(alleles_to_process_next)) + " alleles after extending their flanking sequences" if len(alleles_to_process_next) > 0 else ""))
+              + (f", and will recheck {len(alleles_to_process_next):,d} other alleles after extending their flanking sequences" if len(alleles_to_process_next) > 0 else ""))
         os.chdir(original_working_dir)
         if not args.debug:
             shutil.rmtree(trf_working_dir)
