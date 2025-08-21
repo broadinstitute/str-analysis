@@ -52,6 +52,7 @@ class TestAllele(unittest.TestCase):
             input_vcf_prefix="test",
             trf_executable_path="trf",
             trf_threads=2,
+            verbose=False,
         )
 
 

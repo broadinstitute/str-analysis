@@ -721,8 +721,9 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
     first_iteration = True
     while alleles_to_process_next:
         alleles_to_reprocess = []
-        print(f"Checking {len(alleles_to_process_next):,d} indel alleles for tandem repeats", 
-              "after extending their flanking sequences" if not first_iteration else "")
+        if args.verbose:
+            print(f"Checking {len(alleles_to_process_next):,d} indel alleles for tandem repeats", 
+                "after extending their flanking sequences" if not first_iteration else "")
         first_iteration = False
 
         if args.show_progress_bar:
@@ -768,7 +769,8 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
 
         alleles_to_process_next = alleles_to_reprocess
 
-    print(f"Found {sum(1 for tr in tandem_repeat_alleles if tr.is_pure_repeat):,d} perfect tandem repeat alleles and {sum(1 for tr in tandem_repeat_alleles if not tr.is_pure_repeat):,d} nearly-perfect tandem repeat alleles")
+    if args.verbose:
+        print(f"Found {sum(1 for tr in tandem_repeat_alleles if tr.is_pure_repeat):,d} perfect tandem repeat alleles and {sum(1 for tr in tandem_repeat_alleles if not tr.is_pure_repeat):,d} nearly-perfect tandem repeat alleles")
 
     return tandem_repeat_alleles, alleles_to_process_next_using_trf
 
@@ -797,8 +799,9 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
         os.chdir(trf_working_dir)
         
         n_threads = min(args.trf_threads, len(alleles_to_process_next))
-        print(f"Launching {n_threads} TRF instance(s) to check {len(alleles_to_process_next):,d} indel alleles for tandem repeats", 
-                "after extending their flanking sequences" if not first_iteration else "")
+        if args.verbose:
+            print(f"Launching {n_threads} TRF instance(s) to check {len(alleles_to_process_next):,d} indel alleles for tandem repeats", 
+                    "after extending their flanking sequences" if not first_iteration else "")
         first_iteration = False
 
         alleles_to_reprocess = []
@@ -833,7 +836,8 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
         alleles_to_process_next = alleles_to_reprocess
 
         elapsed = datetime.datetime.now() - start_time
-        print(f"Found {len(tandem_repeat_alleles) - before_counter:,d} additional tandem repeats after running TRF for {elapsed.seconds//60}m {elapsed.seconds%60}s"
+        if args.verbose:
+            print(f"Found {len(tandem_repeat_alleles) - before_counter:,d} additional tandem repeats after running TRF for {elapsed.seconds//60}m {elapsed.seconds%60}s"
               + (f", and will recheck {len(alleles_to_process_next):,d} other alleles after extending their flanking sequences" if len(alleles_to_process_next) > 0 else ""))
         os.chdir(original_working_dir)
         if not args.debug:
@@ -851,13 +855,15 @@ def parse_input_vcf_file(args, counters, fasta_obj):
 
     input_files_to_close = []
     if args.interval:
-        print(f"Parsing interval(s) {', '.join(args.interval)} from {args.input_vcf_path}")
+        if args.verbose:
+            print(f"Parsing interval(s) {', '.join(args.interval)} from {args.input_vcf_path}")
 
         tabix_file = pysam.TabixFile(args.input_vcf_path)
         vcf_iterator = (line for interval in args.interval for line in tabix_file.fetch(interval))
         input_files_to_close.append(tabix_file)
     else:
-        print(f"Parsing {args.input_vcf_path}")
+        if args.verbose:
+            print(f"Parsing {args.input_vcf_path}")
         vcf_iterator = open_file(args.input_vcf_path, is_text_file=True)
         input_files_to_close.append(vcf_iterator)
 
@@ -947,7 +953,8 @@ def parse_input_vcf_file(args, counters, fasta_obj):
 
             alleles_from_vcf.append(allele)
 
-    print(f"Parsed {len(alleles_from_vcf):,d} indel alleles from {args.input_vcf_path}")
+    if args.verbose:
+        print(f"Parsed {len(alleles_from_vcf):,d} indel alleles from {args.input_vcf_path}")
     
     return alleles_from_vcf
 
@@ -1365,7 +1372,8 @@ def write_bed(tandem_repeat_alleles, args, detailed=False):
     os.system(f"bgzip -f {bed_output_path}")
     os.system(f"tabix -p bed {bed_output_path}.gz")
 
-    print(f"Wrote {len(tandem_repeat_alleles):,d} tandem repeat alleles to {bed_output_path}.gz")
+    if args.verbose:
+        print(f"Wrote {len(tandem_repeat_alleles):,d} tandem repeat alleles to {bed_output_path}.gz")
 
 
 def write_tsv(tandem_repeat_alleles, args):
@@ -1419,7 +1427,8 @@ def write_tsv(tandem_repeat_alleles, args):
             ])) + "\n")
 
     os.system(f"bgzip -f {tsv_output_path}")
-    print(f"Wrote {len(tandem_repeat_alleles):,d} tandem repeat alleles to {tsv_output_path}.gz")
+    if args.verbose:
+        print(f"Wrote {len(tandem_repeat_alleles):,d} tandem repeat alleles to {tsv_output_path}.gz")
 
 
 def write_fasta(tandem_repeat_alleles, args):
@@ -1441,7 +1450,8 @@ def write_fasta(tandem_repeat_alleles, args):
                 f.write(f"{tandem_repeat_allele.ref_allele_repeat_sequence}\n")
 
     os.system(f"gzip -f {fasta_output_path}")
-    print(f"Wrote {len(tandem_repeat_alleles):,d} tandem repeat sequences to {fasta_output_path}.gz")
+    if args.verbose:
+        print(f"Wrote {len(tandem_repeat_alleles):,d} tandem repeat sequences to {fasta_output_path}.gz")
 
 
 def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False):
@@ -1525,7 +1535,8 @@ def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False
     os.system(f"bgzip -f {output_vcf_path}")
     os.system(f"tabix -p vcf {output_vcf_path}.gz")
 
-    print(f"Wrote {output_line_counter:,d} variants to {output_vcf_path}.gz")
+    if args.verbose:
+        print(f"Wrote {output_line_counter:,d} variants to {output_vcf_path}.gz")
     
 
 def print_stats(counters):
