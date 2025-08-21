@@ -1249,7 +1249,7 @@ def write_bed(tandem_repeat_alleles, args, detailed=False):
     """
 
     if detailed:
-        bed_output_path = f"{args.output_prefix}.tandem_repeats.detailedbed"
+        bed_output_path = f"{args.output_prefix}.tandem_repeats.detailed.bed"
     else:
         bed_output_path = f"{args.output_prefix}.tandem_repeats.bed"
 
@@ -1259,7 +1259,7 @@ def write_bed(tandem_repeat_alleles, args, detailed=False):
                 tandem_repeat_allele.chrom,
                 tandem_repeat_allele.start_0based,
                 tandem_repeat_allele.end_1based,
-                f"{tandem_repeat_allele.tandem_repeat_unit}:{len(tandem_repeat_allele.tandem_repeat_unit)}bp:{tandem_repeat_allele.detection_mode}" if detailed else tandem_repeat_allele.repeat_unit,
+                f"{tandem_repeat_allele.repeat_unit}:{len(tandem_repeat_allele.repeat_unit)}bp:{tandem_repeat_allele.detection_mode}" if detailed else tandem_repeat_allele.repeat_unit,
                 len(tandem_repeat_allele.repeat_unit),
             ])) + "\n")
 
