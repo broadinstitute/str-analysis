@@ -126,6 +126,7 @@ def parse_args():
     p.add_argument("-o", "--output-prefix", help="Output file prefix. If not specified, it will be computed based on "
                    "the input vcf filename")
     
+    p.add_argument("--write-detailed-bed", help="Output a BED file with all TR alleles where the name field (ie. column 4) contains additional info besides the repeat unit.", action="store_true")
     p.add_argument("--write-vcf", help="Output a VCF file with all variants that were found to be TRs.", action="store_true")
     p.add_argument("--write-filtered-out-variants-to-vcf", help="Output a VCF file with variants where one allele was found to be an TR, "
                    "but that were still filtered out for reasons such as being multiallelic and having alleles with different motifs, "
@@ -607,6 +608,9 @@ def main():
         args.output_prefix = args.input_vcf_prefix
 
     write_bed(alleles_that_are_tandem_repeats, args)
+
+    if args.write_detailed_bed:
+        write_bed(alleles_that_are_tandem_repeats, args, detailed=True)
 
     if args.write_vcf:
         write_vcf(alleles_that_are_tandem_repeats, args, only_write_filtered_out_alleles=False)
@@ -1235,22 +1239,27 @@ def need_to_reprocess_allele_with_extended_flanking_sequence(tandem_repeat_allel
     return False
 
 
-def write_bed(tandem_repeat_alleles, args):
+def write_bed(tandem_repeat_alleles, args, detailed=False):
     """Write the tandem repeat alleles to a BED file.
     
     Args:
         tandem_repeat_alleles (list): list of TandemRepeatAllele objects
         args (argparse.Namespace): command-line arguments parsed by parse_args()
+        detailed (bool): if True, put extra info in the name field (ie. column 4) in addition to the repeat unit.
     """
 
-    bed_output_path = f"{args.output_prefix}.tandem_repeats.bed"
+    if detailed:
+        bed_output_path = f"{args.output_prefix}.tandem_repeats.detailedbed"
+    else:
+        bed_output_path = f"{args.output_prefix}.tandem_repeats.bed"
+
     with open(bed_output_path, "w") as f:
         for tandem_repeat_allele in tandem_repeat_alleles:
             f.write("\t".join(map(str, [
                 tandem_repeat_allele.chrom,
                 tandem_repeat_allele.start_0based,
                 tandem_repeat_allele.end_1based,
-                tandem_repeat_allele.repeat_unit,
+                f"{tandem_repeat_allele.tandem_repeat_unit}:{len(tandem_repeat_allele.tandem_repeat_unit)}bp:{tandem_repeat_allele.detection_mode}" if detailed else tandem_repeat_allele.repeat_unit,
                 len(tandem_repeat_allele.repeat_unit),
             ])) + "\n")
 
@@ -1415,6 +1424,7 @@ def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False
                 output_line_counter += 1
 
     os.system(f"bgzip -f {output_vcf_path}")
+    os.system(f"tabix -p vcf {output_vcf_path}.gz")
 
     print(f"Wrote {output_line_counter:,d} variants to {output_vcf_path}.gz")
     
