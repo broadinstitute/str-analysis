@@ -6,7 +6,7 @@ import unittest
 
 import pyfaidx
 
-from str_analysis.filter_vcf_to_catalog_tandem_repeats import Allele, TandemRepeatAllele, DETECTION_MODE_PURE_REPEATS
+from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele, DETECTION_MODE_PURE_REPEATS
 
 
 class TestAllele(unittest.TestCase):
