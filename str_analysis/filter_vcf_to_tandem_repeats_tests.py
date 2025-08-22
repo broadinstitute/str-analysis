@@ -10,7 +10,8 @@ import unittest
 
 import pyfaidx
 
-from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele, MinimalTandemRepeatAllele, DETECTION_MODE_PURE_REPEATS, \
+from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele, MinimalTandemRepeatAllele, \
+    DETECTION_MODE_PURE_REPEATS, DETECTION_MODE_ALLOW_INTERRUPTIONS, DETECTION_MODE_TRF, \
     merge_overlapping_tandem_repeat_loci, detect_perfect_and_almost_perfect_tandem_repeats, detect_tandem_repeats_using_trf
 
 
@@ -46,13 +47,14 @@ class TestAllele(unittest.TestCase):
             show_progress_bar=False,
             min_repeats=3,
             min_tandem_repeat_length=9,
-            dont_run_trf=False,
             debug=False,
             trf_working_dir=tempfile.mkdtemp(),
             input_vcf_prefix="test",
             trf_executable_path="trf",
             trf_threads=2,
             verbose=False,
+            dont_allow_interruptions=False,
+            dont_run_trf=False,
         )
 
 
@@ -158,63 +160,76 @@ class TestAllele(unittest.TestCase):
     def test_detect_tandem_repeats(self):
         """Test the detect_perfect_and_almost_perfect_tandem_repeats function."""
         counters = collections.defaultdict(int)
-        alleles = [
-            Allele("chr22", 10689286, "A", "ACAGCAGCAGCAGCAG", self._fasta_obj),
-            Allele("chr22", 10689288, "T", "TATTATTATTATT", self._fasta_obj),
-            Allele("chr22", 10689285, "T", "TATTATTATTATT", self._fasta_obj),
-            Allele("chr22", 10689282, "T", "TATTATTATTATT", self._fasta_obj),
-            Allele("chr22", 10689267, "T", "TATTATTATTATT", self._fasta_obj),
-        ]
+
+        for test_interrupted_repeats in [False, True]:
+            alleles = [
+                Allele("chr22", 10689286, "A", "ACAGCAGCAGCATCAG" if test_interrupted_repeats else "ACAGCAGCAGCAGCAG", self._fasta_obj, allele_order=1),
+                Allele("chr22", 10689288, "T", "TATTATTATTATT", self._fasta_obj, allele_order=2),
+                Allele("chr22", 10689285, "T", "TATTATTATTATT", self._fasta_obj, allele_order=3),
+                Allele("chr22", 10689282, "T", "TATTATTATTATT", self._fasta_obj, allele_order=4),
+                Allele("chr22", 10689267, "T", "TATTATTATTATT", self._fasta_obj, allele_order=5),
+            ]
+            
+            for detect_repeats_using_TRF in [False, True]:
+                if test_interrupted_repeats and detect_repeats_using_TRF:
+                    continue
+                
+                if not detect_repeats_using_TRF:
+                    results, alleles_to_process_next_using_trf = detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, self._default_args)
+                else:
+                    results = detect_tandem_repeats_using_trf(alleles, counters, self._default_args)
+                    alleles_to_process_next_using_trf = []
+                    
+                self.assertEqual(alleles_to_process_next_using_trf, [])
+                self.assertEqual(len(results), len(alleles), msg=f"Expected {len(alleles)} results, got {len(results)}: {results}")
         
-        for detect_repeats_using_TRF in [False, True]:
-            if not detect_repeats_using_TRF:
-                results, alleles_to_process_next_using_trf = detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, self._default_args)
-            else:
-                results = detect_tandem_repeats_using_trf(alleles, counters, self._default_args)
-                alleles_to_process_next_using_trf = []
+                if detect_repeats_using_TRF:
+                    expected_detection_mode = DETECTION_MODE_TRF
+                elif test_interrupted_repeats:
+                    expected_detection_mode = DETECTION_MODE_ALLOW_INTERRUPTIONS
+                else:
+                    expected_detection_mode = DETECTION_MODE_PURE_REPEATS
 
-            self.assertEqual(alleles_to_process_next_using_trf, [])
-            self.assertEqual(len(results), len(alleles), msg=f"Expected {len(alleles)} results, got {len(results)}: {results}")
-    
-            msg = f"using TRF" if detect_repeats_using_TRF else "not using TRF"
+                msg = ("pure repeats" if not test_interrupted_repeats else "interrupted repeats") + (f" using TRF" if detect_repeats_using_TRF else " not using TRF")
 
-            self.assertEqual(results[0].chrom, "chr22", msg=msg)
-            self.assertEqual(results[0].start_0based, 10689286, msg=msg)
-            self.assertEqual(results[0].end_1based, 10689286, msg=msg)
-            self.assertEqual(results[0].repeat_unit, "CAG", msg=msg)
-            self.assertEqual(results[0].num_repeats_ref, 0, msg=msg)
-            self.assertEqual(results[0].num_repeats_alt, 5, msg=msg)
-            self.assertEqual(results[0].num_repeats_in_left_flank, 0, msg=msg)
-            self.assertEqual(results[0].num_repeats_in_right_flank, 0, msg=msg)
-            self.assertEqual(results[0].num_repeats_in_variant, 5, msg=msg)
-            self.assertEqual(results[0].num_repeats_in_variant_and_flanks, 5, msg=msg)
+                self.assertEqual(results[0].chrom, "chr22", msg=msg)
+                if test_interrupted_repeats:
+                    self.assertEqual(results[0].motif_interruption_indices_string, "2")
+                self.assertEqual(results[0].repeat_unit, "CAG", msg=msg)
+                self.assertEqual(results[0].start_0based, 10689286, msg=msg)
+                self.assertEqual(results[0].end_1based, 10689286, msg=msg)
+                self.assertEqual(results[0].num_repeats_ref, 0, msg=msg)
+                self.assertEqual(results[0].num_repeats_alt, 5, msg=msg)
+                self.assertEqual(results[0].num_repeats_in_left_flank, 0, msg=msg)
+                self.assertEqual(results[0].num_repeats_in_right_flank, 0, msg=msg)
+                self.assertEqual(results[0].num_repeats_in_variant, 5, msg=msg)
+                self.assertEqual(results[0].num_repeats_in_variant_and_flanks, 5, msg=msg)
+                self.assertEqual(results[0].detection_mode, expected_detection_mode, msg=msg)
 
-            for results_index, i in enumerate([0, 1, 2, 7], start=1):
-                msg = (f"using TRF" if detect_repeats_using_TRF else f"not using TRF") + f" for i = {i}, allele {results[results_index].allele} result #{results_index + 1}: {results[results_index]}. Left flank: {results[results_index].allele.get_left_flanking_sequence()}. Variant: {results[results_index].allele.variant_bases}. Right flank: {results[results_index].allele.get_right_flanking_sequence()}"
-                self.assertEqual(results[results_index].chrom, "chr22", msg=msg)
-                self.assertTrue(results[results_index].start_0based == 10689265 or results[results_index].start_0based == 10689267, msg=msg)
-                self.assertEqual(results[results_index].end_1based, 10689288, msg=msg)
-                self.assertEqual(results[results_index].repeat_unit, "ATT", msg=msg)
-                self.assertEqual(results[results_index].num_repeats_ref, 7, msg=msg)
-                self.assertEqual(results[results_index].num_repeats_alt, 11, msg=msg)
-                self.assertEqual(results[results_index].num_repeats_in_left_flank, 7 - i, msg=msg)
-                self.assertEqual(results[results_index].num_repeats_in_right_flank, 0 + i, msg=msg)
-                self.assertEqual(results[results_index].num_repeats_in_variant, 4, msg=msg)
-                self.assertEqual(results[results_index].num_repeats_in_variant_and_flanks, 11, msg=msg)
-
-
+                for results_index, i in enumerate([0, 1, 2, 7], start=1):
+                    msg = (f"using TRF" if detect_repeats_using_TRF else f"not using TRF") + f" for i = {i}, allele {results[results_index].allele} result #{results_index + 1}: {results[results_index]}. Left flank: {results[results_index].allele.get_left_flanking_sequence()}. Variant: {results[results_index].allele.variant_bases}. Right flank: {results[results_index].allele.get_right_flanking_sequence()}"
+                    self.assertEqual(results[results_index].chrom, "chr22", msg=msg)
+                    self.assertTrue(results[results_index].start_0based == 10689265 or results[results_index].start_0based == 10689267, msg=msg)
+                    self.assertEqual(results[results_index].end_1based, 10689288, msg=msg)
+                    self.assertEqual(results[results_index].repeat_unit, "ATT", msg=msg)
+                    self.assertEqual(results[results_index].num_repeats_ref, 7, msg=msg)
+                    self.assertEqual(results[results_index].num_repeats_alt, 11, msg=msg)
+                    self.assertEqual(results[results_index].num_repeats_in_left_flank, 7 - i, msg=msg)
+                    self.assertEqual(results[results_index].num_repeats_in_right_flank, 0 + i, msg=msg)
+                    self.assertEqual(results[results_index].num_repeats_in_variant, 4, msg=msg)
+                    self.assertEqual(results[results_index].num_repeats_in_variant_and_flanks, 11, msg=msg)
 
 
     def test_merge_overlapping_tandem_repeat_loci(self):
         """Test the merge_overlapping_tandem_repeat_loci function."""
 
         tandem_repeat_alleles = [
-            MinimalTandemRepeatAllele("chr17", 3, 2, "CAG", None),
-            MinimalTandemRepeatAllele("chr17", 2, 5, "CAG", None),
-            MinimalTandemRepeatAllele("chr17", 5, 14, "CAG", None),
-            MinimalTandemRepeatAllele("chr22", 10515040, 10515077, "AAGA", DETECTION_MODE_PURE_REPEATS),
-            MinimalTandemRepeatAllele("chr1", 1929384, 1929384, "AGGGTAGGGAGGGAGGGAGAGGAGGGGAGAGGGTAGGGAGGGAGAGGAGGGGGAGGGAGGGAGGGGAGGGAGGGGAG", DETECTION_MODE_PURE_REPEATS),
-            MinimalTandemRepeatAllele("chr1", 1929384, 1929490, "AGGGTAGGGAGGGAGGGAGAGGAGGGGAGAGGGTAGGGAGGGAGAGGAGGGGGAGGGAGGGAGGGGAGGGAGGGGAG", DETECTION_MODE_PURE_REPEATS),
+            MinimalTandemRepeatAllele("chr17", 3, 2, "CAG", None, allele_order=1),
+            MinimalTandemRepeatAllele("chr17", 2, 5, "CAG", None, allele_order=2),
+            MinimalTandemRepeatAllele("chr17", 5, 14, "CAG", None, allele_order=3),
+            MinimalTandemRepeatAllele("chr22", 10515040, 10515077, "AAGA", DETECTION_MODE_PURE_REPEATS, allele_order=4),
+            MinimalTandemRepeatAllele("chr1", 1929384, 1929384, "AGGGTAGGGAGGGAGGGAGAGGAGGGGAGAGGGTAGGGAGGGAGAGGAGGGGGAGGGAGGGAGGGGAGGGAGGGGAG", DETECTION_MODE_PURE_REPEATS, allele_order=5),
+            MinimalTandemRepeatAllele("chr1", 1929384, 1929490, "AGGGTAGGGAGGGAGGGAGAGGAGGGGAGAGGGTAGGGAGGGAGAGGAGGGGGAGGGAGGGAGGGGAGGGAGGGGAG", DETECTION_MODE_PURE_REPEATS, allele_order=6),
         ]
         for n in range(2, 10):
             # [tandem_repeat_alleles[0]] * n, [tandem_repeat_alleles[1]] * n, [tandem_repeat_alleles[2]] * n, 
@@ -233,7 +248,57 @@ class TestAllele(unittest.TestCase):
                                  msg=f"Expected {exepected_n_results} results, got {len(merged_tandem_repeat_alleles)} when merging "
                                      f"{len(tandem_repeat_alleles_to_merge)} tandem repeat alleles for n={n}: {tandem_repeat_alleles_to_merge}")
 
-    
+
+    def test_merge_overlapping_tandem_repeat_loci2(self):
+        """Test the merge_overlapping_tandem_repeat_loci function."""
+
+        tandem_repeat_alleles = [
+            MinimalTandemRepeatAllele("chr22", 10515040, 10515077, "CAGCCGCAG", DETECTION_MODE_PURE_REPEATS, allele_order=1),
+            MinimalTandemRepeatAllele("chr22", 10515040, 10515083, "CAGCCGCAG", DETECTION_MODE_PURE_REPEATS, allele_order=2),
+            MinimalTandemRepeatAllele("chr22", 10515040, 10515080, "CAGCCGCAG", DETECTION_MODE_PURE_REPEATS, allele_order=3),
+        ]
+        for n in range(1, 5):
+            # [tandem_repeat_alleles[0]] * n, [tandem_repeat_alleles[1]] * n, [tandem_repeat_alleles[2]] * n, 
+            tandem_repeat_alleles_to_merge = tandem_repeat_alleles * n
+        
+            merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles_to_merge)
+            self.assertEqual(len(merged_tandem_repeat_alleles), 1, 
+                                msg=f"Expected 1 result, got {len(merged_tandem_repeat_alleles)} when merging "
+                                    f"{len(tandem_repeat_alleles_to_merge)} tandem repeat alleles for n={n}: {tandem_repeat_alleles_to_merge}")
+
+            self.assertEqual(merged_tandem_repeat_alleles[0].locus_id, "chr22-10515040-10515083-CAGCCGCAG")
+
+    def test_merge_overlapping_tandem_repeat_loci3(self):
+        """Test the merge_overlapping_tandem_repeat_loci function."""
+
+        for n in range(0, 5):
+            # [tandem_repeat_alleles[0]] * n, [tandem_repeat_alleles[1]] * n, [tandem_repeat_alleles[2]] * n, 
+            tandem_repeat_alleles = [
+                MinimalTandemRepeatAllele("chr22", 10515040, 10515077, "CAG"+("CCC"*n), DETECTION_MODE_PURE_REPEATS, allele_order=1),
+                MinimalTandemRepeatAllele("chr22", 10515040, 10515083, "CCG"+("CCC"*n), DETECTION_MODE_PURE_REPEATS, allele_order=2),
+            ]
+        
+            merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles)
+            expected_results = 2 if n < 2 else 1
+            self.assertEqual(len(merged_tandem_repeat_alleles), expected_results, 
+                                msg=f"Expected {expected_results} results, got {len(merged_tandem_repeat_alleles)} when merging "
+                                    f"{len(tandem_repeat_alleles)} tandem repeat alleles for n={n}: {tandem_repeat_alleles}")
+
+            msg = f"n={n}, input alleles={tandem_repeat_alleles}, merged={merged_tandem_repeat_alleles}"
+            if expected_results == 2:
+                self.assertEqual(merged_tandem_repeat_alleles[0].locus_id, "chr22-10515040-10515077-CAG" + ("CCC"*n), msg=msg)
+                self.assertEqual(merged_tandem_repeat_alleles[1].locus_id, "chr22-10515040-10515083-CCG" + ("CCC"*n), msg=msg)
+            else:
+                self.assertEqual(merged_tandem_repeat_alleles[0].locus_id, "chr22-10515040-10515083-CCG" + ("CCC"*n), msg=msg)
+
+
+    def test_failed_filtering(self):
+        pass
+
+
+    def test_extended_flanks(self):
+        pass
+
     def tearDown(self):
         """Tear down the test case."""
         self._fasta_obj.close()

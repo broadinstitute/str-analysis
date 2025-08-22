@@ -185,13 +185,14 @@ def parse_args():
 class Allele:
     """Represents a single VCF allele."""
 
-    def __init__(self, chrom, pos, ref, alt, fasta_obj):
+    def __init__(self, chrom, pos, ref, alt, fasta_obj, allele_order=-1):
 
         self._chrom = chrom
         self._pos = pos
         self._ref = ref
         self._alt = alt
         self._fasta_obj = fasta_obj
+        self._allele_order = allele_order
 
         if fasta_obj.faidx.one_based_attributes:
             raise ValueError("Fasta object should be created with one_based_attributes set to False")
@@ -351,6 +352,10 @@ class Allele:
     @property
     def variant_bases(self):
         return self._variant_bases
+    
+    @property
+    def allele_order(self):
+        return self._allele_order
 
     @property
     def previously_increased_flanking_sequence_size(self):
@@ -611,13 +616,14 @@ class TandemRepeatAllele:
 
 
 class MinimalTandemRepeatAllele:
-    def __init__(self, chrom, start_0based, end_1based, repeat_unit, detection_mode=None):
+    def __init__(self, chrom, start_0based, end_1based, repeat_unit, detection_mode=None, allele_order=-1):
         self._chrom = chrom
         self._start_0based = start_0based
         self._end_1based = end_1based
         self._repeat_unit = repeat_unit
         self._detection_mode = detection_mode
         self._canonical_repeat_unit = None
+        self._allele_order = allele_order
 
     @property
     def chrom(self):
@@ -648,6 +654,10 @@ class MinimalTandemRepeatAllele:
     @property
     def ref_interval_size(self):
         return self._end_1based - self._start_0based
+    
+    @property
+    def allele_order(self):
+        return self._allele_order
     
     @property
     def locus_id(self):
@@ -772,6 +782,10 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
     if args.verbose:
         print(f"Found {sum(1 for tr in tandem_repeat_alleles if tr.is_pure_repeat):,d} perfect tandem repeat alleles and {sum(1 for tr in tandem_repeat_alleles if not tr.is_pure_repeat):,d} nearly-perfect tandem repeat alleles")
 
+    # sort the alleles into their original order
+    tandem_repeat_alleles.sort(key=lambda x: x.allele.allele_order)
+    alleles_to_process_next_using_trf.sort(key=lambda x: x.allele_order)
+
     return tandem_repeat_alleles, alleles_to_process_next_using_trf
 
 
@@ -844,8 +858,7 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
             shutil.rmtree(trf_working_dir)
 
     # sort results into the original order of the alleles
-    order_map = {allele.variant_id: i for i, allele in enumerate(alleles)}
-    tandem_repeat_alleles.sort(key=lambda x: order_map[x.allele.variant_id])
+    tandem_repeat_alleles.sort(key=lambda x: x.allele.allele_order)
 
     return tandem_repeat_alleles
 
@@ -874,6 +887,7 @@ def parse_input_vcf_file(args, counters, fasta_obj):
     # iterate over all VCF rows
     alleles_from_vcf = []
     vcf_line_i = 0
+    allele_allele_order = 0
     for line in vcf_iterator:
         if line.startswith("#"):
             continue
@@ -942,7 +956,9 @@ def parse_input_vcf_file(args, counters, fasta_obj):
                 #allele_filter_reason = FILTER_ALLELE_MNV_INDEL
                 continue
 
-            allele = Allele(vcf_chrom, vcf_pos, vcf_ref, alt_allele, fasta_obj)
+            allele = Allele(vcf_chrom, vcf_pos, vcf_ref, alt_allele, fasta_obj, allele_order=allele_allele_order)
+            allele_allele_order += 1
+
             if len(allele.variant_bases) > MAX_INDEL_SIZE:
                 # this is a very large indel, so we don't want to process it
                 counters[f"allele filter: {FILTER_ALLELE_TOO_BIG}"] += 1
@@ -1032,7 +1048,6 @@ def check_if_allele_is_tandem_repeat(allele, args, detection_mode):
 
         num_repeat_bases_in_left_flank = num_total_repeats_left_flank * len(repeat_unit)
         num_repeat_bases_in_right_flank = num_total_repeats_right_flank * len(repeat_unit)
-
     else:
         raise ValueError(f"Invalid detection_mode: '{detection_mode}'. It must be either '{DETECTION_MODE_PURE_REPEATS}' or '{DETECTION_MODE_ALLOW_INTERRUPTIONS}'.")
 
