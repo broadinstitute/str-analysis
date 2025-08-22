@@ -695,7 +695,6 @@ def do_catalog_subcommand(args):
 
     # merge overlapping tandem repeats if they have the same (or similar) repeat units
     alleles_that_are_tandem_repeats = merge_overlapping_tandem_repeat_loci(alleles_that_are_tandem_repeats, verbose=args.verbose)
-    alleles_that_are_tandem_repeats.sort(key=lambda x: x.allele.allele_order)
 
     # write results to output file(s)
     if not args.output_prefix:
@@ -1328,7 +1327,7 @@ def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, verbose=False):
 
     if verbose:
         print(f"Dropped {before - len(results):,d} redundant tandem repeat loci, keeping {len(results):,d} tandem repeat loci")
-
+    
     return results
 
 
@@ -1584,6 +1583,7 @@ def print_stats(counters):
                     print(f"{value:10,d}  {key}")
                 else:
                     print(f"{value:10,d} out of {total:10,d} ({percent}) {key}")
+
 
 def do_merge_subcommand(args):
     """Merge tandem repeat catalogs from two or more input BED files."""
