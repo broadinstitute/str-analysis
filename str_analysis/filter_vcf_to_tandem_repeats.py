@@ -627,19 +627,26 @@ class TandemRepeatAllele:
     
     def create_merged(self, new_start_0based, new_end_1based, new_detection_mode):
                         
+        # self._start_0based = self._allele.get_left_flank_end() - num_repeat_bases_in_left_flank
+        # self._end_1based = self._allele.get_right_flank_start_0based() + num_repeat_bases_in_right_flank
+        if self.allele.get_left_flank_end() < new_start_0based:
+            raise ValueError(f"self.allele.get_left_flank_end() ({self.allele.get_left_flank_end()}) < new_start_0based ({new_start_0based})")
+        if self.allele.get_right_flank_start_0based() > new_end_1based:
+            raise ValueError(f"self.allele.get_right_flank_start_0based() ({self.allele.get_right_flank_start_0based()}) > new_end_1based ({new_end_1based})")
+        
         result = TandemRepeatAllele(
             self.allele,
             self.repeat_unit,
-            self.num_repeat_bases_in_left_flank - (self.start_0based - new_start_0based),
+            self.allele.get_left_flank_end() - new_start_0based,
             self.num_repeat_bases_in_variant,
-            self.num_repeat_bases_in_right_flank + (new_end_1based - self.end_1based),
+            new_end_1based - self.allele.get_right_flank_start_0based(),
             new_detection_mode,
             self.is_pure_repeat,
             self.motif_interruption_indices,
         )
 
-        assert self.start_0based == new_start_0based
-        assert self.end_1based == new_end_1based
+        assert result.start_0based == new_start_0based, f"result.start_0based ({result.start_0based}) != new_start_0based ({new_start_0based})"
+        assert result.end_1based == new_end_1based, f"result.end_1based ({result.end_1based}) != new_end_1based ({new_end_1based})"
 
         return result
 
@@ -759,6 +766,7 @@ def do_catalog_subcommand(args):
 
     if args.verbose:
         print_stats(counters)
+        print_tr_stats(alleles_that_are_tandem_repeats)
 
     
 
@@ -1629,7 +1637,7 @@ def print_stats(counters):
             current_counter = [(key, count) for key, count in counters.items() if key.startswith(key_prefix)]
             current_counter = sorted(current_counter, key=lambda x: (-x[1], x[0]))
             if current_counter:
-                print("--------------")
+                print("-"*15)
             for key, value in current_counter:
                 if key_prefix.startswith("TR"):
                     total_key = "TR variant counts: TOTAL" if "variant" in key_prefix else "TR allele counts: TOTAL"
@@ -1731,19 +1739,30 @@ def print_tr_stats(tandem_repeat_alleles, title=None):
         else:
             counters[f"VNTRs"] += 1
 
+        if tandem_repeat_allele.detection_mode is not None:
+            counters[f"detection_mode: {tandem_repeat_allele.detection_mode}"] += 1
+
+    print("-"*15)
     if title:
         print(title)
     
     if counters['total'] > 0:
+        for key, count in sorted(counters.items(), key=lambda x: (-x[1], x[0])):
+            if key.startswith("detection_mode:"):
+                print(f"{count:10,d} ({100*count/counters['total']:5.1f}%) {key}")
+
+        print("-"*15)
+
         for ru_len in range(1, 7):
             print(f"{counters[f'STR{ru_len}']:10,d} ({100*counters[f'STR{ru_len}']/counters['total']:5.1f}%) {ru_len}bp motifs")
 
         str_stats = f"{counters['STRs']:10,d} ({100*counters['STRs']/counters['total']:5.1f}%)"
         vntr_stats = f"{counters['VNTRs']:10,d} ({100*counters['VNTRs']/counters['total']:5.1f}%)"
         print(f"{vntr_stats} 7+bp motifs")
-        print()
+        print("-"*15)
         print(f"{str_stats} STRs")
         print(f"{vntr_stats} VNTRs")
+
     print(f"{counters['total']:10,d} total TRs")
 
 
