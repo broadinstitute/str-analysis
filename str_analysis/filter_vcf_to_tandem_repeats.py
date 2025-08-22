@@ -397,7 +397,6 @@ class TandemRepeatAllele:
             num_repeat_bases_in_right_flank, 
             detection_mode,
             is_pure_repeat=True,
-            motif_interruption_indices=None,
     ):
         """Initialize a TandemRepeatAllele object.
 
@@ -409,7 +408,6 @@ class TandemRepeatAllele:
             num_repeat_bases_in_right_flank (int): the number of repeat bases in the right flanking sequence
             detection_mode (str): the detection mode used to find the tandem repeat allele
             is_pure_repeat (bool): True if the allele is a pure repeat (no interruptions), False otherwise
-            motif_interruption_indices (list): indices of interruptions in the repeat unit, or None if no interruptions were found
         """
 
         self._allele = allele
@@ -420,14 +418,6 @@ class TandemRepeatAllele:
         self._num_repeat_bases_in_right_flank = num_repeat_bases_in_right_flank
         self._detection_mode = detection_mode
         self._is_pure_repeat = is_pure_repeat
-
-        if motif_interruption_indices is not None:
-            if not isinstance(motif_interruption_indices, list) or not all(isinstance(i, int) for i in motif_interruption_indices):
-                raise ValueError(f"Logic error: motif_interruption_indices must be a list or integers, or None rather than '{motif_interruption_indices}'.")
-            self._motif_interruption_indices = motif_interruption_indices 
-        else:
-            self._motif_interruption_indices = None
-
         self._summary_string = None
 
         self._start_0based = self._allele.get_left_flank_end() - num_repeat_bases_in_left_flank
@@ -596,14 +586,6 @@ class TandemRepeatAllele:
     @property
     def allele_order(self):
         return self._allele.allele_order
-    
-    @property
-    def motif_interruption_indices(self):
-        return self._motif_interruption_indices
-
-    @property
-    def motif_interruption_indices_string(self):
-        return ",".join(map(str, self._motif_interruption_indices)) if self._motif_interruption_indices is not None else ""
 
     @property
     def variant_id(self):
@@ -642,7 +624,6 @@ class TandemRepeatAllele:
             new_end_1based - self.allele.get_right_flank_start_0based(),
             new_detection_mode,
             self.is_pure_repeat,
-            self.motif_interruption_indices,
         )
 
         assert result.start_0based == new_start_0based, f"result.start_0based ({result.start_0based}) != new_start_0based ({new_start_0based})"
@@ -1055,7 +1036,6 @@ def check_if_allele_is_tandem_repeat(allele, args, detection_mode):
             right_flanking_reference_sequence)
 
         is_pure_repeat = True
-        motif_interruption_indices = None
 
         num_repeat_bases_in_left_flank = num_total_repeats_left_flank * len(repeat_unit)
         num_repeat_bases_in_right_flank = num_total_repeats_right_flank * len(repeat_unit)
@@ -1087,7 +1067,6 @@ def check_if_allele_is_tandem_repeat(allele, args, detection_mode):
             right_flanking_reference_sequence,
             repeat_unit_interruption_index=repeat_unit_interruption_index)
 
-        motif_interruption_indices = [repeat_unit_interruption_index] if repeat_unit_interruption_index is not None else None
         is_pure_repeat = False
 
         num_repeat_bases_in_left_flank = num_total_repeats_left_flank * len(repeat_unit)
@@ -1096,6 +1075,11 @@ def check_if_allele_is_tandem_repeat(allele, args, detection_mode):
         raise ValueError(f"Invalid detection_mode: '{detection_mode}'. It must be either '{DETECTION_MODE_PURE_REPEATS}' or '{DETECTION_MODE_ALLOW_INTERRUPTIONS}'.")
 
 
+    if detection_mode == DETECTION_MODE_ALLOW_INTERRUPTIONS:
+        simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(
+            repeat_unit, allow_partial_repeats=False)
+        repeat_unit = simplified_repeat_unit
+
     tandem_repeat_allele = TandemRepeatAllele(
         allele,
         repeat_unit,
@@ -1103,8 +1087,7 @@ def check_if_allele_is_tandem_repeat(allele, args, detection_mode):
         len(allele.variant_bases),
         num_repeat_bases_in_right_flank,
         detection_mode,
-        is_pure_repeat,
-        motif_interruption_indices)
+        is_pure_repeat)
     
     tandem_repeat_allele_failed_filters_reason = check_if_tandem_repeat_allele_failed_filters(args, tandem_repeat_allele)
     
@@ -1252,14 +1235,16 @@ def run_trf(alleles, args, thread_id=1):
                 
             if matching_trf_results.get("right"):
                 repeat_unit = matching_trf_results["right"]["repeat_unit"]
-                motif_interruption_indices = list(sorted([position_in_motif for position_in_motif, _ in matching_trf_results["right"]["motif_positions_with_interruptions"].items()]))
 
             elif matching_trf_results.get("left"):
                 repeat_unit = matching_trf_results["left"]["repeat_unit"]
-                motif_interruption_indices = list(sorted([len(repeat_unit) - position_in_motif + 1 for position_in_motif, _ in matching_trf_results["left"]["motif_positions_with_interruptions"].items()]))
 
             else:
                 raise ValueError(f"Logic error: No TRF results for allele {allele} with motif size {motif_size}")
+
+            simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(
+                    repeat_unit, allow_partial_repeats=False)
+            repeat_unit = simplified_repeat_unit
 
             tandem_repeat_allele = TandemRepeatAllele(
                 allele,
@@ -1269,7 +1254,6 @@ def run_trf(alleles, args, thread_id=1):
                 matching_trf_results.get("right", {}).get("tandem_repeat_bases_in_flank", 0),
                 detection_mode=DETECTION_MODE_TRF,
                 is_pure_repeat=False,
-                motif_interruption_indices=motif_interruption_indices or None,
             )
             
             if args.debug: print(f"TRF: checking if {tandem_repeat_allele} passes filters")
@@ -1500,7 +1484,6 @@ def write_tsv(tandem_repeat_alleles, args):
                 tandem_repeat_allele.locus_id,
                 tandem_repeat_allele.ins_or_del,
                 tandem_repeat_allele.repeat_unit,
-                tandem_repeat_allele.motif_interruption_indices_string,
                 tandem_repeat_allele.canonical_repeat_unit,
                 len(tandem_repeat_allele.repeat_unit),
                 tandem_repeat_allele.num_repeats_ref,
@@ -1604,8 +1587,6 @@ def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False
                 vcf_fields[7] += f";MOTIF_SIZE={len(tr.repeat_unit)}"
                 vcf_fields[7] += f";START_0BASED={tr.start_0based}"
                 vcf_fields[7] += f";END={tr.end_1based}"
-                if tr.motif_interruption_indices:
-                    vcf_fields[7] += f";INTERUPTIONS={tr.motif_interruption_indices_string}"
                 vcf_fields[7] += f";DETECTED={tr.detection_mode}"
 
                 line = "\t".join(vcf_fields) + "\n"

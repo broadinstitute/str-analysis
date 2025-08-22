@@ -194,8 +194,6 @@ class TestAllele(unittest.TestCase):
                 msg = ("pure repeats" if not test_interrupted_repeats else "interrupted repeats") + (f" using TRF" if detect_repeats_using_TRF else " not using TRF")
 
                 self.assertEqual(results[0].chrom, "chr22", msg=msg)
-                if test_interrupted_repeats:
-                    self.assertEqual(results[0].motif_interruption_indices_string, "2")
                 self.assertEqual(results[0].repeat_unit, "CAG", msg=msg)
                 self.assertEqual(results[0].start_0based, 10689286, msg=msg)
                 self.assertEqual(results[0].end_1based, 10689286, msg=msg)
