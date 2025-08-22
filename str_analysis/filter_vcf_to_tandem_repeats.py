@@ -153,6 +153,7 @@ def parse_args():
     merge_p = subparsers.add_parser("merge", help="step2: Optionally merge catalogs produced in step1 from two or more VCF files.")
     merge_p.add_argument("--write-detailed-bed", help="Output a second BED file (in addition to the main output BED file of all TR loci after merging) "
                          "where the name field (ie. column 4) contains additional info besides the repeat unit.", action="store_true")    
+    merge_p.add_argument("-L", "--interval", help="Only process loci in this genomic interval (format: chrom:start-end)", action="append")
     merge_p.add_argument("-o", "--output-prefix", help="Output file prefix. If not specified, it will be computed based on "
                    "the input vcf filename")
     merge_p.add_argument("-v", "--verbose", help="Print detailed logs.", action="store_true")
@@ -173,6 +174,9 @@ def parse_args():
     args = p.parse_args()
 
     if args.subcommand == "catalog":
+        if args.dont_allow_interruptions:
+            args.dont_run_trf = True
+
         if not args.dont_run_trf and not args.trf_executable_path:
             p.error(f"Must specify --trf-executable-path or --dont-run-trf")
         
@@ -429,6 +433,9 @@ class TandemRepeatAllele:
         self._start_0based = self._allele.get_left_flank_end() - num_repeat_bases_in_left_flank
         self._end_1based = self._allele.get_right_flank_start_0based() + num_repeat_bases_in_right_flank
 
+        if self._start_0based > self._end_1based:
+            raise ValueError(f"Logic error: start_0based ({self._start_0based}) > end_1based ({self._end_1based})")
+
         self._num_repeats_ref = (num_repeat_bases_in_left_flank + num_repeat_bases_in_right_flank) // len(repeat_unit)
         self._num_repeats_alt = self._num_repeats_ref
         if self._allele.ins_or_del == "INS":
@@ -587,6 +594,10 @@ class TandemRepeatAllele:
         return self._is_pure_repeat
     
     @property
+    def allele_order(self):
+        return self._allele.allele_order
+    
+    @property
     def motif_interruption_indices(self):
         return self._motif_interruption_indices
 
@@ -613,10 +624,30 @@ class TandemRepeatAllele:
     
     def __repr__(self):
         return self.__str__()
+    
+    def create_merged(self, new_start_0based, new_end_1based, new_detection_mode):
+                        
+        result = TandemRepeatAllele(
+            self.allele,
+            self.repeat_unit,
+            self.num_repeat_bases_in_left_flank - (self.start_0based - new_start_0based),
+            self.num_repeat_bases_in_variant,
+            self.num_repeat_bases_in_right_flank + (new_end_1based - self.end_1based),
+            new_detection_mode,
+            self.is_pure_repeat,
+            self.motif_interruption_indices,
+        )
 
+        assert self.start_0based == new_start_0based
+        assert self.end_1based == new_end_1based
+
+        return result
 
 class MinimalTandemRepeatAllele:
     def __init__(self, chrom, start_0based, end_1based, repeat_unit, detection_mode=None, allele_order=-1):
+        if start_0based > end_1based:
+            raise ValueError(f"start_0based ({start_0based}) > end_1based ({end_1based})")
+        
         self._chrom = chrom
         self._start_0based = start_0based
         self._end_1based = end_1based
@@ -624,6 +655,7 @@ class MinimalTandemRepeatAllele:
         self._detection_mode = detection_mode
         self._canonical_repeat_unit = None
         self._allele_order = allele_order
+        
 
     @property
     def chrom(self):
@@ -662,13 +694,21 @@ class MinimalTandemRepeatAllele:
     @property
     def locus_id(self):
         return f"{self._chrom}-{self._start_0based}-{self._end_1based}-{self._repeat_unit}"
-        
+            
     def __str__(self):
         return self.locus_id
     
     def __repr__(self):
         return self.__str__()
     
+    def create_merged(self, new_start_0based, new_end_1based, new_detection_mode):
+        return MinimalTandemRepeatAllele(
+            self._chrom,
+            new_start_0based,
+            new_end_1based,
+            self._repeat_unit,
+            detection_mode=new_detection_mode,
+            allele_order=self._allele_order)
 
 
 
@@ -782,7 +822,7 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
         print(f"Found {sum(1 for tr in tandem_repeat_alleles if tr.is_pure_repeat):,d} perfect tandem repeat alleles and {sum(1 for tr in tandem_repeat_alleles if not tr.is_pure_repeat):,d} nearly-perfect tandem repeat alleles")
 
     # sort the alleles into their original order
-    tandem_repeat_alleles.sort(key=lambda x: x.allele.allele_order)
+    tandem_repeat_alleles.sort(key=lambda x: x.allele_order)
     alleles_to_process_next_using_trf.sort(key=lambda x: x.allele_order)
 
     return tandem_repeat_alleles, alleles_to_process_next_using_trf
@@ -857,7 +897,7 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
             shutil.rmtree(trf_working_dir)
 
     # sort results into the original order of the alleles
-    tandem_repeat_alleles.sort(key=lambda x: x.allele.allele_order)
+    tandem_repeat_alleles.sort(key=lambda x: x.allele_order)
 
     return tandem_repeat_alleles
 
@@ -865,19 +905,16 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
 def parse_input_vcf_file(args, counters, fasta_obj):
     """Parse the input VCF file and return a list of Allele objects."""
 
-    input_files_to_close = []
     if args.interval:
         if args.verbose:
             print(f"Parsing interval(s) {', '.join(args.interval)} from {args.input_vcf_path}")
 
         tabix_file = pysam.TabixFile(args.input_vcf_path)
         vcf_iterator = (line for interval in args.interval for line in tabix_file.fetch(interval))
-        input_files_to_close.append(tabix_file)
     else:
         if args.verbose:
             print(f"Parsing {args.input_vcf_path}")
         vcf_iterator = open_file(args.input_vcf_path, is_text_file=True)
-        input_files_to_close.append(vcf_iterator)
 
     if args.show_progress_bar:
         vcf_iterator = tqdm.tqdm(vcf_iterator, unit=" variants", unit_scale=True)
@@ -886,7 +923,7 @@ def parse_input_vcf_file(args, counters, fasta_obj):
     # iterate over all VCF rows
     alleles_from_vcf = []
     vcf_line_i = 0
-    allele_allele_order = 0
+    allele_order = 0
     for line in vcf_iterator:
         if line.startswith("#"):
             continue
@@ -955,8 +992,8 @@ def parse_input_vcf_file(args, counters, fasta_obj):
                 #allele_filter_reason = FILTER_ALLELE_MNV_INDEL
                 continue
 
-            allele = Allele(vcf_chrom, vcf_pos, vcf_ref, alt_allele, fasta_obj, allele_order=allele_allele_order)
-            allele_allele_order += 1
+            allele = Allele(vcf_chrom, vcf_pos, vcf_ref, alt_allele, fasta_obj, allele_order=allele_order)
+            allele_order += 1
 
             if len(allele.variant_bases) > MAX_INDEL_SIZE:
                 # this is a very large indel, so we don't want to process it
@@ -1302,23 +1339,47 @@ def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, verbose=False):
         tr_alleles = list(tandem_repeat_alleles_for_chrom)
 
         current_i = 0
-        current_end_1based = tr_alleles[current_i].end_1based
         next_i = 1
         while next_i < len(tr_alleles):
             # check if they have similar motifs
             merge_loci = False
-            if min(tr_alleles[next_i].start_0based, tr_alleles[next_i].end_1based) <= current_end_1based and (
-                are_repeat_units_similar(tr_alleles[current_i].canonical_repeat_unit, tr_alleles[next_i].canonical_repeat_unit)):
-                    merge_loci = True
+            keep_the_larger_one = False
+            if tr_alleles[current_i].end_1based + 1 >= tr_alleles[next_i].start_0based:
+                current_contains_next = tr_alleles[current_i].start_0based <= tr_alleles[next_i].start_0based and tr_alleles[current_i].end_1based >= tr_alleles[next_i].end_1based
+                next_contains_current = tr_alleles[next_i].start_0based <= tr_alleles[current_i].start_0based and tr_alleles[next_i].end_1based >= tr_alleles[current_i].end_1based
+                if tr_alleles[current_i].canonical_repeat_unit == tr_alleles[next_i].canonical_repeat_unit:
+                    if current_contains_next or next_contains_current:
+                        keep_the_larger_one = True
+                    else:
+                        merge_loci = True
+                elif are_repeat_units_similar(tr_alleles[current_i].canonical_repeat_unit, tr_alleles[next_i].canonical_repeat_unit):
+                    they_overlap = min(tr_alleles[current_i].end_1based, tr_alleles[next_i].end_1based) - max(tr_alleles[current_i].start_0based, tr_alleles[next_i].start_0based) >= 2*len(tr_alleles[current_i].repeat_unit) 
+                    if current_contains_next or next_contains_current or they_overlap:
+                        keep_the_larger_one = True
 
             if merge_loci:
+                new_start_0based = min(tr_alleles[current_i].start_0based, tr_alleles[next_i].start_0based)
+                new_end_1based = max(tr_alleles[current_i].end_1based, tr_alleles[next_i].end_1based)
+                if tr_alleles[current_i].detection_mode is not None and tr_alleles[next_i].detection_mode is not None:
+                    new_detection_mode = f"merged: " + ",".join(sorted(set([tr_alleles[current_i].detection_mode, tr_alleles[next_i].detection_mode])))
+                elif tr_alleles[current_i].detection_mode is not None:
+                    new_detection_mode = f"merged: {tr_alleles[current_i].detection_mode}"
+                elif tr_alleles[next_i].detection_mode is not None:
+                    new_detection_mode = f"merged: {tr_alleles[next_i].detection_mode}"
+                else:
+                    new_detection_mode = None
+                
                 if tr_alleles[current_i].ref_interval_size < tr_alleles[next_i].ref_interval_size:
                     current_i = next_i  # keep the locus definiton that has the larger interval
-                current_end_1based = max(current_end_1based, tr_alleles[next_i].end_1based)                                
+
+                tr_alleles[current_i] = tr_alleles[current_i].create_merged(new_start_0based, new_end_1based, new_detection_mode)
+
+            elif keep_the_larger_one:
+                if tr_alleles[current_i].ref_interval_size < tr_alleles[next_i].ref_interval_size:
+                    current_i = next_i  # keep the locus definiton that has the larger interval                
             else:
                 results.append(tr_alleles[current_i])
                 current_i = next_i
-                current_end_1based = tr_alleles[current_i].end_1based
 
             next_i += 1
 
@@ -1477,17 +1538,14 @@ def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False
         only_write_filtered_out_alleles (bool): if True, only write the variants that are not in the tandem_repeats_alleles list
     """
 
-    input_files_to_close = []
     if args.interval:
         tabix_file = pysam.TabixFile(args.input_vcf_path)
         vcf_iterator = itertools.chain(
             (f"{line}\n" for line in tabix_file.header), 
             (line for interval in args.interval for line in tabix_file.fetch(interval)),
         )
-        input_files_to_close.append(tabix_file)
     else:
         vcf_iterator = open_file(args.input_vcf_path, is_text_file=True)
-        input_files_to_close.append(vcf_iterator)
 
     # iterate over all VCF rows
     if only_write_filtered_out_alleles:
@@ -1596,36 +1654,95 @@ def do_merge_subcommand(args):
 
     input_bed_paths_iterator = args.input_bed_paths if not args.show_progress_bar else tqdm.tqdm(args.input_bed_paths, unit=" catalog")
     for path_i, input_bed_path in enumerate(input_bed_paths_iterator):
-        # parse the BED file into a list of MinimalTandemRepeatAllele objects
-        fopen = gzip.open if input_bed_path.endswith("gz") else open
-        with fopen(input_bed_path, "rt") as f:
-            for line in f:
-                fields = line.strip().split("\t")
-                if len(fields) < 4:
-                    raise ValueError(f"Invalid BED file format in {input_bed_path}: {line}")
-                
-                name_field_tokens = fields[3].split(":")
-                repeat_unit = name_field_tokens[0]
-                detection_mode = None
-                if args.write_detailed_bed and len(name_field_tokens) >= 3:
-                    #motif_size = int(name_field_tokens[1])
-                    detection_mode = name_field_tokens[2]
-                    input_catalogs_have_details = True
+        if args.verbose:
+            print("-"*100)
 
-                all_trs.append(MinimalTandemRepeatAllele(
-                    chrom=fields[0],
-                    start_0based=int(fields[1]),
-                    end_1based=int(fields[2]),
-                    repeat_unit=repeat_unit,
-                    detection_mode=detection_mode,
-                ))
-            if len(all_trs) > args.batch_size or path_i == len(args.input_bed_paths) - 1:
-                all_trs = merge_overlapping_tandem_repeat_loci(all_trs, verbose=args.verbose)
+        input_files_to_close = []
+        if args.interval:
+            if args.verbose:
+                print(f"Parsing {', '.join(args.interval)} from {input_bed_path}")
+
+            tabix_file = pysam.TabixFile(input_bed_path)
+            bed_iterator = (line for interval in args.interval for line in tabix_file.fetch(interval))
+            input_files_to_close.append(tabix_file)
+        else:
+            if args.verbose:
+                print(f"Parsing {input_bed_path}")
+            bed_iterator = open_file(input_bed_path, is_text_file=True)
+            input_files_to_close.append(bed_iterator)
+
+        # parse the BED file into a list of MinimalTandemRepeatAllele objects
+        current_catalog_trs = []
+        for line in bed_iterator:
+            fields = line.strip().split("\t")
+            if len(fields) < 4:
+                raise ValueError(f"Invalid BED file format in {input_bed_path}: {line}")
+            
+            name_field_tokens = fields[3].split(":")
+            repeat_unit = name_field_tokens[0]
+            detection_mode = None
+            if args.write_detailed_bed and len(name_field_tokens) >= 3:
+                #motif_size = int(name_field_tokens[1])
+                detection_mode = name_field_tokens[2]
+                input_catalogs_have_details = True
+
+            current_catalog_trs.append(MinimalTandemRepeatAllele(
+                chrom=fields[0],
+                start_0based=int(fields[1]),
+                end_1based=int(fields[2]),
+                repeat_unit=repeat_unit,
+                detection_mode=detection_mode,
+            ))
+        
+        if args.verbose:
+            print_tr_stats(current_catalog_trs, title=f"Catalog {path_i+1}: {input_bed_path}")
+
+        all_trs.extend(current_catalog_trs)
+        if len(all_trs) > args.batch_size or path_i == len(args.input_bed_paths) - 1:
+            if args.verbose:
+                print("="*100)
+            all_trs = merge_overlapping_tandem_repeat_loci(all_trs, verbose=args.verbose)
+
+        for input_file in input_files_to_close:
+            input_file.close()
+
+
+    if args.verbose:
+        print_tr_stats(all_trs, title=f"Merged catalog stats: ")
 
     write_bed(all_trs, args)    
 
     if args.write_detailed_bed and input_catalogs_have_details:
         write_bed(all_trs, args, detailed=True)
+
+
+def print_tr_stats(tandem_repeat_alleles, title=None):
+    """Print statistics about the tandem repeat alleles."""
+
+    counters = collections.defaultdict(int)
+    for tandem_repeat_allele in tandem_repeat_alleles:
+        counters[f"total"] += 1
+        ru_len = len(tandem_repeat_allele.repeat_unit)
+        if ru_len <= 6:
+            counters[f"STRs"] += 1
+            counters[f"STR{ru_len}"] += 1
+        else:
+            counters[f"VNTRs"] += 1
+
+    if title:
+        print(title)
+    
+    if counters['total'] > 0:
+        for ru_len in range(1, 7):
+            print(f"{counters[f'STR{ru_len}']:10,d} ({100*counters[f'STR{ru_len}']/counters['total']:5.1f}%) {ru_len}bp motifs")
+
+        str_stats = f"{counters['STRs']:10,d} ({100*counters['STRs']/counters['total']:5.1f}%)"
+        vntr_stats = f"{counters['VNTRs']:10,d} ({100*counters['VNTRs']/counters['total']:5.1f}%)"
+        print(f"{vntr_stats} 7+bp motifs")
+        print()
+        print(f"{str_stats} STRs")
+        print(f"{vntr_stats} VNTRs")
+    print(f"{counters['total']:10,d} total TRs")
 
 
 def do_genotype_subcommand(args):
