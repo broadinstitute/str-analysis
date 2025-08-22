@@ -1353,7 +1353,8 @@ def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, verbose=False):
                     else:
                         merge_loci = True
                 elif are_repeat_units_similar(tr_alleles[current_i].canonical_repeat_unit, tr_alleles[next_i].canonical_repeat_unit):
-                    they_overlap = min(tr_alleles[current_i].end_1based, tr_alleles[next_i].end_1based) - max(tr_alleles[current_i].start_0based, tr_alleles[next_i].start_0based) >= 2*len(tr_alleles[current_i].repeat_unit) 
+                    longer_motif_length = max(len(tr_alleles[current_i].repeat_unit), len(tr_alleles[next_i].repeat_unit))
+                    they_overlap = min(tr_alleles[current_i].end_1based, tr_alleles[next_i].end_1based) - max(tr_alleles[current_i].start_0based, tr_alleles[next_i].start_0based) >= 2*longer_motif_length 
                     if current_contains_next or next_contains_current or they_overlap:
                         keep_the_larger_one = True
 
