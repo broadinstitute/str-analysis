@@ -295,7 +295,7 @@ class TestAllele(unittest.TestCase):
     def test_merge_overlapping_tandem_repeat_loci4(self):
         """Test the merge_overlapping_tandem_repeat_loci function."""
 
-        # overlapping
+        # two overlapping
         tandem_repeat_alleles = [
             MinimalTandemRepeatAllele("chr22", 10515040, 10515052, "CAG", DETECTION_MODE_PURE_REPEATS, allele_order=1),
             MinimalTandemRepeatAllele("chr22", 10515046, 10515058, "CAG", DETECTION_MODE_TRF, allele_order=2),
@@ -303,7 +303,20 @@ class TestAllele(unittest.TestCase):
         merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles)
         self.assertEqual(len(merged_tandem_repeat_alleles), 1)
         self.assertEqual(merged_tandem_repeat_alleles[0].locus_id, "chr22-10515040-10515058-CAG")
-        self.assertEqual(merged_tandem_repeat_alleles[0].detection_mode, "merged: pure,trf")
+        self.assertEqual(merged_tandem_repeat_alleles[0].detection_mode, "merged:pure,trf")
+
+        # four overlapping
+        tandem_repeat_alleles = [
+            MinimalTandemRepeatAllele("chr22", 10515040, 10515052, "CAG", DETECTION_MODE_PURE_REPEATS, allele_order=1),
+            MinimalTandemRepeatAllele("chr22", 10515046, 10515058, "CAG", DETECTION_MODE_TRF, allele_order=2),
+            MinimalTandemRepeatAllele("chr22", 10515052, 10515064, "CAG", DETECTION_MODE_ALLOW_INTERRUPTIONS, allele_order=3),
+            MinimalTandemRepeatAllele("chr22", 10515064, 10515076, "CAG", DETECTION_MODE_PURE_REPEATS, allele_order=4),
+        ]
+        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles)
+        self.assertEqual(len(merged_tandem_repeat_alleles), 1)
+        self.assertEqual(merged_tandem_repeat_alleles[0].locus_id, "chr22-10515040-10515076-CAG")
+        self.assertEqual(merged_tandem_repeat_alleles[0].detection_mode, "merged:interrupted,pure,trf")
+
 
         # adjacent
         tandem_repeat_alleles = [
@@ -313,7 +326,7 @@ class TestAllele(unittest.TestCase):
         merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles)
         self.assertEqual(len(merged_tandem_repeat_alleles), 1)
         self.assertEqual(merged_tandem_repeat_alleles[0].locus_id, "chr22-10515040-10515058-CAG")
-        self.assertEqual(merged_tandem_repeat_alleles[0].detection_mode, "merged: pure,trf")
+        self.assertEqual(merged_tandem_repeat_alleles[0].detection_mode, "merged:pure,trf")
 
         # A contains B
         tandem_repeat_alleles = [

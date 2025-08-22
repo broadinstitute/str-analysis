@@ -1361,14 +1361,15 @@ def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, verbose=False):
             if merge_loci:
                 new_start_0based = min(tr_alleles[current_i].start_0based, tr_alleles[next_i].start_0based)
                 new_end_1based = max(tr_alleles[current_i].end_1based, tr_alleles[next_i].end_1based)
-                if tr_alleles[current_i].detection_mode is not None and tr_alleles[next_i].detection_mode is not None:
-                    new_detection_mode = f"merged: " + ",".join(sorted(set([tr_alleles[current_i].detection_mode, tr_alleles[next_i].detection_mode])))
-                elif tr_alleles[current_i].detection_mode is not None:
-                    new_detection_mode = f"merged: {tr_alleles[current_i].detection_mode}"
-                elif tr_alleles[next_i].detection_mode is not None:
-                    new_detection_mode = f"merged: {tr_alleles[next_i].detection_mode}"
-                else:
+                if tr_alleles[current_i].detection_mode is None and tr_alleles[next_i].detection_mode is None:
                     new_detection_mode = None
+                else:
+                    detection_modes = []
+                    for detection_mode in [tr_alleles[current_i].detection_mode, tr_alleles[next_i].detection_mode]:
+                        if detection_mode is not None:
+                            for _detection_mode in detection_mode.split(","):
+                                detection_modes.append(re.sub('^merged:', '', _detection_mode))
+                    new_detection_mode = "merged:" + ",".join(sorted(set(detection_modes)))
                 
                 if tr_alleles[current_i].ref_interval_size < tr_alleles[next_i].ref_interval_size:
                     current_i = next_i  # keep the locus definiton that has the larger interval
