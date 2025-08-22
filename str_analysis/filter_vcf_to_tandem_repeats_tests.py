@@ -55,6 +55,7 @@ class TestAllele(unittest.TestCase):
             verbose=False,
             dont_allow_interruptions=False,
             dont_run_trf=False,
+            min_indel_size_to_run_trf=7,
         )
 
 
@@ -173,7 +174,7 @@ class TestAllele(unittest.TestCase):
             for detect_repeats_using_TRF in [False, True]:
                 if test_interrupted_repeats and detect_repeats_using_TRF:
                     continue
-                
+
                 if not detect_repeats_using_TRF:
                     results, alleles_to_process_next_using_trf = detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, self._default_args)
                 else:
@@ -293,8 +294,22 @@ class TestAllele(unittest.TestCase):
 
 
     def test_failed_filtering(self):
-        pass
+        alleles = [
+            Allele("chr22", 10689286, "A", "ACAG", self._fasta_obj, allele_order=1),
+            Allele("chr22", 10689286, "A", "ACAGCAG", self._fasta_obj, allele_order=2),
+            Allele("chr22", 10689286, "A", "ACACACACA", self._fasta_obj, allele_order=3),
+            Allele("chr22", 10689286, "A", "ACACACTCAACACACTCA", self._fasta_obj, allele_order=4),
+            Allele("chr22", 10689286, "A", "A" + ("CAGTGGCA"*10 + "T")*2, self._fasta_obj, allele_order=5),
+        ]
+        counters = collections.defaultdict(int)
+        results, alleles_to_process_next_using_trf = detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, self._default_args)
+        self.assertEqual(len(results), 0)
+        self.assertEqual(alleles_to_process_next_using_trf[0].allele_order, 3)
+        self.assertEqual(len(alleles_to_process_next_using_trf), 3)
 
+        results = detect_tandem_repeats_using_trf(alleles, counters, self._default_args)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].allele.allele_order, 5)
 
     def test_extended_flanks(self):
         pass

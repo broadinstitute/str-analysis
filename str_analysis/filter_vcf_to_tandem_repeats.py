@@ -695,7 +695,7 @@ def do_catalog_subcommand(args):
 
     # merge overlapping tandem repeats if they have the same (or similar) repeat units
     alleles_that_are_tandem_repeats = merge_overlapping_tandem_repeat_loci(alleles_that_are_tandem_repeats, verbose=args.verbose)
-    alleles_that_are_tandem_repeats.sort(key=lambda x: (x.chrom, x.start_0based, x.end_1based))
+    alleles_that_are_tandem_repeats.sort(key=lambda x: x.allele.allele_order)
 
     # write results to output file(s)
     if not args.output_prefix:
