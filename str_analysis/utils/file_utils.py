@@ -82,11 +82,19 @@ def download_local_copy(url_or_google_storage_path, verbose=False):
         if not os.path.isfile(path):
             if verbose:
                 print(f"Downloading {url_or_google_storage_path} to {path}")
-            try: import hailtop.fs as hfs
-            except ImportError:
-                print("ERROR: Hail is not installed. Please run: python3 -m pip install hail")
-                sys.exit(1)
-            hfs.copy(url_or_google_storage_path, f"{path}.temp", requester_pays_config=gcloud_requester_pays_project)
+
+            # try using gsutil first (it's currently more reliable than hfs.copy)
+            gcloud_request_pays_arg = f"-u {gcloud_requester_pays_project}" if gcloud_requester_pays_project is not None else ""
+            os.system(f"gsutil {gcloud_request_pays_arg} -m cp {url_or_google_storage_path} {path}.temp")
+            if not os.path.isfile(f"{path}.temp"):
+                # fall back on hfs.copy
+                try:
+                    import hailtop.fs as hfs
+                    hfs.copy(url_or_google_storage_path, f"{path}.temp", requester_pays_config=gcloud_requester_pays_project)
+                except ImportError:
+                    print("WARNING: Hail is not installed. Please run: python3 -m pip install hail")
+                    sys.exit(1)
+
             os.rename(f"{path}.temp", path)
     else:
         path = os.path.join(temp_dir, os.path.basename(url_or_google_storage_path))
