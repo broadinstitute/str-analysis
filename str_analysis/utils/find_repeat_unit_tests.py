@@ -2,7 +2,8 @@ import unittest
 
 from str_analysis.utils.find_repeat_unit import get_repeat_unit_regex_with_N_base, get_most_common_repeat_unit, \
     find_repeat_unit_without_allowing_interruptions, find_repeat_unit_allowing_interruptions, \
-    extend_repeat_into_sequence_allowing_interruptions, extend_repeat_into_sequence_without_allowing_interruptions
+    extend_repeat_into_sequence_allowing_interruptions, extend_repeat_into_sequence_without_allowing_interruptions, \
+    MAX_INTERRUPTED_REPEAT_UNIT_LENGTH
 from str_analysis.utils.find_repeat_unit import count_pure_repeats
 
 
@@ -232,7 +233,7 @@ class Test(unittest.TestCase):
                             found_num_total_repeats = found_num_pure_repeats
 
                         if allow_interruptions and num_repeats > 1:
-                            if len(repeat_unit) >= 3:
+                            if len(repeat_unit) >= 3 and len(repeat_unit) <= MAX_INTERRUPTED_REPEAT_UNIT_LENGTH:
                                 self.assertEqual(found_repeat_unit, repeat_unit, f"{num_repeats}x{repeat_unit} interrupted at {interruption_index}: {sequence_with_interruption}. found_repeat_unit: {found_repeat_unit}. Expected: {repeat_unit} ")
                                 self.assertEqual(found_num_pure_repeats, found_num_total_repeats - 1, f"{num_repeats}x{repeat_unit} interrupted at {interruption_index}: {sequence_with_interruption}. found_num_pure_repeats: {found_num_pure_repeats}. Expected: {found_num_total_repeats - 1}")
                                 self.assertEqual(found_num_total_repeats, num_repeats, f"{num_repeats}x{repeat_unit} interrupted at {interruption_index}: {sequence_with_interruption}. found_num_total_repeats: {found_num_total_repeats}. Expected: {num_repeats}")

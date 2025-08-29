@@ -1,8 +1,9 @@
-"""When filter_vcf_to_STR.py is run on multiple samples, this script can be used to combine the resulting *.variants.tsv.gz files into a single combined table 
-with one record per locus. It takes the per-sample tables as well as DipCall confidence regions as input and outputs a single combined table with one record per locus by:
+"""When filter_vcf_to_tandem_repeats.py is applied to more than one single-sample VCF, this script can be used to
+combine the resulting *.variants.tsv.gz tables into a single table with one record per locus. It takes the
+per-sample tables as well as the DipCall VCFs and confidence regions and then outputs a single combined table by:
 1. performing an outer-join on the loci in the per-sample tables
-2. setting missing genotypes in each sample to homozygous reference for loci that are within the DipCall confidence regions of that sample (based on the assumption that 
-if no tandem repeat variant was detected there in the original VCF, then the locus is homozygous reference).
+2. setting missing genotypes in each sample to homozygous reference for loci that are within the DipCall confidence
+   regions and don't overlap any variants in the input VCF
 """
 
 import argparse
@@ -345,7 +346,43 @@ def create_table_of_all_loci(input_tsvs, exclude_homopolymers = False, discard_i
     return combined_df
 
 
+def parse_dipcall_vcf_file(vcf_file_path, chroms_to_process = None):
+
+    interval_trees = collections.defaultdict(IntervalTree)
+
+    fopen = gzip.open if vcf_file_path.endswith(".gz") else open
+    with fopen(vcf_file_path, "rt") as f:
+        for line in f:
+            if line.startswith("#"):
+                continue
+            vcf_fields = line.strip().split("\t")
+            vcf_chrom = vcf_fields[0].replace("chr", "").upper()
+            if chroms_to_process is not None and vcf_chrom not in chroms_to_process:
+                continue
+
+            vcf_pos = int(vcf_fields[1])
+            vcf_ref = vcf_fields[3].upper()
+            if "N" in vcf_ref:
+                continue
+
+            vcf_alt = vcf_fields[4].upper()
+            alt_alleles = vcf_alt.split(",")
+
+            # filter out SNV alleles, '*' alleles, and alleles with N bases
+            alt_alleles = [a for a in alt_alleles if len(a) != len(vcf_ref) and a != "*" and "N" not in a]
+            if len(alt_alleles) == 0:
+                continue
+
+            max_indel_size = max(abs(len(a) - len(vcf_ref)) for a in alt_alleles)
+
+            interval_trees[vcf_chrom].add(Interval(vcf_pos - 1, vcf_pos + len(vcf_ref) - 1, data={"indel_size": max_indel_size}))
+        
+    return interval_trees
+
+
 def parse_dipcall_confidence_regions_bed_file(bed_file_path, chroms_to_process = None):
+
+    confidence_region_interval_trees = collections.defaultdict(IntervalTree)
 
     bed_schema_overrides = {
         "Chrom": pl.Utf8,
@@ -353,8 +390,6 @@ def parse_dipcall_confidence_regions_bed_file(bed_file_path, chroms_to_process =
         "End1Based": pl.Int32,
     }
     
-    confidence_region_interval_trees = collections.defaultdict(IntervalTree)
-
     try:
         # Read the BED file with polars
         dipcall_confidence_regions = pl.read_csv(
@@ -390,41 +425,59 @@ def parse_dipcall_confidence_regions_bed_file(bed_file_path, chroms_to_process =
 
 EMPTY_INTERVAL_TREE = IntervalTree()
 
-def fill_in_missing_genotypes(df, sample_id, dipcall_confidence_region_interval_trees, verbose=True):
+def fill_in_missing_genotypes(df, sample_id, dipcall_vcf_indel_interval_trees, dipcall_confidence_region_interval_trees, verbose=True):
 
-    def does_locus_overlap_confidence_region(row):
+    def should_genotype_be_set_to_hom_ref(row):
         normalized_chrom = row["Chrom"]
         start = row["Start1Based"] - 1
         end = row["End1Based"]
+        motif_size = row["MotifSize"]
 
-        interval_tree = dipcall_confidence_region_interval_trees.get(normalized_chrom, EMPTY_INTERVAL_TREE)
-        return interval_tree.overlaps(start, max(end, start + 1))
+        # if the genotype is not missing, return False
+        if row[f"NumRepeatsShortAllele:{sample_id}"] is not None or row[f"NumRepeatsLongAllele:{sample_id}"] is not None:
+            return False
+
+        # if the locus is outside the DipCall confidence regions, return False
+        dipcall_confidence_region_interval_tree = dipcall_confidence_region_interval_trees.get(normalized_chrom, EMPTY_INTERVAL_TREE)
+        is_in_confidence_region = dipcall_confidence_region_interval_tree.overlaps(start, max(end, start + 1))
+        if not is_in_confidence_region:
+            return False
+
+        # if the locus overlaps with any indels in the DipCall VCF, return False
+        dipcall_vcf_indel_interval_tree = dipcall_vcf_indel_interval_trees.get(normalized_chrom, EMPTY_INTERVAL_TREE)
+        overlapping_indels = dipcall_vcf_indel_interval_tree.overlap(start, max(end, start + 1))
+        for overlapping_indel in overlapping_indels:
+            if overlapping_indel.data["indel_size"] > 0.5 * motif_size:
+                return False
+        
+        return True
+        
 
     # Add boolean column indicating if genotype should be set to homozygous reference
     df = df.with_columns(
         pl.struct(["Chrom", "Start1Based", "End1Based", f"NumRepeatsShortAllele:{sample_id}", f"NumRepeatsLongAllele:{sample_id}"])
-        .map_elements(does_locus_overlap_confidence_region, return_dtype=pl.Boolean)
-        .alias("DoesLocusOverlapConfidenceRegion")
+        .map_elements(should_genotype_be_set_to_hom_ref, return_dtype=pl.Boolean)
+        .alias("SetGenotypeToHomRef")
     )
 
     both_alleles_are_missing = pl.col(f"NumRepeatsShortAllele:{sample_id}").is_null() & pl.col(f"NumRepeatsLongAllele:{sample_id}").is_null()
 
     if verbose:
-        both_alleles_missing_in_confidence_region_df = df.filter(pl.col('DoesLocusOverlapConfidenceRegion') & both_alleles_are_missing)
+        both_alleles_missing_in_confidence_region_df = df.filter(pl.col('SetGenotypeToHomRef') & both_alleles_are_missing)
         message = f"Setting {both_alleles_missing_in_confidence_region_df.height:,d} out of {df.height:,d} "
         message += f"({(both_alleles_missing_in_confidence_region_df.height/df.height):.1%}) genotypes to homozygous reference for sample {sample_id}"
         #message += f", leaving {df.filter(both_alleles_are_missing).height - both_alleles_missing_in_confidence_region_df.height:,d} missing genotypes for {sample_id}"
         print(message)
 
     df = df.with_columns(
-        pl.when(pl.col("DoesLocusOverlapConfidenceRegion")).then(
+        pl.when(pl.col("SetGenotypeToHomRef")).then(
             pl.when(both_alleles_are_missing).then(
                 pl.col(f"NumRepeatsInReference")
             ).otherwise(
                 pl.col(f"NumRepeatsShortAllele:{sample_id}")
             )
         ).otherwise(None).alias(f"NumRepeatsShortAllele:{sample_id}"),
-        pl.when(pl.col("DoesLocusOverlapConfidenceRegion")).then(
+        pl.when(pl.col("SetGenotypeToHomRef")).then(
             pl.when(both_alleles_are_missing).then(
                 pl.col(f"NumRepeatsInReference")
             ).otherwise(
@@ -433,7 +486,7 @@ def fill_in_missing_genotypes(df, sample_id, dipcall_confidence_region_interval_
         ).otherwise(None).alias(f"NumRepeatsLongAllele:{sample_id}"),
     )
 
-    df = df.drop("DoesLocusOverlapConfidenceRegion")
+    df = df.drop("SetGenotypeToHomRef")
 
     return df
 
@@ -506,6 +559,7 @@ def generate_combined_columns(combined_df):
 def add_sample_columns(
     combined_df, 
     sample_id_to_input_tsv, 
+    sample_id_to_dipcall_vcf_indel_interval_trees,
     sample_id_to_dipcall_confidence_region_interval_trees, 
     include_per_sample_columns=False, 
     exclude_homopolymers=False, 
@@ -533,8 +587,9 @@ def add_sample_columns(
         df = df.drop(f"IsPureRepeat:{sample_id}")
         df = df.join(combined_df.select(PER_LOCUS_COLUMNS), on=PER_LOCUS_COLUMNS, how="right", coalesce=True)
 
+        dipcall_vcf_indel_interval_trees = sample_id_to_dipcall_vcf_indel_interval_trees[sample_id]
         dipcall_confidence_region_interval_trees = sample_id_to_dipcall_confidence_region_interval_trees[sample_id]
-        df = fill_in_missing_genotypes(df, sample_id, dipcall_confidence_region_interval_trees)
+        df = fill_in_missing_genotypes(df, sample_id, dipcall_vcf_indel_interval_trees, dipcall_confidence_region_interval_trees)
 
         # Left join to the previously combined table of all loci
         combined_df = combined_df.join(
@@ -613,7 +668,9 @@ def main():
     parser.add_argument("--output-stats-tsv", action="store_true", help="If specified, will output a table with stats")
     parser.add_argument("-b", "--batches", type=int, default=1, choices=[1, 2, 3, 4, 6, 8, 12, 24], help="When the nubmer of input sample tables if large enough to "
                         "cause out-of-memory errors, split the input tables into batches by chromosome(s). ")
-    parser.add_argument("input_tsv_and_bed_files", nargs="+", help="Input STR variant TSV files and dipcall confidence region BED files")
+    parser.add_argument("input_tsv_bed_and_vcf_files", nargs="+", help="This should be a list of the input STR variant TSV files produced by the " 
+                        "filter_vcf_to_STR_variants.py script, as well as the VCF files and confidence region BED files produced by DipCall for the same samples. "
+                        "The filenames should have the format: '<sample_id>.*.tsv.gz', '<sample_id>.*.vcf.gz', and '<sample_id>.*.bed.gz'")
     parser.add_argument("--force", action="store_true", help="Force re-run even if the output file already exists")
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
     args = parser.parse_args()
@@ -621,18 +678,26 @@ def main():
 
     # Parse and validate TSV and BED file paths
     sample_id_to_input_tsv = {}
-    dipcall_confidence_regions_bed_files = []
-    for input_tsv_or_bed_file in args.input_tsv_and_bed_files:
-        if not os.path.exists(input_tsv_or_bed_file):
-            parser.error(f"Input file {input_tsv_or_bed_file} does not exist. It must be a tsv file or a bed file.")
+    sample_id_to_dipcall_vcf = {}
+    sample_id_to_dipcall_confidence_regions_bed = {}
+    for input_file_path in args.input_tsv_bed_and_vcf_files:
+        if not os.path.exists(input_file_path):
+            parser.error(f"Input file {input_file_path} does not exist. It must be a tsv file or a bed file.")
 
-        if input_tsv_or_bed_file.endswith(".tsv") or input_tsv_or_bed_file.endswith(".tsv.gz"):
-            sample_id = get_sample_id(input_tsv_or_bed_file)
-            sample_id_to_input_tsv[sample_id] = input_tsv_or_bed_file
-        elif input_tsv_or_bed_file.endswith(".bed") or input_tsv_or_bed_file.endswith(".bed.gz"):
-            dipcall_confidence_regions_bed_files.append(input_tsv_or_bed_file)
+        sample_id = get_sample_id(input_file_path)
+        if input_file_path.endswith(".tsv") or input_file_path.endswith(".tsv.gz"):
+            container = sample_id_to_input_tsv
+        elif input_file_path.endswith(".vcf") or input_file_path.endswith(".vcf.gz"):
+            container = sample_id_to_dipcall_vcf
+        elif input_file_path.endswith(".bed") or input_file_path.endswith(".bed.gz"):
+            container = sample_id_to_dipcall_confidence_regions_bed
         else:
-            parser.error(f"Input file {input_tsv_or_bed_file} must have a .tsv or .tsv.gz or .bed or .bed.gz suffix.")
+            parser.error(f"Input file {input_file_path} must have a .tsv or .tsv.gz or .bed or .bed.gz suffix.")
+
+        if sample_id in container:
+            parser.error(f"Multiple input files found for sample {sample_id}: {container[sample_id]} and {input_file_path}")
+
+        container[sample_id] = input_file_path
 
     # Sort input tables by file size (largest first)
     input_tsvs = list(sample_id_to_input_tsv.values())
@@ -642,26 +707,15 @@ def main():
         input_tsvs = input_tsvs[:args.n]
         sample_id_to_input_tsv = {k: v for k, v in sample_id_to_input_tsv.items() if v in set(input_tsvs)}
 
-    # Parse the per-sample DipCall BED file paths
-    sample_id_to_bed_file_path = {}
-    for sample_id in sample_id_to_input_tsv.keys():
-        # find the dipcall confidence region bed file for this sample
-        matching_bed_file_path = None
-        for bed_file_path in dipcall_confidence_regions_bed_files:
-            bed_filename = os.path.basename(bed_file_path)
-            if bed_filename.startswith(f"{sample_id}."):
-                if matching_bed_file_path is not None:
-                    parser.error(f"Multiple DipCall confidence region bed files found for sample {sample_id}: {matching_bed_file_path} and {bed_file_path}")
+    # Check that all samples have a VCF and a BED file
+    sample_ids_without_vcf = set(sample_id_to_input_tsv) - set(sample_id_to_dipcall_vcf)
+    if len(sample_id_to_dipcall_vcf) > 0 and sample_ids_without_vcf:
+        parser.error(f"A DipCall VCF file was not provided for the following sample(s): {', '.join(sample_ids_without_vcf)}")
 
-                matching_bed_file_path = bed_file_path
-                
-        if matching_bed_file_path is None:
-            parser.error(f"No dipcall confidence region bed file found for sample {sample_id}")
+    sample_ids_without_bed = set(sample_id_to_input_tsv) - set(sample_id_to_dipcall_confidence_regions_bed)
+    if len(sample_id_to_dipcall_confidence_regions_bed) > 0 and sample_ids_without_bed:
+        parser.error(f"A DipCall confidence region BED file was not provided for the following sample(s): {', '.join(sample_ids_without_bed)}")
 
-        if not os.path.isfile(matching_bed_file_path):
-            parser.error(f"Dipcall confidence region bed file {matching_bed_file_path} does not exist")
-
-        sample_id_to_bed_file_path[sample_id] = matching_bed_file_path
 
     # Compute output path
     if not args.output_tsv:
@@ -693,6 +747,7 @@ def main():
         print(f"Output file: {args.output_tsv}")
         batch_tsvs.append(args.output_tsv)
 
+        # Perform an outer-join on all the input tables to create a table of all loci
         table_of_all_loci_path = f"{filename_prefix}{batch_suffix}.only_loci.tsv.gz"
         if not os.path.exists(table_of_all_loci_path) or args.force:
             combined_df = create_table_of_all_loci(
@@ -716,14 +771,24 @@ def main():
 
             print(f"Read {combined_df.height:,d} loci from {table_of_all_loci_path}")
 
+        # Parse the DipCall confidence region BED files
+        sample_id_to_dipcall_vcf_indel_interval_trees = {}
         sample_id_to_dipcall_confidence_region_interval_trees = {}
-        for sample_id, bed_file_path in sample_id_to_bed_file_path.items():
-            sample_id_to_dipcall_confidence_region_interval_trees[sample_id] = parse_dipcall_confidence_regions_bed_file(
-                bed_file_path, chroms_to_process=chroms_to_process_in_current_batch)
+        for sample_id, vcf_file_path in sample_id_to_dipcall_vcf.items():
+            sample_id_to_dipcall_vcf_indel_interval_trees[sample_id] = parse_dipcall_vcf_file(
+                vcf_file_path, 
+                chroms_to_process=chroms_to_process_in_current_batch)
 
+        for sample_id, bed_file_path in sample_id_to_dipcall_confidence_regions_bed.items():
+            sample_id_to_dipcall_confidence_region_interval_trees[sample_id] = parse_dipcall_confidence_regions_bed_file(
+                bed_file_path, 
+                chroms_to_process=chroms_to_process_in_current_batch)
+
+        # Add sample columns and/or allele size summary statistics to the combined table
         combined_df = add_sample_columns(
             combined_df, 
             sample_id_to_input_tsv, 
+            sample_id_to_dipcall_vcf_indel_interval_trees,
             sample_id_to_dipcall_confidence_region_interval_trees, 
             include_per_sample_columns=args.include_per_sample_columns,
             exclude_homopolymers=args.exclude_homopolymers, 
