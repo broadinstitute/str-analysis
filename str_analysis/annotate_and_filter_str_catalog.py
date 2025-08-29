@@ -328,7 +328,7 @@ def main():
     # download and open the mappability bigWig file
     if not args.skip_mappability_annotations:
         if args.mappability_track_bigwig and any(args.mappability_track_bigwig.startswith(prefix) for prefix in ("http", "gs://")):
-            mappability_bigwig_path = download_local_copy(args.mappability_track_bigwig)
+            mappability_bigwig_path = download_local_copy(args.mappability_track_bigwig, verbose=args.verbose)
         else:
             mappability_bigwig_path = args.mappability_track_bigwig
         mappability_bigwig = pyBigWig.open(mappability_bigwig_path)
