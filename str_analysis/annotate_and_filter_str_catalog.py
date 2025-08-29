@@ -574,24 +574,23 @@ def main():
                     #if catalog_record[f"{gene_models_source}GeneId"] == catalog_record[f"{gene_models_source}GeneName"]:
                     #    del catalog_record[f"{gene_models_source}GeneName"]
 
-                gene_models_source = args.gene_models_source[0]
-                if args.region_type and catalog_record.get(f"{gene_models_source}GeneRegion") not in args.region_type:
-                    filter_counters[f"row {gene_models_source}GeneRegion isn't among {args.region_type}"] += 1
+                if args.region_type and all(catalog_record.get(f"{gene_models_source}GeneRegion") not in args.region_type for gene_models_source in args.gene_models_source):
+                    filter_counters[f"row GeneRegion isn't among {args.region_type} in {' and '.join(args.gene_models_source)}"] += 1
                     continue
-                if args.exclude_region_type and catalog_record.get(f"{gene_models_source}GeneRegion") in args.exclude_region_type:
-                    filter_counters[f"row {gene_models_source}GeneRegion is one of {args.exclude_region_type}"] += 1
+                if args.exclude_region_type and all(catalog_record.get(f"{gene_models_source}GeneRegion") in args.exclude_region_type for gene_models_source in args.gene_models_source):
+                    filter_counters[f"row GeneRegion is one of {' and '.join(args.exclude_region_type)}"] += 1
                     continue
-                if args.gene_name and catalog_record.get(f"{gene_models_source}GeneName") not in args.gene_name:
-                    filter_counters[f"row {gene_models_source}GeneName isn't among {args.gene_name}"] += 1
+                if args.gene_name and all(catalog_record.get(f"{gene_models_source}GeneName") not in args.gene_name for gene_models_source in args.gene_models_source):
+                    filter_counters[f"row GeneName isn't among {args.gene_name}"] += 1
                     continue
-                if args.exclude_gene_name and catalog_record.get(f"{gene_models_source}GeneName") in args.exclude_gene_name:
-                    filter_counters[f"row {gene_models_source}GeneName is one of {args.exclude_gene_name}"] += 1
+                if args.exclude_gene_name and any(catalog_record.get(f"{gene_models_source}GeneName") in args.exclude_gene_name for gene_models_source in args.gene_models_source):
+                    filter_counters[f"row GeneName is one of {args.exclude_gene_name}"] += 1
                     continue
-                if args.gene_id and catalog_record.get(f"{gene_models_source}GeneId") not in args.gene_id:
-                    filter_counters[f"row {gene_models_source}GeneId isn't among {args.gene_id}"] += 1
+                if args.gene_id and all(catalog_record.get(f"{gene_models_source}GeneId") not in args.gene_id for gene_models_source in args.gene_models_source):
+                    filter_counters[f"row GeneId isn't among {args.gene_id}"] += 1
                     continue
-                if args.exclude_gene_id and catalog_record.get(f"{gene_models_source}GeneId") in args.exclude_gene_id:
-                    filter_counters[f"row {gene_models_source}GeneId is one of {args.exclude_gene_id}"] += 1
+                if args.exclude_gene_id and any(catalog_record.get(f"{gene_models_source}GeneId") in args.exclude_gene_id for gene_models_source in args.gene_models_source):
+                    filter_counters[f"row GeneId is one of {args.exclude_gene_id}"] += 1
                     continue
 
 
