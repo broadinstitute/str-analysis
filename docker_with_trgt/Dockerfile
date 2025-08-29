@@ -72,7 +72,7 @@ RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cl
     && /google-cloud-sdk/bin/gcloud components update --quiet
 
 # install TRGT
-ENV TRGT_VERSION="1.2.0"
+ENV TRGT_VERSION="4.0.0"
 RUN wget -q https://github.com/PacificBiosciences/trgt/releases/download/v${TRGT_VERSION}/trgt-v${TRGT_VERSION}-x86_64-unknown-linux-gnu.tar.gz \
     && tar xzf trgt-v${TRGT_VERSION}-x86_64-unknown-linux-gnu.tar.gz \
     && chmod 777 trgt-v${TRGT_VERSION}-x86_64-unknown-linux-gnu/trgt \
