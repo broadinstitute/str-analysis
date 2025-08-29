@@ -23,12 +23,12 @@ RUN apt-get update && apt-get install --no-install-recommends --yes \
     libcurl4-openssl-dev \
     libbz2-dev \
     liblzma-dev \
-	libgdbm-dev \
-	libc6-dev \
-	zlib1g-dev \
-	libsqlite3-dev \
-	libssl-dev \
-	openssl \
+    libgdbm-dev \
+    libc6-dev \
+    zlib1g-dev \
+    libsqlite3-dev \
+    libssl-dev \
+    openssl \
     libffi-dev \
     parallel \
     time
@@ -75,12 +75,16 @@ RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cl
 
 ENV PATH=/google-cloud-sdk/bin:$PATH
 
-RUN python3 -m pip install --upgrade cmake
 
 # install TRF
 RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1/trf409.linux64 \
     && chmod 777 trf409.linux64 \
     && mv trf409.linux64 /usr/bin/trf
+
+RUN apt-get  update && apt-get install --no-install-recommends --yes  libdeflate-dev libdeflate0
+
+# install older version of cmake to avoid SPOA errors during the LongTR build
+RUN python3 -m pip install --no-cache-dir "cmake<3.29"
 
 # install LongTR
 RUN git clone https://github.com/gymrek-lab/LongTR.git \
@@ -89,6 +93,7 @@ RUN git clone https://github.com/gymrek-lab/LongTR.git \
     && make \
     && cp /LongTR/LongTR /bin/LongTR \
     && make clean
+
 
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
