@@ -67,10 +67,8 @@ def process_variant_catalog(variant_catalog_path, output_file_path, verbose=Fals
                         chrom,
                         start_0based + 1,  # LongTR beds are 1-based
                         end_1based,
-                        len(motif),
-                        round((end_1based - start_0based)/len(motif), 3),
-                        locus_id,
                         motif,
+                        locus_id,
                     ])) + "\n")
 
                     canonical_motif = compute_canonical_motif(motif)
