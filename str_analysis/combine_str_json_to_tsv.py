@@ -5,17 +5,16 @@ import collections
 import gzip
 import simplejson as json
 import logging
+import numpy as np
 import os
+import pandas as pd
 import pathlib
+from pprint import pformat
 import re
 import statistics
 import sys
 import tqdm
 
-
-import numpy as np
-import pandas as pd
-from pprint import pformat
 
 from str_analysis.combine_json_to_tsv import get_sample_id_column_index
 from str_analysis.utils.misc_utils import parse_interval
@@ -153,7 +152,7 @@ def main():
     if not args.dont_output_allele_table:
         allele_output_file = gzip.open(f"{output_prefix}.alleles.tsv.gz", "wt")
 
-    locus_records = collections.defaultdict(list)
+    locus_records = collections.defaultdict(collections.Counter)
     bed_file_records = []
     sample_metadata_lookup_counters = {}
 
@@ -217,7 +216,7 @@ def main():
                                                     f"Continuing without purity filtering.")
 
                             if short_allele is not None:
-                                locus_records[locus_records_key].append(short_allele)
+                                locus_records[locus_records_key][short_allele] += 1
 
                             long_allele = None
                             if "Num Repeats: Allele 2" in variant_record:
@@ -233,7 +232,7 @@ def main():
                                                         f"Continuing without purity filtering.")
 
                             if long_allele is not None:
-                                locus_records[locus_records_key].append(long_allele)
+                                locus_records[locus_records_key][long_allele] += 1
 
                         if not args.dont_output_variant_table:
                             if not wrote_variant_table_header:
@@ -284,16 +283,14 @@ def main():
                 "Chrom", "Start0Based", "End1Based", "RepeatUnit", "LocusId", "AlleleHistogram", "Median", "NumUniqueAlleles",
                 "MinAllele", "MaxAllele", "NumAllelesEqualToMin", "NumAllelesEqualToMax", "AlleleRange", "NumRepeatsInReference",
             ]) + "\n")
-            for (chrom, start_0based, end_1based, repeat_unit, locus_id), alleles in sorted(locus_records.items(), key=lambda x: x[0]):
-                allele_histogram = collections.Counter()
-                for allele in alleles:
-                    allele_histogram[allele] += 1
+            for (chrom, start_0based, end_1based, repeat_unit, locus_id), allele_histogram in sorted(locus_records.items(), key=lambda x: x[0]):
                 allele_histogram_string = ",".join(f"{allele}x:{count}" for allele, count in sorted(allele_histogram.items(), key=lambda x: x[0]))
-                median = statistics.median(alleles) if alleles else None
-                unique_allele_count = len(set(alleles))
-                min_allele = min(alleles) if alleles else None
-                max_allele = max(alleles) if alleles else None
-                allele_range = max_allele - min_allele if alleles else None
+
+                median = float(np.median(np.repeat(list(allele_histogram.keys()), list(allele_histogram.values())))) if allele_histogram else None
+                unique_allele_count = len(allele_histogram)
+                min_allele = min(allele_histogram.keys()) if allele_histogram else None
+                max_allele = max(allele_histogram.keys()) if allele_histogram else None
+                allele_range = max_allele - min_allele if allele_histogram else None
                 num_repeats_in_reference = int(max(0, end_1based - start_0based)/len(repeat_unit))
                 num_alleles_equal_to_min = allele_histogram[min_allele] if min_allele is not None else None
                 num_alleles_equal_to_max = allele_histogram[max_allele] if max_allele is not None else None
