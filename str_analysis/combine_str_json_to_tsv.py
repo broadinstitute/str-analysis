@@ -109,6 +109,10 @@ def compute_bed_file_record(variant_record):
     return [chrom, start_0based, end_1based, variant_record["SummaryString"], "."]
 
 
+def convert_histogram_to_string(histogram):
+    return ",".join(f"{allele}x:{count}" for allele, count in sorted(histogram.items(), key=lambda x: x[0]))
+
+
 def main():
     """Main"""
 
@@ -152,7 +156,7 @@ def main():
     if not args.dont_output_allele_table:
         allele_output_file = gzip.open(f"{output_prefix}.alleles.tsv.gz", "wt")
 
-    locus_records = collections.defaultdict(collections.Counter)
+    locus_records = collections.defaultdict(lambda: {"short_alleles": collections.Counter(), "all_alleles": collections.Counter()})
     bed_file_records = []
     sample_metadata_lookup_counters = {}
 
@@ -204,35 +208,38 @@ def main():
                             locus_id = variant_record["LocusId"]
                             locus_records_key = (chrom, start_0based, end_1based, repeat_unit, locus_id)
 
-                            short_allele = variant_record["Num Repeats: Allele 1"]
+                            allele1 = variant_record["Num Repeats: Allele 1"]
                             if args.trgt_purity_threshold is not None:
                                 if "AllelePurity: Allele 1" in variant_record:
                                     purity_allele_1 = variant_record["AllelePurity: Allele 1"]
                                     if purity_allele_1 != "." and float(purity_allele_1) < args.trgt_purity_threshold:
-                                        short_allele = None
+                                        allele1 = None
                                 else:
                                     logging.warning(f"TRGT allele purity threshold = {args.trgt_purity_threshold} but no "
                                                     f"purity information found for allele 1 at {locus_id} in {json_path}. "
                                                     f"Continuing without purity filtering.")
 
-                            if short_allele is not None:
-                                locus_records[locus_records_key][short_allele] += 1
-
-                            long_allele = None
+                            allele2 = None
                             if "Num Repeats: Allele 2" in variant_record:
-                                long_allele = variant_record["Num Repeats: Allele 2"]
+                                allele2 = variant_record["Num Repeats: Allele 2"]
                                 if args.trgt_purity_threshold is not None:
                                     if "AllelePurity: Allele 2" in variant_record:
                                         purity_allele_2 = variant_record["AllelePurity: Allele 2"]
                                         if purity_allele_2 != "." and float(purity_allele_2) < args.trgt_purity_threshold:
-                                            long_allele = None
+                                            allele2 = None
                                     else:
                                         logging.warning(f"TRGT allele purity threshold = {args.trgt_purity_threshold} but no "
                                                         f"purity information found for allele 2 at {locus_id} in {json_path}. "
                                                         f"Continuing without purity filtering.")
 
-                            if long_allele is not None:
-                                locus_records[locus_records_key][long_allele] += 1
+                            if allele1 is not None:
+                                current_allele = min(allele1, allele2) if allele2 is not None else allele1
+                                locus_records[locus_records_key]["short_alleles"][current_allele] += 1
+                                locus_records[locus_records_key]["all_alleles"][current_allele] += 1
+
+                            if allele2 is not None:
+                                current_allele = max(allele1, allele2) if allele1 is not None else allele2
+                                locus_records[locus_records_key]["all_alleles"][current_allele] += 1
 
                         if not args.dont_output_variant_table:
                             if not wrote_variant_table_header:
@@ -282,22 +289,26 @@ def main():
             f.write("\t".join([
                 "Chrom", "Start0Based", "End1Based", "RepeatUnit", "LocusId", "AlleleHistogram", "Median", "NumUniqueAlleles",
                 "MinAllele", "MaxAllele", "NumAllelesEqualToMin", "NumAllelesEqualToMax", "AlleleRange", "NumRepeatsInReference",
+                "ShortAlleleHistogram",
             ]) + "\n")
-            for (chrom, start_0based, end_1based, repeat_unit, locus_id), allele_histogram in sorted(locus_records.items(), key=lambda x: x[0]):
-                allele_histogram_string = ",".join(f"{allele}x:{count}" for allele, count in sorted(allele_histogram.items(), key=lambda x: x[0]))
+            for (chrom, start_0based, end_1based, repeat_unit, locus_id), allele_histograms in sorted(locus_records.items(), key=lambda x: x[0]):
+                short_allele_histogram = allele_histograms["short_alleles"]
+                short_allele_histogram_string = convert_histogram_to_string(short_allele_histogram)
+                all_allele_histogram = allele_histograms["all_alleles"]
+                all_allele_histogram_string = convert_histogram_to_string(all_allele_histogram)
 
-                median = float(np.median(np.repeat(list(allele_histogram.keys()), list(allele_histogram.values())))) if allele_histogram else None
-                unique_allele_count = len(allele_histogram)
-                min_allele = min(allele_histogram.keys()) if allele_histogram else None
-                max_allele = max(allele_histogram.keys()) if allele_histogram else None
-                allele_range = max_allele - min_allele if allele_histogram else None
+                median = float(np.median(np.repeat(list(all_allele_histogram.keys()), list(all_allele_histogram.values())))) if all_allele_histogram else None
+                unique_allele_count = len(all_allele_histogram)
+                min_allele = min(all_allele_histogram.keys()) if all_allele_histogram else None
+                max_allele = max(all_allele_histogram.keys()) if all_allele_histogram else None
+                allele_range = max_allele - min_allele if all_allele_histogram else None
                 num_repeats_in_reference = int(max(0, end_1based - start_0based)/len(repeat_unit))
-                num_alleles_equal_to_min = allele_histogram[min_allele] if min_allele is not None else None
-                num_alleles_equal_to_max = allele_histogram[max_allele] if max_allele is not None else None
+                num_alleles_equal_to_min = all_allele_histogram[min_allele] if min_allele is not None else None
+                num_alleles_equal_to_max = all_allele_histogram[max_allele] if max_allele is not None else None
                 f.write("\t".join(map(str, [
-                    chrom, start_0based, end_1based, repeat_unit, locus_id, allele_histogram_string, median,
+                    chrom, start_0based, end_1based, repeat_unit, locus_id, all_allele_histogram_string, median,
                     unique_allele_count, min_allele, max_allele, num_alleles_equal_to_min, num_alleles_equal_to_max,
-                    allele_range, num_repeats_in_reference,
+                    allele_range, num_repeats_in_reference, short_allele_histogram_string,
                 ])))
                 f.write("\n")
 
@@ -644,7 +655,6 @@ def convert_expansion_hunter_json_to_tsv_columns(
                     # ExpansionHunter Q score based on EnsemblTR https://github.com/gymrek-lab/EnsembleTR/blob/main/ensembletr/utils.py#L53-L59
 
                     output_record[f"Q{suffix}"] = float(1/np.exp(4 * float(ci_ratio)))
-
 
                 if include_extra_expansion_hunter_fields:
                     is_homozygous = len(genotype_tuples) > 1 and genotype_tuples[0][0] == genotype_tuples[1][0]
