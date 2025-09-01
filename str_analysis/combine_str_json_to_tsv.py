@@ -8,7 +8,10 @@ import logging
 import os
 import pathlib
 import re
+import statistics
 import sys
+import tqdm
+
 
 import numpy as np
 import pandas as pd
@@ -24,82 +27,47 @@ ALREADY_WARNED_ABOUT = set()  # used for logging
 def parse_args(args_list=None):
     """Parse command line args and return the argparse args object"""
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    p.add_argument(
-        "-c",
-        "--variant-catalog",
+    p.add_argument("-c", "--variant-catalog", action="append", default=[],
         help="path of json variant catalog file. If specified, annotations for each locus in this variant catalog will "
              "be added to the output table as additional columns. This option can be specified more than once to "
-             "use multiple variant catalogs as an annotation source.",
-        action="append",
-        default=[],
-    )
-    p.add_argument(
-        "-m",
-        "--sample-metadata",
-        help="Table of sample annotations. If specified, all columns from this table will be added to the output table."
-    )
-    p.add_argument(
-        "--sample-metadata-key",
-        help="The column name in the --sample-metdata table that contains a sample id. "
-             "If not specified, 'sample_id' and other variations like 'SampleId', 'sample', and 'ParticipantId' "
-             "will be tried.",
-        default="sample_id",
-    )
-    p.add_argument(
-        "--include-extra-expansion-hunter-fields",
-        action="store_true",
-        help="If specified, additional fields from the ExpansionHunter will be added."
-    )
-    p.add_argument(
-        "--include-extra-gangstr-fields",
-        action="store_true",
+             "use multiple variant catalogs as an annotation source.")
+    p.add_argument("-m", "--sample-metadata",
+        help="Table of sample annotations. If specified, all columns from this table will be added to the output table.")
+    p.add_argument("--sample-metadata-key", default="sample_id",
+        help="The column name in the --sample-metdata table that contains a sample id. If not specified, "
+             "'sample_id' and other variations like 'SampleId', 'sample', and 'ParticipantId' will be tried.")
+    p.add_argument("--include-extra-expansion-hunter-fields", action="store_true",
+        help="If specified, additional fields from the ExpansionHunter will be added.")
+    p.add_argument("--include-extra-gangstr-fields", action="store_true",
         help="If specified, additional fields from GangSTR will be added. The input json files are expected to be the "
-             "result of running convert_gangstr_vcf_to_expansion_hunter_json."
-    )
-    p.add_argument(
-        "--include-extra-hipstr-fields",
-        action="store_true",
+             "result of running convert_gangstr_vcf_to_expansion_hunter_json.")
+    p.add_argument("--include-extra-hipstr-fields", action="store_true",
         help="If specified, additional fields from HipSTR will be added. The input json files are expected to be the "
-             "result of running convert_hipstr_vcf_to_expansion_hunter_json."
-    )
-    p.add_argument(
-        "--include-extra-trgt-fields",
-        action="store_true",
+             "result of running convert_hipstr_vcf_to_expansion_hunter_json.")
+    p.add_argument("--include-extra-trgt-fields", action="store_true",
         help="If specified, additional fields from TRGT will be added. The input json files are expected to be the "
-             "result of running convert_trgt_vcf_to_expansion_hunter_json."
-    )
-    p.add_argument(
-        "--include-extra-longtr-fields",
-        action="store_true",
-        help="If specified, additional fields from LongTR will be added. The input json files are expected to be the "
-             "result of running convert_hipstr_vcf_to_expansion_hunter_json."
-    )
-    p.add_argument(
-        "--discard-hom-ref",
-        action="store_true",
-        help="Discard hom-ref calls",
-    )
+             "result of running convert_trgt_vcf_to_expansion_hunter_json.")
+    p.add_argument('--trgt-purity-threshold', type=float)
 
-    p.add_argument(
-        "-o",
-        "--output-prefix",
-        help="Combined table output filename prefix",
-    )
-    p.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Print additional logging messages",
-    )
-    p.add_argument(
-        "json_paths",
-        help="EpxansionHunter output json file and/or directory path(s) to search. If not specified, this script will search for json files in "
-             "the current directory and subdirectories.",
-        type=pathlib.Path,
-        nargs="*"
-    )
+    p.add_argument("--include-extra-longtr-fields", action="store_true",
+        help="If specified, additional fields from LongTR will be added. The input json files are expected to be the "
+             "result of running convert_hipstr_vcf_to_expansion_hunter_json.")
+    p.add_argument("--discard-hom-ref", action="store_true", help="Discard hom-ref calls")
+    p.add_argument("--dont-output-allele-table", action="store_true")
+    p.add_argument("--dont-output-variant-table", action="store_true")
+    p.add_argument("--dont-output-locus-table", action="store_true")
+    p.add_argument("--dont-output-bed-file", action="store_true")
+
+    p.add_argument("-o", "--output-prefix", help="Combined table output filename prefix")
+    p.add_argument("--show-progress-bar", action="store_true", help="Show progress bar during processing")
+    p.add_argument("-v", "--verbose", action="store_true", help="Print additional logging messages")
+    p.add_argument("json_paths", type=pathlib.Path, nargs="*", help="EpxansionHunter output json file and/or directory "
+        "path(s) to search. If not specified, this script will search for json files in the current directory and subdirectories.")
 
     args = p.parse_args(args=args_list)
+
+    if args.trgt_purity_threshold is not None and not args.include_extra_trgt_fields:
+        p.error(f"--include-extra-trgt-fields must be specified if --trgt-purity-threshold is specified")
 
     for variant_catalog in args.variant_catalog:
         if not os.path.isfile(variant_catalog):
@@ -127,7 +95,7 @@ def parse_args(args_list=None):
             p for p in pathlib.Path(dir_path).glob("**/*.json.gz")
         ]
         json_file_paths.extend(json_paths)
-        print(f"Found {len(json_paths)} .json files in directory: {dir_path}")
+        logging.info(f"Found {len(json_paths)} .json files in directory: {dir_path}")
 
     args.json_paths = json_file_paths
     if len(args.json_paths) == 0:
@@ -176,8 +144,16 @@ def main():
     allele_table_columns = []
     wrote_variant_table_header = wrote_allele_table_header = False
     variant_records_counter = allele_records_counter = 0
-    variant_output_file = gzip.open(f"{output_prefix}.variants.tsv.gz", "wt")
-    allele_output_file = gzip.open(f"{output_prefix}.alleles.tsv.gz", "wt")
+
+    variant_output_file = None
+    if not args.dont_output_variant_table:
+        variant_output_file = gzip.open(f"{output_prefix}.variants.tsv.gz", "wt")
+
+    allele_output_file = None
+    if not args.dont_output_allele_table:
+        allele_output_file = gzip.open(f"{output_prefix}.alleles.tsv.gz", "wt")
+
+    locus_records = collections.defaultdict(list)
     bed_file_records = []
     sample_metadata_lookup_counters = {}
 
@@ -187,7 +163,11 @@ def main():
         else:
             json_paths = args.json_paths
 
-        for json_path in json_paths:
+        iterator = json_paths
+        if not just_get_header and args.show_progress_bar:
+            iterator = tqdm.tqdm(json_paths, unit=" files")
+
+        for json_path in iterator:
             json_path = str(json_path)  # convert from pathlib.Path to str
 
             try:
@@ -200,53 +180,94 @@ def main():
                 logging.info(f"Skipping {json_path}... Expected key 'SampleParameters' not found.")
                 continue
 
-            for variant_record in convert_expansion_hunter_json_to_tsv_columns(
-                json_contents,
-                variant_catalog_contents=combined_variant_catalog_contents,
-                sample_metadata_lookup=sample_metadata_lookup,
-                sample_metadata_lookup_counters=sample_metadata_lookup_counters,
-                json_file_path=json_path,
-                yield_allele_records=False,
-                include_extra_expansion_hunter_fields=args.include_extra_expansion_hunter_fields,
-                include_extra_gangstr_fields=args.include_extra_gangstr_fields,
-                include_extra_hipstr_fields=args.include_extra_hipstr_fields,
-                include_extra_trgt_fields=args.include_extra_trgt_fields,
-                include_extra_longtr_fields=args.include_extra_longtr_fields,
-                discard_hom_ref=args.discard_hom_ref,
-            ):
-                if just_get_header:
-                    variant_table_columns.extend([k for k in variant_record.keys() if k not in variant_table_columns])
-                else:
-                    if not wrote_variant_table_header:
-                        variant_output_file.write("\t".join(variant_table_columns) + "\n")
-                        wrote_variant_table_header = True
-                    variant_records_counter += 1
-                    variant_output_file.write(
-                        "\t".join([str(variant_record.get(c, "")) for c in variant_table_columns]) + "\n")
+            if not args.dont_output_variant_table or not args.dont_output_bed_file or not args.dont_output_locus_table:
+                for variant_record in convert_expansion_hunter_json_to_tsv_columns(
+                    json_contents,
+                    variant_catalog_contents=combined_variant_catalog_contents,
+                    sample_metadata_lookup=sample_metadata_lookup,
+                    sample_metadata_lookup_counters=sample_metadata_lookup_counters,
+                    json_file_path=json_path,
+                    yield_allele_records=False,
+                    include_extra_expansion_hunter_fields=args.include_extra_expansion_hunter_fields,
+                    include_extra_gangstr_fields=args.include_extra_gangstr_fields,
+                    include_extra_hipstr_fields=args.include_extra_hipstr_fields,
+                    include_extra_trgt_fields=args.include_extra_trgt_fields,
+                    include_extra_longtr_fields=args.include_extra_longtr_fields,
+                    discard_hom_ref=args.discard_hom_ref,
+                ):
+                    if just_get_header:
+                        variant_table_columns.extend([k for k in variant_record.keys() if k not in variant_table_columns])
+                    else:
+                        if not args.dont_output_locus_table:
+                            reference_region = variant_record["ReferenceRegion"]
+                            chrom, start_0based, end_1based = parse_interval(reference_region)
+                            repeat_unit = variant_record["RepeatUnit"]
+                            locus_id = variant_record["LocusId"]
+                            locus_records_key = (chrom, start_0based, end_1based, repeat_unit, locus_id)
 
-                    bed_file_records.append(compute_bed_file_record(variant_record))
+                            short_allele = variant_record["Num Repeats: Allele 1"]
+                            if args.trgt_purity_threshold is not None:
+                                if "AllelePurity: Allele 1" in variant_record:
+                                    purity_allele_1 = variant_record["AllelePurity: Allele 1"]
+                                    if purity_allele_1 != "." and float(purity_allele_1) < args.trgt_purity_threshold:
+                                        short_allele = None
+                                else:
+                                    logging.warning(f"TRGT allele purity threshold = {args.trgt_purity_threshold} but no "
+                                                    f"purity information found for allele 1 at {locus_id} in {json_path}. "
+                                                    f"Continuing without purity filtering.")
 
-            for allele_record in convert_expansion_hunter_json_to_tsv_columns(
-                json_contents,
-                variant_catalog_contents=combined_variant_catalog_contents,
-                sample_metadata_lookup=sample_metadata_lookup,
-                json_file_path=json_path,
-                yield_allele_records=True,
-                include_extra_expansion_hunter_fields=args.include_extra_expansion_hunter_fields,
-                include_extra_gangstr_fields=args.include_extra_gangstr_fields,
-                include_extra_hipstr_fields=args.include_extra_hipstr_fields,
-                include_extra_trgt_fields=args.include_extra_trgt_fields,
-                include_extra_longtr_fields=args.include_extra_longtr_fields,
-            ):
-                if just_get_header:
-                    allele_table_columns.extend([k for k in allele_record.keys() if k not in allele_table_columns])
-                else:
-                    if not wrote_allele_table_header:
-                        allele_output_file.write("\t".join(allele_table_columns) + "\n")
-                        wrote_allele_table_header = True
-                    allele_records_counter += 1
-                    allele_output_file.write(
-                        "\t".join([str(allele_record.get(c, "")) for c in allele_table_columns]) + "\n")
+                            if short_allele is not None:
+                                locus_records[locus_records_key].append(short_allele)
+
+                            long_allele = None
+                            if "Num Repeats: Allele 2" in variant_record:
+                                long_allele = variant_record["Num Repeats: Allele 2"]
+                                if args.trgt_purity_threshold is not None:
+                                    if "AllelePurity: Allele 2" in variant_record:
+                                        purity_allele_2 = variant_record["AllelePurity: Allele 2"]
+                                        if purity_allele_2 != "." and float(purity_allele_2) < args.trgt_purity_threshold:
+                                            long_allele = None
+                                    else:
+                                        logging.warning(f"TRGT allele purity threshold = {args.trgt_purity_threshold} but no "
+                                                        f"purity information found for allele 2 at {locus_id} in {json_path}. "
+                                                        f"Continuing without purity filtering.")
+
+                            if long_allele is not None:
+                                locus_records[locus_records_key].append(long_allele)
+
+                        if not args.dont_output_variant_table:
+                            if not wrote_variant_table_header:
+                                variant_output_file.write("\t".join(variant_table_columns) + "\n")
+                                wrote_variant_table_header = True
+                            variant_records_counter += 1
+                            variant_output_file.write(
+                                "\t".join([str(variant_record.get(c, "")) for c in variant_table_columns]) + "\n")
+
+                        if not args.dont_output_bed_file:
+                            bed_file_records.append(compute_bed_file_record(variant_record))
+
+            if not args.dont_output_allele_table:
+                for allele_record in convert_expansion_hunter_json_to_tsv_columns(
+                    json_contents,
+                    variant_catalog_contents=combined_variant_catalog_contents,
+                    sample_metadata_lookup=sample_metadata_lookup,
+                    json_file_path=json_path,
+                    yield_allele_records=True,
+                    include_extra_expansion_hunter_fields=args.include_extra_expansion_hunter_fields,
+                    include_extra_gangstr_fields=args.include_extra_gangstr_fields,
+                    include_extra_hipstr_fields=args.include_extra_hipstr_fields,
+                    include_extra_trgt_fields=args.include_extra_trgt_fields,
+                    include_extra_longtr_fields=args.include_extra_longtr_fields,
+                ):
+                    if just_get_header:
+                        allele_table_columns.extend([k for k in allele_record.keys() if k not in allele_table_columns])
+                    else:
+                        if not wrote_allele_table_header:
+                            allele_output_file.write("\t".join(allele_table_columns) + "\n")
+                            wrote_allele_table_header = True
+                        allele_records_counter += 1
+                        allele_output_file.write(
+                            "\t".join([str(allele_record.get(c, "")) for c in allele_table_columns]) + "\n")
 
     if sample_metadata_lookup_counters:
         logging.info(f"Found matches for {sample_metadata_lookup_counters['sample_ids_found']} out of "
@@ -257,14 +278,46 @@ def main():
         if len(sample_metadata_lookup) != len(sample_metadata_df):
             logging.info(f"{len(sample_metadata_df) - len(sample_metadata_lookup)} duplicate sample ids in {args.sample_metadata}")
 
-    logging.info(f"Wrote {variant_records_counter:,d} records to {output_prefix}.variants.tsv.gz")
-    logging.info(f"Wrote {allele_records_counter:,d} records to {output_prefix}.alleles.tsv.gz")
+    if not args.dont_output_locus_table:
+        with gzip.open(f"{output_prefix}.loci.tsv.gz", "wt") as f:
+            f.write("\t".join([
+                "Chrom", "Start0Based", "End1Based", "RepeatUnit", "LocusId", "AlleleHistogram", "Median", "NumUniqueAlleles",
+                "MinAllele", "MaxAllele", "NumAllelesEqualToMin", "NumAllelesEqualToMax", "AlleleRange", "NumRepeatsInReference",
+            ]) + "\n")
+            for (chrom, start_0based, end_1based, repeat_unit, locus_id), alleles in sorted(locus_records.items(), key=lambda x: x[0]):
+                allele_histogram = collections.Counter()
+                for allele in alleles:
+                    allele_histogram[allele] += 1
+                allele_histogram_string = ",".join(f"{allele}x:{count}" for allele, count in sorted(allele_histogram.items(), key=lambda x: x[0]))
+                median = statistics.median(alleles) if alleles else None
+                unique_allele_count = len(set(alleles))
+                min_allele = min(alleles) if alleles else None
+                max_allele = max(alleles) if alleles else None
+                allele_range = max_allele - min_allele if alleles else None
+                num_repeats_in_reference = int(max(0, end_1based - start_0based)/len(repeat_unit))
+                num_alleles_equal_to_min = allele_histogram[min_allele] if min_allele is not None else None
+                num_alleles_equal_to_max = allele_histogram[max_allele] if max_allele is not None else None
+                f.write("\t".join(map(str, [
+                    chrom, start_0based, end_1based, repeat_unit, locus_id, allele_histogram_string, median,
+                    unique_allele_count, min_allele, max_allele, num_alleles_equal_to_min, num_alleles_equal_to_max,
+                    allele_range, num_repeats_in_reference,
+                ])))
+                f.write("\n")
 
-    with open(f"{output_prefix}.bed", "wt") as f:
-        for bed_record in sorted(bed_file_records, key=lambda r: tuple(r[0:2])):
-            f.write("\t".join(map(str, bed_record)) + "\n")
+        logging.info(f"Wrote {len(locus_records):,d} records to {output_prefix}.loci.tsv.gz")
 
-    logging.info(f"Wrote {len(bed_file_records):,d} records to {output_prefix}.bed")
+    if not args.dont_output_variant_table:
+        logging.info(f"Wrote {variant_records_counter:,d} records to {output_prefix}.variants.tsv.gz")
+
+    if not args.dont_output_allele_table:
+        logging.info(f"Wrote {allele_records_counter:,d} records to {output_prefix}.alleles.tsv.gz")
+
+    if not args.dont_output_bed_file:
+        with open(f"{output_prefix}.bed", "wt") as f:
+            for bed_record in sorted(bed_file_records, key=lambda r: tuple(r[0:2])):
+                f.write("\t".join(map(str, bed_record)) + "\n")
+
+        logging.info(f"Wrote {len(bed_file_records):,d} records to {output_prefix}.bed")
 
 
 class ParseError(Exception):
@@ -542,10 +595,9 @@ def convert_expansion_hunter_json_to_tsv_columns(
             variant_record["Genotype"] = variant_json["Genotype"]
 
             # check that genotypes are in the expected order
-            allele_sizes = [int(allele_size) for allele_size in variant_json["Genotype"].split("/")]
+            #allele_sizes = [int(allele_size) for allele_size in variant_json["Genotype"].split("/")]
             #if len(allele_sizes) == 2 and allele_sizes[0] > allele_sizes[1]:
             #    raise ValueError(f"Unexpected genotype format: {variant_json['Genotype']} in: {pformat(variant_json)}")
-
 
             variant_record["GenotypeConfidenceInterval"] = variant_json.get("GenotypeConfidenceInterval")
             has_genotype_confidence_interval = bool(variant_record["GenotypeConfidenceInterval"])
@@ -636,9 +688,13 @@ def convert_expansion_hunter_json_to_tsv_columns(
                     )
 
                 if include_extra_trgt_fields:
-                    if "AP" in variant_json and "AM" in variant_json and "SD" in variant_json:
+                    if "AP" in variant_json:
                         output_record[f"AllelePurity{suffix}"] = allele_purities[i] if len(allele_purities) > i else variant_json["AP"]
+
+                    if "AM" in variant_json:
                         output_record[f"MeanMethylation{suffix}"] = mean_methylation[i] if len(mean_methylation) > i else variant_json["AM"]
+
+                    if "SD" in variant_json:
                         output_record[f"SpanningReadsPerAllele{suffix}"] = spanning_reads_per_allele[i] if len(spanning_reads_per_allele) > i else variant_json["SD"]
 
                 for key, value in output_record.items():
