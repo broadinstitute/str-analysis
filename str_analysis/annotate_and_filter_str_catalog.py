@@ -108,6 +108,7 @@ def parse_args():
 
     filter_group.add_argument("-L", "--region", action="append", help="Filter by one or more genomic regions")
     filter_group.add_argument("-l", "--locus-id", action="append", help="Only include the locus with this locus id")
+    filter_group.add_argument("--locus-id-file", help="Text file with one locus id per row. Only include loci in this file")
     filter_group.add_argument("-xl", "--exclude-locus-id", action="append", help="Exclude the locus with this locus id")
 
     #filter_group.add_argument("--max-interruptions", type=int, help="Maximum number of interruptions allowed in the "
@@ -165,7 +166,19 @@ def parse_args():
     if args.exclude_gene_id and not args.gene_models_source:
         parser.error("--gene-models-source must be specified when --exclude-gene-id is used")
 
+    if args.locus_id_file:
+        if not file_exists(os.path.expanduser(args.locus_id_file)):
+            parser.error(f"File not found: {args.locus_id_file}")
+        fopen = gzip.open if args.locus_id_file.endswith("gz") else open
+        with fopen(os.path.expanduser(args.locus_id_file)) as f:
+            locus_ids = [line.strip() for line in f if line.strip()]
+        print(f"Parsed {len(locus_ids):,d} locus ids from {args.locus_id_file}")
+        if args.locus_id is None:
+            args.locus_id = []
+        args.locus_id.extend(locus_ids)
 
+    if args.locus_id:
+        args.locus_id = set(args.locus_id)
 
     return args, parser
 
@@ -389,7 +402,7 @@ def main():
         # parse catalog_record based on whether it has adjacent repeats
         locus_id = catalog_record["LocusId"]
         if args.locus_id and locus_id not in args.locus_id:
-            filter_counters[f"row LocusId != {args.locus_id}"] += 1
+            filter_counters[f"row LocusId not one of {len(args.locus_id)} requested loci"] += 1
             continue
         if args.exclude_locus_id and locus_id in args.exclude_locus_id:
             filter_counters[f"row LocusId == {args.exclude_locus_id}"] += 1
