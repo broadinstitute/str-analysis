@@ -181,7 +181,7 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
                     overlapping_intervals.add((chrom, overlapping_interval.begin, overlapping_interval.end))
                     break
 
-            interval_trees[chrom].add(Interval(start_0based, end, data=len(motif)))
+            interval_trees[chrom].add(Interval(start_0based, max(end, start_0based + 1), data=len(motif)))
 
         if "FlanksAndLocusMappability" in record:
             min_overall_mappability = min(min_overall_mappability, record["FlanksAndLocusMappability"])
