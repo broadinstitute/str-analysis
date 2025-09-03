@@ -167,16 +167,16 @@ def compute_UTR_type(utr_record, transcript_id_to_cds_coords):
 
     cds_coords = transcript_id_to_cds_coords.get(utr_record["transcript_id"])
     if cds_coords is None:
-        print("WARNING: CDS not found for", utr_record["transcript_id"])
+        print(f"WARNING: CDS not found for {utr_record['transcript_id']}. Unable to determine if UTR is 5' or 3'")
         return "UTR"
 
     cds_chrom, cds_start_1based, cds_end_1based, cds_strand = cds_coords
     if utr_record["chrom"] != cds_chrom:
-        print("WARNING:", utr_record["transcript_id"], "chromosome in CDS record != chromosome in UTR record:", cds_chrom, "vs", utr_record["chrom"])
+        print(f"WARNING: {utr_record['transcript_id']} chromosome in CDS record != chromosome in UTR record: {cds_chrom} vs {utr_record['chrom']}. Unable to determine if UTR is 5' or 3'")
         return "UTR"
 
     if utr_record["strand"] != cds_strand:
-        print("WARNING:", utr_record["transcript_id"], "strand in CDS record != strand in UTR record:", cds_strand, "vs", utr_record["strand"])
+        print(f"WARNING: {utr_record['transcript_id']} strand in CDS record != strand in UTR record: {cds_strand} vs {utr_record['strand']}")
         return "UTR"
 
     if (utr_record["strand"] == "+" and utr_record["end_1based"] < cds_start_1based) \
@@ -186,8 +186,8 @@ def compute_UTR_type(utr_record, transcript_id_to_cds_coords):
             or (utr_record["strand"] == "+" and utr_record["start_1based"] > cds_end_1based):
         return "3' UTR"
     else:
-        print("WARNING: Something wrong with UTR info:", utr_record["strand"], utr_record["start_1based"],  utr_record["end_1based"],
-              "or CDS info:", cds_coords)
+        print(f"WARNING: Something wrong with UTR info: {utr_record['start_1based']}-{utr_record['end_1based']} {utr_record['strand']}, "
+              f"or CDS info: {cds_coords}. Unable to determine if UTR is 5' or 3'")
         return "UTR"
 
 
