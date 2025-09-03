@@ -11,7 +11,7 @@ from str_analysis.utils.file_utils import open_file
 GENE_MODELS = {
     "gencode": "gs://str-truth-set/hg38/ref/other/gencode.v48.annotation.gtf.gz",
     "mane": "gs://str-truth-set/hg38/ref/other/MANE.GRCh38.v1.4.ensembl_genomic.gtf.gz",
-    "refseq": "gs://str-truth-set/hg38/ref/other/hg38.ncbiRefSeq.gtf.gz",
+    "refseq": "gs://str-truth-set/hg38/ref/other/hg38.ncbiRefSeq.gtf.gz", # downloaded from https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/genes/
 }
 
 
@@ -90,9 +90,16 @@ def generate_gtf_records(gtf_path):
             "exon",
             "CDS",
             "UTR",
+            "5UTR",
+            "3UTR",
             "promoter",
         }:
+            if feature_type.lower() not in {"start_codon", "stop_codon", "gene", "selenocysteine"}:
+                print(f"WARNING: Unexpected feature type '{feature_type}' in {gtf_path} line #{i}: {line.strip()}")
             continue
+
+        if feature_type == "5UTR" or feature_type == "3UTR":
+            feature_type = "UTR"
 
         annotation_source = fields[1]
         chrom = fields[0]
