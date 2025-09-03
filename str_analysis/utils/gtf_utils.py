@@ -94,7 +94,7 @@ def generate_gtf_records(gtf_path):
             "3UTR",
             "promoter",
         }:
-            if feature_type.lower() not in {"start_codon", "stop_codon", "gene", "selenocysteine"}:
+            if feature_type.lower() not in {"gene", "start_codon", "stop_codon", "selenocysteine"}:
                 print(f"WARNING: Unexpected feature type '{feature_type}' in {gtf_path} line #{i}: {line.strip()}")
             continue
 
@@ -168,16 +168,15 @@ def compute_UTR_type(utr_record, transcript_id_to_cds_coords):
     cds_coords = transcript_id_to_cds_coords.get(utr_record["transcript_id"])
     if cds_coords is None:
         print("WARNING: CDS not found for", utr_record["transcript_id"])
-        print(utr_record)
         return "UTR"
 
     cds_chrom, cds_start_1based, cds_end_1based, cds_strand = cds_coords
     if utr_record["chrom"] != cds_chrom:
-        print("ERROR:", utr_record["transcript_id"], "chrom in CDS utr_record != chrom in UTR utr_record:", cds_chrom, "vs", utr_record["chrom"])
+        print("WARNING:", utr_record["transcript_id"], "chromosome in CDS record != chromosome in UTR record:", cds_chrom, "vs", utr_record["chrom"])
         return "UTR"
 
     if utr_record["strand"] != cds_strand:
-        print("ERROR:", utr_record["transcript_id"], "strand in CDS utr_record != strand in UTR utr_record:", cds_strand, "vs", utr_record["strand"])
+        print("WARNING:", utr_record["transcript_id"], "strand in CDS record != strand in UTR record:", cds_strand, "vs", utr_record["strand"])
         return "UTR"
 
     if (utr_record["strand"] == "+" and utr_record["end_1based"] < cds_start_1based) \
@@ -187,7 +186,7 @@ def compute_UTR_type(utr_record, transcript_id_to_cds_coords):
             or (utr_record["strand"] == "+" and utr_record["start_1based"] > cds_end_1based):
         return "3' UTR"
     else:
-        print("ERROR: Something wrong with UTR info:", utr_record["strand"], utr_record["start_1based"],  utr_record["end_1based"],
+        print("WARNING: Something wrong with UTR info:", utr_record["strand"], utr_record["start_1based"],  utr_record["end_1based"],
               "or CDS info:", cds_coords)
         return "UTR"
 
