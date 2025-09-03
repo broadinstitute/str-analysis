@@ -109,9 +109,11 @@ def compute_bed_file_record(variant_record):
     return [chrom, start_0based, end_1based, variant_record["SummaryString"], "."]
 
 
-def convert_histogram_to_string(histogram):
+def convert_allele_histogram_to_string(histogram):
     return ",".join(f"{allele}x:{count}" for allele, count in sorted(histogram.items(), key=lambda x: x[0]))
 
+def convert_trgt_locus_records_to_string(trgt_locus_record_list):
+    return ",".join(f"{allele}x:{purity_or_methylation}" for allele, purity_or_methylation in trgt_locus_record_list)
 
 def main():
     """Main"""
@@ -156,7 +158,18 @@ def main():
     if not args.dont_output_allele_table:
         allele_output_file = gzip.open(f"{output_prefix}.alleles.tsv.gz", "wt")
 
-    locus_records = collections.defaultdict(lambda: {"short_alleles": collections.Counter(), "all_alleles": collections.Counter()})
+    locus_records = collections.defaultdict(lambda: {
+        "short_alleles": collections.Counter(),
+        "all_alleles": collections.Counter()
+    })
+
+    trgt_locus_records = None
+    if args.include_extra_trgt_fields and not args.dont_output_locus_table and len(args.json_paths) == 1:
+        trgt_locus_records = collections.defaultdict(lambda: {
+            "allele_purity": [],
+            "allele_methylation": [],
+        })
+
     bed_file_records = []
     sample_metadata_lookup_counters = {}
 
@@ -209,6 +222,18 @@ def main():
                             locus_records_key = (chrom, start_0based, end_1based, repeat_unit, locus_id)
 
                             allele1 = variant_record["Num Repeats: Allele 1"]
+                            if trgt_locus_records is not None:
+                                if "AllelePurity: Allele 1" in variant_record:
+                                    purity_allele_1 = variant_record["AllelePurity: Allele 1"]
+                                    if purity_allele_1 != ".":
+                                        trgt_locus_records[locus_id]["allele_purity"].append(
+                                            (allele1, round(float(purity_allele_1), 2)))
+                                if "MeanMethylation: Allele 1" in variant_record:
+                                    methylation_allele_1 = variant_record["MeanMethylation: Allele 1"]
+                                    if methylation_allele_1 != ".":
+                                        trgt_locus_records[locus_id]["allele_methylation"].append(
+                                            (allele1, round(float(methylation_allele_1), 2)))
+
                             if args.trgt_purity_threshold is not None:
                                 if "AllelePurity: Allele 1" in variant_record:
                                     purity_allele_1 = variant_record["AllelePurity: Allele 1"]
@@ -222,6 +247,18 @@ def main():
                             allele2 = None
                             if "Num Repeats: Allele 2" in variant_record:
                                 allele2 = variant_record["Num Repeats: Allele 2"]
+                                if trgt_locus_records is not None:
+                                    if "AllelePurity: Allele 2" in variant_record:
+                                        purity_allele_2 = variant_record["AllelePurity: Allele 2"]
+                                        if purity_allele_2 != ".":
+                                            trgt_locus_records[locus_id]["allele_purity"].append(
+                                                (allele2, round(float(purity_allele_2), 2)))
+                                    if "MeanMethylation: Allele 2" in variant_record:
+                                        methylation_allele_2 = variant_record["MeanMethylation: Allele 2"]
+                                        if methylation_allele_2 != ".":
+                                            trgt_locus_records[locus_id]["allele_methylation"].append(
+                                                (allele2, round(float(methylation_allele_2), 2)))
+
                                 if args.trgt_purity_threshold is not None:
                                     if "AllelePurity: Allele 2" in variant_record:
                                         purity_allele_2 = variant_record["AllelePurity: Allele 2"]
@@ -285,17 +322,20 @@ def main():
             logging.info(f"{len(sample_metadata_df) - len(sample_metadata_lookup)} duplicate sample ids in {args.sample_metadata}")
 
     if not args.dont_output_locus_table:
+        locus_table_header = [
+            "Chrom", "Start0Based", "End1Based", "RepeatUnit", "LocusId", "AlleleHistogram", "Median", "NumUniqueAlleles",
+            "MinAllele", "MaxAllele", "NumAllelesEqualToMin", "NumAllelesEqualToMax", "AlleleRange", "NumRepeatsInReference",
+            "ShortAlleleHistogram",
+        ]
+        if trgt_locus_records is not None:
+            locus_table_header.extend([
+                "AllelePurity", "AlleleMethylation"
+            ])
         with gzip.open(f"{output_prefix}.loci.tsv.gz", "wt") as f:
-            f.write("\t".join([
-                "Chrom", "Start0Based", "End1Based", "RepeatUnit", "LocusId", "AlleleHistogram", "Median", "NumUniqueAlleles",
-                "MinAllele", "MaxAllele", "NumAllelesEqualToMin", "NumAllelesEqualToMax", "AlleleRange", "NumRepeatsInReference",
-                "ShortAlleleHistogram",
-            ]) + "\n")
+            f.write("\t".join(locus_table_header) + "\n")
             for (chrom, start_0based, end_1based, repeat_unit, locus_id), allele_histograms in sorted(locus_records.items(), key=lambda x: x[0]):
-                short_allele_histogram = allele_histograms["short_alleles"]
-                short_allele_histogram_string = convert_histogram_to_string(short_allele_histogram)
                 all_allele_histogram = allele_histograms["all_alleles"]
-                all_allele_histogram_string = convert_histogram_to_string(all_allele_histogram)
+                all_allele_histogram_string = convert_allele_histogram_to_string(all_allele_histogram)
 
                 median = float(np.median(np.repeat(list(all_allele_histogram.keys()), list(all_allele_histogram.values())))) if all_allele_histogram else None
                 unique_allele_count = len(all_allele_histogram)
@@ -305,11 +345,19 @@ def main():
                 num_repeats_in_reference = int(max(0, end_1based - start_0based)/len(repeat_unit))
                 num_alleles_equal_to_min = all_allele_histogram[min_allele] if min_allele is not None else None
                 num_alleles_equal_to_max = all_allele_histogram[max_allele] if max_allele is not None else None
+                short_allele_histogram = allele_histograms["short_alleles"]
+                short_allele_histogram_string = convert_allele_histogram_to_string(short_allele_histogram)
+
                 f.write("\t".join(map(str, [
                     chrom, start_0based, end_1based, repeat_unit, locus_id, all_allele_histogram_string, median,
                     unique_allele_count, min_allele, max_allele, num_alleles_equal_to_min, num_alleles_equal_to_max,
                     allele_range, num_repeats_in_reference, short_allele_histogram_string,
                 ])))
+                if trgt_locus_records is not None:
+                    allele_purity_string = convert_trgt_locus_records_to_string(trgt_locus_records[locus_id]["allele_purity"])
+                    allele_methylation_string = convert_trgt_locus_records_to_string(trgt_locus_records[locus_id]["allele_methylation"])
+                    f.write("\t")
+                    f.write("\t".join([allele_purity_string, allele_methylation_string]))
                 f.write("\n")
 
         logging.info(f"Wrote {len(locus_records):,d} records to {output_prefix}.loci.tsv.gz")
