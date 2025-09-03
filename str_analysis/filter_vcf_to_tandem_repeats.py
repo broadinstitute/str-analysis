@@ -1071,14 +1071,12 @@ def check_if_allele_is_tandem_repeat(allele, args, detection_mode):
 
         num_repeat_bases_in_left_flank = num_total_repeats_left_flank * len(repeat_unit)
         num_repeat_bases_in_right_flank = num_total_repeats_right_flank * len(repeat_unit)
+
+        simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(repeat_unit, allow_partial_repeats=False)
+        repeat_unit = simplified_repeat_unit
+
     else:
         raise ValueError(f"Invalid detection_mode: '{detection_mode}'. It must be either '{DETECTION_MODE_PURE_REPEATS}' or '{DETECTION_MODE_ALLOW_INTERRUPTIONS}'.")
-
-
-    if detection_mode == DETECTION_MODE_ALLOW_INTERRUPTIONS:
-        simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(
-            repeat_unit, allow_partial_repeats=False)
-        repeat_unit = simplified_repeat_unit
 
     tandem_repeat_allele = TandemRepeatAllele(
         allele,
@@ -1242,8 +1240,8 @@ def run_trf(alleles, args, thread_id=1):
             else:
                 raise ValueError(f"Logic error: No TRF results for allele {allele} with motif size {motif_size}")
 
-            simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(
-                    repeat_unit, allow_partial_repeats=False)
+            # check if the repeat unit itself consists of perfect repeats of a smaller repeat unit (this happends in ~3% of TRs detected by TRF)
+            simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(repeat_unit, allow_partial_repeats=False)
             repeat_unit = simplified_repeat_unit
 
             tandem_repeat_allele = TandemRepeatAllele(
@@ -1370,7 +1368,7 @@ def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, verbose=False):
 
             elif keep_the_larger_one:
                 if tr_alleles[current_i].ref_interval_size < tr_alleles[next_i].ref_interval_size:
-                    current_i = next_i  # keep the locus definiton that has the larger interval                
+                    current_i = next_i  # keep the locus definition that has the larger interval
             else:
                 results.append(tr_alleles[current_i])
                 current_i = next_i
@@ -1643,6 +1641,7 @@ def do_merge_subcommand(args):
     if not args.output_prefix:
         args.output_prefix = f"combined.{len(args.input_bed_paths)}_catalogs"
 
+    simplified_repeat_units_counter = 0
     input_bed_paths_iterator = args.input_bed_paths if not args.show_progress_bar else tqdm.tqdm(args.input_bed_paths, unit=" catalog")
     for path_i, input_bed_path in enumerate(input_bed_paths_iterator):
         if args.verbose:
@@ -1677,6 +1676,13 @@ def do_merge_subcommand(args):
                 detection_mode = name_field_tokens[2]
                 input_catalogs_have_details = True
 
+            # check if the repeat unit itself consists of perfect repeats of a smaller repeat unit (this happends in ~3% of TRs detected by TRF)
+            simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(repeat_unit, allow_partial_repeats=False)
+            if len(simplified_repeat_unit) != len(repeat_unit):
+                simplified_repeat_units_counter += 1
+
+            repeat_unit = simplified_repeat_unit
+
             current_catalog_trs.append(MinimalTandemRepeatAllele(
                 chrom=fields[0],
                 start_0based=int(fields[1]),
@@ -1699,6 +1705,8 @@ def do_merge_subcommand(args):
 
 
     if args.verbose:
+        if simplified_repeat_units_counter:
+            print(f"Simplified {simplified_repeat_units_counter:,d} out of {len(all_trs):,d} ({100*simplified_repeat_units_counter/len(all_trs):5.1f}%) repeat units")
         print_tr_stats(all_trs, title=f"Merged catalog stats: ")
 
     write_bed(all_trs, args)    
