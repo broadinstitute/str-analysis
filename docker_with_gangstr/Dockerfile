@@ -94,7 +94,7 @@ RUN wget -q https://github.com/gymreklab/GangSTR/releases/download/v2.5/GangSTR-
 
 WORKDIR /GangSTR-${GANGSTR_VERSION}
 
-RUN python3 -m pip install --no-cache-dir --upgrade cmake pip crcmod \
+RUN python3 -m pip install --no-cache-dir --upgrade cmake==3.30.5 pip crcmod \
     && install_packages git autoconf automake libtool
 
 RUN mkdir build \
