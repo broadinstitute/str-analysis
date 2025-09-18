@@ -652,7 +652,7 @@ def main():
                     #          f"by 2 or more repeats of the larger motif. Source: {catalog_record.get('Source')}")
                     break
 
-            interval_trees[chrom].add(Interval(start_0based, end, data=canonical_motif))
+            interval_trees[chrom].add(Interval(start_0based, max(end, start_0based + 1), data=canonical_motif))
 
         if has_invalid_bases:
             continue
