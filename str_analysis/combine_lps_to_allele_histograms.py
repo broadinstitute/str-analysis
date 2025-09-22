@@ -43,26 +43,33 @@ def update_histograms(trid, motif, allele, trid_to_allele_histogram, trid_to_all
     allele_histogram = trid_to_allele_histogram[(trid, motif)]
     allele_sample_ids = trid_to_allele_sample_ids[(trid, motif)]
     allele_histogram[allele] += 1
-    if allele_histogram[allele] <= n_outlier_sample_ids:
+    if allele_histogram[allele] <= 2 * n_outlier_sample_ids:  # * 2 since each homozygous sample is counted twice
         if sample_id not in allele_sample_ids[allele]:
             allele_sample_ids[allele].append(sample_id)
-    elif allele in allele_sample_ids:
-        del allele_sample_ids[allele]
 
 
 def convert_counts_to_histogram_string(allele_counts):
     return ",".join(f"{allele_size}x:{count}" for allele_size, count in sorted(allele_counts.items()))
 
+
+def get_lps_filename_prefix(lps_table_path):
+    return re.sub("(.lps)?(.txt|.tsv)(.gz)?$", "", os.path.basename(lps_table_path))
+
+
 def convert_sample_ids_to_string(allele_sample_ids, n_outlier_sample_ids=10):
     output_value = []
     output_sample_id_counter = 0
     for allele, sample_list in sorted(allele_sample_ids.items(), key=lambda x: -x[0]):
+        if len(sample_list) >= n_outlier_sample_ids:
+            break
+
         for sample_id in sorted(sample_list):
             output_value.append(f"{allele}x:{sample_id}")
             output_sample_id_counter += 1
 
         if output_sample_id_counter > n_outlier_sample_ids:
             break
+
     return ",".join(output_value)
 
 def main():
@@ -70,22 +77,43 @@ def main():
     parser.add_argument("--n-outlier-sample-ids", type=int, default=10,
                         help="Number of samples with the largest alleles to record as outliers")
     parser.add_argument("--output-path", help="Output TSV file")
+    parser.add_argument("--use-sample-id-from-header", action="store_true", help="Use the sample ID from "
+                        "the header of each input table instead of deriving it from the filename prefix")
+    parser.add_argument("--trid-list", help="Optional path of file that lists TRIDs (one per line) to "
+                        "include in the output. If not specified, all TRIDs in the input tables will be included.")
     parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
+
     parser.add_argument("input_tables", nargs="+", help="Input TSV files with LPS scores")
 
     args = parser.parse_args()
+
     for input_table in args.input_tables:
         if not os.path.isfile(input_table):
             parser.error(f"Input table {input_table} does not exist")
 
+
+
     if not args.output_path:
         if len(args.input_tables) == 1:
-            args.output_path = re.sub("(.lps)?(.txt|.tsv)(.gz)?$", "", args.input_tables[0]) + ".lps_allele_histograms.tsv.gz"
+            args.output_path = os.path.join(
+                os.path.dirname(args.input_tables[0]),
+                f"{get_lps_filename_prefix(args.input_tables[0])}.lps_allele_histograms.tsv.gz",
+            )
         else:
             args.output_path = f"combined.{len(args.input_tables)}_input_tables.lps_allele_histograms.tsv.gz"
     else:
         args.output_path = args.output_path
 
+    if not args.trid_list:
+        trids_to_include = None
+    else:
+        if not os.path.isfile(args.trid_list):
+            parser.error(f"TRID list file {args.trid_list} does not exist")
+
+        fopen = gzip.open if args.trid_list.endswith("gz") else open
+        with fopen(args.trid_list, "rt") as f:
+            trids_to_include = set(line.strip() for line in f if line.strip())
+        print(f"Will only include the {len(trids_to_include):,d} TRIDs from {args.trid_list}")
 
     trid_to_allele_histogram = collections.defaultdict(lambda: collections.defaultdict(int))
     trid_to_allele_sample_ids = collections.defaultdict(lambda: collections.defaultdict(list))
@@ -107,36 +135,43 @@ def main():
             if len(header_fields) < 3 or header_fields[0] != "trid" or header_fields[1] != "motif":
                 parser.error(f"Unexpected header in {input_table}: {header_fields}. Expecting trid, motif, <sample id>")
 
-            sample_id = header_fields[2]
-            print(f"Processing {input_table} with sample {sample_id}")
+            if args.use_sample_id_from_header:
+                sample_id = header_fields[2]
+            else:
+                sample_id = get_lps_filename_prefix(input_table)
 
-            line_count = 0
+            print(f"Processing {input_table} with sample {sample_id}")
+            total_line_count = line_count = 0
             for line in f:
-                line_count += 1
+                total_line_count += 1
                 fields = line.rstrip().split("\t")
                 trid = fields[0]
+                if trids_to_include is not None and trid not in trids_to_include:
+                    continue
+
+                line_count += 1
                 motif = fields[1]
                 lps = fields[2]
                 lps_values = [int(v) for v in lps.split(",")]
 
+                is_hemizygous = len(lps_values) == 1
                 short_allele = min(lps_values)
                 long_allele = max(lps_values)
 
                 # update trid_to_allele_histogram
                 update_histograms(trid, motif, short_allele, trid_to_allele_histogram, trid_to_allele_sample_ids, sample_id, args.n_outlier_sample_ids)
-                if len(lps_values) > 1:
+                if not is_hemizygous:
                     update_histograms(trid, motif, long_allele, trid_to_allele_histogram, trid_to_allele_sample_ids, sample_id, args.n_outlier_sample_ids)
 
                 # update trid_to_short_allele_histogram
                 update_histograms(trid, motif, short_allele, trid_to_short_allele_histogram, trid_to_short_allele_sample_ids, sample_id, args.n_outlier_sample_ids)
 
-                #print(trid_to_allele_sample_ids[(trid, motif)])
-
                 # update trid_to_hemizygous_allele_histogram
-                if len(lps_values) == 1:
+                if is_hemizygous:
                     update_histograms(trid, motif, short_allele, trid_to_hemizygous_allele_histogram, trid_to_hemizygous_allele_sample_ids, sample_id, args.n_outlier_sample_ids)
 
-            print(f"Processed {line_count:,d} rows from {input_table}")
+            print(f"Processed {line_count:,d} out of {total_line_count:,d} rows from {input_table}")
+
 
     print(f"Writing output to {args.output_path}")
     header = [
@@ -163,9 +198,12 @@ def main():
                 "ShortAlleleHistogram": convert_counts_to_histogram_string(trid_to_short_allele_histogram[(trid, motif)]),
                 "HemizygousAlleleHistogram": convert_counts_to_histogram_string(trid_to_hemizygous_allele_histogram[(trid, motif)]),
 
-                "OutlierSampleIds_AllAlleles": convert_sample_ids_to_string(trid_to_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids),
-                "OutlierSampleIds_ShortAlleles": convert_sample_ids_to_string(trid_to_short_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids),
-                "OutlierSampleIds_HemizygousAlleles": convert_sample_ids_to_string(trid_to_hemizygous_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids),
+                "OutlierSampleIds_AllAlleles": convert_sample_ids_to_string(
+                    trid_to_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids),
+                "OutlierSampleIds_ShortAlleles": convert_sample_ids_to_string(
+                    trid_to_short_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids),
+                "OutlierSampleIds_HemizygousAlleles": convert_sample_ids_to_string(
+                    trid_to_hemizygous_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids),
             }
             out_f.write("\t".join(str(output_row[col]) for col in header) + "\n")
             output_row_counter += 1
