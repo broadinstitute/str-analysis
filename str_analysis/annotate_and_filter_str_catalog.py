@@ -80,7 +80,8 @@ def parse_args():
 
     filter_group.add_argument("-m", "--motif", action="append", help="Only include loci whose canonical motif matched "
                                                                      "the canonical motif version of the given motif")
-
+    filter_group.add_argument("--min-repeats", type=int, help="Filter out any loci with a reference interval "
+                                                                       "that's smaller than this many repeats of the motif")
     filter_group.add_argument("--min-interval-size-bp", type=int, help="Filter out any loci with a reference interval "
                                                                        "that's smaller than this many base pairs")
     filter_group.add_argument("--max-interval-size-bp", type=int, help="Filter out any loci with a reference interval "
@@ -272,7 +273,7 @@ def output_tsv(output_path, output_records):
                 output_row[field] = record[field][i]
             output_tsv_rows.append(output_row)
 
-    pd.DataFrame(output_records).to_csv(output_path, sep="\t", index=False, header=True)
+    pd.DataFrame(output_tsv_rows).to_csv(output_path, sep="\t", index=False, header=True)
 
 
 def compute_sequence_purity_stats(nucleotide_sequence, motif):
@@ -502,7 +503,11 @@ def main():
             #catalog_record["MotifSize"] = len(canonical_motifs[0])
 
         # apply interval size filters
-        if args.min_interval_size_bp and all(end - start_0based < args.min_interval_size_bp for chrom, start_0based, end in chroms_start_0based_ends):
+        if args.min_repeats and all((end - start_0based)/len(motif) < args.min_repeats for ((chrom, start_0based, end), motif) in zip(chroms_start_0based_ends, motifs)):
+            filter_counters[f"row interval size < {args.min_repeats} repeats"] += 1
+            continue
+
+        if args.min_interval_size_bp and all(end - start_0based < args.min_interval_size_bp for (chrom, start_0based, end) in chroms_start_0based_ends):
             filter_counters[f"row interval size < {args.min_interval_size_bp}bp"] += 1
             continue
 
