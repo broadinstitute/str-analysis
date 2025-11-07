@@ -1,3 +1,5 @@
+import gzip
+import ijson
 import logging
 import subprocess
 
@@ -61,6 +63,27 @@ def parse_key_value(key_value, delimiter="="):
         raise ValueError(f"Invalid arg {key_value}")
 
     return tuple(key_value_list)
+
+
+def get_json_iterator(content, is_gzipped=False):
+    """Helper function to get an ijson iterator over a file or over HTTP request response content.
+
+    Example usage:
+        is_gzipped = json_path.endswith('gz')
+        if json_path.startswith("http"):
+            response = requests.get(json_path)
+            catalog = get_json_iterator(response.content, is_gzipped)
+        elif os.path.isfile(json_path):
+            catalog = get_json_iterator(json_path, is_gzipped)
+    """
+
+    if is_gzipped:
+        if isinstance(content, bytes):
+            content = gzip.decompress(content)
+        else:
+            content = gzip.open(content, 'rb')
+
+    return ijson.items(content, "item", use_float=True)
 
 
 class IterCounter:
