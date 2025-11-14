@@ -6,6 +6,29 @@ import subprocess
 CHROMOSOME_ORDER = list(map(str, range(1,23))) + ["X", "Y", "M", "MT"]
 CHROMOSOME_ORDER += [f"chr{s}" for s in CHROMOSOME_ORDER]
 
+COMPLEMENT = {
+    'A': 'T',
+    'C': 'G',
+    'G': 'C',
+    'T': 'A',
+    'N': 'N',
+    'Y': 'R',   # source: https://arep.med.harvard.edu/labgc/adnan/projects/Utilities/revcomp.html
+    'R': 'Y',
+    'S': 'S',
+    'W': 'W',
+    'M': 'K',
+    'K': 'M',
+    'B': 'V',
+    'V': 'B',
+    'D': 'H',
+    'H': 'D',
+}
+
+
+def reverse_complement(dna):
+    """Take a string representing a DNA sequence and return its reverse-complement"""
+    return "".join([COMPLEMENT[c] for c in dna[::-1]])
+
 
 def intervals_in_genomic_sort_order(interval_strings):
     """Sorts a list of intervals by genomic coordinates. Takes a list of 'chr:start-end' interval strings like
@@ -108,3 +131,4 @@ class IterCounter:
     @property
     def count(self):
         return self._counter
+

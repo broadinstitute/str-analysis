@@ -2,30 +2,7 @@
 
 https://github.com/Illumina/ExpansionHunterDenovo/blob/master/source/reads/IrrFinder.cpp#L125
 """
-
-
-COMPLEMENT = {
-    'A': 'T',
-    'C': 'G',
-    'G': 'C',
-    'T': 'A',
-    'N': 'N',
-    'Y': 'R',   # source: https://arep.med.harvard.edu/labgc/adnan/projects/Utilities/revcomp.html
-    'R': 'Y',
-    'S': 'S',
-    'W': 'W',
-    'M': 'K',
-    'K': 'M',
-    'B': 'V',
-    'V': 'B',
-    'D': 'H',
-    'H': 'D',
-}
-
-
-def reverse_complement(dna):
-    """Take a string representing a DNA sequence and return its reverse-complement"""
-    return "".join([COMPLEMENT[c] for c in dna[::-1]])
+from str_analysis.utils.misc_utils import reverse_complement
 
 
 def _alphabetically_first_motif_under_shift(motif):
