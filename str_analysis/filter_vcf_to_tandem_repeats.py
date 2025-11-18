@@ -143,6 +143,8 @@ def parse_args():
                    action="store_true")
     catalog_p.add_argument("--write-fasta", help="Output a FASTA file containing all TR alleles", action="store_true")
     catalog_p.add_argument("--write-tsv", help="Output a TSV file containing all TR alleles", action="store_true")
+    catalog_p.add_argument("-ik", "--copy-info-field-keys-to-tsv", help="Copy the values of these INFO field keys from the input "
+                                                                 "VCF to the output TSV files.", action="append")
     catalog_p.add_argument("-L", "--interval", help="Only process variants in this genomic interval (format: chrom:start-end)",
                    action="append")
     
@@ -179,6 +181,9 @@ def parse_args():
 
         if not args.dont_run_trf and not args.trf_executable_path:
             p.error(f"Must specify --trf-executable-path or --dont-run-trf")
+
+        if args.copy_info_field_keys_to_tsv:
+            args.copy_info_field_keys_to_tsv = {key: 0 for key in args.copy_info_field_keys_to_tsv}
         
     if args.subcommand == "catalog" or args.subcommand == "genotype":
         args.input_vcf_prefix = re.sub(".vcf(.gz|.bgz)?$", "", os.path.basename(args.input_vcf_path))
@@ -189,7 +194,7 @@ def parse_args():
 class Allele:
     """Represents a single VCF allele."""
 
-    def __init__(self, chrom, pos, ref, alt, fasta_obj, allele_order=-1):
+    def __init__(self, chrom, pos, ref, alt, fasta_obj, allele_order=-1, info_field_dict=None):
 
         self._chrom = chrom
         self._pos = pos
@@ -197,7 +202,8 @@ class Allele:
         self._alt = alt
         self._fasta_obj = fasta_obj
         self._allele_order = allele_order
-
+        self._info_field_dict = info_field_dict
+        
         if fasta_obj.faidx.one_based_attributes:
             raise ValueError("Fasta object should be created with one_based_attributes set to False")
         
@@ -383,6 +389,10 @@ class Allele:
             self._shortened_variant_id += f"-h{abs(hash(self.variant_id))}"  # add a hash to make the ID unique
 
         return self._shortened_variant_id
+
+    @property
+    def info_field_dict(self):
+        return self._info_field_dict
 
 
 class TandemRepeatAllele:
@@ -591,6 +601,10 @@ class TandemRepeatAllele:
     def variant_id(self):
         return f"{self._allele.chrom}-{self._allele.pos}-{self._allele.ref}-{self._allele.alt}"
 
+    @property
+    def info_field_dict(self):
+        return self._allele.info_field_dict
+
     def do_repeats_cover_entire_left_flanking_sequence(self):
         return self._num_repeat_bases_in_left_flank > len(self._allele.get_left_flanking_sequence()) - len(self._repeat_unit)
 
@@ -632,7 +646,7 @@ class TandemRepeatAllele:
         return result
 
 class MinimalTandemRepeatAllele:
-    def __init__(self, chrom, start_0based, end_1based, repeat_unit, detection_mode=None, allele_order=-1):
+    def __init__(self, chrom, start_0based, end_1based, repeat_unit, detection_mode=None, allele_order=-1, info_field_dict=None):
         if start_0based > end_1based:
             raise ValueError(f"start_0based ({start_0based}) > end_1based ({end_1based})")
         
@@ -643,7 +657,6 @@ class MinimalTandemRepeatAllele:
         self._detection_mode = detection_mode
         self._canonical_repeat_unit = None
         self._allele_order = allele_order
-        
 
     @property
     def chrom(self):
@@ -682,7 +695,7 @@ class MinimalTandemRepeatAllele:
     @property
     def locus_id(self):
         return f"{self._chrom}-{self._start_0based}-{self._end_1based}-{self._repeat_unit}"
-            
+
     def __str__(self):
         return self.locus_id
     
@@ -696,7 +709,8 @@ class MinimalTandemRepeatAllele:
             new_end_1based,
             self._repeat_unit,
             detection_mode=new_detection_mode,
-            allele_order=self._allele_order)
+            allele_order=self._allele_order,
+        )
 
 
 
@@ -934,6 +948,17 @@ def parse_input_vcf_file(args, counters, fasta_obj):
         vcf_alt = vcf_fields[4].upper()
         alt_alleles = vcf_alt.split(",")
 
+        info_field_dict = None
+        if args.copy_info_field_keys_to_tsv and args.write_tsv and vcf_fields[7] and vcf_fields[7] != ".":
+            info_field_dict = {}
+            for info_field_value in vcf_fields[7].split(";"):
+                info_field_key_value = info_field_value.split("=")
+                key = info_field_key_value[0]
+                if key in args.copy_info_field_keys_to_tsv:
+                    value = info_field_key_value[1] if len(info_field_key_value) > 1 else True    
+                    info_field_dict[key] = value
+                    args.copy_info_field_keys_to_tsv[key] += 1
+
         if vcf_chrom not in fasta_obj:
             raise ValueError(f"Chromosome '{vcf_chrom}' not found in the reference fasta")
 
@@ -981,7 +1006,7 @@ def parse_input_vcf_file(args, counters, fasta_obj):
                 #allele_filter_reason = FILTER_ALLELE_MNV_INDEL
                 continue
 
-            allele = Allele(vcf_chrom, vcf_pos, vcf_ref, alt_allele, fasta_obj, allele_order=allele_order)
+            allele = Allele(vcf_chrom, vcf_pos, vcf_ref, alt_allele, fasta_obj, allele_order=allele_order, info_field_dict=info_field_dict)
             allele_order += 1
 
             if len(allele.variant_bases) > MAX_INDEL_SIZE:
@@ -1453,28 +1478,37 @@ def write_tsv(tandem_repeat_alleles, args):
 
     tsv_output_path = f"{args.output_prefix}.tandem_repeats.tsv"
 
+    header = [
+        "Chrom",
+        "Start0Based",
+        "End1Based",
+        "Locus",
+        "LocusId",
+        "INS_or_DEL",
+        "Motif",
+        "CanonicalMotif",
+        "MotifSize",
+        "NumRepeatsInReference",
+        "VcfPos",
+        "SummaryString",
+        "IsFoundInReference",
+        "IsPureRepeat",
+        "DetectionMode",
+    ]
+
+    extra_header_columns = []
+    if args.copy_info_field_keys_to_tsv:
+        for key, count in args.copy_info_field_keys_to_tsv.items():
+            if count > 0:
+                extra_header_columns.append(key)
+            else:
+                print(f"WARNING: INFO field key '{key}' was not found in any of rows of the input VCF. Skipping..")
+
     with open(tsv_output_path, "w") as f:
-        f.write("\t".join([
-            "Chrom",
-            "Start0Based",
-            "End1Based",
-            "Locus",
-            "LocusId",
-            "INS_or_DEL",
-            "Motif",
-            "MotifInterruptionIndices",
-            "CanonicalMotif",
-            "MotifSize",
-            "NumRepeatsInReference",
-            "VcfPos",
-            "SummaryString",
-            "IsFoundInReference",
-            "IsPureRepeat",
-            "DetectionMode",
-        ]) + "\n")
+        f.write("\t".join(header + extra_header_columns) + "\n")
         
         for tandem_repeat_allele in tandem_repeat_alleles:
-            f.write("\t".join(map(str, [
+            output_row = [
                 tandem_repeat_allele.chrom,
                 tandem_repeat_allele.start_0based,
                 tandem_repeat_allele.end_1based,
@@ -1490,7 +1524,11 @@ def write_tsv(tandem_repeat_alleles, args):
                 tandem_repeat_allele.end_1based > tandem_repeat_allele.start_0based,
                 tandem_repeat_allele.is_pure_repeat,
                 tandem_repeat_allele.detection_mode,
-            ])) + "\n")
+            ]
+            for key in extra_header_columns:
+                output_row.append(tandem_repeat_allele.info_field_dict.get(key, ""))
+
+            f.write("\t".join(map(str, output_row)) + "\n")
 
     os.system(f"bgzip -f {tsv_output_path}")
     if args.verbose:
