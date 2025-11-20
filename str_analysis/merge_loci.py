@@ -20,8 +20,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Combines two or more repeat catalogs into a single catalog. Loci "
         "that have similar motifs and overlap either by more than the given threshold or by at least two repeats of "
         "the larger motif among the two can be merged or discarded.")
-    parser.add_argument("-f", "--overlap-fraction", default=0.66, type=float, help="The minimum overlap for two loci "
-        "to be considered the same locus (when they also have the same canonical motif). "
+    parser.add_argument("-f", "--overlap-fraction", default=0.66, type=float, help="For 2 overlapping locus definitions "
+        "to be considered as the same, they must share the same canonical motif and also either "
+        "1) overlap by at least 2 repeats of that motif, or 2) overlap by at least this fraction. "
         "This is analogous to the -f argument in 'bedtools intersect', but here the fraction is computed by dividing "
         "the overlap size first by the size of the first interval and separately by the size of the second interval. "
         "Then, the loci are considered the same if either computed fraction passes this threshold.")
@@ -251,7 +252,7 @@ def check_for_sufficient_overlap_and_motif_match(
 
     if min_jaccard_similarity is not None:
         intersection_size = new_interval.overlap_size(existing_interval)
-        union_size = max(new_interval.end, existing_interval.end) - min(new_interval.start, existing_interval.start)
+        union_size = max(new_interval.end, existing_interval.end) - min(new_interval.begin, existing_interval.begin)
         if union_size == 0 or intersection_size / union_size < min_jaccard_similarity:
             return None
 
