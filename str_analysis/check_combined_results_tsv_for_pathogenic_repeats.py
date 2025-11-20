@@ -536,6 +536,8 @@ def print_results_for_locus(args, locus_id, locus_df, highlight_locus=False):
             "AP": "Purity",
         }, inplace=True)
 
+        df_to_process.drop(columns=["Purity", "Methylation"], errors="ignore", inplace=True)
+
         # Print the candidate pathogenic rows for this locus
         print(tabulate(df_to_process, headers="keys", tablefmt="psql", showindex=False))
 
