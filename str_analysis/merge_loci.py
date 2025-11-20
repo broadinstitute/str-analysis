@@ -22,11 +22,12 @@ def parse_args():
         "the larger motif among the two can be merged or discarded.")
     parser.add_argument("-f", "--overlap-fraction", default=0.66, type=float, help="The minimum overlap for two loci "
         "to be considered the same locus (when they also have the same canonical motif). "
-        "This is similar to the -f argument in 'bedtools intersect'.")
-    parser.add_argument("--max-size-difference", type=float, help="When two loci overlap and have the same canonical motif,"
-        "consider them to be different loci if the larger of the two is more than this many times wider than the smaller "
-        "one. For example, if set to 2.0, two loci will not be merged if one locus is 2.5x wider than the other, even if "
-        "they overlap by more than overlap_fraction and have the same canonical motif. The value should be >= 1.0")
+        "This is analogous to the -f argument in 'bedtools intersect', but here the fraction is computed by dividing "
+        "the overlap size first by the size of the first interval and separately by the size of the second interval. "
+        "Then, the loci are considered the same if either computed fraction passes this threshold.")
+    parser.add_argument("--min-jaccard-similarity", type=float, help="When two loci overlap and have the same "
+        "canonical motif, consider them to be different loci if their Jaccard similarity (computed as the "
+        "intersection divided by the union) is less than this value.")
     parser.add_argument("--motif-match-type", choices=("canonical", "length"), default="canonical", help="The type of "
         "motif match to use when comparing loci. 'canonical' will require the canonical motifs to match. "
         "'length' will only require the motifs to be the same length.")
@@ -79,8 +80,8 @@ def parse_args():
 
     args = parser.parse_args()
 
-    if args.max_size_difference is not None and args.max_size_difference < 1:
-        parser.error("--max-size-difference must be greater than or equal to 1.")
+    if args.min_jaccard_similarity is not None and (args.min_jaccard_similarity < 0 or args.min_jaccard_similarity > 1):
+        parser.error("--min-jaccard-similarity must be between 0 and 1.")
 
     if args.merge_adjacent_loci_with_same_motif and (args.write_outer_join_table or args.add_found_in_fields):
         parser.error("--merge-adjacent-loci-with-same-motif can not be used with --write-outer-join-table or --add-found-in-fields")
@@ -241,27 +242,24 @@ def check_for_sufficient_overlap_and_motif_match(
         new_interval,
         counters=None,
         min_overlap_fraction=0.66,
-        max_size_difference=None,
+        min_jaccard_similarity=None,
         motif_match_type="canonical"):
 
     existing_record = existing_interval.data
     new_record = new_interval.data
     overlap_size = existing_interval.overlap_size(new_interval)
 
+    if min_jaccard_similarity is not None:
+        intersection_size = new_interval.overlap_size(existing_interval)
+        union_size = max(new_interval.end, existing_interval.end) - min(new_interval.start, existing_interval.start)
+        if union_size == 0 or intersection_size / union_size < min_jaccard_similarity:
+            return None
+
+
     # if the new record overlaps an existing record by less than the minimum overlap fraction, then it's not
     # considered a duplicate of the existing record
     sufficient_overlap_size = overlap_size >= min_overlap_fraction * new_interval.length() or \
                               overlap_size >= min_overlap_fraction * existing_interval.length()
-
-    if max_size_difference is not None:
-        sufficiently_similar_size = (
-            max(new_interval.length(), existing_interval.length()) / min(new_interval.length(), existing_interval.length())
-            <= max_size_difference
-        )
-
-        if not sufficiently_similar_size:
-            return None
-
 
     if isinstance(new_record["ReferenceRegion"], list) or isinstance(existing_record["ReferenceRegion"], list):
         if not sufficient_overlap_size:
@@ -338,7 +336,7 @@ def add_variant_catalog_to_interval_trees(
         outer_join_overlap_table=None,
         overlapping_loci_action="keep-first",
         min_overlap_fraction=0.01,
-        max_size_difference=None,
+        min_jaccard_similarity=None,
         motif_match_type="canonical",
         discard_extra_fields_from_input_catalogs=False,
         stats=None,
@@ -403,7 +401,7 @@ def add_variant_catalog_to_interval_trees(
                 new_interval,
                 counters=counters,
                 min_overlap_fraction=min_overlap_fraction,
-                max_size_difference=max_size_difference,
+                min_jaccard_similarity=min_jaccard_similarity,
                 motif_match_type=motif_match_type)
             if existing_interval is not None:
                 break
@@ -791,7 +789,7 @@ def main():
             catalog_name, path, file_type, interval_trees, outer_join_overlap_table,
             overlapping_loci_action=args.overlapping_loci_action,
             min_overlap_fraction=args.overlap_fraction,
-            max_size_difference=args.max_size_difference,
+            min_jaccard_similarity=args.min_jaccard_similarity,
             motif_match_type=args.motif_match_type,
             discard_extra_fields_from_input_catalogs=args.discard_extra_fields_from_input_catalogs,
             stats=stats,
