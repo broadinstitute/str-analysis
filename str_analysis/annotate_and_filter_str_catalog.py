@@ -80,7 +80,7 @@ def parse_args():
 
     filter_group.add_argument("-m", "--motif", action="append", help="Only include loci whose canonical motif matched "
                                                                      "the canonical motif version of the given motif")
-    filter_group.add_argument("--min-repeats", type=int, help="Filter out any loci with a reference interval "
+    filter_group.add_argument("--min-repeats-in-reference", type=int, help="Filter out any loci with a reference interval "
                                                                        "that's smaller than this many repeats of the motif")
     filter_group.add_argument("--min-interval-size-bp", type=int, help="Filter out any loci with a reference interval "
                                                                        "that's smaller than this many base pairs")
@@ -503,8 +503,11 @@ def main():
             #catalog_record["MotifSize"] = len(canonical_motifs[0])
 
         # apply interval size filters
-        if args.min_repeats and all((end - start_0based)/len(motif) < args.min_repeats for ((chrom, start_0based, end), motif) in zip(chroms_start_0based_ends, motifs)):
-            filter_counters[f"row interval size < {args.min_repeats} repeats"] += 1
+        if args.min_repeats_in_reference and all(
+                (end - start_0based)/len(motif) < args.min_repeats_in_reference
+                for ((chrom, start_0based, end), motif) in zip(chroms_start_0based_ends, motifs)
+        ):
+            filter_counters[f"row interval size < {args.min_repeats_in_reference} repeats"] += 1
             continue
 
         if args.min_interval_size_bp and all(end - start_0based < args.min_interval_size_bp for (chrom, start_0based, end) in chroms_start_0based_ends):
