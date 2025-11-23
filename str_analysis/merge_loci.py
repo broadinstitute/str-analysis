@@ -29,9 +29,9 @@ def parse_args():
     parser.add_argument("--min-jaccard-similarity", type=float, help="When two loci overlap and have the same "
         "canonical motif, consider them to be different loci if their Jaccard similarity (computed as the "
         "intersection divided by the union) is less than this value.")
-    parser.add_argument("--motif-match-type", choices=("canonical", "length"), default="canonical", help="The type of "
-        "motif match to use when comparing loci. 'canonical' will require the canonical motifs to match. "
-        "'length' will only require the motifs to be the same length.")
+    parser.add_argument("--motif-length-match-sufficient-for-VNTRs", action="store_true", help="If this flag is specified, "
+        "overlapping VNTR locus definitions (those with motif > 6bp) will not have to have the same canonical motif "
+        "for them to be considered the same locus definition. Instead, only their motif lengths will have to be the same.")
     parser.add_argument("--add-found-in-fields", action="store_true", help="If specified, then 'FoundIn<CatalogName>' "
         "fields will be added to the output catalog to indicate which input catalogs contain this locus. "
         "This requires the output format to be set to JSON.")
@@ -244,7 +244,7 @@ def check_for_sufficient_overlap_and_motif_match(
         counters=None,
         min_overlap_fraction=0.66,
         min_jaccard_similarity=None,
-        motif_match_type="canonical"):
+        motif_length_match_sufficient_for_VNTRs=False):
 
     existing_record = existing_interval.data
     new_record = new_interval.data
@@ -304,27 +304,14 @@ def check_for_sufficient_overlap_and_motif_match(
     if not sufficient_overlap_size and overlap_size < 2*len(longer_motif):
         return None
 
-    assert motif_match_type in ("canonical", "length")
-
-    if motif_match_type == "canonical" and existing_record_canonical_motif == new_record_canonical_motif:
+    if existing_record_canonical_motif == new_record_canonical_motif:
         if counters is not None: counters[f"overlapped an existing locus by at least {100*min_overlap_fraction}% " \
                                           f"and had the same canonical motif"] += 1
         return existing_interval
-    elif motif_match_type == "length" and len(existing_record_canonical_motif) == len(new_record_canonical_motif):
+    elif motif_length_match_sufficient_for_VNTRs and len(existing_record_canonical_motif) > 6 and len(existing_record_canonical_motif) == len(new_record_canonical_motif):
         if counters is not None: counters[f"overlapped an existing locus by at least {100*min_overlap_fraction}% " \
-                                          f"and had the same motif length"] += 1
+                                          f"and were VNTRs with the same motif length"] += 1
         return existing_interval
-    else:
-        if len(existing_record_canonical_motif) <= len(new_record_canonical_motif):
-            short_motif, long_motif = existing_record_canonical_motif, new_record_canonical_motif
-        elif len(existing_record_canonical_motif) > len(new_record_canonical_motif):
-            short_motif, long_motif = new_record_canonical_motif, existing_record_canonical_motif
-
-        expanded_motif = short_motif * (1 + len(long_motif)//len(short_motif))
-        if expanded_motif[:len(long_motif)] == long_motif:
-            if counters is not None: counters[f"overlapped an existing locus by at least {100*min_overlap_fraction}% " \
-                                              f"and one motif was contained within the other"] += 1
-            return existing_interval
 
     return None
 
@@ -338,7 +325,7 @@ def add_variant_catalog_to_interval_trees(
         overlapping_loci_action="keep-first",
         min_overlap_fraction=0.01,
         min_jaccard_similarity=None,
-        motif_match_type="canonical",
+        motif_length_match_sufficient_for_VNTRs=False,
         discard_extra_fields_from_input_catalogs=False,
         stats=None,
         verbose=False,
@@ -403,7 +390,7 @@ def add_variant_catalog_to_interval_trees(
                 counters=counters,
                 min_overlap_fraction=min_overlap_fraction,
                 min_jaccard_similarity=min_jaccard_similarity,
-                motif_match_type=motif_match_type)
+                motif_length_match_sufficient_for_VNTRs=motif_length_match_sufficient_for_VNTRs)
             if existing_interval is not None:
                 break
 
@@ -475,7 +462,7 @@ def add_variant_catalog_to_interval_trees(
 
                     they_match = check_for_sufficient_overlap_and_motif_match(
                         overlapping_interval, new_interval, min_overlap_fraction=min_overlap_fraction,
-                        motif_match_type=motif_match_type)
+                        motif_length_match_sufficient_for_VNTRs=motif_length_match_sufficient_for_VNTRs)
                     if not they_match:
                         continue
 
@@ -791,7 +778,7 @@ def main():
             overlapping_loci_action=args.overlapping_loci_action,
             min_overlap_fraction=args.overlap_fraction,
             min_jaccard_similarity=args.min_jaccard_similarity,
-            motif_match_type=args.motif_match_type,
+            motif_length_match_sufficient_for_VNTRs=args.motif_length_match_sufficient_for_VNTRs,
             discard_extra_fields_from_input_catalogs=args.discard_extra_fields_from_input_catalogs,
             stats=stats,
             verbose=args.verbose,
