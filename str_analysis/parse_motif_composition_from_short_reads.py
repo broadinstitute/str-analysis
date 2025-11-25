@@ -20,7 +20,7 @@ NUCLEOTIDE_SEQUENCE_REGEXP = re.compile(r"([ACGTRYMKSWHBVDN]+)", re.IGNORECASE)
 SEPARATOR = "|"
 
 def _is_nucleotide_sequence(s):
-    return "A" in s or "C" in s or "G" in s or "T" in s
+    return "A" in s or "C" in s or "G" in s or "T" in s or "N" in s
 
 def _parse_motif_ids_from_processed_sequence(sequence_with_motif_ids):
     return [int(s) for s in sequence_with_motif_ids.split(SEPARATOR) if s and not _is_nucleotide_sequence(s)]
@@ -326,10 +326,16 @@ def main():
                     control_region_read_depth_dict[interval] += 1
     else:
         input_is_file = False
+        unexpected_characters = set(args.input_sequence.upper()) - set("ATCGN")
+        if unexpected_characters:
+            if len(unexpected_characters) > 5:
+                parser.error(f"File not found: {args.input_sequence}")
+            else:
+                parser.error("The input_sequence arg must be a nucleotide sequence consisting of A, C, G, T, and N. Invalid characters detected: " + str(set(args.input_sequence) - set("ATCGN")))
+            
+        
         if args.genomic_interval:
             parser.error("The --genomic-interval arg is only supported if the input_sequence arg is a BAM/CRAM file")
-        if set(args.input_sequence) - set("ATCGN"):
-            parser.error("The input_sequence arg must be a nucleotide sequence consisting of A, C, G, T, and N")
             
         parsed_sequence = locus_parser.convert_nucleotide_seq_to_motif_seq(
             args.input_sequence,
