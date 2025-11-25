@@ -97,6 +97,7 @@ def simulate_reads(
         wgsim_mutation_rate=0.0001,
         wgsim_fraction_indels=0.0001,
         wgsim_p_indel_extension=0.0001,
+        return_fastq=False,
         force=False):
     """Generates simulated reads with the given parameters and returns the output bam path."""
 
@@ -137,6 +138,9 @@ def simulate_reads(
             f"{synthetic_reference_file_path} "
             f"{fastq1_path} "
             f"{fastq2_path} ")  # "  2> /dev/null"
+
+    if return_fastq:
+        return fastq1_path, fastq2_path
 
     if not force and os.path.isfile(f"{output_filename_prefix}.bam"):
         logging.info(f"{output_filename_prefix}.bam already exists. Will not regenerate it.")
