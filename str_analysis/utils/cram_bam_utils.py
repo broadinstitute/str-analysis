@@ -539,3 +539,26 @@ class IntervalReader:
 		return byte_range
 
 
+
+def get_total_mapped_reads(input_bam_or_cram_path):
+    """Fast approximation of the total number of mapped reads in a BAM/CRAM file."""
+    mapped = 0
+    with pysam.AlignmentFile(input_bam_or_cram_path, "rb") as bam:
+        for contig in bam.get_index_statistics():
+            mapped += contig.mapped
+
+    return mapped
+
+
+
+def get_average_read_depth(input_bam_or_cram_path):
+    """Fast approximation of the average read depth in a BAM/CRAM file."""
+    total_bases = 0
+    total_genome_bases = 0
+    with pysam.AlignmentFile(input_bam_or_cram_path, "rb") as bam:
+        for contig in bam.get_index_statistics():
+            total_bases += contig.mapped
+            total_genome_bases += contig.length
+
+    return total_bases / total_genome_bases if total_genome_bases else 0    
+

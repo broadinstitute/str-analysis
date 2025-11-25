@@ -5,11 +5,14 @@ nucleotide sequences.
 
 import argparse
 import collections
+import os
 import pandas as pd
+import pysam
 import re
 from scipy.stats import binom
 
-from str_analysis.utils.misc_utils import reverse_complement
+from str_analysis.utils.misc_utils import reverse_complement, parse_interval
+from str_analysis.utils.cram_bam_utils import get_total_mapped_reads
 
 MOTIF_INDEX_REGEXP = re.compile(r"[|][(\d+)][|]")
 NUCLEOTIDE_SEQUENCE_REGEXP = re.compile(r"([ACGTRYMKSWHBVDN]+)", re.IGNORECASE)
@@ -82,7 +85,7 @@ class LocusParser:
             motif_sequence = self._reference_motif_id_to_motif[motif_id]
             motif_probability = 1
             for motif_base in motif_sequence:
-                motif_probability *= base_frequencies[motif_base]
+                motif_probability *= base_frequencies.get(motif_base, 0.001)  # probability of base is 0.001 if not found
             probability_of_any_one_of_the_motifs_occurring += motif_probability
 
         total_motif_matches = len(parsed_motif_ids)
@@ -229,6 +232,9 @@ class LocusParser:
     def get_reference_motif_id_to_motif_dict(self):
         return self._reference_motif_id_to_motif
 
+    def get_reference_motif_to_motif_id_dict(self):
+        return {motif: motif_id for motif_id, motif in self._reference_motif_id_to_motif.items()}
+
     def get_observed_motif_frequency_dict(self):
         return self._observed_motif_frequency_dict
 
@@ -240,52 +246,145 @@ class LocusParser:
 
 
 
+def encode_motif_frequency_dict(motif_frequency_dict, motif_to_motif_id_dict):
+    items = []
+    for motif, count in sorted(motif_frequency_dict.items(), key=lambda x: x[1], reverse=True):
+        motif_id = motif_to_motif_id_dict.get(motif, motif)
+        items.append(f"[{motif_id}]:{count}")
+    
+    return ",".join(items)
+
+def encode_motif_pair_frequency_dict(motif_pair_frequency_dict, motif_to_motif_id_dict):
+    items = []
+    for motif_pair, count in sorted(motif_pair_frequency_dict.items(), key=lambda x: x[1], reverse=True):
+        motif_id1 = motif_to_motif_id_dict.get(motif_pair[0], motif_pair[0])
+        motif_id2 = motif_to_motif_id_dict.get(motif_pair[1], motif_pair[1])
+        items.append(f"[{motif_id1}][{motif_id2}]:{count}")
+    return ",".join(items)
+
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--motif-frequency-table",
-        help="CACNA1C motif frequency table generated from HPRC assemblies",
+        help="A TSV table with two columns: 'motif' and 'number_of_times_seen_across_all_haplotypes'. "
+             "The table should contain one or more expected motifs and their relative occurance counts in some "
+             "reference set of sequences (such as haplotypes from the HPRC assemblies)",
         default="https://storage.googleapis.com/tandem-repeat-explorer/other/CACNA1C_from_dipcall.motifs.txt")
 
     parser.add_argument("--check-reverse-complement", action="store_true", help="Whether to also look for motif "
-        "occurrences in the reverse complement of the input sequence")
-    parser.add_argument("input_sequence", help="Nucleotide sequence to parse")
+        "occurrences in the reverse complement of the input sequence. This is true by default (and therefore redundant) "
+        "if the input is a BAM/CRAM path, but false by default if the input is a nucleotide sequence.")
+    parser.add_argument("-L", "--genomic-interval", action="append", help="Genomic interval(s) to extract from the input BAM/CRAM. "
+        "It should be specified in the format 'chrN:start-end' (0-based coordinates). This arg can only be used if the "
+        "input_sequence is a BAM/CRAM file path. Example: chr1:12345-54321")
+    parser.add_argument("-n", "--num-reads", type=int, help="Number of reads to extract from the input BAM/CRAM file. "
+        "Useful for testing. If not specified, all reads will be extracted.")
+    parser.add_argument("--verbose", action="store_true", help="Print additional logging messages.")
+    parser.add_argument("--output-tsv", help="If specified, output the results to this TSV file path.")
+    parser.add_argument("--control-region", action="append", help="Optional genomic interval(s) from which to extract read depth for normalizing counts later. "
+        "It should be specified in the format 'chrN:start-end' (0-based coordinates). This arg can only be used if the "
+        "input_sequence is a BAM/CRAM file path. Example: chr1:12345-54321")
+    parser.add_argument("input_sequence", help="Either a nucleotide sequence or the path of a BAM/CRAM file to parse")
     args = parser.parse_args()
 
     df = pd.read_table(args.motif_frequency_table)
     df["motif"] = df["motif"].str.strip().str.upper()
-
     motif_frequency_dict = dict(zip(df["motif"], df["number_of_times_seen_across_all_haplotypes"]))
-
     locus_parser = LocusParser(motif_frequency_dict)
-    parsed_sequence = locus_parser.convert_nucleotide_seq_to_motif_seq(
-        args.input_sequence,
-        check_reverse_complement=True,
-        record_reference_motif_counts=True,
-        record_novel_motif_counts=True,
-        record_motif_pair_counts=True,
-        chance_occurrence_threshold=10**-3,
-    )
 
-    if parsed_sequence is None:
-        print("No motifs found in input sequence")
-        return
+    control_region_read_depth_dict = collections.defaultdict(int)
+    if os.path.isfile(args.input_sequence):
+        input_is_file = True
+        read_counter = 0
+        input_file = pysam.AlignmentFile(args.input_sequence)
+        for interval in (args.genomic_interval if args.genomic_interval else [None]):
+            if interval is None:
+                read_iterator = input_file
+            else:
+                chrom, start_0based, end_1based = parse_interval(interval)
+                read_iterator = input_file.fetch(chrom, start_0based, end_1based)
 
-    print("Parsed motif sequence:")
-    print(parsed_sequence)
+            for read in read_iterator:
+                if args.num_reads and read_counter >= args.num_reads:
+                    break
+                read_counter += 1
+                parsed_sequence = locus_parser.convert_nucleotide_seq_to_motif_seq(
+                    read.query_sequence,
+                    check_reverse_complement=True,
+                    record_reference_motif_counts=True,
+                    record_novel_motif_counts=True,
+                    record_motif_pair_counts=True,
+                    chance_occurrence_threshold=10**-3,
+                )
+        
+        if args.control_region:
+            for interval in args.control_region:
+                chrom, start_0based, end_1based = parse_interval(interval)
+                read_iterator = input_file.fetch(chrom, start_0based, end_1based)
+                for read in read_iterator:
+                    control_region_read_depth_dict[interval] += 1
+    else:
+        input_is_file = False
+        if args.genomic_interval:
+            parser.error("The --genomic-interval arg is only supported if the input_sequence arg is a BAM/CRAM file")
+        if set(args.input_sequence) - set("ATCGN"):
+            parser.error("The input_sequence arg must be a nucleotide sequence consisting of A, C, G, T, and N")
+            
+        parsed_sequence = locus_parser.convert_nucleotide_seq_to_motif_seq(
+            args.input_sequence,
+            check_reverse_complement=args.check_reverse_complement,
+            record_reference_motif_counts=True,
+            record_novel_motif_counts=True,
+            record_motif_pair_counts=True,
+            chance_occurrence_threshold=10**-3,
+        )
+        if parsed_sequence is None:
+            print("No motifs found in input sequence")
+            return
 
-    print("Observed motif frequencies:")
-    for i, (motif, count) in enumerate(sorted(locus_parser.get_observed_motif_frequency_dict().items(), key=lambda x: x[1], reverse=True)):
-        print(motif, count)
 
-    print("Observed motif pair frequencies:")
-    for i, (motif_pair, count) in enumerate(sorted(locus_parser.get_observed_motif_pair_frequency_dict().items(), key=lambda t: t[1], reverse=True)):
-        print(f"{str(motif_pair):>10s}", count)
+    if args.output_tsv:
+        input_file_path = args.input_sequence
+        motif_to_motif_id_dict = locus_parser.get_reference_motif_to_motif_id_dict()
+        output_record = {
+            "input": input_file_path,
+            "input_file_size": os.path.getsize(input_file_path) if input_is_file else None,
+            "total_mapped_reads": get_total_mapped_reads(input_file_path) if input_is_file else None,
 
-    print("Novel motif frequencies:")
-    for i, (motif, count) in enumerate(sorted(locus_parser.get_novel_motif_frequency_dict().items(), key=lambda x: x[1], reverse=True)):
-        print(motif, count)
+            "motif_frequency": encode_motif_frequency_dict(locus_parser.get_observed_motif_frequency_dict(), motif_to_motif_id_dict),
+            "motif_pair_frequency": encode_motif_pair_frequency_dict(locus_parser.get_observed_motif_pair_frequency_dict(), motif_to_motif_id_dict),
+            "novel_motif_frequency": encode_motif_frequency_dict(locus_parser.get_novel_motif_frequency_dict(), motif_to_motif_id_dict),
+        }
 
+        if args.control_region:
+            for interval, read_depth in control_region_read_depth_dict.items():
+                output_record[f"control_region_{interval}"] = read_depth
 
+        with open(args.output_tsv, "wt") as f:
+            f.write("\t".join(output_record.keys()) + "\n")
+            f.write("\t".join(map(str, output_record.values())) + "\n")
+        print(f"Wrote results to {args.output_tsv}")
+
+    if args.verbose:
+        if not input_is_file:
+            print("\nParsed motif sequence:")
+            print(parsed_sequence)
+
+        print("\nObserved motif frequencies:")
+        for i, (motif, count) in enumerate(sorted(locus_parser.get_observed_motif_frequency_dict().items(), key=lambda x: x[1], reverse=True)):
+            print(motif, count)
+
+        print("\nObserved motif pair frequencies:")
+        for i, (motif_pair, count) in enumerate(sorted(locus_parser.get_observed_motif_pair_frequency_dict().items(), key=lambda t: t[1], reverse=True)):
+            print(f"{str(motif_pair):>10s}", count)
+
+        print("\nNovel motif frequencies:")
+        for i, (motif, count) in enumerate(sorted(locus_parser.get_novel_motif_frequency_dict().items(), key=lambda x: x[1], reverse=True)):
+            print(motif, count)
+
+   
+    print("\nDone")
 
 if __name__ == "__main__":
     main()
