@@ -20,7 +20,7 @@ def set_requester_pays_project(gcloud_project):
 
 
 def open_file(path, *, download_local_copy_before_opening=False, gunzip=False, is_text_file=False):
-    if path.startswith("gs://") and download_local_copy_before_opening:
+    if (path.startswith("gs://") and download_local_copy_before_opening) or path.startswith("http://") or path.startswith("https://"):
         path = download_local_copy(path)
 
     path = os.path.expanduser(path)
