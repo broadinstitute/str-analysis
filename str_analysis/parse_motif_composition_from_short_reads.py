@@ -190,7 +190,7 @@ class LocusParser:
         if chance_occurrence_threshold or record_reference_motif_counts:
             parsed_motif_ids = _parse_motif_ids_from_processed_sequence(best_parsed_seq)
 
-        if chance_occurrence_threshold and self._probability_of_result_by_chance(sequence, parsed_motif_ids) >= chance_occurrence_threshold:
+        if chance_occurrence_threshold and self._probability_of_result_by_chance(best_parsed_seq, parsed_motif_ids) >= chance_occurrence_threshold:
             # check probability of chance result
             return None
 
