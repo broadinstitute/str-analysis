@@ -1234,10 +1234,6 @@ def run_trf(alleles, args, thread_id=1):
                     variant_bases_sum += len(current_repeat)
                     repeat_count += 1
 
-                # check that repeat boundary matches the variant breakpoint
-                #if variant_bases_sum + fuzz < len(allele.variant_bases) or variant_bases_sum - fuzz > len(allele.variant_bases):
-                #    continue
-
                 trf_result["num_repeats_in_variant"] = repeat_count
                 trf_result["tandem_repeat_bases_in_flank"]= max(0, trf_result["end_1based"] - len(allele.variant_bases))
 
