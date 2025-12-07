@@ -1,0 +1,800 @@
+{
+    "9bp": {
+        "N": "9bp",
+        "hamming_distance_null_purity": "1.00",
+        "hamming_distance_null_quality": "0.65",
+        "edit_distance_null_purity": "1.00",
+        "edit_distance_null_quality": "0.60"
+    },
+    "10bp": {
+        "N": "10bp",
+        "hamming_distance_null_purity": "1.00",
+        "hamming_distance_null_quality": "0.84",
+        "edit_distance_null_purity": "1.00",
+        "edit_distance_null_quality": "0.61"
+    },
+    "11bp": {
+        "N": "11bp",
+        "hamming_distance_null_purity": "1.00",
+        "hamming_distance_null_quality": "0.86",
+        "edit_distance_null_purity": "1.00",
+        "edit_distance_null_quality": "0.68"
+    },
+    "12bp": {
+        "N": "12bp",
+        "hamming_distance_null_purity": "1.00",
+        "hamming_distance_null_quality": "0.74",
+        "edit_distance_null_purity": "1.00",
+        "edit_distance_null_quality": "0.57"
+    },
+    "13bp": {
+        "N": "13bp",
+        "hamming_distance_null_purity": "0.89",
+        "hamming_distance_null_quality": "0.65",
+        "edit_distance_null_purity": "0.83",
+        "edit_distance_null_quality": "0.54"
+    },
+    "14bp": {
+        "N": "14bp",
+        "hamming_distance_null_purity": "1.00",
+        "hamming_distance_null_quality": "0.77",
+        "edit_distance_null_purity": "1.00",
+        "edit_distance_null_quality": "0.55"
+    },
+    "15bp": {
+        "N": "15bp",
+        "hamming_distance_null_purity": "0.86",
+        "hamming_distance_null_quality": "0.68",
+        "edit_distance_null_purity": "0.86",
+        "edit_distance_null_quality": "0.44"
+    },
+    "16bp": {
+        "N": "16bp",
+        "hamming_distance_null_purity": "0.86",
+        "hamming_distance_null_quality": "0.70",
+        "edit_distance_null_purity": "0.86",
+        "edit_distance_null_quality": "0.51"
+    },
+    "17bp": {
+        "N": "17bp",
+        "hamming_distance_null_purity": "0.83",
+        "hamming_distance_null_quality": "0.58",
+        "edit_distance_null_purity": "0.83",
+        "edit_distance_null_quality": "0.43"
+    },
+    "18bp": {
+        "N": "18bp",
+        "hamming_distance_null_purity": "0.86",
+        "hamming_distance_null_quality": "0.58",
+        "edit_distance_null_purity": "0.86",
+        "edit_distance_null_quality": "0.47"
+    },
+    "19bp": {
+        "N": "19bp",
+        "hamming_distance_null_purity": "0.86",
+        "hamming_distance_null_quality": "0.61",
+        "edit_distance_null_purity": "0.86",
+        "edit_distance_null_quality": "0.46"
+    },
+    "20bp": {
+        "N": "20bp",
+        "hamming_distance_null_purity": "0.86",
+        "hamming_distance_null_quality": "0.58",
+        "edit_distance_null_purity": "0.86",
+        "edit_distance_null_quality": "0.47"
+    },
+    "21bp": {
+        "N": "21bp",
+        "hamming_distance_null_purity": "0.75",
+        "hamming_distance_null_quality": "0.53",
+        "edit_distance_null_purity": "0.75",
+        "edit_distance_null_quality": "0.37"
+    },
+    "22bp": {
+        "N": "22bp",
+        "hamming_distance_null_purity": "0.78",
+        "hamming_distance_null_quality": "0.56",
+        "edit_distance_null_purity": "0.75",
+        "edit_distance_null_quality": "0.36"
+    },
+    "23bp": {
+        "N": "23bp",
+        "hamming_distance_null_purity": "0.88",
+        "hamming_distance_null_quality": "0.63",
+        "edit_distance_null_purity": "0.88",
+        "edit_distance_null_quality": "0.47"
+    },
+    "24bp": {
+        "N": "24bp",
+        "hamming_distance_null_purity": "0.80",
+        "hamming_distance_null_quality": "0.48",
+        "edit_distance_null_purity": "0.80",
+        "edit_distance_null_quality": "0.37"
+    },
+    "25bp": {
+        "N": "25bp",
+        "hamming_distance_null_purity": "0.80",
+        "hamming_distance_null_quality": "0.54",
+        "edit_distance_null_purity": "0.80",
+        "edit_distance_null_quality": "0.37"
+    },
+    "26bp": {
+        "N": "26bp",
+        "hamming_distance_null_purity": "0.80",
+        "hamming_distance_null_quality": "0.50",
+        "edit_distance_null_purity": "0.80",
+        "edit_distance_null_quality": "0.38"
+    },
+    "27bp": {
+        "N": "27bp",
+        "hamming_distance_null_purity": "0.80",
+        "hamming_distance_null_quality": "0.58",
+        "edit_distance_null_purity": "0.80",
+        "edit_distance_null_quality": "0.36"
+    },
+    "28bp": {
+        "N": "28bp",
+        "hamming_distance_null_purity": "0.75",
+        "hamming_distance_null_quality": "0.50",
+        "edit_distance_null_purity": "0.73",
+        "edit_distance_null_quality": "0.33"
+    },
+    "29bp": {
+        "N": "29bp",
+        "hamming_distance_null_purity": "0.77",
+        "hamming_distance_null_quality": "0.52",
+        "edit_distance_null_purity": "0.77",
+        "edit_distance_null_quality": "0.37"
+    },
+    "30bp": {
+        "N": "30bp",
+        "hamming_distance_null_purity": "0.73",
+        "hamming_distance_null_quality": "0.46",
+        "edit_distance_null_purity": "0.73",
+        "edit_distance_null_quality": "0.31"
+    },
+    "31bp": {
+        "N": "31bp",
+        "hamming_distance_null_purity": "0.77",
+        "hamming_distance_null_quality": "0.54",
+        "edit_distance_null_purity": "0.79",
+        "edit_distance_null_quality": "0.38"
+    },
+    "32bp": {
+        "N": "32bp",
+        "hamming_distance_null_purity": "0.73",
+        "hamming_distance_null_quality": "0.53",
+        "edit_distance_null_purity": "0.75",
+        "edit_distance_null_quality": "0.33"
+    },
+    "33bp": {
+        "N": "33bp",
+        "hamming_distance_null_purity": "0.67",
+        "hamming_distance_null_quality": "0.41",
+        "edit_distance_null_purity": "0.71",
+        "edit_distance_null_quality": "0.33"
+    },
+    "34bp": {
+        "N": "34bp",
+        "hamming_distance_null_purity": "0.80",
+        "hamming_distance_null_quality": "0.53",
+        "edit_distance_null_purity": "0.80",
+        "edit_distance_null_quality": "0.34"
+    },
+    "35bp": {
+        "N": "35bp",
+        "hamming_distance_null_purity": "0.69",
+        "hamming_distance_null_quality": "0.47",
+        "edit_distance_null_purity": "0.71",
+        "edit_distance_null_quality": "0.34"
+    },
+    "36bp": {
+        "N": "36bp",
+        "hamming_distance_null_purity": "0.77",
+        "hamming_distance_null_quality": "0.53",
+        "edit_distance_null_purity": "0.77",
+        "edit_distance_null_quality": "0.31"
+    },
+    "37bp": {
+        "N": "37bp",
+        "hamming_distance_null_purity": "0.71",
+        "hamming_distance_null_quality": "0.47",
+        "edit_distance_null_purity": "0.71",
+        "edit_distance_null_quality": "0.33"
+    },
+    "38bp": {
+        "N": "38bp",
+        "hamming_distance_null_purity": "0.73",
+        "hamming_distance_null_quality": "0.50",
+        "edit_distance_null_purity": "0.73",
+        "edit_distance_null_quality": "0.31"
+    },
+    "39bp": {
+        "N": "39bp",
+        "hamming_distance_null_purity": "0.67",
+        "hamming_distance_null_quality": "0.45",
+        "edit_distance_null_purity": "0.71",
+        "edit_distance_null_quality": "0.31"
+    },
+    "40bp": {
+        "N": "40bp",
+        "hamming_distance_null_purity": "0.65",
+        "hamming_distance_null_quality": "0.39",
+        "edit_distance_null_purity": "0.70",
+        "edit_distance_null_quality": "0.30"
+    },
+    "41bp": {
+        "N": "41bp",
+        "hamming_distance_null_purity": "0.71",
+        "hamming_distance_null_quality": "0.46",
+        "edit_distance_null_purity": "0.71",
+        "edit_distance_null_quality": "0.32"
+    },
+    "42bp": {
+        "N": "42bp",
+        "hamming_distance_null_purity": "0.70",
+        "hamming_distance_null_quality": "0.43",
+        "edit_distance_null_purity": "0.70",
+        "edit_distance_null_quality": "0.24"
+    },
+    "43bp": {
+        "N": "43bp",
+        "hamming_distance_null_purity": "0.67",
+        "hamming_distance_null_quality": "0.45",
+        "edit_distance_null_purity": "0.71",
+        "edit_distance_null_quality": "0.25"
+    },
+    "44bp": {
+        "N": "44bp",
+        "hamming_distance_null_purity": "0.69",
+        "hamming_distance_null_quality": "0.44",
+        "edit_distance_null_purity": "0.69",
+        "edit_distance_null_quality": "0.25"
+    },
+    "45bp": {
+        "N": "45bp",
+        "hamming_distance_null_purity": "0.65",
+        "hamming_distance_null_quality": "0.38",
+        "edit_distance_null_purity": "0.67",
+        "edit_distance_null_quality": "0.24"
+    },
+    "46bp": {
+        "N": "46bp",
+        "hamming_distance_null_purity": "0.65",
+        "hamming_distance_null_quality": "0.41",
+        "edit_distance_null_purity": "0.68",
+        "edit_distance_null_quality": "0.24"
+    },
+    "47bp": {
+        "N": "47bp",
+        "hamming_distance_null_purity": "0.60",
+        "hamming_distance_null_quality": "0.35",
+        "edit_distance_null_purity": "0.67",
+        "edit_distance_null_quality": "0.26"
+    },
+    "48bp": {
+        "N": "48bp",
+        "hamming_distance_null_purity": "0.65",
+        "hamming_distance_null_quality": "0.42",
+        "edit_distance_null_purity": "0.68",
+        "edit_distance_null_quality": "0.29"
+    },
+    "49bp": {
+        "N": "49bp",
+        "hamming_distance_null_purity": "0.68",
+        "hamming_distance_null_quality": "0.47",
+        "edit_distance_null_purity": "0.72",
+        "edit_distance_null_quality": "0.27"
+    },
+    "50bp": {
+        "N": "50bp",
+        "hamming_distance_null_purity": "0.65",
+        "hamming_distance_null_quality": "0.41",
+        "edit_distance_null_purity": "0.70",
+        "edit_distance_null_quality": "0.27"
+    },
+    "51bp": {
+        "N": "51bp",
+        "hamming_distance_null_purity": "0.67",
+        "hamming_distance_null_quality": "0.41",
+        "edit_distance_null_purity": "0.67",
+        "edit_distance_null_quality": "0.26"
+    },
+    "52bp": {
+        "N": "52bp",
+        "hamming_distance_null_purity": "0.64",
+        "hamming_distance_null_quality": "0.37",
+        "edit_distance_null_purity": "0.65",
+        "edit_distance_null_quality": "0.26"
+    },
+    "53bp": {
+        "N": "53bp",
+        "hamming_distance_null_purity": "0.65",
+        "hamming_distance_null_quality": "0.38",
+        "edit_distance_null_purity": "0.68",
+        "edit_distance_null_quality": "0.25"
+    },
+    "54bp": {
+        "N": "54bp",
+        "hamming_distance_null_purity": "0.64",
+        "hamming_distance_null_quality": "0.38",
+        "edit_distance_null_purity": "0.65",
+        "edit_distance_null_quality": "0.25"
+    },
+    "55bp": {
+        "N": "55bp",
+        "hamming_distance_null_purity": "0.61",
+        "hamming_distance_null_quality": "0.35",
+        "edit_distance_null_purity": "0.74",
+        "edit_distance_null_quality": "0.26"
+    },
+    "56bp": {
+        "N": "56bp",
+        "hamming_distance_null_purity": "0.62",
+        "hamming_distance_null_quality": "0.37",
+        "edit_distance_null_purity": "0.72",
+        "edit_distance_null_quality": "0.25"
+    },
+    "57bp": {
+        "N": "57bp",
+        "hamming_distance_null_purity": "0.67",
+        "hamming_distance_null_quality": "0.42",
+        "edit_distance_null_purity": "0.71",
+        "edit_distance_null_quality": "0.25"
+    },
+    "58bp": {
+        "N": "58bp",
+        "hamming_distance_null_purity": "0.65",
+        "hamming_distance_null_quality": "0.39",
+        "edit_distance_null_purity": "0.67",
+        "edit_distance_null_quality": "0.24"
+    },
+    "59bp": {
+        "N": "59bp",
+        "hamming_distance_null_purity": "0.60",
+        "hamming_distance_null_quality": "0.36",
+        "edit_distance_null_purity": "0.67",
+        "edit_distance_null_quality": "0.27"
+    },
+    "60bp": {
+        "N": "60bp",
+        "hamming_distance_null_purity": "0.63",
+        "hamming_distance_null_quality": "0.38",
+        "edit_distance_null_purity": "0.67",
+        "edit_distance_null_quality": "0.29"
+    },
+    "61bp": {
+        "N": "61bp",
+        "hamming_distance_null_purity": "0.66",
+        "hamming_distance_null_quality": "0.40",
+        "edit_distance_null_purity": "0.67",
+        "edit_distance_null_quality": "0.25"
+    },
+    "62bp": {
+        "N": "62bp",
+        "hamming_distance_null_purity": "0.65",
+        "hamming_distance_null_quality": "0.38",
+        "edit_distance_null_purity": "0.67",
+        "edit_distance_null_quality": "0.23"
+    },
+    "63bp": {
+        "N": "63bp",
+        "hamming_distance_null_purity": "0.57",
+        "hamming_distance_null_quality": "0.35",
+        "edit_distance_null_purity": "0.65",
+        "edit_distance_null_quality": "0.22"
+    },
+    "64bp": {
+        "N": "64bp",
+        "hamming_distance_null_purity": "0.64",
+        "hamming_distance_null_quality": "0.36",
+        "edit_distance_null_purity": "0.70",
+        "edit_distance_null_quality": "0.24"
+    },
+    "65bp": {
+        "N": "65bp",
+        "hamming_distance_null_purity": "0.64",
+        "hamming_distance_null_quality": "0.40",
+        "edit_distance_null_purity": "0.64",
+        "edit_distance_null_quality": "0.25"
+    },
+    "66bp": {
+        "N": "66bp",
+        "hamming_distance_null_purity": "0.58",
+        "hamming_distance_null_quality": "0.34",
+        "edit_distance_null_purity": "0.66",
+        "edit_distance_null_quality": "0.21"
+    },
+    "67bp": {
+        "N": "67bp",
+        "hamming_distance_null_purity": "0.57",
+        "hamming_distance_null_quality": "0.34",
+        "edit_distance_null_purity": "0.65",
+        "edit_distance_null_quality": "0.20"
+    },
+    "68bp": {
+        "N": "68bp",
+        "hamming_distance_null_purity": "0.61",
+        "hamming_distance_null_quality": "0.36",
+        "edit_distance_null_purity": "0.67",
+        "edit_distance_null_quality": "0.25"
+    },
+    "69bp": {
+        "N": "69bp",
+        "hamming_distance_null_purity": "0.58",
+        "hamming_distance_null_quality": "0.33",
+        "edit_distance_null_purity": "0.66",
+        "edit_distance_null_quality": "0.23"
+    },
+    "70bp": {
+        "N": "70bp",
+        "hamming_distance_null_purity": "0.67",
+        "hamming_distance_null_quality": "0.41",
+        "edit_distance_null_purity": "0.67",
+        "edit_distance_null_quality": "0.23"
+    },
+    "71bp": {
+        "N": "71bp",
+        "hamming_distance_null_purity": "0.56",
+        "hamming_distance_null_quality": "0.31",
+        "edit_distance_null_purity": "0.65",
+        "edit_distance_null_quality": "0.20"
+    },
+    "72bp": {
+        "N": "72bp",
+        "hamming_distance_null_purity": "0.59",
+        "hamming_distance_null_quality": "0.36",
+        "edit_distance_null_purity": "0.63",
+        "edit_distance_null_quality": "0.21"
+    },
+    "73bp": {
+        "N": "73bp",
+        "hamming_distance_null_purity": "0.59",
+        "hamming_distance_null_quality": "0.35",
+        "edit_distance_null_purity": "0.64",
+        "edit_distance_null_quality": "0.26"
+    },
+    "74bp": {
+        "N": "74bp",
+        "hamming_distance_null_purity": "0.58",
+        "hamming_distance_null_quality": "0.32",
+        "edit_distance_null_purity": "0.64",
+        "edit_distance_null_quality": "0.20"
+    },
+    "75bp": {
+        "N": "75bp",
+        "hamming_distance_null_purity": "0.62",
+        "hamming_distance_null_quality": "0.38",
+        "edit_distance_null_purity": "0.62",
+        "edit_distance_null_quality": "0.19"
+    },
+    "76bp": {
+        "N": "76bp",
+        "hamming_distance_null_purity": "0.59",
+        "hamming_distance_null_quality": "0.36",
+        "edit_distance_null_purity": "0.67",
+        "edit_distance_null_quality": "0.21"
+    },
+    "77bp": {
+        "N": "77bp",
+        "hamming_distance_null_purity": "0.61",
+        "hamming_distance_null_quality": "0.33",
+        "edit_distance_null_purity": "0.62",
+        "edit_distance_null_quality": "0.19"
+    },
+    "78bp": {
+        "N": "78bp",
+        "hamming_distance_null_purity": "0.61",
+        "hamming_distance_null_quality": "0.35",
+        "edit_distance_null_purity": "0.59",
+        "edit_distance_null_quality": "0.21"
+    },
+    "79bp": {
+        "N": "79bp",
+        "hamming_distance_null_purity": "0.56",
+        "hamming_distance_null_quality": "0.31",
+        "edit_distance_null_purity": "0.64",
+        "edit_distance_null_quality": "0.23"
+    },
+    "80bp": {
+        "N": "80bp",
+        "hamming_distance_null_purity": "0.61",
+        "hamming_distance_null_quality": "0.35",
+        "edit_distance_null_purity": "0.63",
+        "edit_distance_null_quality": "0.22"
+    },
+    "81bp": {
+        "N": "81bp",
+        "hamming_distance_null_purity": "0.57",
+        "hamming_distance_null_quality": "0.34",
+        "edit_distance_null_purity": "0.68",
+        "edit_distance_null_quality": "0.22"
+    },
+    "82bp": {
+        "N": "82bp",
+        "hamming_distance_null_purity": "0.55",
+        "hamming_distance_null_quality": "0.29",
+        "edit_distance_null_purity": "0.66",
+        "edit_distance_null_quality": "0.24"
+    },
+    "83bp": {
+        "N": "83bp",
+        "hamming_distance_null_purity": "0.58",
+        "hamming_distance_null_quality": "0.32",
+        "edit_distance_null_purity": "0.65",
+        "edit_distance_null_quality": "0.20"
+    },
+    "84bp": {
+        "N": "84bp",
+        "hamming_distance_null_purity": "0.59",
+        "hamming_distance_null_quality": "0.34",
+        "edit_distance_null_purity": "0.68",
+        "edit_distance_null_quality": "0.21"
+    },
+    "85bp": {
+        "N": "85bp",
+        "hamming_distance_null_purity": "0.63",
+        "hamming_distance_null_quality": "0.39",
+        "edit_distance_null_purity": "0.63",
+        "edit_distance_null_quality": "0.21"
+    },
+    "86bp": {
+        "N": "86bp",
+        "hamming_distance_null_purity": "0.58",
+        "hamming_distance_null_quality": "0.33",
+        "edit_distance_null_purity": "0.66",
+        "edit_distance_null_quality": "0.21"
+    },
+    "87bp": {
+        "N": "87bp",
+        "hamming_distance_null_purity": "0.59",
+        "hamming_distance_null_quality": "0.31",
+        "edit_distance_null_purity": "0.63",
+        "edit_distance_null_quality": "0.20"
+    },
+    "88bp": {
+        "N": "88bp",
+        "hamming_distance_null_purity": "0.55",
+        "hamming_distance_null_quality": "0.30",
+        "edit_distance_null_purity": "0.61",
+        "edit_distance_null_quality": "0.19"
+    },
+    "89bp": {
+        "N": "89bp",
+        "hamming_distance_null_purity": "0.55",
+        "hamming_distance_null_quality": "0.28",
+        "edit_distance_null_purity": "0.62",
+        "edit_distance_null_quality": "0.19"
+    },
+    "90bp": {
+        "N": "90bp",
+        "hamming_distance_null_purity": "0.58",
+        "hamming_distance_null_quality": "0.33",
+        "edit_distance_null_purity": "0.66",
+        "edit_distance_null_quality": "0.22"
+    },
+    "91bp": {
+        "N": "91bp",
+        "hamming_distance_null_purity": "0.53",
+        "hamming_distance_null_quality": "0.28",
+        "edit_distance_null_purity": "0.62",
+        "edit_distance_null_quality": "0.20"
+    },
+    "92bp": {
+        "N": "92bp",
+        "hamming_distance_null_purity": "0.58",
+        "hamming_distance_null_quality": "0.31",
+        "edit_distance_null_purity": "0.68",
+        "edit_distance_null_quality": "0.22"
+    },
+    "93bp": {
+        "N": "93bp",
+        "hamming_distance_null_purity": "0.56",
+        "hamming_distance_null_quality": "0.30",
+        "edit_distance_null_purity": "0.63",
+        "edit_distance_null_quality": "0.20"
+    },
+    "94bp": {
+        "N": "94bp",
+        "hamming_distance_null_purity": "0.58",
+        "hamming_distance_null_quality": "0.32",
+        "edit_distance_null_purity": "0.67",
+        "edit_distance_null_quality": "0.20"
+    },
+    "95bp": {
+        "N": "95bp",
+        "hamming_distance_null_purity": "0.58",
+        "hamming_distance_null_quality": "0.33",
+        "edit_distance_null_purity": "0.62",
+        "edit_distance_null_quality": "0.19"
+    },
+    "96bp": {
+        "N": "96bp",
+        "hamming_distance_null_purity": "0.57",
+        "hamming_distance_null_quality": "0.31",
+        "edit_distance_null_purity": "0.63",
+        "edit_distance_null_quality": "0.21"
+    },
+    "97bp": {
+        "N": "97bp",
+        "hamming_distance_null_purity": "0.58",
+        "hamming_distance_null_quality": "0.34",
+        "edit_distance_null_purity": "0.62",
+        "edit_distance_null_quality": "0.19"
+    },
+    "98bp": {
+        "N": "98bp",
+        "hamming_distance_null_purity": "0.52",
+        "hamming_distance_null_quality": "0.27",
+        "edit_distance_null_purity": "0.58",
+        "edit_distance_null_quality": "0.20"
+    },
+    "99bp": {
+        "N": "99bp",
+        "hamming_distance_null_purity": "0.56",
+        "hamming_distance_null_quality": "0.31",
+        "edit_distance_null_purity": "0.59",
+        "edit_distance_null_quality": "0.19"
+    },
+    "100bp": {
+        "N": "100bp",
+        "hamming_distance_null_purity": "0.53",
+        "hamming_distance_null_quality": "0.27",
+        "edit_distance_null_purity": "0.62",
+        "edit_distance_null_quality": "0.19"
+    },
+    "120bp": {
+        "N": "120bp",
+        "hamming_distance_null_purity": "0.48",
+        "hamming_distance_null_quality": "0.24",
+        "edit_distance_null_purity": "0.59",
+        "edit_distance_null_quality": "0.18"
+    },
+    "140bp": {
+        "N": "140bp",
+        "hamming_distance_null_purity": "0.52",
+        "hamming_distance_null_quality": "0.25",
+        "edit_distance_null_purity": "0.56",
+        "edit_distance_null_quality": "0.20"
+    },
+    "160bp": {
+        "N": "160bp",
+        "hamming_distance_null_purity": "0.46",
+        "hamming_distance_null_quality": "0.21",
+        "edit_distance_null_purity": "0.36",
+        "edit_distance_null_quality": "0.20"
+    },
+    "180bp": {
+        "N": "180bp",
+        "hamming_distance_null_purity": "0.48",
+        "hamming_distance_null_quality": "0.23",
+        "edit_distance_null_purity": "0.34",
+        "edit_distance_null_quality": "0.18"
+    },
+    "200bp": {
+        "N": "200bp",
+        "hamming_distance_null_purity": "0.42",
+        "hamming_distance_null_quality": "0.17",
+        "edit_distance_null_purity": "0.34",
+        "edit_distance_null_quality": "0.18"
+    },
+    "250bp": {
+        "N": "250bp",
+        "hamming_distance_null_purity": "0.41",
+        "hamming_distance_null_quality": "0.15",
+        "edit_distance_null_purity": "0.33",
+        "edit_distance_null_quality": "0.17"
+    },
+    "300bp": {
+        "N": "300bp",
+        "hamming_distance_null_purity": "0.43",
+        "hamming_distance_null_quality": "0.18",
+        "edit_distance_null_purity": "0.33",
+        "edit_distance_null_quality": "0.18"
+    },
+    "350bp": {
+        "N": "350bp",
+        "hamming_distance_null_purity": "0.40",
+        "hamming_distance_null_quality": "0.15",
+        "edit_distance_null_purity": "0.34",
+        "edit_distance_null_quality": "0.18"
+    },
+    "400bp": {
+        "N": "400bp",
+        "hamming_distance_null_purity": "0.37",
+        "hamming_distance_null_quality": "0.13",
+        "edit_distance_null_purity": "0.32",
+        "edit_distance_null_quality": "0.18"
+    },
+    "450bp": {
+        "N": "450bp",
+        "hamming_distance_null_purity": "0.39",
+        "hamming_distance_null_quality": "0.14",
+        "edit_distance_null_purity": "0.32",
+        "edit_distance_null_quality": "0.18"
+    },
+    "500bp": {
+        "N": "500bp",
+        "hamming_distance_null_purity": "0.37",
+        "hamming_distance_null_quality": "0.12",
+        "edit_distance_null_purity": "0.30",
+        "edit_distance_null_quality": "0.18"
+    },
+    "600bp": {
+        "N": "600bp",
+        "hamming_distance_null_purity": "0.36",
+        "hamming_distance_null_quality": "0.11",
+        "edit_distance_null_purity": "0.30",
+        "edit_distance_null_quality": "0.18"
+    },
+    "700bp": {
+        "N": "700bp",
+        "hamming_distance_null_purity": "0.35",
+        "hamming_distance_null_quality": "0.10",
+        "edit_distance_null_purity": "0.30",
+        "edit_distance_null_quality": "0.18"
+    },
+    "800bp": {
+        "N": "800bp",
+        "hamming_distance_null_purity": "0.34",
+        "hamming_distance_null_quality": "0.09",
+        "edit_distance_null_purity": "0.30",
+        "edit_distance_null_quality": "0.18"
+    },
+    "900bp": {
+        "N": "900bp",
+        "hamming_distance_null_purity": "0.34",
+        "hamming_distance_null_quality": "0.09",
+        "edit_distance_null_purity": "0.29",
+        "edit_distance_null_quality": "0.19"
+    },
+    "1000bp": {
+        "N": "1000bp",
+        "hamming_distance_null_purity": "0.33",
+        "hamming_distance_null_quality": "0.08",
+        "edit_distance_null_purity": "0.29",
+        "edit_distance_null_quality": "0.18"
+    },
+    "2000bp": {
+        "N": "2000bp",
+        "hamming_distance_null_purity": "0.31",
+        "hamming_distance_null_quality": "0.06",
+        "edit_distance_null_purity": "0.27",
+        "edit_distance_null_quality": "0.18"
+    },
+    "3000bp": {
+        "N": "3000bp",
+        "hamming_distance_null_purity": "0.30",
+        "hamming_distance_null_quality": "0.05",
+        "edit_distance_null_purity": "0.27",
+        "edit_distance_null_quality": "0.18"
+    },
+    "4000bp": {
+        "N": "4000bp",
+        "hamming_distance_null_purity": "0.30",
+        "hamming_distance_null_quality": "0.05",
+        "edit_distance_null_purity": "0.27",
+        "edit_distance_null_quality": "0.18"
+    },
+    "5000bp": {
+        "N": "5000bp",
+        "hamming_distance_null_purity": "0.29",
+        "hamming_distance_null_quality": "0.04",
+        "edit_distance_null_purity": "0.27",
+        "edit_distance_null_quality": "0.18"
+    },
+    "6000bp": {
+        "N": "6000bp",
+        "hamming_distance_null_purity": "0.29",
+        "hamming_distance_null_quality": "0.04",
+        "edit_distance_null_purity": "0.27",
+        "edit_distance_null_quality": "0.18"
+    },
+    "7000bp": {
+        "N": "7000bp",
+        "hamming_distance_null_purity": "0.28",
+        "hamming_distance_null_quality": "0.03",
+        "edit_distance_null_purity": "0.26",
+        "edit_distance_null_quality": "0.18"
+    }
+}
