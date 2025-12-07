@@ -67,7 +67,7 @@ class TRFRunner:
     def run_TRF_on_nucleotide_sequence(self, nucleotide_sequence, output_filename_prefix=None):
         """Run TRF on the given nucleotide sequence and return a generator of results.This code assumes the goal is to
         find a single repeat that covers all or most of the input sequence.
-        It is not designed to find multiple distict repeat loci within the sequence.
+        It is not designed to find multiple distinct repeat loci within the sequence.
 
         Args:
             nucleotide_sequence (str): the nucleotide sequence to run TRF on

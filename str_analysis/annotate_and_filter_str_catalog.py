@@ -23,6 +23,8 @@ from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval, GEN
 from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.fasta_utils import get_reference_sequence_with_cache, get_chromosome_size_with_cache
 from str_analysis.utils.fasta_utils import create_normalize_chrom_function
+from str_analysis.utils.find_motif_utils import compute_repeat_purity
+from str_analysis.utils.find_motif_utils import find_optimal_motif_length, HAMMING_DISTANCE_METRIC
 
 VALID_GENE_REGIONS = {"CDS", "UTR", "5UTR", "3UTR", "promoter", "exon", "intron", "intergenic"}
 
@@ -276,33 +278,6 @@ def output_tsv(output_path, output_records):
     pd.DataFrame(output_tsv_rows).to_csv(output_path, sep="\t", index=False, header=True)
 
 
-def compute_sequence_purity_stats(nucleotide_sequence, motif):
-    """Compute the number of interruptions, base-level purity, and repeat-level purity of a nucleotide sequence,
-    compared to an equal-length pure repeat sequence with the given motif. If the nucleotide sequence length is not an
-    exact multiple of the motif length, the sequence will be trimmed to the nearest multiple of the motif length before
-    computing stats.
-
-    Args:
-        nucleotide_sequence (str): a nucleotide sequence
-        motif (str): a repeat motif
-
-    Return:
-        tuple: (interruption_base_count, fraction_pure_bases, fraction_pure_repeats)
-    """
-    num_repeats = int(len(nucleotide_sequence)/len(motif))
-    pure_sequence = motif.upper() * num_repeats
-    nucleotide_sequence_trimmed = nucleotide_sequence[:len(pure_sequence)]
-    num_matching_bases = sum(1 for nuc1, nuc2 in zip(nucleotide_sequence_trimmed, pure_sequence) if nuc1 == nuc2)
-
-    if len(nucleotide_sequence) < len(motif):
-        return 0, 0, 0
-
-    interruption_base_count = len(nucleotide_sequence_trimmed) - num_matching_bases
-    fraction_pure_bases = round(num_matching_bases / len(pure_sequence), 2)
-    fraction_pure_repeats = round(nucleotide_sequence.count(motif) / num_repeats, 2)
-
-    return interruption_base_count, fraction_pure_bases, fraction_pure_repeats
-
 
 def count_Ns_in_flanks(fasta_obj, reference_region_chrom, reference_region_start_0based, reference_region_end, num_flanking_bases=1000):
     left_flank_start = max(reference_region_start_0based - num_flanking_bases, 0)
@@ -333,7 +308,6 @@ def main():
 
     # get fasta chrom sizes
     ref_fasta = pysam.FastaFile(args.reference_fasta)
-
     does_chrom_start_with_chr = ref_fasta.references[0].startswith("chr")
     normalize_chrom = create_normalize_chrom_function(does_chrom_start_with_chr)
 
@@ -499,6 +473,7 @@ def main():
                 continue
 
         if len(canonical_motifs) == 1:
+            catalog_record["Motif"] = motifs[0]
             catalog_record["CanonicalMotif"] = canonical_motifs[0]
             #catalog_record["MotifSize"] = len(canonical_motifs[0])
 
@@ -619,7 +594,9 @@ def main():
         # annotate repeat purity in the reference genome
         num_repeats_in_reference_list = []
         fraction_pure_bases_list = []
-        overlaps_other_interval = False
+        highest_purity_motif_list = []
+        highest_purity_motif_purity_list = []
+        highest_purity_motif_quality_list = []
         overlaps_other_interval_with_similar_motif = False
         has_invalid_bases = False
         for (chrom, start_0based, end), motif in zip(chroms_start_0based_ends, motifs):
@@ -642,10 +619,15 @@ def main():
 
             num_repeats_in_reference_list.append(len(ref_fasta_sequence) // len(motif))
 
-            interrupted_bases_count, fraction_pure_bases, fraction_pure_repeats = compute_sequence_purity_stats(
-                ref_fasta_sequence, motif)
-            
-            fraction_pure_bases_list.append( fraction_pure_bases )
+            fraction_pure_bases, _ = compute_repeat_purity(ref_fasta_sequence, motif, include_partial_repeats=True)
+            fraction_pure_bases_list.append(fraction_pure_bases)
+
+            # compute the highest-purity motif
+            highest_purity_motif, highest_purity_motif_purity, highest_purity_motif_quality = find_optimal_motif_length(
+                ref_fasta_sequence, max_motif_length=max(1, len(motif), len(ref_fasta_sequence)//2))
+            highest_purity_motif_list.append(highest_purity_motif)
+            highest_purity_motif_purity_list.append(highest_purity_motif_purity)
+            highest_purity_motif_quality_list.append(highest_purity_motif_quality)
 
             # check for overlap
             canonical_motif = compute_canonical_motif(motif, include_reverse_complement=False)
@@ -654,10 +636,6 @@ def main():
                 larger_motif_size = max(len(canonical_motif), len(overlapping_interval_motif))
                 if overlapping_interval.overlap_size(start_0based, end) >= 2*larger_motif_size:
                     overlaps_other_interval_with_similar_motif = canonical_motif == overlapping_interval_motif
-                    #if args.verbose and overlaps_other_interval_with_similar_motif:
-                    #    print(f"    {locus_id} overlaps another interval with a similar motif: "
-                    #          f"{chrom}-{overlapping_interval.begin}-{overlapping_interval.end}-{overlapping_interval_motif} "
-                    #          f"by 2 or more repeats of the larger motif. Source: {catalog_record.get('Source')}")
                     break
 
             interval_trees[chrom].add(Interval(start_0based, max(end, start_0based + 1), data=canonical_motif))
@@ -667,6 +645,10 @@ def main():
 
         catalog_record["NumRepeatsInReference"] = num_repeats_in_reference_list[0] if len(chroms_start_0based_ends) == 1 else num_repeats_in_reference_list
         catalog_record["ReferenceRepeatPurity"] = fraction_pure_bases_list[0] if len(chroms_start_0based_ends) == 1 else fraction_pure_bases_list
+
+        catalog_record["HighestPurityMotif"] = highest_purity_motif_list[0] if len(chroms_start_0based_ends) == 1 else highest_purity_motif_list
+        catalog_record["HighestPurityMotifPurity"] = highest_purity_motif_purity_list[0] if len(chroms_start_0based_ends) == 1 else highest_purity_motif_purity_list
+        catalog_record["HighestPurityMotifQuality"] = highest_purity_motif_quality_list[0] if len(chroms_start_0based_ends) == 1 else highest_purity_motif_quality_list
 
         if args.discard_overlapping_intervals_with_similar_motifs and overlaps_other_interval_with_similar_motif:
             filter_counters[f"overlapping interval"] += 1

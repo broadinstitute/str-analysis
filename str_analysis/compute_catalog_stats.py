@@ -3,10 +3,14 @@ import collections
 import ijson
 import os
 import pandas as pd
+import pysam
 import re
 import statistics
 import tqdm
 from intervaltree import IntervalTree, Interval
+
+from str_analysis.utils.find_motif_utils import compute_repeat_purity
+from str_analysis.utils.fasta_utils import create_normalize_chrom_function
 from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.eh_catalog_utils import parse_motifs_from_locus_structure, get_variant_catalog_iterator
 from str_analysis.utils.file_utils import file_exists
@@ -18,6 +22,7 @@ GENE_REGIONS = ["5utr", "3utr", "cds", "exon", "intergenic", "intron", "promoter
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Compute and print stats for annotated repeat catalogs")
+    parser.add_argument("--reference-fasta", help="Optional reference fasta file for computing reference repeat purity")
     parser.add_argument("--verbose", action="store_true", help="Print more information about what the script is doing")
     parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     parser.add_argument("variant_catalog_json_or_bed", nargs="+",
@@ -34,13 +39,14 @@ def parse_args():
 
 
 
-def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_bar=False):
+def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verbose=False, show_progress_bar=False):
     """This script takes a TR catalog in BED format or in ExpansionHunter JSON format and outputs statistics about the
     distribution of the TRs in the catalog.
 
     Args:
         catalog_name (str): name of the catalog
         records (list of dicts): list of TRs in the catalog in ExpansionHunter JSON format
+        reference_fasta_path (str): optional path to the reference fasta file
 
     Return:
         dict: dictionary of summary stats for this catalog
@@ -53,9 +59,6 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
     min_fraction_pure_bases = 1
     min_fraction_pure_bases_reference_region = None
     min_fraction_pure_bases_motif = None
-    #min_fraction_pure_repeats = 1
-    #min_fraction_pure_repeats_reference_region = None
-    #min_fraction_pure_repeats_motif = None
     min_overall_mappability = 1
     min_overall_mappability_reference_region = None
     min_overall_mappability_motif = None
@@ -71,6 +74,13 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
     reference_repeat_purity_by_motif_size = collections.defaultdict(list)  # used to compute the mean base purity for each motif size
     mappability_by_motif_size = collections.defaultdict(list)  # used to compute the mean mappability for each motif size
 
+    ref_fasta = normalize_chrom = None
+    if reference_fasta_path:
+        ref_fasta = pysam.FastaFile(reference_fasta_path)
+        does_chrom_start_with_chr = ref_fasta.references[0].startswith("chr")
+        normalize_chrom = create_normalize_chrom_function(does_chrom_start_with_chr)
+
+
     has_gene_annotations = False
     for record in records:
         counters["total"] += 1
@@ -78,18 +88,25 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
         if isinstance(record["ReferenceRegion"], list):
             reference_regions = record["ReferenceRegion"]
             variant_types = record["VariantType"]
-            fraction_pure_bases = record.get("ReferenceRepeatPurity", [None]*len(reference_regions))
-            #fraction_pure_repeats = record.get("FractionPureRepeats", [None]*len(reference_regions))
+            fraction_pure_bases_list = record.get("ReferenceRepeatPurity", [None]*len(reference_regions))
 
             counters["loci_with_adjacent_repeats"] += 1
         else:
             reference_regions = [record["ReferenceRegion"]]
             variant_types = [record["VariantType"]]
-            fraction_pure_bases = [record.get("ReferenceRepeatPurity")]
-            #fraction_pure_repeats = [record.get("FractionPureRepeats")]
+            fraction_pure_bases_list = [record.get("ReferenceRepeatPurity")]
+
+        if "ReferenceRepeatPurity" not in record and ref_fasta is not None:
+            fraction_pure_bases_list = []
+            for reference_region, motif in zip(reference_regions, motifs):
+                chrom, start_0based, end = parse_interval(reference_region)
+                reference_fasta_sequence= ref_fasta.fetch(normalize_chrom(chrom), start_0based, end)
+                fraction_pure_bases, _ = compute_repeat_purity(reference_fasta_sequence, motif, include_partial_repeats=True)
+                fraction_pure_bases_list.append(fraction_pure_bases)
+
 
         for motif, reference_region, variant_type, fraction_pure_bases in zip(
-                motifs, reference_regions, variant_types, fraction_pure_bases):
+                motifs, reference_regions, variant_types, fraction_pure_bases_list):
             counters["total_repeat_intervals"] += 1
 
             chrom, start_0based, end = parse_interval(reference_region)
@@ -130,11 +147,6 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
                 if fraction_pure_bases == min_fraction_pure_bases:
                     min_fraction_pure_bases_reference_region = reference_region
                     min_fraction_pure_bases_motif = motif
-            #if fraction_pure_repeats is not None:
-            #    min_fraction_pure_repeats = min(min_fraction_pure_repeats, fraction_pure_repeats)
-            #    if fraction_pure_repeats == min_fraction_pure_repeats:
-            #        min_fraction_pure_repeats_reference_region = reference_region
-            #        min_fraction_pure_repeats_motif = motif
 
             if motif_size == 1:
                 counters["homopolymers"] += 1
@@ -226,8 +238,6 @@ def compute_catalog_stats(catalog_name, records, verbose=False, show_progress_ba
     print(f"   Max locus size = {max_locus_size:7,d}bp           @ {max_locus_size_reference_region} ({max_locus_size_motif})")
     if min_fraction_pure_bases_motif is not None:
         print(f"   Min reference repeat purity   = {min_fraction_pure_bases:5.2f}    @ {min_fraction_pure_bases_reference_region} ({min_fraction_pure_bases_motif})")
-    #if min_fraction_pure_repeats_motif is not None:
-    #    print(f"   Min fraction pure repeats = {min_fraction_pure_repeats:5.2f}    @ {min_fraction_pure_repeats_reference_region} ({min_fraction_pure_repeats_motif})")
     if min_overall_mappability_motif is not None:
         print(f"   Min overall mappability   = {min_overall_mappability:5.2f}    @ {min_overall_mappability_reference_region} ({min_overall_mappability_motif})")
     if any([_ is not None for _ in reference_repeat_purity_by_motif_size['all']]) > 0:
@@ -347,7 +357,12 @@ def main():
         catalog_name = os.path.basename(path)
 
         file_iterator = get_variant_catalog_iterator(path)
-        stats = compute_catalog_stats(catalog_name, file_iterator, verbose=args.verbose, show_progress_bar=args.show_progress_bar)
+        stats = compute_catalog_stats(
+            catalog_name, 
+            file_iterator, 
+            reference_fasta_path=args.reference_fasta, 
+            verbose=args.verbose, 
+            show_progress_bar=args.show_progress_bar)
         stat_table_rows.append(stats)
 
     if len(args.variant_catalog_json_or_bed) > 1:

@@ -79,5 +79,31 @@ def get_chromosome_sizes(fasta_path):
 def create_normalize_chrom_function(has_chr_prefix=False):
     def normalize_chrom(chrom):
         chrom_without_prefix = chrom.replace("chr", "")
-        return f"chr{chrom_without_prefix}" if has_chr_prefix else chrom_without_prefix
+        if not has_chr_prefix:
+            return chrom_without_prefix
+
+        return f"chr{chrom_without_prefix}"
+
     return normalize_chrom
+
+
+def create_normalize_chrom_function_for_reference_fasta(reference_fasta_path):
+    import pysam
+    ref_fasta = pysam.FastaFile(reference_fasta_path)
+    does_chrom_start_with_chr = ref_fasta.references[0].startswith("chr")
+    return create_normalize_chrom_function(does_chrom_start_with_chr)
+
+
+def normalize_chrom_using_pyfaidx_fasta(pyfaidx_reference_fasta_obj, chrom):
+    needs_chr_prefix = next(iter(pyfaidx_reference_fasta_obj.keys())).startswith("chr")
+    chrom = chrom.replace('chr', '')
+    if needs_chr_prefix:
+        chrom = f"chr{chrom}"
+    return chrom
+
+def normalize_chrom_using_pysam_fasta(pysam_reference_fasta_obj, chrom):
+    needs_chr_prefix = pysam_reference_fasta_obj.references[0].startswith("chr")
+    chrom = chrom.replace('chr', '')
+    if needs_chr_prefix:
+        chrom = f"chr{chrom}"
+    return chrom
