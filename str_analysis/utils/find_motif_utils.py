@@ -348,8 +348,10 @@ def find_optimal_motif_using_TRF(trf_executable_path, nucleotide_sequence, max_m
 
     for result in trf_runner.run_TRF_on_nucleotide_sequence(nucleotide_sequence):
         motif_length = len(result["repeat_unit"])
-        if result["start_0based"] < motif_length and result["end_1based"] > len(nucleotide_sequence) - motif_length and result["repeat_count"] > 1:
-            if optimal_motif_score is None or result["alignment_score"] > optimal_motif_score:
+        if (result["start_0based"] < motif_length) and (
+            result["end_1based"] > len(nucleotide_sequence) - motif_length) and (
+            result["repeat_count"] > 1) and (
+            optimal_motif_score is None or result["alignment_score"] > optimal_motif_score):
                 optimal_motif = result["repeat_unit"]
                 optimal_motif_score = result["alignment_score"]
                 if optimal_motif_score == max_score:

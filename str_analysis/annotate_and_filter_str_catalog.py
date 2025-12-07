@@ -24,7 +24,8 @@ from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.fasta_utils import get_reference_sequence_with_cache, get_chromosome_size_with_cache
 from str_analysis.utils.fasta_utils import create_normalize_chrom_function
 from str_analysis.utils.find_motif_utils import compute_repeat_purity
-from str_analysis.utils.find_motif_utils import find_optimal_motif_length, HAMMING_DISTANCE_METRIC
+from str_analysis.utils.find_motif_utils import find_optimal_motif_length, find_optimal_motif_using_TRF
+
 
 VALID_GENE_REGIONS = {"CDS", "UTR", "5UTR", "3UTR", "promoter", "exon", "intron", "intergenic"}
 
@@ -73,6 +74,9 @@ def parse_args():
         "to each locus id")
     annotations_group.add_argument("--add-canonical-motif-to-locus-id", action="store_true", help="Append the motif "
         "to each locus id")
+    annotations_group.add_argument("--trf-executable", help="Path of TandemRepeatFinder (TRF) executable. If specified, "
+                                   "the reference sequence for each locus will be processed using TRF and the consensus "
+                                   "motif (if found) will be recorded in the 'TandemRepeatFinderMotif' field")
 
     filter_group = parser.add_argument_group("filters")
     filter_group.add_argument("--min-motif-size", type=int, help="Minimum motif size to include in the output catalog")
@@ -597,6 +601,8 @@ def main():
         highest_purity_motif_list = []
         highest_purity_motif_purity_list = []
         highest_purity_motif_quality_list = []
+        trf_motif_list = []
+        trf_motif_quality_score_list = []
         overlaps_other_interval_with_similar_motif = False
         has_invalid_bases = False
         for (chrom, start_0based, end), motif in zip(chroms_start_0based_ends, motifs):
@@ -624,7 +630,14 @@ def main():
 
             # compute the highest-purity motif
             highest_purity_motif, highest_purity_motif_purity, highest_purity_motif_quality = find_optimal_motif_length(
-                ref_fasta_sequence, max_motif_length=max(1, len(motif), len(ref_fasta_sequence)//2))
+                ref_fasta_sequence, max_motif_length=max(len(motif), len(ref_fasta_sequence)//2))
+
+            if args.trf_executable and highest_purity_motif_purity < 0.66:
+                trf_motif, trf_motif_purity, trf_motif_quality_score = find_optimal_motif_using_TRF(
+                    args.trf_executable, ref_fasta_sequence, max_motif_length=max(len(motif), len(ref_fasta_sequence)//2))
+                trf_motif_list.append(trf_motif)
+                trf_motif_quality_score_list.append(trf_motif_quality_score)
+
             highest_purity_motif_list.append(highest_purity_motif)
             highest_purity_motif_purity_list.append(highest_purity_motif_purity)
             highest_purity_motif_quality_list.append(highest_purity_motif_quality)
@@ -649,6 +662,10 @@ def main():
         catalog_record["HighestPurityMotif"] = highest_purity_motif_list[0] if len(chroms_start_0based_ends) == 1 else highest_purity_motif_list
         catalog_record["HighestPurityMotifPurity"] = highest_purity_motif_purity_list[0] if len(chroms_start_0based_ends) == 1 else highest_purity_motif_purity_list
         catalog_record["HighestPurityMotifQuality"] = highest_purity_motif_quality_list[0] if len(chroms_start_0based_ends) == 1 else highest_purity_motif_quality_list
+
+        if trf_motif_list:
+            catalog_record["TandemRepeatFinderMotif"] = trf_motif_list[0] if len(chroms_start_0based_ends) == 1 else trf_motif_list
+            catalog_record["TandemRepeatFinderMotifQuality"] = trf_motif_quality_score_list[0] if len(chroms_start_0based_ends) == 1 else trf_motif_quality_score_list
 
         if args.discard_overlapping_intervals_with_similar_motifs and overlaps_other_interval_with_similar_motif:
             filter_counters[f"overlapping interval"] += 1
