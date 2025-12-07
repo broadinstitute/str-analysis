@@ -119,6 +119,9 @@ def find_optimal_motif_length(nucleotide_sequence, max_motif_length, distance_me
     #if verbose:
     #    print("--------------------------------")
     #    print(f"Sequence: {nucleotide_sequence}")
+
+    negligable_change_in_purity = 0.025
+
     if not nucleotide_sequence:
         raise ValueError("ERROR: nucleotide_sequence is empty")
 
@@ -141,6 +144,9 @@ def find_optimal_motif_length(nucleotide_sequence, max_motif_length, distance_me
 
         motif_length_vs_motif_and_purity[len(most_common_motif)] = (most_common_motif, motif_length_purity)
         max_purity = max(max_purity, motif_length_purity)
+        if motif_length_purity > 0.9999:
+            # stop at the 1st motif length that reaches 100% purity
+            break
 
     if not motif_length_vs_motif_and_purity:
         return None, float('nan'), float('nan')
@@ -160,15 +166,33 @@ def find_optimal_motif_length(nucleotide_sequence, max_motif_length, distance_me
         # Find the motif length with the highest quality score
         optimal_motif_length = max(
             motif_length_vs_motif_and_quality_score, key=lambda motif_length: (motif_length_vs_motif_and_quality_score[motif_length][1], -motif_length))
+
+        optimal_motif, optimal_purity = motif_length_vs_motif_and_purity[optimal_motif_length]
+
+        # Check if smaller motif sizes that are factors of the highest-quality motif have almost the same purity
+        for motif_length_i in range(2, optimal_motif_length):
+            if optimal_motif_length % motif_length_i == 0 and motif_length_i in motif_length_vs_motif_and_purity and (
+                motif_length_vs_motif_and_purity[motif_length_i][1] >= optimal_purity - negligable_change_in_purity):
+                # use the shorter motif length
+                optimal_motif_length = motif_length_i
+                optimal_motif, optimal_purity = motif_length_vs_motif_and_purity[optimal_motif_length]
+
+        # Since quality scores can be inflated for smaller motifs, check whether larger multiples of this motif length have noticeably higher purity (eg. by more than negligable_change_in_purity)
+        for motif_length_i in range(optimal_motif_length, max(motif_length_vs_motif_and_quality_score.keys()) + 1, optimal_motif_length):
+            if motif_length_i in motif_length_vs_motif_and_purity and motif_length_vs_motif_and_purity[motif_length_i][1] > optimal_purity + negligable_change_in_purity:
+                optimal_motif_length = motif_length_i
+                optimal_motif, optimal_purity = motif_length_vs_motif_and_purity[optimal_motif_length]
+
     elif distance_metric == EDIT_DISTANCE_METRIC:
+        # Quality scores don't work well with edit distance, so just select based on purity (aka. minimal edit distance)
         optimal_motif_length = max(
             motif_length_vs_motif_and_purity, key=lambda motif_length: (motif_length_vs_motif_and_purity[motif_length][1], -motif_length))
+        optimal_motif, optimal_purity = motif_length_vs_motif_and_purity[optimal_motif_length]
 
-        # quality scores don't work well with edit distance, so just select based on purity (aka. minimal edit distance)
     else:
         raise ValueError(f"Unknown distance metric {distance_metric}")
 
-    optimal_motif, optimal_purity = motif_length_vs_motif_and_purity[optimal_motif_length]
+
     optimal_motif_length_quality_score = compute_motif_length_quality(optimal_motif_length, motif_length_vs_motif_and_purity)
 
     simplified_optimal_motif, _, _ = find_repeat_unit_without_allowing_interruptions(optimal_motif, allow_partial_repeats=False)
@@ -328,8 +352,8 @@ def find_optimal_motif_using_TRF(trf_executable_path, nucleotide_sequence, max_m
     """Runs TandemRepeatFinder on the given sequence and returns a motif if it spans the entire sequence
     (allowing 1 partial repeat at either end), or None if no such repeat is found.
     """
-    if nucleotide_sequence < 12:
-        return None, float('nan'), float('nan')
+    if len(nucleotide_sequence) < 12:
+        return None, float('nan')
 
     max_score = len(nucleotide_sequence) * 2
     optimal_motif = None
@@ -360,12 +384,11 @@ def find_optimal_motif_using_TRF(trf_executable_path, nucleotide_sequence, max_m
                     raise Exception(f"TRF score {motif_length} is greater than max score {max_score} for sequence {nucleotide_sequence}")
 
     if optimal_motif is None:
-        return None, float('nan'), float('nan')
+        return None, float('nan')
 
-    fraction_pure_bases, _ = compute_repeat_purity(nucleotide_sequence, optimal_motif, include_partial_repeats=True)
     quality_score = optimal_motif_score / max_score
 
-    return optimal_motif, fraction_pure_bases, quality_score
+    return optimal_motif, quality_score
 
 """
 generate_motif_null_distributions_using_random_sequences(max_sequence_length=10001, distance_metric=HAMMING_DISTANCE_METRIC, verbose=True)

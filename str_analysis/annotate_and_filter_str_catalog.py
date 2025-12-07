@@ -4,13 +4,13 @@ import argparse
 import collections
 import gzip
 from intervaltree import IntervalTree, Interval
-import simplejson as json
 import os
 import pandas as pd
 from pprint import pformat
 import pyBigWig
 import pysam
 import re
+import simplejson
 from tqdm import tqdm
 
 from str_analysis.compute_catalog_stats import compute_catalog_stats
@@ -633,8 +633,10 @@ def main():
                 ref_fasta_sequence, max_motif_length=max(len(motif), len(ref_fasta_sequence)//2))
 
             if args.trf_executable and highest_purity_motif_purity < 0.66:
-                trf_motif, trf_motif_purity, trf_motif_quality_score = find_optimal_motif_using_TRF(
+                trf_motif, trf_motif_quality_score = find_optimal_motif_using_TRF(
                     args.trf_executable, ref_fasta_sequence, max_motif_length=max(len(motif), len(ref_fasta_sequence)//2))
+                if pd.isna(trf_motif_quality_score):
+                    trf_motif_quality_score = None
                 trf_motif_list.append(trf_motif)
                 trf_motif_quality_score_list.append(trf_motif_quality_score)
 
@@ -749,7 +751,7 @@ def main():
 
     fopen = gzip.open if args.output_path.endswith(".gz") else open
     with fopen(args.output_path, "wt") as f:
-        json.dump(output_records, f, indent=4)
+        simplejson.dump(output_records, f, indent=4, ignore_nan=True)
     print(f"Wrote {len(output_records):,d} records to {args.output_path}")
 
     output_path_prefix = re.sub("(.json|.bed)(.b?gz)?$", "", args.output_path)
