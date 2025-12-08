@@ -9,7 +9,7 @@ import tqdm
 from str_analysis.utils.file_utils import open_file
 
 GENE_MODELS = {
-    "gencode": "gs://str-truth-set/hg38/ref/other/gencode.v48.annotation.gtf.gz",
+    "gencode": "gs://str-truth-set/hg38/ref/other/gencode.v49.annotation.gtf.gz",
     "mane": "gs://str-truth-set/hg38/ref/other/MANE.GRCh38.v1.4.ensembl_genomic.gtf.gz",
     "refseq": "gs://str-truth-set/hg38/ref/other/hg38.ncbiRefSeq.gtf.gz", # downloaded from https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/genes/
 }
