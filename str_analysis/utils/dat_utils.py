@@ -16,6 +16,7 @@ def parse_dat_record(line, sequence_name):
     fields = line.split()
 
     dat_record = {
+        'chrom': sequence_name,  # alias
         'sequence_name': sequence_name,
         'start_0based': int(fields[0]) - 1,   # bed file start is 0-based, TRF output is 1-based
         'end_1based': int(fields[1]),

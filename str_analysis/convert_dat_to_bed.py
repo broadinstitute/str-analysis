@@ -34,41 +34,37 @@ def main():
 		args.output_path = re.sub(".dat(.gz)?$", "", args.dat_file_path) + ".bed"
 
 	with open(args.output_path, "wt") as f:
-		for record in sorted(parse_dat_file(args.dat_file_path), key=lambda d: (d.chrom, d.start_0based, d.end_1based)):
-			# Example: DatRecord(
-			# 	chrom='chr22', start_0based=16102331, end_1based=16102338,
-			# 	repeat_unit='A', repeat_count=7.0, repeat_unit_length=1,
-			# 	percent_matches=100, percent_indels=0, alignment_score=14,
-			# 	entropy=0.0, full_repeat_sequence='AAAAAAA', full_repeat_sequence_length=7,
-			# 	left_flank='GAGACCATCCTGGCTAACACGGTGAAACCCCGTCTCTACTAAAAATATAC',
-			# 	right_flank='TAGCCAGGCGTGGTGATGGGAGCCTGTAGTCCCAGCTACTCAGGAGGCTG')
-			if len(record.repeat_unit) < args.min_motif_size or len(record.repeat_unit) > args.max_motif_size:
+		for record in sorted(
+			parse_dat_file(args.dat_file_path),
+			key=lambda d: (d['chrom'], d['start_0based'], d['end_1based'])
+		):
+			if len(record['repeat_unit']) < args.min_motif_size or len(record['repeat_unit']) > args.max_motif_size:
 				continue
-			if record.repeat_count < args.min_repeat_count:
+			if record['repeat_count'] < args.min_repeat_count:
 				continue
-			if record.end_1based - record.start_0based < args.min_base_pairs:
+			if record['end_1based'] - record['start_0based'] < args.min_base_pairs:
 				continue
 
 			if args.interval:
 				# Example: chr1:12345-54321
 				for i in args.interval:
 					chrom, start, end = parse_interval(i)
-					if record.chrom.replace("chr", "").upper() != chrom.replace("chr", "").upper():
+					if record['chrom'].replace("chr", "").upper() != chrom.replace("chr", "").upper():
 						continue
 
 					# check if current interval contains this record
-					if record.start_0based >= start and record.end_1based <= end:
+					if record['start_0based'] >= start and record['end_1based'] <= end:
 						break
 				else:
 					# none of the intervals contain this recrod
 					continue
 
 			f.write("\t".join(map(str, [
-				record.chrom,
-				record.start_0based,
-				record.end_1based,
-				record.repeat_unit,
-				record.percent_matches,
+				record['chrom'],
+				record['start_0based'],
+				record['end_1based'],
+				record['repeat_unit'],
+				record['percent_matches'],
 				".",
 			])) + "\n")
 

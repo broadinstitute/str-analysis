@@ -749,6 +749,7 @@ def main():
         filter_counters["passed all filters"] += 1
         output_records.append(catalog_record)
 
+    print(f"Writing {len(output_records):,d} records to {args.output_path}")
     fopen = gzip.open if args.output_path.endswith(".gz") else open
     with fopen(args.output_path, "wt") as f:
         simplejson.dump(output_records, f, indent=4, ignore_nan=True)
