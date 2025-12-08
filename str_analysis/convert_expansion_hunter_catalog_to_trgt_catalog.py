@@ -51,7 +51,7 @@ def main():
                                      show_progress_bar=args.show_progress_bar)
 
 
-def convert_expansion_hunter_record_to_trgt_row(i, record, split_adjacent_repeats=False,
+def convert_expansion_hunter_record_to_trgt_rows(i, record, split_adjacent_repeats=False,
                                                 keep_wide_boundaries=False, set_locus_id=False):
     locus_id = record["LocusId"]
     locus_structure = record["LocusStructure"]
@@ -139,7 +139,7 @@ def process_expansion_hunter_catalog(reference_fasta_path, expansion_hunter_cata
         with fopen2(output_file_path, "wt") as f2:
             for i, record in enumerate(iterator):
                 total += 1
-                for output_row in convert_expansion_hunter_record_to_trgt_row(
+                for output_row in convert_expansion_hunter_record_to_trgt_rows(
                     i, record, split_adjacent_repeats=split_adjacent_repeats,
                     keep_wide_boundaries=keep_wide_boundaries, set_locus_id=set_locus_id):
                     counter += 1
