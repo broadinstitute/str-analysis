@@ -25,6 +25,7 @@ def parse_args():
     parser.add_argument("--reference-fasta", help="Optional reference fasta file for computing reference repeat purity")
     parser.add_argument("--verbose", action="store_true", help="Print more information about what the script is doing")
     parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
+    parser.add_argument("-n", "--n-loci", type=int, help="Only process the first N loci in the catalog")
     parser.add_argument("variant_catalog_json_or_bed", nargs="+",
                         help="Repeat catalog in JSON or BED format. Repeat catalog(s) processed by "
                              "the annotate_and_filter_str_catalog.py script will have extra stats computed")
@@ -39,7 +40,7 @@ def parse_args():
 
 
 
-def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verbose=False, show_progress_bar=False):
+def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verbose=False, show_progress_bar=False, n_loci=None):
     """This script takes a TR catalog in BED format or in ExpansionHunter JSON format and outputs statistics about the
     distribution of the TRs in the catalog.
 
@@ -64,7 +65,7 @@ def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verb
     min_overall_mappability_motif = None
 
     if show_progress_bar:
-        records = tqdm.tqdm(records, unit=" records", unit_scale=True)
+        records = tqdm.tqdm(records, unit=" records", unit_scale=True, total=n_loci)
 
     interval_trees = collections.defaultdict(IntervalTree)  # used to check for overlap between records in the catalog
     overlapping_intervals = set()
@@ -81,9 +82,13 @@ def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verb
         normalize_chrom = create_normalize_chrom_function(does_chrom_start_with_chr)
 
 
+    has_reference_repeat_purity = False
     has_gene_annotations = False
     for record in records:
         counters["total"] += 1
+        if n_loci is not None and counters["total"] > n_loci:
+            break
+
         motifs = parse_motifs_from_locus_structure(record["LocusStructure"])
         if isinstance(record["ReferenceRegion"], list):
             reference_regions = record["ReferenceRegion"]
@@ -103,7 +108,9 @@ def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verb
                 reference_fasta_sequence= ref_fasta.fetch(normalize_chrom(chrom), start_0based, end)
                 fraction_pure_bases, _ = compute_repeat_purity(reference_fasta_sequence, motif, include_partial_repeats=True)
                 fraction_pure_bases_list.append(fraction_pure_bases)
-
+            has_reference_repeat_purity = True
+        elif "ReferenceRepeatPurity" in record:
+            has_reference_repeat_purity = True
 
         for motif, reference_region, variant_type, fraction_pure_bases in zip(
                 motifs, reference_regions, variant_types, fraction_pure_bases_list):
@@ -124,8 +131,9 @@ def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verb
 
             if motif_size <= 50:
                 locus_sizes_by_motif_size[motif_size].append(locus_size)
-                reference_repeat_purity_by_motif_size[motif_size].append(fraction_pure_bases)
-                reference_repeat_purity_by_motif_size['all'].append(fraction_pure_bases)
+                if fraction_pure_bases is not None and pd.notna(fraction_pure_bases):
+                    reference_repeat_purity_by_motif_size[motif_size].append(fraction_pure_bases)
+                    reference_repeat_purity_by_motif_size['all'].append(fraction_pure_bases)
                 if "FlanksAndLocusMappability" in record:
                     mappability_by_motif_size[motif_size].append(record["FlanksAndLocusMappability"])
 
@@ -142,7 +150,7 @@ def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verb
                 max_locus_size_reference_region = reference_region
                 max_locus_size_motif = motif
 
-            if fraction_pure_bases is not None:
+            if fraction_pure_bases is not None and pd.notna(fraction_pure_bases):
                 min_fraction_pure_bases = min(min_fraction_pure_bases, fraction_pure_bases)
                 if fraction_pure_bases == min_fraction_pure_bases:
                     min_fraction_pure_bases_reference_region = reference_region
@@ -180,7 +188,7 @@ def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verb
                 if motif_size == 3:
                     counters[f"3bp_motif_gene_region:{gene_region}"] += 1
 
-            if fraction_pure_bases is not None:
+            if fraction_pure_bases is not None and pd.notna(fraction_pure_bases):
                 fraction_pure_bases_bin = round(int(fraction_pure_bases*10)/10, 1)
                 counters[f"fraction_pure_bases:{fraction_pure_bases_bin}"] += 1
 
@@ -334,6 +342,8 @@ def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verb
         result[f"{motif_size}bp motifs: max locus size"] = max_size
 
         print(f"   {motif_size:3,d}bp motifs: locus size range:   {min_size:4,d} bp to {max_size:7,d} bp  (median: {int(median_size):4,d} bp) based on {len(locus_sizes_by_motif_size[motif_size]):10,d} loci. Mean base purity: {mean_reference_repeat_purity:0.2f}. ", f"Mean mappability: {mean_mappability:0.2f}" if mean_mappability is not None else "")
+    if not has_reference_repeat_purity and not reference_fasta_path:
+        print("WARNING: No reference repeat purity data was found in the catalog. Specify --reference-fasta to compute reference repeat purity.")
 
     for num_repeats_per_locus_detailed_bin in (
         "0x", "1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x", "9x", "10x",
@@ -362,7 +372,8 @@ def main():
             file_iterator, 
             reference_fasta_path=args.reference_fasta, 
             verbose=args.verbose, 
-            show_progress_bar=args.show_progress_bar)
+            show_progress_bar=args.show_progress_bar,
+            n_loci=args.n_loci)
         stat_table_rows.append(stats)
 
     if len(args.variant_catalog_json_or_bed) > 1:
