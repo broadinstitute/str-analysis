@@ -10,4 +10,5 @@ requests>=2.25.1
 rapidfuzz>=3.13.0
 simplejson>=3.19.2
 tqdm>=4.62.3
+scipy>=1.16.2
 

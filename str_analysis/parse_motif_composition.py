@@ -409,7 +409,6 @@ def parse_motif_composition_from_alignment_file(
         input_is_file = True
         input_file = pysam.AlignmentFile(input_sequence_or_path)
 
-        read_counter = 0
         for interval in counted_region_list:
             interval_key = f"read_depth_counted_region_{interval}"
             chrom, start_0based, end_1based = parse_interval(interval)
@@ -420,12 +419,16 @@ def parse_motif_composition_from_alignment_file(
                         not include_low_quality_alignments and read.mapq < MIN_MAPQ):
                     continue
 
-                read_counter += 1
-                bases_within_locus = min(end_1based, read.reference_end) - max(start_0based, read.reference_start)  # total number of aligned bases in this read that overlap the interval
-                interval_read_depth_dict[interval_key] += bases_within_locus
+                # compute the total number of aligned bases in this read that overlap the interval
+                read_bases_aligned_within_interval = min(end_1based, read.reference_end) - max(start_0based, read.reference_start)
+                interval_read_depth_dict[interval_key] += read_bases_aligned_within_interval
+
+                if read_bases_aligned_within_interval < read.reference_end - read.reference_start:
+                    # don't count motifs in a read unless all of its aligned bases are within the locus interval
+                    continue
 
                 locus_parser.convert_nucleotide_seq_to_motif_seq(
-                    read.query_alignment_sequence,
+                    read.query_sequence,   # process the entire sequence include soft-clips (eg. RFC1)
                     check_reverse_complement=True,
                     record_reference_motif_counts=True,
                     record_novel_motif_counts=True,
