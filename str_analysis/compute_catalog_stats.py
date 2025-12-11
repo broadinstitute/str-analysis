@@ -145,7 +145,7 @@ def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verb
             min_num_repeats_in_locus = min(min_num_repeats_in_locus, num_repeats_per_locus)
             max_num_repeats_in_locus = max(max_num_repeats_in_locus, num_repeats_per_locus)
 
-            counters["total_base_pairs_spanned_by_all_loci"] += locus_size
+            counters["sum_of_all_locus_interval_sizes"] += locus_size
             if locus_size == max_locus_size:
                 max_locus_size_reference_region = reference_region
                 max_locus_size_motif = motif
@@ -211,6 +211,12 @@ def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verb
             mappability_bin = round(int(record["FlanksAndLocusMappability"]*10)/10, 1)
             counters[f"mappability:{mappability_bin}"] += 1
 
+    for interval_tree in interval_trees.values():
+        tree_with_merged_overlaps = interval_tree.copy()
+        tree_with_merged_overlaps.merge_overlaps()
+        for interval in tree_with_merged_overlaps:
+            counters['total_base_pairs_covered_by_loci'] += interval.length()
+
     print("")
     print(f"Stats for {catalog_name}:")
     print(f"   {counters['total']:10,d} total loci")
@@ -221,7 +227,8 @@ def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verb
         }
 
     total_genome_size = 3_088_286_401  # in hg38, including chrX, chrY, chrM
-    print(f"   {counters['total_base_pairs_spanned_by_all_loci']:10,d} base pairs spanned by all loci ({counters['total_base_pairs_spanned_by_all_loci']/total_genome_size:0.3%} of the genome)")
+    print(f"   {counters['total_base_pairs_covered_by_loci']:10,d} base pairs covered by all loci ({counters['total_base_pairs_covered_by_loci']/total_genome_size:0.3%} of the genome)")
+    print(f"   {counters['sum_of_all_locus_interval_sizes']:10,d} sum of all interval widths ({counters['sum_of_all_locus_interval_sizes']/counters['total_base_pairs_covered_by_loci']:0.3f}x overlap on average)")
     print(f"   {counters['loci_with_adjacent_repeats']:10,d} out of {counters['total']:10,d} ({counters['loci_with_adjacent_repeats']/counters['total']:6.1%}) loci define adjacent repeats")
     print(f"   {counters['total_repeat_intervals']:10,d} total repeat intervals")
     print(f"   {counters['trimmed']:10,d} out of {counters['total_repeat_intervals']:10,d} ({counters['trimmed']/counters['total_repeat_intervals']:6.1%}) repeat interval size is an integer multiple of the motif size (aka. trimmed)")
@@ -282,7 +289,7 @@ def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verb
         "count_chrX": counters['chrX'],
         "count_chrY": counters['chrY'],
         "count_chrM": counters["chrM"],
-        "percent_of_genome_spanned_by_loci": f"{counters['total_base_pairs_spanned_by_all_loci']/total_genome_size:0.3%}",
+        "percent_of_genome_spanned_by_loci": f"{counters['total_base_pairs_covered_by_loci']/total_genome_size:0.3%}",
         "motif_size_range": f"{min_motif_size}-{max_motif_size}bp",
         "locus_size_range": f"{min_locus_size}-{max_locus_size}bp",
         "num_repeats_range": f"{min_num_repeats_in_locus}-{max_num_repeats_in_locus}x repeats",
@@ -317,7 +324,6 @@ def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verb
     }
 
     if has_gene_annotations:
-        print("Adding ")
         for gene_region in GENE_REGIONS:
             result[f"count_gene_region_{gene_region}"] = counters[f"gene_region:{gene_region}"]
         for gene_region in GENE_REGIONS:
