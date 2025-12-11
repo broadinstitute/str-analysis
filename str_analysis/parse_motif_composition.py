@@ -246,13 +246,13 @@ class LocusParser:
         return best_parsed_seq
 
 
-    def process_sequences_in_alignment_file(self, alignment_file_path, genomic_intervals, count_low_quality_alignments=False, alignment_index_file_path=None):
+    def process_sequences_in_alignment_file(self, alignment_file_path, genomic_intervals, include_low_quality_alignments=False, alignment_index_file_path=None):
         """Process sequences in an alignment file and count the number of occurrences of each motif.
 
         Args:
             alignment_file_path (str): path to a BAM/CRAM file
             genomic_intervals (list or str): genomic interval or list of intervals to extract from the alignment file
-            count_low_quality_alignments (bool): whether to count low quality alignments (those with MAPQ < 3)
+            include_low_quality_alignments (bool): whether to count low quality alignments (those with MAPQ < 3)
 
         Returns:
             dict: interval mapped to the average read depth of processed reads in that interval
@@ -264,7 +264,7 @@ class LocusParser:
         if not alignment_file_path.endswith(".bam") and not alignment_file_path.endswith(".cram"):
             raise ValueError(f"Alignment file must end with .bam or .cram: {alignment_file_path}")
         if not genomic_intervals:
-            raise ValueError("genomic_interval_list not specified")
+            raise ValueError("counted_region_list not specified")
         if isinstance(genomic_intervals, str):
             genomic_intervals = [genomic_intervals]
 
@@ -278,7 +278,7 @@ class LocusParser:
 
                 for read in f.fetch(chrom, start_0based, end_1based):
                     if not read.is_mapped or not read.query_alignment_sequence or (
-                            not count_low_quality_alignments and read.mapq < MIN_MAPQ):
+                            not include_low_quality_alignments and read.mapq < MIN_MAPQ):
                         continue
 
                     # total number of aligned bases in this read that overlap the interval
@@ -306,40 +306,46 @@ class LocusParser:
 
 
     def get_observed_motif_frequency_dict(self, as_string=False):
+        motif_frequency_dict = {
+            self._reference_motif_id_to_motif[motif_id]: count for motif_id, count in self._observed_motif_id_frequency_dict.items()
+        }
         if not as_string:
-            return {
-                self._reference_motif_id_to_motif[motif_id]: count for motif_id, count in self._observed_motif_id_frequency_dict.items()
-            }
+            return motif_frequency_dict
 
         items = []
-        for motif_id, count in sorted(self._observed_motif_id_frequency_dict.items(), key=lambda x: x[1], reverse=True):
-            items.append(f"[{motif_id}]:{count}")
+        for motif, count in sorted(motif_frequency_dict.items(), key=lambda x: x[1], reverse=True):
+            items.append(f"[{motif}]:{count}")
         return ",".join(items)
 
 
     def get_observed_motif_pair_frequency_dict(self, as_string=False):
+        motif_pair_frequency_dict = {
+            (self._reference_motif_id_to_motif[motif_id_pair[0]], self._reference_motif_id_to_motif[motif_id_pair[1]]): count
+            for motif_id_pair, count in self._observed_motif_id_pair_frequency_dict.items()
+        }
         if not as_string:
-            return {
-                (self._reference_motif_id_to_motif[motif_id_pair[0]], self._reference_motif_id_to_motif[motif_id_pair[1]]): count
-                for motif_id_pair, count in self._observed_motif_id_pair_frequency_dict.items()
-            }
+            return motif_pair_frequency_dict
 
         items = []
-        for motif_id_pair, count in sorted(self._observed_motif_id_pair_frequency_dict.items(), key=lambda x: x[1], reverse=True):
-            items.append(f"[{motif_id_pair[0]}][{motif_id_pair[1]}]:{count}")
+        for motif_pair, count in sorted(motif_pair_frequency_dict.items(), key=lambda x: x[1], reverse=True):
+            items.append(f"[{motif_pair[0]}][{motif_pair[1]}]:{count}")
         return ",".join(items)
 
 
     def get_observed_motif_triplet_frequency_dict(self, as_string=False):
+        motif_triplet_frequency_dict = {
+            (
+                self._reference_motif_id_to_motif[motif_id_triplet[0]],
+                self._reference_motif_id_to_motif[motif_id_triplet[1]],
+                self._reference_motif_id_to_motif[motif_id_triplet[2]],
+            ): count for motif_id_triplet, count in self._observed_motif_id_triplet_frequency_dict.items()
+        }
         if not as_string:
-            return {
-                (self._reference_motif_id_to_motif[motif_id_triplet[0]], self._reference_motif_id_to_motif[motif_id_triplet[1]], self._reference_motif_id_to_motif[motif_id_triplet[2]]): count
-                for motif_id_triplet, count in self._observed_motif_id_triplet_frequency_dict.items()
-            }
+            return motif_triplet_frequency_dict
 
         items = []
-        for motif_id_triplet, count in sorted(self._observed_motif_id_triplet_frequency_dict.items(), key=lambda x: x[1], reverse=True):
-            items.append(f"[{motif_id_triplet[0]}][{motif_id_triplet[1]}][{motif_id_triplet[2]}]:{count}")
+        for motif_triplet, count in sorted(motif_triplet_frequency_dict.items(), key=lambda x: x[1], reverse=True):
+            items.append(f"[{motif_triplet[0]}][{motif_triplet[1]}][{motif_triplet[2]}]:{count}")
         return ",".join(items)
 
 
@@ -362,9 +368,9 @@ class LocusParser:
 def parse_motif_composition_from_alignment_file(
     input_sequence_or_path,
     motif_frequency_dict,
-    genomic_interval_list=None,
-    control_region_list=None,
-    count_low_quality_alignments=False,
+    counted_region_list=None,
+    other_region_list=None,
+    include_low_quality_alignments=False,
     check_reverse_complement=True,
     output_json=None,
     verbose=False,
@@ -374,9 +380,9 @@ def parse_motif_composition_from_alignment_file(
     Args:
         input_sequence_or_path (str): path to a BAM/CRAM file or a nucleotide sequence
         motif_frequency_dict (dict): Dictionary of population motif frequencies at this locus (such as from T2T assemblies)
-        genomic_interval_list (list): list of genomic intervals to extract from the input BAM/CRAM file
-        control_region_list (list): list of genomic intervals to extract from the input BAM/CRAM file for control region normalization
-        count_low_quality_alignments (bool): whether to count low quality alignments (those with MAPQ < 3)
+        counted_region_list (list): list of genomic intervals to extract from the input BAM/CRAM file
+        other_region_list (list): list of genomic intervals to extract from the input BAM/CRAM file for control region normalization
+        include_low_quality_alignments (bool): whether to count low quality alignments (those with MAPQ < 3)
         check_reverse_complement (bool): whether to check the reverse complement of the input sequence
         output_json (str): path to a JSON file to write the results to
         verbose (bool): whether to print verbose output
@@ -392,8 +398,8 @@ def parse_motif_composition_from_alignment_file(
             observed in input reads or nucleotide sequence
         "motif_pair_frequency": a string representation of motif pair frequencies (ie. consecutive motifs) observed in input reads or nucleotide sequence
         "motif_triplet_frequency": a string representation of motif triplet frequencies (ie. consecutive triplets of motifs) observed in input reads or nucleotide sequence
-        "read_depth_primary_region": a dictionary with the read depth for each primary region specified by the genomic_interval_list
-        "read_depth_control_region": a dictionary with the read depth for each control region specified by the control_region_list                
+        "read_depth_counted_region": a dictionary with the read depth for each primary region specified by the counted_region_list
+        "read_depth_other_region": a dictionary with the read depth for each control region specified by the other_region_list                
     """
 
     locus_parser = LocusParser(motif_frequency_dict)
@@ -404,14 +410,14 @@ def parse_motif_composition_from_alignment_file(
         input_file = pysam.AlignmentFile(input_sequence_or_path)
 
         read_counter = 0
-        for interval in genomic_interval_list:
-            interval_key = f"read_depth_primary_region_{interval}"
+        for interval in counted_region_list:
+            interval_key = f"read_depth_counted_region_{interval}"
             chrom, start_0based, end_1based = parse_interval(interval)
             locus_width = end_1based - start_0based
             read_iterator = input_file.fetch(chrom, start_0based, end_1based)
             for read in read_iterator:
                 if not read.is_mapped or not read.query_alignment_sequence or (
-                        not count_low_quality_alignments and read.mapq < MIN_MAPQ):
+                        not include_low_quality_alignments and read.mapq < MIN_MAPQ):
                     continue
 
                 read_counter += 1
@@ -430,9 +436,9 @@ def parse_motif_composition_from_alignment_file(
 
             interval_read_depth_dict[interval_key] /= locus_width
 
-        if control_region_list:
-            for interval in control_region_list:
-                interval_key = f"read_depth_control_region_{interval}"
+        if other_region_list:
+            for interval in other_region_list:
+                interval_key = f"read_depth_other_region_{interval}"
 
                 chrom, start_0based, end_1based = parse_interval(interval)
                 chrom = chrom.replace("chr", "")
@@ -469,12 +475,17 @@ def parse_motif_composition_from_alignment_file(
         "input":                    input_sequence_or_path,
         "input_file_size":          os.path.getsize(input_sequence_or_path) if input_is_file else None,
         "total_mapped_reads":       get_total_mapped_reads(input_sequence_or_path) if input_is_file else None,
-        "motif_frequency":          locus_parser.get_observed_motif_frequency_dict(),
-        "motif_pair_frequency":     locus_parser.get_observed_motif_pair_frequency_dict(),
-        "motif_triplet_frequency":  locus_parser.get_observed_motif_triplet_frequency_dict(),
-        "novel_motif_frequency":    locus_parser.get_novel_motif_frequency_dict(),
+        "motif_frequency":          locus_parser.get_observed_motif_frequency_dict(as_string=True),
+        "motif_pair_frequency":     locus_parser.get_observed_motif_pair_frequency_dict(as_string=True),
+        "motif_triplet_frequency":  locus_parser.get_observed_motif_triplet_frequency_dict(as_string=True),
+        "novel_motif_frequency":    locus_parser.get_novel_motif_frequency_dict(as_string=True),
     }
     output_record.update(interval_read_depth_dict)
+    if include_low_quality_alignments:
+        output_record["include_low_quality_alignments"] = True
+    else:
+        output_record["min_mapq"] = MIN_MAPQ
+        output_record["include_low_quality_alignments"] = False
 
     if output_json:
         if not output_json.endswith("gz"):
@@ -516,22 +527,22 @@ def main():
     parser.add_argument("--check-reverse-complement", action="store_true", help="Whether to also look for motif "
         "occurrences in the reverse complement of the input sequence. This is true by default (and therefore redundant) "
         "if the input is a BAM/CRAM path, but false by default if the input is a nucleotide sequence.")
-    parser.add_argument("-L", "--genomic-interval", action="append", help="Genomic interval(s) to extract from the input BAM/CRAM. "
+    parser.add_argument("-L", "--counted-region", action="append", help="Genomic interval(s) to extract from the input BAM/CRAM. "
         "It should be specified in the format 'chrN:start-end' (0-based coordinates). This arg must be specified if the "
         "input_sequence is a BAM/CRAM file path. Example: chr1:12345-54321")
-    parser.add_argument("--count-low-quality-alignments", action="store_true", help=f"Whether to count low quality "
+    parser.add_argument("--include-low-quality-alignments", action="store_true", help=f"Whether to count low quality "
                         "alignments (those with MAPQ < {MIN_MAPQ}).")
     parser.add_argument("--verbose", action="store_true", help="Print additional logging messages.")
-    parser.add_argument("--output-tsv", help="If specified, output the results to this TSV file path.")
-    parser.add_argument("--control-region", action="append", help="Optional genomic interval(s) from which to extract read depth for normalizing counts later. "
+    parser.add_argument("--output-json", help="If specified, output the results to this JSON file path.")
+    parser.add_argument("--other-region", action="append", help="Optional genomic interval(s) from which to extract read depth for normalizing counts later. "
         "It should be specified in the format 'chrN:start-end' (0-based coordinates). This arg can only be used if the "
         "input_sequence is a BAM/CRAM file path. Example: chr1:12345-54321")
     parser.add_argument("input_sequence", help="Either a nucleotide sequence or the path of a BAM/CRAM file to parse")
     args = parser.parse_args()
 
     if os.path.isfile(args.input_sequence):
-        if not args.genomic_interval:
-            parser.error("Must specify --genomic-interval when the input is a BAM/CRAM file")
+        if not args.counted_region:
+            parser.error("Must specify --counted-region when the input is a BAM/CRAM file")
     else:
         unexpected_characters = set(args.input_sequence.upper()) - set("ATCGN")
         if unexpected_characters:
@@ -541,8 +552,8 @@ def main():
                 parser.error("The input_sequence arg must be a nucleotide sequence consisting of A, C, G, T, and N. "
                              "Invalid characters detected: " + ", ".join(unexpected_characters))
 
-        if args.genomic_interval:
-            parser.error("The --genomic-interval arg is only supported if the input_sequence arg is a BAM/CRAM file")
+        if args.counted_region:
+            parser.error("The --counted-region arg is only supported if the input_sequence arg is a BAM/CRAM file")
 
     df = pd.read_table(args.motif_frequency_table)
     df["motif"] = df["motif"].str.strip().str.upper()
@@ -551,11 +562,11 @@ def main():
     parse_motif_composition_from_alignment_file(
         input_sequence_or_path=args.input_sequence,
         motif_frequency_dict=motif_frequency_dict,
-        genomic_interval_list=args.genomic_interval,
-        control_region_list=args.control_region,
-        count_low_quality_alignments=args.count_low_quality_alignments,
+        counted_region_list=args.counted_region,
+        other_region_list=args.other_region,
+        include_low_quality_alignments=args.include_low_quality_alignments,
         check_reverse_complement=args.check_reverse_complement,
-        output_tsv=args.output_tsv,
+        output_json=args.output_json,
         verbose=args.verbose,
     )
 
