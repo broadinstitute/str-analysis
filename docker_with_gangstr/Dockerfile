@@ -109,6 +109,7 @@ RUN mkdir build \
 
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
+ENV HTSLIB_CONFIGURE_OPTIONS="--enable-s3 --enable-gcs --enable-libcurl --with-libdeflate"
 RUN python3 -m pip install --upgrade --no-cache-dir git+https://github.com/broadinstitute/str-analysis
 
 ENV PYTHONPATH=/:.:$PYTHONPATH
