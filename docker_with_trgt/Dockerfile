@@ -21,12 +21,12 @@ RUN apt-get update && apt-get install --no-install-recommends --yes \
     libcurl4-openssl-dev \
     libbz2-dev \
     liblzma-dev \
-	libgdbm-dev \
-	libc6-dev \
-	zlib1g-dev \
-	libsqlite3-dev \
-	libssl-dev \
-	openssl \
+    libgdbm-dev \
+    libc6-dev \
+    zlib1g-dev \
+    libsqlite3-dev \
+    libssl-dev \
+    openssl \
     libffi-dev \
     parallel \
     time

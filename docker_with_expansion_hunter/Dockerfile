@@ -99,16 +99,16 @@ RUN wget -q https://github.com/bw2/ExpansionHunter/archive/refs/heads/master.zip
 
 
 # install REViewer fork
-RUN wget -q https://github.com/bw2/REViewer/archive/refs/heads/master.zip \
-    && unzip master.zip \
-    && cd REViewer-master \
-	&& mkdir build \
-	&& cd build \
-	&& cmake .. \
-	&& make \
-	&& cp install/bin/REViewer /usr/local/bin/ \
-	&& cd / \
-	&& rm -r REViewer-master master.zip
+#RUN wget -q https://github.com/bw2/REViewer/archive/refs/heads/master.zip \
+#    && unzip master.zip \
+#    && cd REViewer-master \
+#	&& mkdir build \
+#	&& cd build \
+#	&& cmake .. \
+#	&& make \
+#	&& cp install/bin/REViewer /usr/local/bin/ \
+#	&& cd / \
+#	&& rm -r REViewer-master master.zip
 
 # install TRF
 RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1/trf409.linux64 \
