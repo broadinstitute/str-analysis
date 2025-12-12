@@ -772,7 +772,6 @@ def main():
             for key, value in sorted(modification_counters.items(), key=lambda x: -x[1]):
                 print(f" {value:9,d} out of {filter_counters['total']:,d} ({value/filter_counters['total']:3.0%})  {key}")
 
-
     if args.output_bed:
         output_path = f"{output_path_prefix}.bed"
         if args.verbose: print(f"Writing to {output_path}")
