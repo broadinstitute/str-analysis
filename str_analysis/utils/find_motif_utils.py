@@ -107,7 +107,12 @@ def compute_motif_length_quality(motif_length, motif_length_vs_motif_and_purity)
     return max(0, quality_score)
 
 
-def find_optimal_motif_length(nucleotide_sequence, max_motif_length, distance_metric=DEFAULT_DISTANCE_METRIC, verbose=False):
+def find_optimal_motif_length(
+        nucleotide_sequence,
+        max_motif_length,
+        distance_metric=DEFAULT_DISTANCE_METRIC,
+        negligible_change_in_purity=0.025,
+        verbose=False):
     """Scan different motif lengths from 1 to max_motif_length to find the one that produces the highest
     repeat purity with respect to the reference sequence at the given locus. For each motif length,
     this method finds the most frequent motif of that length within the reference sequence, then constructs
@@ -120,7 +125,7 @@ def find_optimal_motif_length(nucleotide_sequence, max_motif_length, distance_me
     #    print("--------------------------------")
     #    print(f"Sequence: {nucleotide_sequence}")
 
-    negligable_change_in_purity = 0.025
+
 
     if not nucleotide_sequence:
         raise ValueError("ERROR: nucleotide_sequence is empty")
@@ -172,14 +177,14 @@ def find_optimal_motif_length(nucleotide_sequence, max_motif_length, distance_me
         # Check if smaller motif sizes that are factors of the highest-quality motif have almost the same purity
         for motif_length_i in range(2, optimal_motif_length):
             if optimal_motif_length % motif_length_i == 0 and motif_length_i in motif_length_vs_motif_and_purity and (
-                motif_length_vs_motif_and_purity[motif_length_i][1] >= optimal_purity - negligable_change_in_purity):
+                motif_length_vs_motif_and_purity[motif_length_i][1] >= optimal_purity - negligible_change_in_purity):
                 # use the shorter motif length
                 optimal_motif_length = motif_length_i
                 optimal_motif, optimal_purity = motif_length_vs_motif_and_purity[optimal_motif_length]
 
-        # Since quality scores can be inflated for smaller motifs, check whether larger multiples of this motif length have noticeably higher purity (eg. by more than negligable_change_in_purity)
+        # Since quality scores can be inflated for smaller motifs, check whether larger multiples of this motif length have noticeably higher purity (eg. by more than negligible_change_in_purity)
         for motif_length_i in range(optimal_motif_length, max(motif_length_vs_motif_and_quality_score.keys()) + 1, optimal_motif_length):
-            if motif_length_i in motif_length_vs_motif_and_purity and motif_length_vs_motif_and_purity[motif_length_i][1] > optimal_purity + negligable_change_in_purity:
+            if motif_length_i in motif_length_vs_motif_and_purity and motif_length_vs_motif_and_purity[motif_length_i][1] > optimal_purity + negligible_change_in_purity:
                 optimal_motif_length = motif_length_i
                 optimal_motif, optimal_purity = motif_length_vs_motif_and_purity[optimal_motif_length]
 
@@ -215,6 +220,7 @@ def find_optimal_motif_length_for_interval(
         end_1based,
         max_motif_length,
         distance_metric=DEFAULT_DISTANCE_METRIC,
+        negligible_change_in_purity=0.025,
         verbose=False):
 
     if pyfaidx_reference_fasta_obj is None:
@@ -227,6 +233,7 @@ def find_optimal_motif_length_for_interval(
         nucleotide_sequence=reference_sequence,
         max_motif_length=min(max_motif_length, end_1based - start_0based),
         distance_metric=distance_metric,
+        negligible_change_in_purity=negligible_change_in_purity,
         verbose=verbose)
 
 
@@ -275,7 +282,12 @@ def compute_motif_length_purity_for_interval(pyfaidx_reference_fasta_obj, chrom,
     return compute_motif_length_purity(reference_sequence, motif_length, distance_metric=distance_metric)
 
 
-def generate_motif_null_distributions_using_random_sequences(min_sequence_length=9, max_sequence_length=1000, distance_metric=DEFAULT_DISTANCE_METRIC, verbose=False):
+def generate_motif_null_distributions_using_random_sequences(
+        min_sequence_length=9,
+        max_sequence_length=1000,
+        distance_metric=DEFAULT_DISTANCE_METRIC,
+        negligible_change_in_purity=0.025,
+        verbose=False):
     random.seed(1)
     sequence_length_to_max_purity_and_quality_score = collections.defaultdict(int)
     current_sequence_length = min_sequence_length
@@ -294,7 +306,12 @@ def generate_motif_null_distributions_using_random_sequences(min_sequence_length
 
         for _ in range(n_trials): # N trials for each length
             random_sequence = ''.join(random.choices("ACGT", k=current_sequence_length))
-            optimal_motif, motif_purity, quality = find_optimal_motif_length(random_sequence, current_sequence_length//2, distance_metric=distance_metric, verbose=False)
+            optimal_motif, motif_purity, quality = find_optimal_motif_length(
+                random_sequence,
+                current_sequence_length//2,
+                distance_metric=distance_metric,
+                negligible_change_in_purity=negligible_change_in_purity,
+                verbose=False)
             max_purity = max(max_purity, motif_purity)
             max_quality = max(max_quality, quality)
 
