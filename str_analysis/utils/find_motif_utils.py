@@ -85,10 +85,10 @@ def compute_motif_purity_for_interval(
     return compute_repeat_purity(reference_sequence, motif, include_partial_repeats=True, distance_metric=distance_metric)
 
 
-def compute_motif_length_quality(motif_length, motif_length_vs_motif_and_purity):
+def _compute_motif_length_quality(motif_length, motif_length_vs_motif_and_purity):
     optimal_motif_length_purities = []
     other_motif_length_purities = []
-    for current_motif_length, (current_motif, purity) in motif_length_vs_motif_and_purity.items():
+    for current_motif_length, (_, purity) in motif_length_vs_motif_and_purity.items():
         if current_motif_length >= motif_length and current_motif_length % motif_length == 0:
             optimal_motif_length_purities.append(purity)
         else:
@@ -98,8 +98,8 @@ def compute_motif_length_quality(motif_length, motif_length_vs_motif_and_purity)
     if len(other_motif_length_purities) > 0:
         other_motif_lengths_mean_purity = sum(other_motif_length_purities) / len(other_motif_length_purities)
     else:
-        # this is the base-line quality score upper-bound (the average of the distribution is 0.25 and the upper-bound appears to be ~0.3)
-        # see the output of
+        # this is the baseline quality score upper-bound (the average of the distribution is 0.25 and the
+        # upper-bound appears to be ~0.3) see the output of
         other_motif_lengths_mean_purity = 0.3
 
     quality_score = optimal_motif_length_mean_purity - other_motif_lengths_mean_purity
@@ -112,20 +112,27 @@ def find_optimal_motif_length(
         max_motif_length,
         distance_metric=DEFAULT_DISTANCE_METRIC,
         negligible_change_in_purity=0.025,
+        allow_partial_repeats=True,
         verbose=False):
-    """Scan different motif lengths from 1 to max_motif_length to find the one that produces the highest
-    repeat purity with respect to the reference sequence at the given locus. For each motif length,
-    this method finds the most frequent motif of that length within the reference sequence, then constructs
-    a synthetic perfect repeat sequence of that motif (making it the same length as the reference sequence),
-    then computes purity of that motif length as the fraction of bases in the reference sequence that match the
-    previously constructed perfect repeat sequence of that motif.
+    """Scan different motif lengths from 1 to max_motif_length to find the one minimizes the Hamming distance between the input nucleotide sequence and a pure 
+    repeat sequence of the the most common motif of that length in the input nucleotide sequence.
+     
+    Specifically, the way this works is: 1. for each motif length, this method finds the most frequent motif of that length within the input nucleotide sequence, 
+    2. constructs a synthetic perfect repeat sequence of that motif 
+    3. computes the Hamming distance between the input nucleotide sequence and the synthetic perfect repeat sequence of the same length
+    4. the motif length that minimizes the Hamming distance is the optimal motif length
+    
+    Args:
+        nucleotide_sequence (str): the input nucleotide sequence
+        max_motif_length (int): the maximum motif length to consider
+        distance_metric (str): the distance metric to use (HAMMING_DISTANCE_METRIC or EDIT_DISTANCE_METRIC)
+        negligible_change_in_purity (float): the threshold for considering a change in motif length to be negligible
+        allow_partial_repeats (bool): whether to allow partial repeats at the ends of the input nucleotide sequence. If False, only repeat lengths that are exact factors of the input nucleotide sequence length will be considered.
+        verbose (bool): whether to print verbose output
+
+    Returns:
+        tuple: (optimal_motif, optimal_motif_length, optimal_motif_length_quality_score)
     """
-
-    #if verbose:
-    #    print("--------------------------------")
-    #    print(f"Sequence: {nucleotide_sequence}")
-
-
 
     if not nucleotide_sequence:
         raise ValueError("ERROR: nucleotide_sequence is empty")
@@ -160,10 +167,13 @@ def find_optimal_motif_length(
         # Compute the quality score of each motif length using the motif_length_vs_motif_and_purity dictionary
         motif_length_vs_motif_and_quality_score = {}
         for motif_length, (motif, purity) in motif_length_vs_motif_and_purity.items():
+            if not allow_partial_repeats and len(nucleotide_sequence) % motif_length != 0:
+                continue    # skip motif lengths that are not exact factors of the input nucleotide sequence length
+
             if motif_length == 1 and purity < max_purity:
                 quality = 0   # avoid an edge case where motif quality is unreasonably high for low-purity homopolymers
             else:
-                quality = compute_motif_length_quality(motif_length, motif_length_vs_motif_and_purity)
+                quality = _compute_motif_length_quality(motif_length, motif_length_vs_motif_and_purity)
             motif_length_vs_motif_and_quality_score[motif_length] = (motif, quality)
             if verbose:
                 print(f"{motif_length:3d}bp   purity:  {purity:.2f}    quality: {quality}")
@@ -198,7 +208,7 @@ def find_optimal_motif_length(
         raise ValueError(f"Unknown distance metric {distance_metric}")
 
 
-    optimal_motif_length_quality_score = compute_motif_length_quality(optimal_motif_length, motif_length_vs_motif_and_purity)
+    optimal_motif_length_quality_score = _compute_motif_length_quality(optimal_motif_length, motif_length_vs_motif_and_purity)
 
     simplified_optimal_motif, _, _ = find_repeat_unit_without_allowing_interruptions(optimal_motif, allow_partial_repeats=False)
     #if simplified_optimal_motif != optimal_motif:
@@ -239,7 +249,7 @@ def find_optimal_motif_length_for_interval(
 
 def compute_motif_length_purity(nucleotide_sequence, motif_length, distance_metric=DEFAULT_DISTANCE_METRIC):
     """Find the most frequent motif of the given length in the given nucleotide sequence, then return the
-    purity of the input nucleotide sequence, along with the motif itself.
+    purity of the input nucleotide sequence with respect to that motif, along with the motif itself.
     """
 
     # slice the reference sequence into subsequences of length motif_length and then get the most common motif

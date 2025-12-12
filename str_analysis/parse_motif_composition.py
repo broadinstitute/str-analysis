@@ -363,8 +363,6 @@ class LocusParser:
         return ",".join(items)
 
 
-
-
 def parse_motif_composition_from_alignment_file(
     input_sequence_or_path,
     motif_frequency_dict,
