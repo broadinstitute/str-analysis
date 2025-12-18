@@ -105,6 +105,7 @@ class LocusParser:
         sequence,
         check_reverse_complement=True,
         chance_occurrence_threshold=10**-3,
+        min_matches_threshold=None,
         record_reference_motif_counts=False,
         record_novel_motif_counts=False,
         record_motif_pair_counts=False,
@@ -124,8 +125,11 @@ class LocusParser:
             chance_occurrence_threshold (float): if not None, this method will compute the probability that the identified
                 motif occurrences were found by chance (taking into account the relative base pair frequencies within
                 the input sequence and the sequence of the motifs in the reference_motif_frequency_dict). If
-                this probability is higher than the threshold, the result will be considered spurious, and so the method
-                will return None.
+                this probability is higher than the threshold, the result will be considered spurious, and so the input
+                sequence will be ignored and this method will return None.
+            min_matches_threshold (int): if the input sequence contains fewer than this many repeats of motifs in the
+                reference motif frequency dictionary, it will be ignored and this method will return None
+
             record_reference_motif_counts (bool): if True, and motifs are found within the input sequence in a way
                 that has a probability lower than the chance_occurrence_threshold, then the motifs detected in the
                 input sequence will be counted in the internal observed_motif_frequency dictionary, allowing the
@@ -209,6 +213,11 @@ class LocusParser:
             # check probability of chance result
             return None
 
+        if min_matches_threshold:
+            match_count = sum(1 for s in seq.split(SEPARATOR) if len(s) > 0 and not _is_nucleotide_sequence(s))
+            if match_count < min_matches_threshold:
+                return None
+
         if record_reference_motif_counts:
             for motif_id in parsed_motif_ids:
                 self._observed_motif_id_frequency_dict[motif_id] += 1
@@ -246,14 +255,28 @@ class LocusParser:
         return best_parsed_seq
 
 
-    def process_sequences_in_alignment_file(self, alignment_file_path, genomic_intervals, include_low_quality_alignments=False, alignment_index_file_path=None):
+    def process_sequences_in_alignment_file(
+        self,
+        alignment_file_path,
+        genomic_intervals,
+        include_low_quality_alignments=False,
+        alignment_index_file_path=None,
+        chance_occurrence_threshold=10**-3,
+        min_matches_threshold=1,
+    ):
         """Process sequences in an alignment file and count the number of occurrences of each motif.
 
         Args:
             alignment_file_path (str): path to a BAM/CRAM file
             genomic_intervals (list or str): genomic interval or list of intervals to extract from the alignment file
             include_low_quality_alignments (bool): whether to count low quality alignments (those with MAPQ < 3)
-
+            alignment_index_file_path (str): optional path to a BAM/CRAM index file
+            chance_occurrence_threshold (float): if not None, this method will compute the probability that the identified
+                motif occurrences were found by chance (taking into account the relative base pair frequencies within
+                the input sequence and the sequence of the motifs in the reference_motif_frequency_dict). If
+                this probability is higher than the threshold, the result will be considered spurious, and not counted.
+            min_matches_threshold (int): if a read contains fewer than this many repeats of motifs from the reference
+                motif frequency dictionary, it will be ignored.
         Returns:
             dict: interval mapped to the average read depth of processed reads in that interval
         """
@@ -288,6 +311,8 @@ class LocusParser:
                     self.convert_nucleotide_seq_to_motif_seq(
                         read.query_alignment_sequence,
                         check_reverse_complement=True,
+                        chance_occurrence_threshold=chance_occurrence_threshold,
+                        min_matches_threshold=min_matches_threshold,
                         record_reference_motif_counts=True,
                         record_novel_motif_counts=True,
                         record_motif_pair_counts=True,
@@ -532,7 +557,9 @@ def main():
         "It should be specified in the format 'chrN:start-end' (0-based coordinates). This arg must be specified if the "
         "input_sequence is a BAM/CRAM file path. Example: chr1:12345-54321")
     parser.add_argument("--include-low-quality-alignments", action="store_true", help=f"Whether to count low quality "
-                        "alignments (those with MAPQ < {MIN_MAPQ}).")
+        "alignments (those with MAPQ < {MIN_MAPQ}).")
+    parser.add_argument("--min-matches-threshold", type=int, help="If a sequence contains fewer than this many repeats "
+        "of motifs from the reference motif frequency dictionary, it will be ignored")
     parser.add_argument("--verbose", action="store_true", help="Print additional logging messages.")
     parser.add_argument("--output-json", help="If specified, output the results to this JSON file path.")
     parser.add_argument("--other-region", action="append", help="Optional genomic interval(s) from which to extract read depth for normalizing counts later. "
