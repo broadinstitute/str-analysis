@@ -395,7 +395,8 @@ def parse_motif_composition_from_alignment_file(
     other_region_list=None,
     include_low_quality_alignments=False,
     check_reverse_complement=True,
-    output_json=None,
+    output_prefix=None,
+    output_format=None,
     verbose=False,
 ):
     """Returns a dictionary with results. See below for more details.
@@ -407,7 +408,8 @@ def parse_motif_composition_from_alignment_file(
         other_region_list (list): list of genomic intervals to extract from the input BAM/CRAM file for control region normalization
         include_low_quality_alignments (bool): whether to count low quality alignments (those with MAPQ < 3)
         check_reverse_complement (bool): whether to check the reverse complement of the input sequence
-        output_json (str): path to a JSON file to write the results to
+        output_prefix (str): output path prefix
+        output_format (str): output file format ("JSON" or "TSV")
         verbose (bool): whether to print verbose output
     
     Returns:
@@ -424,6 +426,9 @@ def parse_motif_composition_from_alignment_file(
         "read_depth_counted_region": a dictionary with the read depth for each primary region specified by the counted_region_list
         "read_depth_other_region": a dictionary with the read depth for each control region specified by the other_region_list                
     """
+
+    if not output_prefix:
+        raise ValueError("output_prefix not specified")
 
     locus_parser = LocusParser(motif_frequency_dict)
 
@@ -513,14 +518,21 @@ def parse_motif_composition_from_alignment_file(
         output_record["min_mapq"] = MIN_MAPQ
         output_record["include_low_quality_alignments"] = False
 
-    if output_json:
-        if not output_json.endswith("gz"):
-            output_json += ".gz"
-        with gzip.open(output_json, "wt") as f:
+    output_path = output_prefix
+    if output_format == "TSV":
+        output_path += ".tsv.gz"
+        pd.DataFrame([output_record]).to_csv(output_path, sep="\t", index=False, header=True)
+
+    elif output_format == "JSON":
+        output_path += ".json.gz"
+        with gzip.open(output_path, "wt") as f:
             json.dump(output_record, f, indent=2)
-        print(f"Wrote results to {output_json}")
+
     else:
-        print("Done")
+        raise ValueError(f"output_format={output_format} is not supported.")
+
+    print(f"Wrote results to {output_path}")
+    print("Done")
 
     if verbose:
         if not input_is_file:
@@ -561,7 +573,9 @@ def main():
     parser.add_argument("--min-matches-threshold", type=int, help="If a sequence contains fewer than this many repeats "
         "of motifs from the reference motif frequency dictionary, it will be ignored")
     parser.add_argument("--verbose", action="store_true", help="Print additional logging messages.")
-    parser.add_argument("--output-json", help="If specified, output the results to this JSON file path.")
+    parser.add_argument("--output-prefix", help="Optional output filename prefix")
+    parser.add_argument("--output-format", choices=("JSON", "TSV"), help="Output format" , default="JSON")
+
     parser.add_argument("--other-region", action="append", help="Optional genomic interval(s) from which to extract read depth for normalizing counts later. "
         "It should be specified in the format 'chrN:start-end' (0-based coordinates). This arg can only be used if the "
         "input_sequence is a BAM/CRAM file path. Example: chr1:12345-54321")
@@ -571,6 +585,9 @@ def main():
     if os.path.isfile(args.input_sequence):
         if not args.counted_region:
             parser.error("Must specify --counted-region when the input is a BAM/CRAM file")
+
+        if not args.output_prefix:
+            args.output_prefix = re.sub("(.bam|.cram)$", "", args.input_sequence)
     else:
         unexpected_characters = set(args.input_sequence.upper()) - set("ATCGN")
         if unexpected_characters:
@@ -583,6 +600,9 @@ def main():
         if args.counted_region:
             parser.error("The --counted-region arg is only supported if the input_sequence arg is a BAM/CRAM file")
 
+        if not args.output_prefix:
+            args.output_prefix = f"motif_composition.{len(args.input_sequence)}bp_sequence"
+
     df = pd.read_table(args.motif_frequency_table)
     df["motif"] = df["motif"].str.strip().str.upper()
     motif_frequency_dict = dict(zip(df["motif"], df["number_of_times_seen_across_all_haplotypes"]))
@@ -594,7 +614,8 @@ def main():
         other_region_list=args.other_region,
         include_low_quality_alignments=args.include_low_quality_alignments,
         check_reverse_complement=args.check_reverse_complement,
-        output_json=args.output_json,
+        output_prefix=args.output_prefix,
+        output_format=args.output_format,
         verbose=args.verbose,
     )
 
