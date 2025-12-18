@@ -261,6 +261,7 @@ class LocusParser:
         genomic_intervals,
         include_low_quality_alignments=False,
         alignment_index_file_path=None,
+        reference_filename=None,
         chance_occurrence_threshold=10**-3,
         min_matches_threshold=1,
     ):
@@ -271,6 +272,7 @@ class LocusParser:
             genomic_intervals (list or str): genomic interval or list of intervals to extract from the alignment file
             include_low_quality_alignments (bool): whether to count low quality alignments (those with MAPQ < 3)
             alignment_index_file_path (str): optional path to a BAM/CRAM index file
+            reference_filename (str): optional path to a reference fasta file for parsing a CRAM file
             chance_occurrence_threshold (float): if not None, this method will compute the probability that the identified
                 motif occurrences were found by chance (taking into account the relative base pair frequencies within
                 the input sequence and the sequence of the motifs in the reference_motif_frequency_dict). If
@@ -292,7 +294,7 @@ class LocusParser:
             genomic_intervals = [genomic_intervals]
 
         interval_to_read_depth = collections.defaultdict(int)
-        with pysam.AlignmentFile(alignment_file_path, index_filename=alignment_index_file_path) as f:
+        with pysam.AlignmentFile(alignment_file_path, index_filename=alignment_index_file_path, reference_filename=reference_filename) as f:
             for interval in genomic_intervals:
                 chrom, start_0based, end_1based = parse_interval(interval)
                 chrom = chrom.replace("chr", "")
@@ -391,6 +393,8 @@ class LocusParser:
 def parse_motif_composition_from_alignment_file(
     input_sequence_or_path,
     motif_frequency_dict,
+    alignment_index_file_path=None,
+    reference_fasta_path=None,
     counted_region_list=None,
     other_region_list=None,
     include_low_quality_alignments=False,
@@ -403,7 +407,9 @@ def parse_motif_composition_from_alignment_file(
         
     Args:
         input_sequence_or_path (str): path to a BAM/CRAM file or a nucleotide sequence
-        motif_frequency_dict (dict): Dictionary of population motif frequencies at this locus (such as from T2T assemblies)
+        motif_frequency_dict (dict): dictionary of population motif frequencies at this locus (such as from T2T assemblies)
+        reference_fasta_path (str): reference fasta for parsing a CRAM file
+        alignment_index_file_path (str): reference index file path
         counted_region_list (list): list of genomic intervals to extract from the input BAM/CRAM file
         other_region_list (list): list of genomic intervals to extract from the input BAM/CRAM file for control region normalization
         include_low_quality_alignments (bool): whether to count low quality alignments (those with MAPQ < 3)
@@ -435,7 +441,7 @@ def parse_motif_composition_from_alignment_file(
     interval_read_depth_dict = collections.defaultdict(int)
     if os.path.isfile(input_sequence_or_path):
         input_is_file = True
-        input_file = pysam.AlignmentFile(input_sequence_or_path)
+        input_file = pysam.AlignmentFile(input_sequence_or_path, index_filename=alignment_index_file_path, reference_filename=reference_fasta_path)
 
         for interval in counted_region_list:
             interval_key = f"read_depth_counted_region_{interval}"
@@ -570,6 +576,8 @@ def main():
         "input_sequence is a BAM/CRAM file path. Example: chr1:12345-54321")
     parser.add_argument("--include-low-quality-alignments", action="store_true", help=f"Whether to count low quality "
         "alignments (those with MAPQ < {MIN_MAPQ}).")
+    parser.add_argument("--index-file-path", help="Path to an index file for BAM/CRAM parsing.")
+    parser.add_argument("-R", "--reference-fasta", help="Reference fasta - only required when the input is a CRAM file")
     parser.add_argument("--min-matches-threshold", type=int, help="If a sequence contains fewer than this many repeats "
         "of motifs from the reference motif frequency dictionary, it will be ignored")
     parser.add_argument("--verbose", action="store_true", help="Print additional logging messages.")
@@ -585,6 +593,9 @@ def main():
     if os.path.isfile(args.input_sequence):
         if not args.counted_region:
             parser.error("Must specify --counted-region when the input is a BAM/CRAM file")
+
+        if args.input_sequence.endswith(".cram") and not args.reference_fasta:
+            parser.error("Must specify --reference-fasta when the input is a CRAM file")
 
         if not args.output_prefix:
             args.output_prefix = re.sub("(.bam|.cram)$", "", args.input_sequence)
@@ -610,6 +621,8 @@ def main():
     parse_motif_composition_from_alignment_file(
         input_sequence_or_path=args.input_sequence,
         motif_frequency_dict=motif_frequency_dict,
+        alignment_index_file_path=args.index_file_path,
+        reference_fasta_path=args.reference_fasta,
         counted_region_list=args.counted_region,
         other_region_list=args.other_region,
         include_low_quality_alignments=args.include_low_quality_alignments,
