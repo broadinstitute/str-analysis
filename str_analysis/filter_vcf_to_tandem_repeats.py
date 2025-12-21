@@ -774,7 +774,7 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
     while alleles_to_process_next:
         alleles_to_reprocess = []
         if args.verbose:
-            print(f"Checking {len(alleles_to_process_next):,d} indel alleles for tandem repeats", 
+            print(f"Checking {len(alleles_to_process_next):,d} indel alleles for tandem repeats",
                 "after extending their flanking sequences" if not first_iteration else "")
         first_iteration = False
 
@@ -786,9 +786,10 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
 
             if filter_reason:
                 if allele.previously_increased_flanking_sequence_size:
-                    raise ValueError(f"Logic error: allele {allele} was previously detected to have tandem repeats that extended over the entire "
-                                     f"flanking sequence, but after extending their flanking sequences, it was no longer found to be a tandem "
-                                     f"repeat using detection mode {detection_mode} due to {filter_reason}")
+                    raise ValueError(f"Logic error: allele {allele} was previously detected to have tandem repeats "
+                                     f"that extended over the entire flanking sequence, but after extending their "
+                                     f"flanking sequences, it was no longer found to be a tandem repeat using "
+                                     f"detection mode {detection_mode} due to {filter_reason}")
                 
                 # this allele was not found to be a tandem repeat using the current detection mode
                 if not args.dont_allow_interruptions and detection_mode == DETECTION_MODE_PURE_REPEATS:
@@ -804,19 +805,24 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
 
             # reprocess the allele if the repeats were found tocover the entire left or right flanking sequence
             if need_to_reprocess_allele_with_extended_flanking_sequence(tandem_repeat_allele):
-                counters[f"allele op: increased flanking sequence size {tandem_repeat_allele.allele.number_of_times_flanking_sequence_size_was_increased}x for {detection_mode} repeats"] += 1
+                counters[(f"allele op: increased flanking sequence size "
+                          f"{tandem_repeat_allele.allele.number_of_times_flanking_sequence_size_was_increased}x for "
+                          f"{detection_mode} repeats")] += 1
                 alleles_to_reprocess.append((allele, detection_mode))  # reprocess the allele with the same detection mode
                 #print(f"Detection mode [{detection_mode}]: Increasing flanking sequence size to {len(tandem_repeat_allele.allele.get_left_flanking_sequence()):,d}bp for {tandem_repeat_allele}")
                 continue
             
             # this allele was found to be a tandem repeat using the current detection mode
             if tandem_repeat_allele.do_repeats_cover_entire_flanking_sequence():
-                print(f"WARNING: allele {allele} was found to be a tandem repeat using detection mode {detection_mode}, but the repeats cover the entire flanking sequence even though it is longer than {MAX_FLANKING_SEQUENCE_SIZE:,}bp. Skipping...")
+                print(f"WARNING: allele {allele} was found to be a tandem repeat using detection mode {detection_mode}, "
+                      f"but the repeats cover the entire flanking sequence even though it is longer than "
+                      f"{MAX_FLANKING_SEQUENCE_SIZE:,}bp. Skipping...")
             else:
                 tandem_repeat_alleles.append(tandem_repeat_allele)
 
                 if not args.dont_run_trf and len(tandem_repeat_allele.repeat_unit) > 6 and len(allele.variant_bases) >= args.min_indel_size_to_run_trf:
-                    # if this is a VNTR with a large motif, run TRF on it to see if it detects wider locus boundaries. The merge step can resolve redudant locus definitions.
+                    # if this is a VNTR with a large motif, run TRF on it to see if it detects wider locus boundaries.
+                    # The merge step can resolve redundant locus definitions.
                     alleles_to_process_next_using_trf.append(allele)
 
         alleles_to_process_next = alleles_to_reprocess
@@ -844,7 +850,8 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
         before_counter = len(tandem_repeat_alleles)
         start_time = datetime.datetime.now()
 
-        trf_working_dir = os.path.join(args.trf_working_dir, CURRENT_TIMESTAMP, f"{args.input_vcf_prefix}." + start_time.strftime("%Y%m%d_%H%M%S.%f"))
+        trf_working_dir = os.path.join(args.trf_working_dir, CURRENT_TIMESTAMP,
+                                       f"{args.input_vcf_prefix}." + start_time.strftime("%Y%m%d_%H%M%S.%f"))
         if os.path.isdir(trf_working_dir):
             raise ValueError(f"ERROR: TRF working directory already exists: {trf_working_dir}. Each TRF run should be in a unique directory to avoid filename collisions.")
 
@@ -885,7 +892,9 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
 
                     # this allele was found to be a tandem repeat using TRF
                     if tandem_repeat_allele.do_repeats_cover_entire_flanking_sequence():
-                        print(f"WARNING: allele {allele} was found to be a tandem repeat using TRF, but the repeats cover the entire flanking sequence even though it is longer than {MAX_FLANKING_SEQUENCE_SIZE:,}bp. Skipping...")
+                        print(f"WARNING: allele {allele} was found to be a tandem repeat using TRF, but the repeats "
+                              f"cover the entire flanking sequence even though it is longer than "
+                              f"{MAX_FLANKING_SEQUENCE_SIZE:,}bp. Skipping...")
                     else:
                         tandem_repeat_alleles.append(tandem_repeat_allele)
 
@@ -1261,7 +1270,8 @@ def run_trf(alleles, args, thread_id=1):
             else:
                 raise ValueError(f"Logic error: No TRF results for allele {allele} with motif size {motif_size}")
 
-            # check if the repeat unit itself consists of perfect repeats of a smaller repeat unit (this happends in ~3% of TRs detected by TRF)
+            # check if the repeat unit itself consists of perfect repeats of a smaller repeat unit
+            # (this happens in ~3% of TRs detected by TRF)
             simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(repeat_unit, allow_partial_repeats=False)
             repeat_unit = simplified_repeat_unit
 
