@@ -25,7 +25,7 @@ class TRFRunner:
                  min_motif_size=None,
                  max_motif_size=None,
                  html_mode=False,
-                 generate_motif_plot=False,
+                 generate_motif_logo_plots=False,
                  debug=False):
         """
         Args:
@@ -40,7 +40,8 @@ class TRFRunner:
             max_motif_size (int): if specified, only return loci with this motif size or smaller.
             html_mode (bool): if True, in addition to parsing the repeat coordinates and motif, also
                 parse and return the motif composition from TRF's HTML output.
-            generate_motif_plot (bool): if True, generate a logo (aka. motif) plot of the variability among different motifs observed in the repeat sequence.
+            generate_motif_logo_plots (bool): if True, generate a logo (aka. motif) plot of the variability among
+                different motifs observed in the repeat sequence.
             debug (bool): if True, print debug information
         """
 
@@ -54,14 +55,14 @@ class TRFRunner:
         self.min_motif_size = min_motif_size
         self.max_motif_size = max_motif_size
         self.html_mode = html_mode
-        self.generate_motif_plot = generate_motif_plot
+        self.generate_motif_logo_plots = generate_motif_logo_plots
         self.debug = debug
 
         if min_motif_size is not None and max_motif_size is not None and min_motif_size > max_motif_size:
             raise ValueError(f"Motif size range error: min_motif_size={min_motif_size}, max_motif_size={max_motif_size}")
 
-        if self.generate_motif_plot and not self.html_mode:
-            raise ValueError("generate_motif_plot requires html_mode to be True")
+        if self.generate_motif_logo_plots and not self.html_mode:
+            raise ValueError("generate_motif_logo_plots requires html_mode to be True")
 
 
     def run_TRF_on_nucleotide_sequence(self, nucleotide_sequence, output_filename_prefix=None):
@@ -166,7 +167,8 @@ class TRFRunner:
 
         if self.html_mode:
             # run TRF
-            subprocess.run(command, shell=True, stdout=redirect, stderr=redirect, check=False, cwd=os.path.dirname(fasta_file_path) or None)
+            subprocess.run(command, shell=True, stdout=redirect, stderr=redirect, check=False,
+                           cwd=os.path.dirname(fasta_file_path) or None)
 
             # check that all HTML files were created as expected. TRF may sometimes silently fail to create HTML files
             # for some of the sequences in a multi-sequence FASTA file.
@@ -224,11 +226,9 @@ class TRFRunner:
             print(f"WARNING: TRF HTML output file not found: {html_file_path}")
         while html_file_exists:
             for record in self._parse_trf_html_file(html_file_path):
-                if self.generate_motif_plot:
-                    self.create_motif_plot(
+                if self.generate_motif_logo_plots:
+                    self.create_motif_logo_plot(
                         record["repeats"],
-                        record["start_0based"],
-                        record["end_1based"],
                         record["repeat_unit"],
                         output_filename_prefix=fasta_file_path)
 
@@ -405,7 +405,12 @@ class TRFRunner:
 
                 interruptions_string_offset = 0
                 for repeat_motif in repeat_sequence_match.group(2).split(" "):
-                    repeats.append(repeat_motif)
+                    if is_continuation:
+                        # TODO fix parsing of 'repeats' list for repeat motif lengths > 65bp
+                        assert " " not in repeat_sequence_match.group(2)  # if the motif doesn't fit on one line, no spaces expected
+                        repeats[-1] += "..."
+                    else:
+                        repeats.append(repeat_motif)
                     #repeats_and_start_indices.append((repeat_sequence_start_index_0based, motif))
                     #repeat_sequence_start_index_0based += len(motif)
 
@@ -458,7 +463,7 @@ class TRFRunner:
 
         return results
 
-    def create_motif_plot(self, motif_list, consensus_motif, output_filename_prefix=None):
+    def create_motif_logo_plot(self, motif_list, consensus_motif, output_filename_prefix=None):
         if not motif_list:
             raise ValueError("No motifs to plot")
 
@@ -472,13 +477,22 @@ class TRFRunner:
             else:
                 print(f"WARNING: {motif} is not the same length as the consensus motif {consensus_motif}")
 
-        # requires plotnine and plotnineseqsuite to be installed
-        from plotnine import ggplot
-        from plotnineseqsuite import geom_logo, theme_seq
+        if len(filtered_motif_list) < 2:
+            print(f"WARNING: All motifs filtered out")
+            return
 
-        p = ggplot() + geom_logo(filtered_motif_list, method = 'probability' ) + theme_seq()
-        p.save(f"{output_filename_prefix}_motif_plot_{consensus_motif}__{len(motif_list)}_motifs.png", "png", width=len(consensus_motif)*0.5, height=3, limitsize=False)
+        png_output_path = f"{output_filename_prefix}_motif_plot_{consensus_motif}__{len(filtered_motif_list)}_motifs.png"
+        try:
+            # requires plotnine and plotnineseqsuite to be installed
+            import matplotlib
+            matplotlib.use("Agg")
+            from plotnine import ggplot
+            from plotnineseqsuite import geom_logo, theme_seq
 
+            p = ggplot() + geom_logo(filtered_motif_list, method = 'probability' ) + theme_seq()
+            p.save(png_output_path, "png", width=len(consensus_motif)*0.5, height=3, limitsize=False)
+        except Exception as e:
+            print(f"WARNING: Unable to generate {png_output_path}: {e}")
 
 
 
@@ -495,7 +509,7 @@ if __name__ == "__main__":
     trf_runner = TRFRunner("~/bin/trf409.macosx",
           html_mode=html_mode,
           debug=DEBUG,
-          generate_motif_plot=False)
+          generate_motif_logo_plots=False)
 
     #for df, column_name in [(df2, "ABCA7_seq")]:
     for df, column_name in [(df1, "CACNA1C_seq")]:

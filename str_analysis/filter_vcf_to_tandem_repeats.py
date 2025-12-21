@@ -56,7 +56,7 @@ from str_analysis.utils.find_repeat_unit import find_repeat_unit_allowing_interr
 from str_analysis.utils.find_repeat_unit import find_repeat_unit_without_allowing_interruptions
 from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_allowing_interruptions
 from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_without_allowing_interruptions
-from str_analysis.utils.file_utils import open_file
+from str_analysis.utils.file_utils import open_file, file_exists
 from str_analysis.utils.trf_runner import TRFRunner
 
 
@@ -110,6 +110,10 @@ def parse_args():
                    "required unless --dont-run-trf is specified.")
     catalog_p.add_argument("-t", "--trf-threads", default=max(1, multiprocessing.cpu_count() - 2), type=int, help="Number of TandemRepeatFinder (TRF) "
                    "instances to run in parallel.")
+    catalog_p.add_argument("--allow-multiple-trf-results-per-locus", action="store_true",
+                           help="At some loci, TRF returns multiple valid results that have different locus boundaries and motif sizes, "
+                           "with no obvious best choice. By default, the result with the shortest motif (>= 3bp) is selected. "
+                           "This option changes the behavior to return separate entries for all results that pass specified thresholds.")
     catalog_p.add_argument("--min-indel-size-to-run-trf", default=7, type=int, help="Only run TandemRepeatFinder (TRF) "
                     "on insertions and deletions that are at least this many base pairs.")
 
@@ -145,7 +149,7 @@ def parse_args():
     catalog_p.add_argument("--write-tsv", help="Output a TSV file containing all TR alleles", action="store_true")
     catalog_p.add_argument("-ik", "--copy-info-field-keys-to-tsv", help="Copy the values of these INFO field keys from the input "
                                                                  "VCF to the output TSV files.", action="append")
-    catalog_p.add_argument("-L", "--interval", help="Only process variants in this genomic interval (format: chrom:start-end)",
+    catalog_p.add_argument("-L", "--interval", help="Only process variants in this genomic interval (format: chrom:start-end) or BED file",
                    action="append")
     
     catalog_p.add_argument("input_vcf_path", help="Input single-sample VCF file path. This script was designed and tested on VCFs produced by DipCall, "
@@ -616,7 +620,8 @@ class TandemRepeatAllele:
     
 
     def __str__(self):
-        return f"{self._allele.chrom}:{self._start_0based}-{self._end_1based} {self.num_repeats_ref}x{self._repeat_unit} [{self._detection_mode}]"
+        return (f"{self._allele.chrom}:{self._start_0based}-{self._end_1based} "
+                f"{self.num_repeats_ref}x{self._repeat_unit} ({len(self.repeat_unit)}bp) [{self._detection_mode}]")
     
     def __repr__(self):
         return self.__str__()
@@ -776,6 +781,7 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
         if args.verbose:
             print(f"Checking {len(alleles_to_process_next):,d} indel alleles for tandem repeats",
                 "after extending their flanking sequences" if not first_iteration else "")
+
         first_iteration = False
 
         if args.show_progress_bar:
@@ -880,8 +886,8 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
                 for tandem_repeat_allele, filter_reason, allele in futures[thread_i].result():
                     if filter_reason:
                         counters[f"allele filter: TRF: {filter_reason}"] += 1
-                        if args.debug:
-                            print(f"TRF filtered out: {allele}, filter reason: {filter_reason}")
+                        #if args.debug:
+                        #    print(f"TRF filtered out: {allele}, filter reason: {filter_reason}")
                         continue
                     
                     # reprocess the allele if the repeats were found tocover the entire left or right flanking sequence
@@ -913,20 +919,11 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
 
     return tandem_repeat_alleles
 
-    
+
 def parse_input_vcf_file(args, counters, fasta_obj):
     """Parse the input VCF file and return a list of Allele objects."""
 
-    if args.interval:
-        if args.verbose:
-            print(f"Parsing interval(s) {', '.join(args.interval)} from {args.input_vcf_path}")
-
-        tabix_file = pysam.TabixFile(args.input_vcf_path)
-        vcf_iterator = (line for interval in args.interval for line in tabix_file.fetch(interval))
-    else:
-        if args.verbose:
-            print(f"Parsing {args.input_vcf_path}")
-        vcf_iterator = open_file(args.input_vcf_path, is_text_file=True)
+    vcf_iterator = get_input_vcf_iterator(args, include_header=False)
 
     if args.show_progress_bar:
         vcf_iterator = tqdm.tqdm(vcf_iterator, unit=" variants", unit_scale=True)
@@ -1202,9 +1199,18 @@ def run_trf(alleles, args, thread_id=1):
 
 
     # check that the results overlap with the variant bases
-    trf_runner = TRFRunner(args.trf_executable_path, html_mode=True,
-                    min_motif_size=args.min_repeat_unit_length,
-                    max_motif_size=args.max_repeat_unit_length)
+    trf_runner = TRFRunner(
+        args.trf_executable_path,
+        html_mode=True,
+        min_motif_size=args.min_repeat_unit_length,
+        max_motif_size=args.max_repeat_unit_length,
+        match_score = 2,
+        mismatch_penalty = 7,
+        indel_penalty = 7,
+        minscore = 20,
+        debug=False,
+        generate_motif_logo_plots=False,
+    )
 
     trf_runner.run_trf_on_fasta_file(trf_fasta_filename)
 
@@ -1225,7 +1231,7 @@ def run_trf(alleles, args, thread_id=1):
 
                 if trf_result["start_0based"] >= trf_result["repeat_unit_length"] or trf_result["end_1based"] <= len(allele.variant_bases) - trf_result["repeat_unit_length"]:
                     if args.debug:
-                        print(f"TRF filtered out: {allele} because the repeat unit is {trf_result['repeat_unit_length']} bases long and starts at {trf_result['start_0based']} or because it ends at {trf_result['end_1based']} before the end of the variant ({len(allele.variant_bases)})") 
+                        print(f"TRF filtered out: {allele} because the repeat unit is {trf_result['repeat_unit_length']} bases long and starts at {trf_result['start_0based']} or because it ends at {trf_result['end_1based']} before the end of the variant ({len(allele.variant_bases)})")
                     # repeats must start close to the start of the variant bases and end near or after the end of the variant bases
                     continue
 
@@ -1254,7 +1260,7 @@ def run_trf(alleles, args, thread_id=1):
         # filter out results where left and right have different repeat units
         motif_size_to_passing_trf_results = {}
         motif_size_to_tandem_repeat_allele = {}
-        for motif_size, matching_trf_results in motif_size_to_matching_trf_results.items():
+        for motif_size, matching_trf_results in sorted(motif_size_to_matching_trf_results.items()):
             if matching_trf_results.get("left") and matching_trf_results.get("right") and not are_repeat_units_similar(
                 matching_trf_results["left"]["repeat_unit"], matching_trf_results["right"]["repeat_unit"]
             ):
@@ -1274,6 +1280,10 @@ def run_trf(alleles, args, thread_id=1):
             # (this happens in ~3% of TRs detected by TRF)
             simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(repeat_unit, allow_partial_repeats=False)
             repeat_unit = simplified_repeat_unit
+            motif_size = len(repeat_unit)
+            if motif_size in motif_size_to_tandem_repeat_allele:
+                # if a repeat unit has been simplified to a smaller repeat unit size that was already recorded, skip it.
+                continue
 
             tandem_repeat_allele = TandemRepeatAllele(
                 allele,
@@ -1299,26 +1309,38 @@ def run_trf(alleles, args, thread_id=1):
             results.append((None, FILTER_ALLELE_INDEL_WITHOUT_REPEATS, allele))
             continue
 
-        # get the entry with the smallest motif size
-        best_motif_size = None
-        for motif_size, matching_trf_results in sorted(motif_size_to_passing_trf_results.items()):
-            best_motif_size = motif_size
-            break
+        if args.allow_multiple_trf_results_per_locus:
+            for motif_size, tr_allele in sorted(motif_size_to_tandem_repeat_allele.items()):
+                if len(motif_size_to_passing_trf_results) == 1 or (
+                    tr_allele.end_1based - tr_allele.start_0based >= motif_size):
+                    results.append((tr_allele, None, allele))
+        else:
+            # get the entry with the smallest motif size
+            best_motif_size = None
+            for motif_size, matching_trf_results in sorted(motif_size_to_passing_trf_results.items()):
+                best_motif_size = motif_size
+                break
 
-        # if the smallest motif size is 2 or less, then pick the entry with the largest alignment score instead
-        if best_motif_size <= 2 and len(motif_size_to_passing_trf_results) > 1:
-            # get the entry that has the max alignment score
-            max_alignment_score = 0
-            for motif_size, matching_trf_results in motif_size_to_passing_trf_results.items():
-                alignment_score = 0
-                for _trf_result in matching_trf_results.values():
-                    alignment_score += _trf_result["alignment_score"]
-                if alignment_score > max_alignment_score:
-                    max_alignment_score = alignment_score
-                    best_motif_size = motif_size
+            # if the smallest motif size is 2 or less, then pick the entry with the largest alignment score instead
+            if best_motif_size <= 2 and len(motif_size_to_tandem_repeat_allele) > 1:
+                # get the entry that has the max alignment score
+                max_alignment_score = 0
+                for motif_size, matching_trf_results in motif_size_to_passing_trf_results.items():
+                    alignment_score = 0
+                    for _trf_result in matching_trf_results.values():
+                        alignment_score += _trf_result["alignment_score"]
+                    if alignment_score > max_alignment_score:
+                        max_alignment_score = alignment_score
+                        best_motif_size = motif_size
 
-        tandem_repeat_allele = motif_size_to_tandem_repeat_allele[best_motif_size]
-        results.append((tandem_repeat_allele, None, allele))
+            tr_allele = motif_size_to_tandem_repeat_allele[best_motif_size]
+            results.append((tr_allele, None, allele))
+
+            """Other ideas for selecting the best TR allele:
+            - drop definitions where the motif size is a larger multiple of another detected motif size ?
+            - keep only definitions where the motif size is an exact multiple of the variant length or of the reference repeat length
+            - keep definitions with the highest purity or quality score 
+            """
 
     return results
 
@@ -1564,6 +1586,38 @@ def write_fasta(tandem_repeat_alleles, args):
         print(f"Wrote {len(tandem_repeat_alleles):,d} tandem repeat sequences to {fasta_output_path}.gz")
 
 
+def get_input_vcf_iterator(args, include_header=False):
+    if args.interval:
+        if args.verbose:
+            print(f"Parsing interval(s) {', '.join(args.interval)} from {args.input_vcf_path}")
+
+        vcf_iterator = []
+        tabix_file = pysam.TabixFile(args.input_vcf_path)
+        if include_header:
+            vcf_iterator = (f"{line}\n" for line in tabix_file.header)
+
+        intervals = []
+        for interval_or_bed_file in args.interval:
+            if ".bed" in interval_or_bed_file and file_exists(interval_or_bed_file):
+                with open_file(interval_or_bed_file, is_text_file=True) as f:
+                    for line in f:
+                        chrom, start, end = line.strip().split("\t")[:3]
+                        intervals.append(f"{chrom}:{int(start)}-{int(end)}")
+            else:
+                intervals.append(interval_or_bed_file)
+
+        vcf_iterator = itertools.chain(
+            vcf_iterator,
+            (line for interval in intervals for line in tabix_file.fetch(interval)),
+        )
+    else:
+        if args.verbose:
+            print(f"Parsing {args.input_vcf_path}")
+        vcf_iterator = open_file(args.input_vcf_path, is_text_file=True)
+
+    return vcf_iterator
+
+
 def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False):
     """Write variants that either are or aren't tandem repeats to a VCF file.
     
@@ -1573,14 +1627,7 @@ def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False
         only_write_filtered_out_alleles (bool): if True, only write the variants that are not in the tandem_repeats_alleles list
     """
 
-    if args.interval:
-        tabix_file = pysam.TabixFile(args.input_vcf_path)
-        vcf_iterator = itertools.chain(
-            (f"{line}\n" for line in tabix_file.header), 
-            (line for interval in args.interval for line in tabix_file.fetch(interval)),
-        )
-    else:
-        vcf_iterator = open_file(args.input_vcf_path, is_text_file=True)
+    vcf_iterator = get_input_vcf_iterator(args, include_header=True)
 
     # iterate over all VCF rows
     if only_write_filtered_out_alleles:
