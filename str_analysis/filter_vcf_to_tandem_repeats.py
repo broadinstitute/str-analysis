@@ -58,7 +58,7 @@ from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_allo
 from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_without_allowing_interruptions
 from str_analysis.utils.file_utils import open_file, file_exists
 from str_analysis.utils.trf_runner import TRFRunner
-
+from str_analysis.utils.find_motif_utils import compute_repeat_purity
 
 DETECTION_MODE_PURE_REPEATS = "pure"
 DETECTION_MODE_ALLOW_INTERRUPTIONS = "interrupted"
@@ -82,9 +82,13 @@ FILTER_ALLELE_WITH_N_BASES = "contains Ns in the variant sequence"
 FILTER_ALLELE_SNV_OR_MNV = "SNV/MNV"
 FILTER_ALLELE_MNV_INDEL = "complex multinucleotide indel"
 FILTER_ALLELE_INDEL_WITHOUT_REPEATS = "INDEL without repeats"
-FILTER_ALLELE_TOO_BIG = f"INDEL > {MAX_INDEL_SIZE}bp"
-FILTER_TR_ALLELE_NOT_ENOUGH_REPEATS = "contains only %d full repeats"
-FILTER_TR_ALLELE_DOESNT_SPAN_ENOUGH_BASE_PAIRS = "spans < %d bp"
+FILTER_ALLELE_TOO_BIG = f"INDEL > {MAX_INDEL_SIZE:,d}bp"
+FILTER_TR_ALLELE_NOT_ENOUGH_REPEATS = "contains < {:,d} full repeats"
+FILTER_TR_ALLELE_NOT_ENOUGH_REPEATS_IN_REFERENCE = "contains < {:,d} full repeats in reference"
+FILTER_TR_ALLELE_TOO_MANY_REPEATS = "contains > {:,d} repeats"
+FILTER_TR_ALLELE_DOESNT_SPAN_ENOUGH_BASE_PAIRS = "spans < {:,d} bp"
+FILTER_TR_ALLELE_SPANS_TOO_MANY_BASE_PAIRS = "spans > {:,d} bp"
+FILTER_TR_ALLELE_PURITY_IS_TOO_LOW = "purity < %0.2f"
 
 #FILTER_TR_ALLELE_PARTIAL_REPEAT = "ends in partial repeat"
 
@@ -434,6 +438,8 @@ class TandemRepeatAllele:
         self._is_pure_repeat = is_pure_repeat
         self._summary_string = None
 
+        self._repeat_purity = None
+
         self._start_0based = self._allele.get_left_flank_end() - num_repeat_bases_in_left_flank
         self._end_1based = self._allele.get_right_flank_start_0based() + num_repeat_bases_in_right_flank
 
@@ -525,7 +531,14 @@ class TandemRepeatAllele:
     @property
     def variant_and_flanks_repeat_sequence(self):
         return self._alt_allele_repeat_sequence if self.ins_or_del == "INS" else self._ref_allele_repeat_sequence
-    
+
+    @property
+    def repeat_purity(self):
+        if self._repeat_purity is None:
+            self._repeat_purity, _ = compute_repeat_purity(
+                self.variant_and_flanks_repeat_sequence, self.repeat_unit, include_partial_repeats=True)
+        return self._repeat_purity
+
     @property
     def num_repeats_in_variant_and_flanks(self):
         return self._num_repeats_alt if self.ins_or_del == "INS" else self._num_repeats_ref
@@ -1128,7 +1141,7 @@ def check_if_allele_is_tandem_repeat(allele, args, detection_mode):
 
 
 
-def check_if_tandem_repeat_allele_failed_filters(args, tandem_repeat_allele):
+def check_if_tandem_repeat_allele_failed_filters(args, tandem_repeat_allele, detected_by_trf=False):
     """Check if the given tandem repeat allele (represented by its repeat_unit and total_repeats) passes the filters
     specified in the command-line arguments.
 
@@ -1143,23 +1156,32 @@ def check_if_tandem_repeat_allele_failed_filters(args, tandem_repeat_allele):
     total_repeat_bases = tandem_repeat_allele.num_repeat_bases_in_left_flank + tandem_repeat_allele.num_repeat_bases_in_variant + tandem_repeat_allele.num_repeat_bases_in_right_flank
     repeat_unit = tandem_repeat_allele.repeat_unit
 
-
-
     if total_repeats == 1:
         # no repeat unit found in this allele
         return FILTER_ALLELE_INDEL_WITHOUT_REPEATS
     elif total_repeats < args.min_repeats:
-        return FILTER_TR_ALLELE_NOT_ENOUGH_REPEATS % int(total_repeats)
+        return FILTER_TR_ALLELE_NOT_ENOUGH_REPEATS.format(args.min_repeats)
     elif total_repeat_bases < args.min_tandem_repeat_length:
-        return FILTER_TR_ALLELE_DOESNT_SPAN_ENOUGH_BASE_PAIRS % args.min_tandem_repeat_length
+        return FILTER_TR_ALLELE_DOESNT_SPAN_ENOUGH_BASE_PAIRS.format(args.min_tandem_repeat_length)
     elif len(repeat_unit) < args.min_repeat_unit_length:
-        return FILTER_TR_ALLELE_REPEAT_UNIT_TOO_SHORT % args.min_repeat_unit_length
+        return FILTER_TR_ALLELE_REPEAT_UNIT_TOO_SHORT.format(args.min_repeat_unit_length)
     elif len(repeat_unit) > args.max_repeat_unit_length:
-        return FILTER_TR_ALLELE_REPEAT_UNIT_TOO_LONG % args.max_repeat_unit_length
-    
+        return FILTER_TR_ALLELE_REPEAT_UNIT_TOO_LONG.format(args.max_repeat_unit_length)
+
     if "N" in tandem_repeat_allele.variant_and_flanks_repeat_sequence:
         return FILTER_ALLELE_WITH_N_BASES
-    
+
+    if detected_by_trf:
+        # apply extra criteria
+        if tandem_repeat_allele.end_1based - tandem_repeat_allele.start_0based < len(repeat_unit):
+            return FILTER_TR_ALLELE_NOT_ENOUGH_REPEATS_IN_REFERENCE.format(1)
+        if tandem_repeat_allele.end_1based - tandem_repeat_allele.start_0based > len(repeat_unit) * 3_000:
+            return FILTER_TR_ALLELE_TOO_MANY_REPEATS.format(3_000)
+        if tandem_repeat_allele.end_1based - tandem_repeat_allele.start_0based > 10_000:
+            return FILTER_TR_ALLELE_SPANS_TOO_MANY_BASE_PAIRS.format(10_000)
+        if tandem_repeat_allele.repeat_purity < 0.33:
+            return FILTER_TR_ALLELE_PURITY_IS_TOO_LOW.format(0.33)
+
     return None  # did not fail filters
 
 
@@ -1215,6 +1237,7 @@ def run_trf(alleles, args, thread_id=1):
     trf_runner.run_trf_on_fasta_file(trf_fasta_filename)
 
     # parse the TRF output
+    trf_allele_filter_counters = collections.Counter()
     results = []
     for allele_i, allele in enumerate(alleles):
 
@@ -1296,9 +1319,10 @@ def run_trf(alleles, args, thread_id=1):
             )
             
             if args.debug: print(f"TRF: checking if {tandem_repeat_allele} passes filters")
-            filter_reason = check_if_tandem_repeat_allele_failed_filters(args, tandem_repeat_allele)
+            filter_reason = check_if_tandem_repeat_allele_failed_filters(args, tandem_repeat_allele, detected_by_trf=True)
             if args.debug: print(f"TRF: {tandem_repeat_allele}, filter: {filter_reason}")
             if filter_reason is not None:
+                trf_allele_filter_counters[f"TRF allele filter: {filter_reason}"] += 1
                 continue
 
             motif_size_to_passing_trf_results[motif_size] = matching_trf_results
@@ -1311,9 +1335,7 @@ def run_trf(alleles, args, thread_id=1):
 
         if args.allow_multiple_trf_results_per_locus:
             for motif_size, tr_allele in sorted(motif_size_to_tandem_repeat_allele.items()):
-                if len(motif_size_to_passing_trf_results) == 1 or (
-                    tr_allele.end_1based - tr_allele.start_0based >= motif_size):
-                    results.append((tr_allele, None, allele))
+                results.append((tr_allele, None, allele))
         else:
             # get the entry with the smallest motif size
             best_motif_size = None
@@ -1339,8 +1361,13 @@ def run_trf(alleles, args, thread_id=1):
             """Other ideas for selecting the best TR allele:
             - drop definitions where the motif size is a larger multiple of another detected motif size ?
             - keep only definitions where the motif size is an exact multiple of the variant length or of the reference repeat length
-            - keep definitions with the highest purity or quality score 
+            - keep definitions with the highest purity and/or quality score, or those above some threshold(s) 
             """
+
+    if args.verbose:
+        print(f"thread {thread_id}: TRF allele filter reasons:")
+        for key, count in trf_allele_filter_counters.items():
+            print(f"{count:10,d} {key}")
 
     return results
 
@@ -1357,8 +1384,7 @@ def are_repeat_units_similar(canonical_repeat_unit1, canonical_repeat_unit2):
         return True
 
     if len(canonical_repeat_unit1) > 6 and len(canonical_repeat_unit2) > 6:
-        fuzz = int(math.log10(2 * len(canonical_repeat_unit1))) + 1
-        return abs(len(canonical_repeat_unit1) - len(canonical_repeat_unit2)) <= fuzz
+        return abs(len(canonical_repeat_unit1) == len(canonical_repeat_unit2))
 
     return False
 
