@@ -22,7 +22,7 @@ GENE_REGIONS = ["5utr", "3utr", "cds", "exon", "intergenic", "intron", "promoter
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Compute and print stats for annotated repeat catalogs")
-    parser.add_argument("--reference-fasta", help="Optional reference fasta file for computing reference repeat purity")
+    parser.add_argument("-R", "--reference-fasta", help="Optional reference fasta file for computing reference repeat purity")
     parser.add_argument("--verbose", action="store_true", help="Print more information about what the script is doing")
     parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     parser.add_argument("-n", "--n-loci", type=int, help="Only process the first N loci in the catalog")
