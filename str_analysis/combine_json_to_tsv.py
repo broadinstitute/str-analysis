@@ -4,10 +4,11 @@
 
 
 import argparse
-import simplejson as json
+import gzip
 import logging
 import os
 import pathlib
+import simplejson as json
 import sys
 
 import pandas as pd
@@ -141,7 +142,8 @@ def parse_json_files(json_paths, add_filename_column=False):
         if not os.path.isfile(json_path):
             raise ValueError(f"{json_path} not found")
 
-        with open(json_path, "rt", encoding="UTF-8") as f:
+        fopen = gzip.open if str(json_path).endswith("gz") else open
+        with fopen(json_path, "rt", encoding="UTF-8") as f:
             try:
                 json_contents = json.load(f)
             except Exception as e:
