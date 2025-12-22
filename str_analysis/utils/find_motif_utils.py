@@ -86,15 +86,15 @@ def compute_motif_purity_for_interval(
 
 
 def _compute_motif_length_quality(motif_length, motif_length_vs_motif_and_purity):
-    optimal_motif_length_purities = []
+    highest_purity_motif_length_purities = []
     other_motif_length_purities = []
     for current_motif_length, (_, purity) in motif_length_vs_motif_and_purity.items():
         if current_motif_length >= motif_length and current_motif_length % motif_length == 0:
-            optimal_motif_length_purities.append(purity)
+            highest_purity_motif_length_purities.append(purity)
         else:
             other_motif_length_purities.append(purity)
 
-    optimal_motif_length_mean_purity = sum(optimal_motif_length_purities) / len(optimal_motif_length_purities)
+    highest_purity_motif_length_mean_purity = sum(highest_purity_motif_length_purities) / len(highest_purity_motif_length_purities)
     if len(other_motif_length_purities) > 0:
         other_motif_lengths_mean_purity = sum(other_motif_length_purities) / len(other_motif_length_purities)
     else:
@@ -102,12 +102,12 @@ def _compute_motif_length_quality(motif_length, motif_length_vs_motif_and_purity
         # upper-bound appears to be ~0.3) see the output of
         other_motif_lengths_mean_purity = 0.3
 
-    quality_score = optimal_motif_length_mean_purity - other_motif_lengths_mean_purity
+    quality_score = highest_purity_motif_length_mean_purity - other_motif_lengths_mean_purity
 
     return max(0, quality_score)
 
 
-def find_optimal_motif_length(
+def find_highest_purity_motif_length(
         nucleotide_sequence,
         max_motif_length,
         distance_metric=DEFAULT_DISTANCE_METRIC,
@@ -131,7 +131,7 @@ def find_optimal_motif_length(
         verbose (bool): whether to print verbose output
 
     Returns:
-        tuple: (optimal_motif, optimal_motif_length, optimal_motif_length_quality_score)
+        tuple: (highest_purity_motif, highest_purity_motif_length, highest_purity_motif_length_quality_score)
     """
 
     if not nucleotide_sequence:
@@ -179,51 +179,51 @@ def find_optimal_motif_length(
                 print(f"{motif_length:3d}bp   purity:  {purity:.2f}    quality: {quality}")
 
         # Find the motif length with the highest quality score
-        optimal_motif_length = max(
+        highest_purity_motif_length = max(
             motif_length_vs_motif_and_quality_score, key=lambda motif_length: (motif_length_vs_motif_and_quality_score[motif_length][1], -motif_length))
 
-        optimal_motif, optimal_purity = motif_length_vs_motif_and_purity[optimal_motif_length]
+        highest_purity_motif, highest_purity = motif_length_vs_motif_and_purity[highest_purity_motif_length]
 
         # Check if smaller motif sizes that are factors of the highest-quality motif have almost the same purity
-        for motif_length_i in range(2, optimal_motif_length):
-            if optimal_motif_length % motif_length_i == 0 and motif_length_i in motif_length_vs_motif_and_purity and (
-                motif_length_vs_motif_and_purity[motif_length_i][1] >= optimal_purity - negligible_change_in_purity):
+        for motif_length_i in range(2, highest_purity_motif_length):
+            if highest_purity_motif_length % motif_length_i == 0 and motif_length_i in motif_length_vs_motif_and_purity and (
+                motif_length_vs_motif_and_purity[motif_length_i][1] >= highest_purity - negligible_change_in_purity):
                 # use the shorter motif length
-                optimal_motif_length = motif_length_i
-                optimal_motif, optimal_purity = motif_length_vs_motif_and_purity[optimal_motif_length]
+                highest_purity_motif_length = motif_length_i
+                highest_purity_motif, highest_purity = motif_length_vs_motif_and_purity[highest_purity_motif_length]
 
         # Since quality scores can be inflated for smaller motifs, check whether larger multiples of this motif length have noticeably higher purity (eg. by more than negligible_change_in_purity)
-        for motif_length_i in range(optimal_motif_length, max(motif_length_vs_motif_and_quality_score.keys()) + 1, optimal_motif_length):
-            if motif_length_i in motif_length_vs_motif_and_purity and motif_length_vs_motif_and_purity[motif_length_i][1] > optimal_purity + negligible_change_in_purity:
-                optimal_motif_length = motif_length_i
-                optimal_motif, optimal_purity = motif_length_vs_motif_and_purity[optimal_motif_length]
+        for motif_length_i in range(highest_purity_motif_length, max(motif_length_vs_motif_and_quality_score.keys()) + 1, highest_purity_motif_length):
+            if motif_length_i in motif_length_vs_motif_and_purity and motif_length_vs_motif_and_purity[motif_length_i][1] > highest_purity + negligible_change_in_purity:
+                highest_purity_motif_length = motif_length_i
+                highest_purity_motif, highest_purity = motif_length_vs_motif_and_purity[highest_purity_motif_length]
 
     elif distance_metric == EDIT_DISTANCE_METRIC:
         # Quality scores don't work well with edit distance, so just select based on purity (aka. minimal edit distance)
-        optimal_motif_length = max(
+        highest_purity_motif_length = max(
             motif_length_vs_motif_and_purity, key=lambda motif_length: (motif_length_vs_motif_and_purity[motif_length][1], -motif_length))
-        optimal_motif, optimal_purity = motif_length_vs_motif_and_purity[optimal_motif_length]
+        highest_purity_motif, highest_purity = motif_length_vs_motif_and_purity[highest_purity_motif_length]
 
     else:
         raise ValueError(f"Unknown distance metric {distance_metric}")
 
 
-    optimal_motif_length_quality_score = _compute_motif_length_quality(optimal_motif_length, motif_length_vs_motif_and_purity)
+    highest_purity_motif_length_quality_score = _compute_motif_length_quality(highest_purity_motif_length, motif_length_vs_motif_and_purity)
 
-    simplified_optimal_motif, _, _ = find_repeat_unit_without_allowing_interruptions(optimal_motif, allow_partial_repeats=False)
-    #if simplified_optimal_motif != optimal_motif:
-    #    print(f"WARNING: Simplified optimal motif {simplified_optimal_motif} != optimal motif {optimal_motif} for sequence: {nucleotide_sequence}")  # this happens occasionally due to edge cases
+    simplified_highest_purity_motif, _, _ = find_repeat_unit_without_allowing_interruptions(highest_purity_motif, allow_partial_repeats=False)
+    #if simplified_highest_purity_motif != highest_purity_motif:
+    #    print(f"WARNING: Simplified optimal motif {simplified_highest_purity_motif} != optimal motif {highest_purity_motif} for sequence: {nucleotide_sequence}")  # this happens occasionally due to edge cases
 
     if verbose:
         null_quality = compute_motif_null_quality_score_for_sequence_length(len(nucleotide_sequence), distance_metric=distance_metric)
-        print(f"Optimal motif: {len(optimal_motif)}bp   purity: {optimal_purity:.2f}   quality: {optimal_motif_length_quality_score}   (null quality is: {null_quality}). Scanned "
+        print(f"Optimal motif: {len(highest_purity_motif)}bp   purity: {highest_purity:.2f}   quality: {highest_purity_motif_length_quality_score}   (null quality is: {null_quality}). Scanned "
               f"{len(motif_length_vs_motif_and_purity):,d} motif lengths, their average purity was: "
               f"{sum([x[1] for x in motif_length_vs_motif_and_purity.values()]) / len(motif_length_vs_motif_and_purity):.2f}")
 
-    return simplified_optimal_motif, optimal_purity, optimal_motif_length_quality_score
+    return simplified_highest_purity_motif, highest_purity, highest_purity_motif_length_quality_score
 
 
-def find_optimal_motif_length_for_interval(
+def find_highest_purity_motif_length_for_interval(
         pyfaidx_reference_fasta_obj,
         chrom,
         start_0based,
@@ -239,7 +239,7 @@ def find_optimal_motif_length_for_interval(
     chrom = normalize_chrom_using_pyfaidx_fasta(pyfaidx_reference_fasta_obj, chrom)
     reference_sequence = pyfaidx_reference_fasta_obj[chrom][start_0based:end_1based]
 
-    return find_optimal_motif_length(
+    return find_highest_purity_motif_length(
         nucleotide_sequence=reference_sequence,
         max_motif_length=min(max_motif_length, end_1based - start_0based),
         distance_metric=distance_metric,
@@ -316,7 +316,7 @@ def generate_motif_null_distributions_using_random_sequences(
 
         for _ in range(n_trials): # N trials for each length
             random_sequence = ''.join(random.choices("ACGT", k=current_sequence_length))
-            optimal_motif, motif_purity, quality = find_optimal_motif_length(
+            highest_purity_motif, motif_purity, quality = find_highest_purity_motif_length(
                 random_sequence,
                 current_sequence_length//2,
                 distance_metric=distance_metric,
@@ -347,10 +347,10 @@ def generate_motif_null_distributions_using_random_sequences(
 
 def compute_motif_null_quality_score_for_sequence_length(sequence_length, distance_metric=DEFAULT_DISTANCE_METRIC):
     """If you generate a random nucleotide sequence of the given length and then run 
-    find_optimal_motif_length(random_sequence, max_motif_length = len(random_sequence)/2), 
+    find_highest_purity_motif_length(random_sequence, max_motif_length = len(random_sequence)/2),
     the maximum possible motif quality you would expect to get is the number returned by this function.
     This can be used to set a minimum threshold for the quality of the motif length returned by 
-    find_optimal_motif_length(..) for a given sequence. If the quality is below (or close to) that, it's essentially random.  
+    find_highest_purity_motif_length(..) for a given sequence. If the quality is below (or close to) that, it's essentially random.
     
     The function uses a best-fit power law function to produce the value very close to the empirical distribution 
     generated by running generate_motif_null_distributions_using_random_sequences(max_sequence_length=10001). 
@@ -383,8 +383,8 @@ def find_optimal_motif_using_TRF(trf_executable_path, nucleotide_sequence, max_m
         return None, float('nan')
 
     max_score = len(nucleotide_sequence) * 2
-    optimal_motif = None
-    optimal_motif_score = None
+    highest_purity_motif = None
+    highest_purity_motif_score = None
 
     trf_runner = TRFRunner(trf_executable_path,
                            html_mode=True,
@@ -402,27 +402,27 @@ def find_optimal_motif_using_TRF(trf_executable_path, nucleotide_sequence, max_m
         if (result["start_0based"] < motif_length) and (
             result["end_1based"] > len(nucleotide_sequence) - motif_length) and (
             result["repeat_count"] > 1) and (
-            optimal_motif_score is None or result["alignment_score"] > optimal_motif_score):
-                optimal_motif = result["repeat_unit"]
-                optimal_motif_score = result["alignment_score"]
-                if optimal_motif_score == max_score:
+            highest_purity_motif_score is None or result["alignment_score"] > highest_purity_motif_score):
+                highest_purity_motif = result["repeat_unit"]
+                highest_purity_motif_score = result["alignment_score"]
+                if highest_purity_motif_score == max_score:
                     break
-                if optimal_motif_score > max_score:
+                if highest_purity_motif_score > max_score:
                     raise Exception(f"TRF score {motif_length} is greater than max score {max_score} for sequence {nucleotide_sequence}")
 
-    if optimal_motif is None:
+    if highest_purity_motif is None:
         return None, float('nan')
 
-    quality_score = optimal_motif_score / max_score
+    quality_score = highest_purity_motif_score / max_score
 
-    return optimal_motif, quality_score
+    return highest_purity_motif, quality_score
 
 """
 generate_motif_null_distributions_using_random_sequences(max_sequence_length=10001, distance_metric=HAMMING_DISTANCE_METRIC, verbose=True)
 generate_motif_null_distributions_using_random_sequences(max_sequence_length=10001, distance_metric=EDIT_DISTANCE_METRIC, verbose=True)
 
 Null distributions (ie. observed upper-bound values in simulated random sequences of the given length)
-This table is stored in str-analysis/str_analysis/data/optimal_motif_null_distribution.json
+This table is stored in str-analysis/str_analysis/data/highest_purity_motif_null_distribution.json
 
 sequence_length hamming_distance_null_purity edit_distance_null_purity hamming_distance_null_quality edit_distance_null_quality
             9bp                         1.00                      1.00                          0.65                       0.60
