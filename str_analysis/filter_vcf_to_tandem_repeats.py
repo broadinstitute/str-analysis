@@ -88,7 +88,10 @@ FILTER_TR_ALLELE_NOT_ENOUGH_REPEATS_IN_REFERENCE = "contains < {:,d} full repeat
 FILTER_TR_ALLELE_TOO_MANY_REPEATS = "contains > {:,d} repeats"
 FILTER_TR_ALLELE_DOESNT_SPAN_ENOUGH_BASE_PAIRS = "spans < {:,d} bp"
 FILTER_TR_ALLELE_SPANS_TOO_MANY_BASE_PAIRS = "spans > {:,d} bp"
-FILTER_TR_ALLELE_PURITY_IS_TOO_LOW = "purity < %0.2f"
+FILTER_TR_ALLELE_PURITY_IS_TOO_LOW = "purity < {:.2f}"
+
+TRF_MAX_REPEATS_IN_REFERENCE_THRESHOLD = 3_500  
+TRF_MAX_SPAN_IN_REFERENCE_THRESHOLD = 10_000      # 10Kb
 
 #FILTER_TR_ALLELE_PARTIAL_REPEAT = "ends in partial repeat"
 
@@ -1175,12 +1178,10 @@ def check_if_tandem_repeat_allele_failed_filters(args, tandem_repeat_allele, det
         # apply extra criteria
         if tandem_repeat_allele.end_1based - tandem_repeat_allele.start_0based < len(repeat_unit):
             return FILTER_TR_ALLELE_NOT_ENOUGH_REPEATS_IN_REFERENCE.format(1)
-        if tandem_repeat_allele.end_1based - tandem_repeat_allele.start_0based > len(repeat_unit) * 3_000:
-            return FILTER_TR_ALLELE_TOO_MANY_REPEATS.format(3_000)
-        if tandem_repeat_allele.end_1based - tandem_repeat_allele.start_0based > 10_000:
-            return FILTER_TR_ALLELE_SPANS_TOO_MANY_BASE_PAIRS.format(10_000)
-        if tandem_repeat_allele.repeat_purity < 0.33:
-            return FILTER_TR_ALLELE_PURITY_IS_TOO_LOW.format(0.33)
+        if tandem_repeat_allele.end_1based - tandem_repeat_allele.start_0based > len(repeat_unit) * TRF_MAX_REPEATS_IN_REFERENCE_THRESHOLD:
+            return FILTER_TR_ALLELE_TOO_MANY_REPEATS.format(TRF_MAX_REPEATS_IN_REFERENCE_THRESHOLD)
+        if tandem_repeat_allele.end_1based - tandem_repeat_allele.start_0based > TRF_MAX_SPAN_IN_REFERENCE_THRESHOLD:
+            return FILTER_TR_ALLELE_SPANS_TOO_MANY_BASE_PAIRS.format(TRF_MAX_SPAN_IN_REFERENCE_THRESHOLD)
 
     return None  # did not fail filters
 
