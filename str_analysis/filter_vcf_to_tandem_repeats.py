@@ -1791,14 +1791,14 @@ def do_merge_subcommand(args):
         input_files_to_close = []
         if args.interval:
             if args.verbose:
-                print(f"Parsing {', '.join(args.interval)} from {input_bed_path}")
+                print(f"Parsing {', '.join(args.interval)} from catalog #{path_i + 1}: {input_bed_path}")
 
             tabix_file = pysam.TabixFile(input_bed_path)
             bed_iterator = (line for interval in args.interval for line in tabix_file.fetch(interval))
             input_files_to_close.append(tabix_file)
         else:
             if args.verbose:
-                print(f"Parsing {input_bed_path}")
+                print(f"Parsing catalog #{path_i + 1}: {input_bed_path}")
             bed_iterator = open_file(input_bed_path, is_text_file=True)
             input_files_to_close.append(bed_iterator)
 
@@ -1833,7 +1833,7 @@ def do_merge_subcommand(args):
             ))
         
         if args.verbose:
-            print_tr_stats(current_catalog_trs, title=f"Catalog {path_i+1}: {input_bed_path}")
+            print_tr_stats(current_catalog_trs, title=f"Catalog #{path_i+1}: {input_bed_path}")
 
         all_trs.extend(current_catalog_trs)
         if len(all_trs) > args.batch_size or path_i == len(args.input_bed_paths) - 1:
