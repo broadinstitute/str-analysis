@@ -1,6 +1,7 @@
 import unittest
 
 from str_analysis.utils.eh_catalog_utils import convert_json_records_to_bed_format_tuples
+from utils.eh_catalog_utils import group_overlapping_loci
 
 
 class Tests(unittest.TestCase):
@@ -39,3 +40,38 @@ class Tests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             list(convert_json_records_to_bed_format_tuples(json_records))
+
+    def test_group_overlapping_loci(self):
+        json_records = [
+            { "LocusStructure": "(CAG)*", "ReferenceRegion": "chrX:1000-2000"},
+            { "LocusStructure": "(CCG)*", "ReferenceRegion": "chrX:1000-2000"},
+            { "LocusStructure": "(CAG)*", "ReferenceRegion": "chrX:1000-2000"},
+            { "LocusStructure": "(CCG)*", "ReferenceRegion": "chrX:1998-3000"},
+            { "LocusStructure": "(CAG)*", "ReferenceRegion": "chrX:1999-3000"},
+            { "LocusStructure": "(CAG)*", "ReferenceRegion": "chrX:2998-3000"},
+        ]
+
+        groups = group_overlapping_loci(
+            json_records,
+            only_group_loci_with_similar_motifs=True,
+            min_overlap_size=2,
+            verbose=True,
+        )
+
+        groups = list(groups)
+        self.assertEqual(len(groups), 3)
+        self.assertEqual(len(groups[0]), 2)
+        self.assertEqual(len(groups[1]), 2)
+        self.assertEqual(len(groups[2]), 2)
+
+        self.assertEqual(groups[0][0]["LocusStructure"], "(CAG)*")
+        self.assertEqual(groups[0][1]["LocusStructure"], "(CAG)*")
+
+        self.assertEqual(groups[1][0]["LocusStructure"], "(CAG)*")
+        self.assertEqual(groups[1][1]["LocusStructure"], "(CAG)*")
+
+        self.assertEqual(groups[2][0]["LocusStructure"], "(CCG)*")
+        self.assertEqual(groups[2][1]["LocusStructure"], "(CCG)*")
+
+        from pprint import pprint
+        pprint(list(groups))
