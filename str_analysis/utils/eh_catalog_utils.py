@@ -139,18 +139,16 @@ def group_overlapping_loci(
         return chrom
 
     # process records one chromosome at a time
-    total = remaining = 0
     for chrom, records_in_chrom in itertools.groupby(catalog_record_iterator, key=get_chrom_from_record):
         motif_id_to_record_group = collections.defaultdict(list)
         motif_id_to_record_group_end_1based = collections.defaultdict(int)
         previous_record_coordinates = None
         for record in records_in_chrom:
-            total += 1
             if only_group_loci_with_similar_motifs:
                 motifs = parse_motifs_from_locus_structure(record["LocusStructure"])
                 if len(motifs) == 0:
                     raise ValueError(f"This method does not support locus definitions with more than one motif in the "
-                                     "LocusStructure like {record['LocusStructure']}")
+                                     f"LocusStructure like {record['LocusStructure']}")
 
                 record_motif = motifs[0]
                 current_repeat_unit_id = compute_repeat_unit_id(
@@ -191,8 +189,3 @@ def group_overlapping_loci(
         if len(motif_id_to_record_group) > 0:
             for current_repeat_unit_id, record_group in motif_id_to_record_group.items():
                 yield record_group
-
-
-    if verbose:
-        print(f"Dropped {total - remaining:,d} redundant tandem repeat loci, keeping {total:,d} tandem repeat loci")
-

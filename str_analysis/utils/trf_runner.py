@@ -459,7 +459,7 @@ class TRFRunner:
             results = [t for t in results if t["alignment_score"] > 0.1 * max_alignment_score]
             #results = [t for t in results if t["start_0based"] < t["repeat_unit_length"] and t["end_1based"] > len(nucleotide_sequence) - t["repeat_unit_length"]]
 
-            results.sort(key=lambda x: x["repeat_unit_length"])
+            results.sort(key=lambda x: (x["repeat_unit_length"], -x["alignment_score"], x["start_0based"]))
 
         return results
 
@@ -526,7 +526,7 @@ if __name__ == "__main__":
             #records = [records[0]]
             sys.stdout.write(f"{row['sample_id']:<20} {column_name}: found {len(records):,d} TRF results in {len(seq):10,d}bp sequence")
             for trf_record_i, record in enumerate(records):
-                print(f" "*30 + f"TRF record #{trf_record_i + 1}: score = {record['alignment_score']:6,d}, start_diff = {record['start_0based']}, end_diff = {len(seq) - record['end_1based']}, cov = {(record['end_1based'] - record['start_0based'])/len(seq):0.1%}, motif = {record['motif']}, motif_size = {record['repeat_unit_length']}")
+                print(f" "*30 + f"TRF record #{trf_record_i + 1}: score = {record['alignment_score']:6,d}, start_diff = {record['start_0based']}, end_diff = {len(seq) - record['end_1based']}, cov = {(record['end_1based'] - record['start_0based'])/len(seq):0.1%}, motif = {record['repeat_unit']}, motif_size = {record['repeat_unit_length']}")
                 if DEBUG:
                     print(record)
 
