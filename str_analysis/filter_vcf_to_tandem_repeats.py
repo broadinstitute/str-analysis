@@ -38,6 +38,7 @@ import argparse
 import collections
 import datetime
 import gzip
+import intervaltree
 import itertools
 import math
 import multiprocessing
@@ -724,6 +725,9 @@ class MinimalTandemRepeatAllele:
         return self.__str__()
     
     def create_merged(self, new_start_0based, new_end_1based, new_detection_mode):
+        if new_start_0based > new_end_1based:
+            raise ValueError(f"new_start_0based ({new_start_0based}) > new_end_1based ({new_end_1based})")
+        
         return MinimalTandemRepeatAllele(
             self._chrom,
             new_start_0based,
@@ -1286,7 +1290,8 @@ def run_trf(alleles, args, thread_id=1):
         motif_size_to_tandem_repeat_allele = {}
         for motif_size, matching_trf_results in sorted(motif_size_to_matching_trf_results.items()):
             if matching_trf_results.get("left") and matching_trf_results.get("right") and not are_repeat_units_similar(
-                matching_trf_results["left"]["repeat_unit"], matching_trf_results["right"]["repeat_unit"]
+                compute_canonical_motif(matching_trf_results["left"]["repeat_unit"], include_reverse_complement=False), 
+                compute_canonical_motif(matching_trf_results["right"]["repeat_unit"], include_reverse_complement=False)
             ):
                 if args.debug: print(f"TRF filtered out: {allele}, filter reason: {matching_trf_results['left']['repeat_unit']} and {matching_trf_results['right']['repeat_unit']} are not similar")
                 continue
@@ -1373,6 +1378,19 @@ def run_trf(alleles, args, thread_id=1):
     return results
 
 
+def compute_repeat_unit_id(canonical_repeat_unit):
+    """Compute a unique identifier for a canonical repeat unit. Repeat units with the same id are treated as the same repeat unit.
+    
+    Args:
+        canonical_repeat_unit (str): canonical repeat unit
+    """
+    
+    if len(canonical_repeat_unit) <= 6:
+        return canonical_repeat_unit
+    else:
+        return len(canonical_repeat_unit)
+
+
 def are_repeat_units_similar(canonical_repeat_unit1, canonical_repeat_unit2):
     """Check if the two repeat units are similar enough to be considered the same repeat unit.
     
@@ -1381,20 +1399,18 @@ def are_repeat_units_similar(canonical_repeat_unit1, canonical_repeat_unit2):
         canonical_repeat_unit2 (str): canonical motif #2
     """
     
-    if canonical_repeat_unit1 == canonical_repeat_unit2:
-        return True
-
-    if len(canonical_repeat_unit1) > 6 and len(canonical_repeat_unit2) > 6:
-        return abs(len(canonical_repeat_unit1) == len(canonical_repeat_unit2))
-
-    return False
-
+    return compute_repeat_unit_id(canonical_repeat_unit1) == compute_repeat_unit_id(canonical_repeat_unit2)
+    
 
 def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, verbose=False):
     """Merge overlapping tandem repeats
     
     Args:
         tandem_repeat_alleles (list): list of TandemRepeatAllele objects
+        verbose (bool): if True, print verbose output
+
+    Returns:
+        list: list of TandemRepeatAllele objects
     """
 
     if verbose:
@@ -1402,61 +1418,63 @@ def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, verbose=False):
 
     before = len(tandem_repeat_alleles)
 
-    # For each chromosome, create an interval tree of the tandem repeat alleles
     tandem_repeat_alleles.sort(key=lambda x: (x.chrom, x.start_0based, x.end_1based, x.repeat_unit))
+    
+    # process alleles one chromosome at a time
     results = []
-    for chrom, tandem_repeat_alleles_for_chrom in itertools.groupby(tandem_repeat_alleles, key=lambda x: x.chrom):
-        tr_alleles = list(tandem_repeat_alleles_for_chrom)
+    for chrom, tr_alleles_for_chrom in itertools.groupby(tandem_repeat_alleles, key=lambda x: x.chrom):
+        tr_alleles_for_chrom = list(tr_alleles_for_chrom)
+        # create an interval tree of overlapping TR alleles
+        tr_allele_groups_to_merge = []
+        
+        motif_id_to_tr_allele_group = collections.defaultdict(list)
+        motif_id_to_tr_allele_group_end_1based = collections.defaultdict(int)
+        for tr_allele in tr_alleles_for_chrom:
+            current_repeat_unit_id = compute_repeat_unit_id(compute_canonical_motif(tr_allele.repeat_unit, include_reverse_complement=True))
+            if len(motif_id_to_tr_allele_group[current_repeat_unit_id]) == 0:
+                motif_id_to_tr_allele_group_end_1based[current_repeat_unit_id] = tr_allele.end_1based
+                motif_id_to_tr_allele_group[current_repeat_unit_id].append(tr_allele)
+                continue
 
-        current_i = 0
-        next_i = 1
-        while next_i < len(tr_alleles):
-            # check if they have similar motifs
-            merge_loci = False
-            keep_the_larger_one = False
-            if tr_alleles[current_i].end_1based + 1 >= tr_alleles[next_i].start_0based:
-                current_contains_next = tr_alleles[current_i].start_0based <= tr_alleles[next_i].start_0based and tr_alleles[current_i].end_1based >= tr_alleles[next_i].end_1based
-                next_contains_current = tr_alleles[next_i].start_0based <= tr_alleles[current_i].start_0based and tr_alleles[next_i].end_1based >= tr_alleles[current_i].end_1based
-                if tr_alleles[current_i].canonical_repeat_unit == tr_alleles[next_i].canonical_repeat_unit:
-                    if current_contains_next or next_contains_current:
-                        keep_the_larger_one = True
-                    else:
-                        merge_loci = True
-                elif are_repeat_units_similar(tr_alleles[current_i].canonical_repeat_unit, tr_alleles[next_i].canonical_repeat_unit):
-                    longer_motif_length = max(len(tr_alleles[current_i].repeat_unit), len(tr_alleles[next_i].repeat_unit))
-                    they_overlap = min(tr_alleles[current_i].end_1based, tr_alleles[next_i].end_1based) - max(tr_alleles[current_i].start_0based, tr_alleles[next_i].start_0based) >= 2*longer_motif_length 
-                    if current_contains_next or next_contains_current or they_overlap:
-                        keep_the_larger_one = True
+            # check if the current allele overlaps with the current group
+            if tr_allele.start_0based <= motif_id_to_tr_allele_group_end_1based[current_repeat_unit_id] + 1:
+                motif_id_to_tr_allele_group[current_repeat_unit_id].append(tr_allele)
+                motif_id_to_tr_allele_group_end_1based[current_repeat_unit_id] = max(motif_id_to_tr_allele_group_end_1based[current_repeat_unit_id], tr_allele.end_1based)
+                continue
 
-            if merge_loci:
-                new_start_0based = min(tr_alleles[current_i].start_0based, tr_alleles[next_i].start_0based)
-                new_end_1based = max(tr_alleles[current_i].end_1based, tr_alleles[next_i].end_1based)
-                if tr_alleles[current_i].detection_mode is None and tr_alleles[next_i].detection_mode is None:
-                    new_detection_mode = None
-                else:
-                    detection_modes = []
-                    for detection_mode in [tr_alleles[current_i].detection_mode, tr_alleles[next_i].detection_mode]:
-                        if detection_mode is not None:
-                            for _detection_mode in detection_mode.split(","):
-                                detection_modes.append(re.sub('^merged:', '', _detection_mode))
-                    new_detection_mode = "merged:" + ",".join(sorted(set(detection_modes)))
-                
-                if tr_alleles[current_i].ref_interval_size < tr_alleles[next_i].ref_interval_size:
-                    current_i = next_i  # keep the locus definiton that has the larger interval
+            # add the current group 
+            tr_allele_groups_to_merge.append(motif_id_to_tr_allele_group[current_repeat_unit_id])
 
-                tr_alleles[current_i] = tr_alleles[current_i].create_merged(new_start_0based, new_end_1based, new_detection_mode)
+            # start a new group
+            motif_id_to_tr_allele_group[current_repeat_unit_id] = [tr_allele]
+            motif_id_to_tr_allele_group_end_1based[current_repeat_unit_id] = tr_allele.end_1based
 
-            elif keep_the_larger_one:
-                if tr_alleles[current_i].ref_interval_size < tr_alleles[next_i].ref_interval_size:
-                    current_i = next_i  # keep the locus definition that has the larger interval
-            else:
-                results.append(tr_alleles[current_i])
-                current_i = next_i
+        if len(motif_id_to_tr_allele_group) > 0:
+            for current_repeat_unit_id, tr_allele_group in motif_id_to_tr_allele_group.items():
+                tr_allele_groups_to_merge.append(tr_allele_group)
 
-            next_i += 1
+        # merge tandem repeats in groups
+        results_for_chrom = []
+        for tr_alleles_group in tr_allele_groups_to_merge:
+            #print(f"merging group_id: {group_id} which has {len(tr_alleles_with_similar_repeat_units):,d}
+            #        tandem repeat alleles: {tr_alleles_with_similar_repeat_units}")
+            tr_alleles_group = list(tr_alleles_group)
+            if len(tr_alleles_group) == 1:
+                results_for_chrom.append(tr_alleles_group[0])
+                continue
 
-        # append the last one
-        results.append(tr_alleles[current_i])
+            # merge the tandem repeats
+            new_start_0based = min(tr_allele_i.start_0based for tr_allele_i in tr_alleles_group)
+            new_end_1based = max(tr_allele_i.end_1based for tr_allele_i in tr_alleles_group)
+            detection_modes = [tr_allele_i.detection_mode for tr_allele_i in tr_alleles_group if tr_allele_i.detection_mode is not None]
+            new_detection_mode = "merged:" + ",".join(sorted(set(detection_modes))) if len(detection_modes) > 1 else None
+
+            longest_tr_allele = max(tr_alleles_group, key=lambda tr: (tr.end_1based - tr.start_0based, tr.repeat_unit))
+            merged_tr_allele = longest_tr_allele.create_merged(new_start_0based, new_end_1based, new_detection_mode)
+            results_for_chrom.append(merged_tr_allele)
+
+        results_for_chrom.sort(key=lambda x: (x.start_0based, x.end_1based, x.repeat_unit))
+        results.extend(results_for_chrom)
 
     if verbose:
         print(f"Dropped {before - len(results):,d} redundant tandem repeat loci, keeping {len(results):,d} tandem repeat loci")
