@@ -1423,14 +1423,13 @@ def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, verbose=False):
     # process alleles one chromosome at a time
     results = []
     for chrom, tr_alleles_for_chrom in itertools.groupby(tandem_repeat_alleles, key=lambda x: x.chrom):
-        tr_alleles_for_chrom = list(tr_alleles_for_chrom)
-        # create an interval tree of overlapping TR alleles
         tr_allele_groups_to_merge = []
         
         motif_id_to_tr_allele_group = collections.defaultdict(list)
         motif_id_to_tr_allele_group_end_1based = collections.defaultdict(int)
         for tr_allele in tr_alleles_for_chrom:
-            current_repeat_unit_id = compute_repeat_unit_id(compute_canonical_motif(tr_allele.repeat_unit, include_reverse_complement=True))
+            current_repeat_unit_id = compute_repeat_unit_id(
+                compute_canonical_motif(tr_allele.repeat_unit, include_reverse_complement=True))
             if len(motif_id_to_tr_allele_group[current_repeat_unit_id]) == 0:
                 motif_id_to_tr_allele_group_end_1based[current_repeat_unit_id] = tr_allele.end_1based
                 motif_id_to_tr_allele_group[current_repeat_unit_id].append(tr_allele)
