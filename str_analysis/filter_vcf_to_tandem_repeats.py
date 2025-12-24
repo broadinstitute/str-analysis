@@ -738,7 +738,6 @@ class MinimalTandemRepeatAllele:
         )
 
 
-
 def do_catalog_subcommand(args):
     """Main function to parse arguments and run the tandem repeat detection pipeline."""
 
@@ -1466,7 +1465,14 @@ def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, verbose=False):
             new_start_0based = min(tr_allele_i.start_0based for tr_allele_i in tr_alleles_group)
             new_end_1based = max(tr_allele_i.end_1based for tr_allele_i in tr_alleles_group)
             detection_modes = [tr_allele_i.detection_mode for tr_allele_i in tr_alleles_group if tr_allele_i.detection_mode is not None]
-            new_detection_mode = "merged:" + ",".join(sorted(set(detection_modes))) if len(detection_modes) > 1 else None
+            if len(detection_modes) == 0:
+                new_detection_mode = None
+            else:
+                new_detection_modes = set()
+                for detection_mode in detection_modes:
+                    for d in detection_mode.split(","):
+                        new_detection_modes.add(d.replace("merged:", ""))
+                new_detection_mode = "merged:" + ",".join(sorted(new_detection_modes))
 
             longest_tr_allele = max(tr_alleles_group, key=lambda tr: (tr.end_1based - tr.start_0based, tr.repeat_unit))
             merged_tr_allele = longest_tr_allele.create_merged(new_start_0based, new_end_1based, new_detection_mode)
