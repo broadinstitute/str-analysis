@@ -110,12 +110,16 @@ def _compute_motif_length_quality(motif_length, motif_length_vs_motif_and_purity
 def find_highest_purity_motif_length(
         nucleotide_sequence,
         max_motif_length,
+        min_motif_length=1,
         distance_metric=DEFAULT_DISTANCE_METRIC,
         negligible_change_in_purity=0.025,
         allow_partial_repeats=True,
-        verbose=False):
-    """Scan different motif lengths from 1 to max_motif_length to find the one minimizes the Hamming distance between the input nucleotide sequence and a pure 
-    repeat sequence of the the most common motif of that length in the input nucleotide sequence.
+        verbose=False,
+        nucleotide_sequence_length_limit=10_000,
+):
+    """Scan different motif lengths from 1 to max_motif_length to find the one minimizes the Hamming distance
+    between the input nucleotide sequence and a pure repeat sequence of the most common motif of that length in the
+    input nucleotide sequence.
      
     Specifically, the way this works is: 1. for each motif length, this method finds the most frequent motif of that length within the input nucleotide sequence, 
     2. constructs a synthetic perfect repeat sequence of that motif 
@@ -125,11 +129,12 @@ def find_highest_purity_motif_length(
     Args:
         nucleotide_sequence (str): the input nucleotide sequence
         max_motif_length (int): the maximum motif length to consider
+        min_motif_length (int): the minimum motif length to consider
         distance_metric (str): the distance metric to use (HAMMING_DISTANCE_METRIC or EDIT_DISTANCE_METRIC)
         negligible_change_in_purity (float): the threshold for considering a change in motif length to be negligible
         allow_partial_repeats (bool): whether to allow partial repeats at the ends of the input nucleotide sequence. If False, only repeat lengths that are exact factors of the input nucleotide sequence length will be considered.
         verbose (bool): whether to print verbose output
-
+        nucleotide_sequence_length_limit (int): to avoid excessive runtime, truncate the nucleotide sequence length to this maximum length.
     Returns:
         tuple: (highest_purity_motif, highest_purity_motif_length, highest_purity_motif_length_quality_score)
     """
@@ -139,15 +144,33 @@ def find_highest_purity_motif_length(
 
     if max_motif_length < 1:
         raise ValueError(f"ERROR: max_motif_length is {max_motif_length}")
+    if min_motif_length > max_motif_length:
+        raise ValueError(f"ERROR: min_motif_length is {min_motif_length} which is greater than max_motif_length: {max_motif_length}")
+
+    if len(nucleotide_sequence) > nucleotide_sequence_length_limit:
+        if verbose:
+            print(f"WARNING: Truncating {len(nucleotide_sequence):,d}bp nucleotide sequence to "
+                  f"{nucleotide_sequence_length_limit} to avoid excessive runtime.")
+        nucleotide_sequence = nucleotide_sequence[:nucleotide_sequence_length_limit]
+
+    if max_motif_length > len(nucleotide_sequence):
+        max_motif_length = len(nucleotide_sequence)
+
+    if max_motif_length > 200:
+        if verbose:
+            print(f"WARNING: Reducing max_motif_length from {max_motif_length:,d}bp to 200 to avoid excessive runtime.")
+        max_motif_length = 200
 
     # Compute the purity of each motif length
     motif_length_vs_motif_and_purity = {}
     max_purity = 0
-    for motif_length in range(1, max_motif_length+1):
+    for motif_length in range(min_motif_length, max_motif_length+1):
         if motif_length > len(nucleotide_sequence) // 2 and motif_length != len(nucleotide_sequence):
             continue
 
-        motif_length_purity, most_common_motif = compute_motif_length_purity(nucleotide_sequence, motif_length, distance_metric=distance_metric)
+        motif_length_purity, most_common_motif = compute_motif_length_purity(
+            nucleotide_sequence, motif_length, distance_metric=distance_metric)
+
         if verbose:
             print(f"{motif_length:3d}bp   purity:  {motif_length_purity:.2f}   {most_common_motif}")
 
@@ -229,6 +252,7 @@ def find_highest_purity_motif_length_for_interval(
         start_0based,
         end_1based,
         max_motif_length,
+        min_motif_length=1,
         distance_metric=DEFAULT_DISTANCE_METRIC,
         negligible_change_in_purity=0.025,
         verbose=False):
@@ -236,15 +260,43 @@ def find_highest_purity_motif_length_for_interval(
     if pyfaidx_reference_fasta_obj is None:
         return None, float('nan'), float('nan')
 
+    if pyfaidx_reference_fasta_obj.faidx.one_based_attributes:
+        raise ValueError("pyfaidx.Fasta object must be created with one_based_attributes=False")
+
+    if not pyfaidx_reference_fasta_obj.faidx.as_raw:
+        raise ValueError("pyfaidx.Fasta object must be created with as_raw=True")
+
     chrom = normalize_chrom_using_pyfaidx_fasta(pyfaidx_reference_fasta_obj, chrom)
     reference_sequence = pyfaidx_reference_fasta_obj[chrom][start_0based:end_1based]
 
     return find_highest_purity_motif_length(
         nucleotide_sequence=reference_sequence,
+        min_motif_length=min_motif_length,
         max_motif_length=min(max_motif_length, end_1based - start_0based),
         distance_metric=distance_metric,
         negligible_change_in_purity=negligible_change_in_purity,
         verbose=verbose)
+
+
+def compute_most_common_motif(nucleotide_sequence, repeat_unit_length):
+
+    # slice the reference sequence into subsequences of length motif_length and then get the most common motif
+    if len(nucleotide_sequence) < repeat_unit_length:
+        raise ValueError(f"nucleotide_sequence length ({len(nucleotide_sequence)}bp) < repeat_unit_length ({repeat_unit_length})")
+
+    if len(nucleotide_sequence) == repeat_unit_length:
+        return nucleotide_sequence
+
+    end_index = len(nucleotide_sequence) - len(nucleotide_sequence) % repeat_unit_length
+
+    sliced_motif_list = [
+        nucleotide_sequence[i:i+repeat_unit_length] for i in range(0, end_index, repeat_unit_length)
+    ]
+
+    assert len(sliced_motif_list) > 0
+    most_common_motif = collections.Counter(sliced_motif_list).most_common(1)[0][0]
+
+    return most_common_motif
 
 
 def compute_motif_length_purity(nucleotide_sequence, motif_length, distance_metric=DEFAULT_DISTANCE_METRIC):
@@ -253,18 +305,10 @@ def compute_motif_length_purity(nucleotide_sequence, motif_length, distance_metr
     """
 
     # slice the reference sequence into subsequences of length motif_length and then get the most common motif
-    if motif_length > len(nucleotide_sequence):
-        return float('nan'), None
-    elif motif_length == len(nucleotide_sequence):
-        return 1, nucleotide_sequence
-    else:
-        end_index = len(nucleotide_sequence) - len(nucleotide_sequence) % motif_length
-
-    sliced_motif_list = [nucleotide_sequence[i:i+motif_length] for i in range(0, end_index, motif_length)]
-    if len(sliced_motif_list) == 0:
+    if len(nucleotide_sequence) < motif_length:
         return float('nan'), None
 
-    most_common_motif = collections.Counter(sliced_motif_list).most_common(1)[0][0]
+    most_common_motif = compute_most_common_motif(nucleotide_sequence, repeat_unit_length)
 
     # remove the first occurrence of the most common motif from the sliced nucleotide sequence list. If this wasn't
     # done, the purity would be artificially skewed higher for longer motif lengths since a larger part of the

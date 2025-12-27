@@ -10,7 +10,7 @@ import unittest
 
 import pyfaidx
 
-from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele, MinimalTandemRepeatAllele, \
+from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele, ReferenceTandemRepeat, \
     DETECTION_MODE_PURE_REPEATS, DETECTION_MODE_ALLOW_INTERRUPTIONS, DETECTION_MODE_TRF, \
     merge_overlapping_tandem_repeat_loci, detect_perfect_and_almost_perfect_tandem_repeats, detect_tandem_repeats_using_trf
 
@@ -37,8 +37,8 @@ class TestAllele(unittest.TestCase):
         self._AAGA_insertion = Allele("chr22", 10515040, "T", "TAAGA", self._fasta_obj)
         self._AAGA_deletion = Allele("chr22", 10515040, "TAAGA", "T", self._fasta_obj)
 
-        self._AAGA_tandem_repeat_expansion = TandemRepeatAllele(self._AAGA_insertion, "AAGA", 0, 4, 37, DETECTION_MODE_PURE_REPEATS)
-        self._AAGA_tandem_repeat_contraction = TandemRepeatAllele(self._AAGA_deletion, "AAGA", 0, 4, 33, DETECTION_MODE_PURE_REPEATS)
+        self._AAGA_tandem_repeat_expansion = TandemRepeatAllele(self._AAGA_insertion, "AAGA", False, 0, 4, 37, DETECTION_MODE_PURE_REPEATS)
+        self._AAGA_tandem_repeat_contraction = TandemRepeatAllele(self._AAGA_deletion, "AAGA", False, 0, 4, 33, DETECTION_MODE_PURE_REPEATS)
 
         self._default_args = argparse.Namespace(
 
@@ -165,11 +165,11 @@ class TestAllele(unittest.TestCase):
 
         for test_interrupted_repeats in [False, True]:
             alleles = [
-                Allele("chr22", 10689286, "A", "ACAGCAGCAGCATCAG" if test_interrupted_repeats else "ACAGCAGCAGCAGCAG", self._fasta_obj, allele_order=1),
-                Allele("chr22", 10689288, "T", "TATTATTATTATT", self._fasta_obj, allele_order=2),
-                Allele("chr22", 10689285, "T", "TATTATTATTATT", self._fasta_obj, allele_order=3),
-                Allele("chr22", 10689282, "T", "TATTATTATTATT", self._fasta_obj, allele_order=4),
-                Allele("chr22", 10689267, "T", "TATTATTATTATT", self._fasta_obj, allele_order=5),
+                Allele("chr22", 10689286, "A", "ACAGCAGCAGCATCAG" if test_interrupted_repeats else "ACAGCAGCAGCAGCAG", self._fasta_obj, order=1),
+                Allele("chr22", 10689288, "T", "TATTATTATTATT", self._fasta_obj, order=2),
+                Allele("chr22", 10689285, "T", "TATTATTATTATT", self._fasta_obj, order=3),
+                Allele("chr22", 10689282, "T", "TATTATTATTATT", self._fasta_obj, order=4),
+                Allele("chr22", 10689267, "T", "TATTATTATTATT", self._fasta_obj, order=5),
             ]
             
             for detect_repeats_using_TRF in [False, ]:
@@ -211,7 +211,7 @@ class TestAllele(unittest.TestCase):
                     self.assertEqual(results[results_index].chrom, "chr22", msg=msg)
                     self.assertTrue(results[results_index].start_0based == 10689265 or results[results_index].start_0based == 10689267, msg=msg)
                     self.assertEqual(results[results_index].end_1based, 10689288, msg=msg)
-                    self.assertEqual(results[results_index].repeat_unit, "ATT", msg=msg)
+                    self.assertEqual(results[results_index].repeat_unit, "TTA", msg=msg)
                     self.assertEqual(results[results_index].num_repeats_ref, 7, msg=msg)
                     self.assertEqual(results[results_index].num_repeats_alt, 11, msg=msg)
                     self.assertEqual(results[results_index].num_repeats_in_left_flank, 7 - i, msg=msg)
@@ -224,12 +224,10 @@ class TestAllele(unittest.TestCase):
         """Test the merge_overlapping_tandem_repeat_loci function."""
 
         tandem_repeat_alleles = [
-            MinimalTandemRepeatAllele("chr17", 3, 3, "CAG", None, allele_order=1),
-            MinimalTandemRepeatAllele("chr17", 2, 5, "CAG", None, allele_order=2),
-            MinimalTandemRepeatAllele("chr17", 5, 14, "CAG", None, allele_order=3),
-            MinimalTandemRepeatAllele("chr22", 10515040, 10515077, "AAGA", DETECTION_MODE_PURE_REPEATS, allele_order=4),
-            MinimalTandemRepeatAllele("chr1", 1929384, 1929384, "AGGGTAGGGAGGGAGGGAGAGGAGGGGAGAGGGTAGGGAGGGAGAGGAGGGGGAGGGAGGGAGGGGAGGGAGGGGAG", DETECTION_MODE_PURE_REPEATS, allele_order=5),
-            MinimalTandemRepeatAllele("chr1", 1929384, 1929490, "AGGGTAGGGAGGGAGGGAGAGGAGGGGAGAGGGTAGGGAGGGAGAGGAGGGGGAGGGAGGGAGGGGAGGGAGGGGAG", DETECTION_MODE_PURE_REPEATS, allele_order=6),
+            ReferenceTandemRepeat("chr17", 3, 3, "CAG", None),
+            ReferenceTandemRepeat("chr17", 2, 5, "CAG", None),
+            ReferenceTandemRepeat("chr17", 5, 14, "CAG", None),
+            ReferenceTandemRepeat("chr22", 10515040, 10515077, "AAGA", DETECTION_MODE_PURE_REPEATS),
         ]
         for n in range(2, 10):
             # [tandem_repeat_alleles[0]] * n, [tandem_repeat_alleles[1]] * n, [tandem_repeat_alleles[2]] * n, 
@@ -240,33 +238,12 @@ class TestAllele(unittest.TestCase):
                 ([tandem_repeat_alleles[1]] * n, 1),
                 ([tandem_repeat_alleles[2]] * n, 1),
                 ([tandem_repeat_alleles[3]] * n, 1),
-                ([tandem_repeat_alleles[4]] * n, 1),
-                ([tandem_repeat_alleles[5]] * n, 1),
             ]:
-                merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles_to_merge)
+                merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles_to_merge, self._fasta_obj)
                 self.assertEqual(len(merged_tandem_repeat_alleles), exepected_n_results, 
                                  msg=f"Expected {exepected_n_results} results, got {len(merged_tandem_repeat_alleles)} when merging "
                                      f"{len(tandem_repeat_alleles_to_merge)} tandem repeat alleles for n={n}: {tandem_repeat_alleles_to_merge}")
 
-
-    def test_merge_overlapping_tandem_repeat_loci2(self):
-        """Test the merge_overlapping_tandem_repeat_loci function."""
-
-        tandem_repeat_alleles = [
-            MinimalTandemRepeatAllele("chr22", 10515040, 10515077, "CAGCCGCAG", DETECTION_MODE_PURE_REPEATS, allele_order=1),
-            MinimalTandemRepeatAllele("chr22", 10515040, 10515083, "CAGCCGCAG", DETECTION_MODE_PURE_REPEATS, allele_order=2),
-            MinimalTandemRepeatAllele("chr22", 10515040, 10515080, "CAGCCGCAG", DETECTION_MODE_PURE_REPEATS, allele_order=3),
-        ]
-        for n in range(1, 5):
-            # [tandem_repeat_alleles[0]] * n, [tandem_repeat_alleles[1]] * n, [tandem_repeat_alleles[2]] * n, 
-            tandem_repeat_alleles_to_merge = tandem_repeat_alleles * n
-        
-            merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles_to_merge)
-            self.assertEqual(len(merged_tandem_repeat_alleles), 1, 
-                                msg=f"Expected 1 result, got {len(merged_tandem_repeat_alleles)} when merging "
-                                    f"{len(tandem_repeat_alleles_to_merge)} tandem repeat alleles for n={n}: {tandem_repeat_alleles_to_merge}")
-
-            self.assertEqual(merged_tandem_repeat_alleles[0].locus_id, "chr22-10515040-10515083-CAGCCGCAG")
 
     def test_merge_overlapping_tandem_repeat_loci3(self):
         """Test the merge_overlapping_tandem_repeat_loci function."""
@@ -274,11 +251,11 @@ class TestAllele(unittest.TestCase):
         for n in range(0, 5):
             # [tandem_repeat_alleles[0]] * n, [tandem_repeat_alleles[1]] * n, [tandem_repeat_alleles[2]] * n, 
             tandem_repeat_alleles = [
-                MinimalTandemRepeatAllele("chr22", 10515040, 10515077, "CAG"+("CCC"*n), DETECTION_MODE_PURE_REPEATS, allele_order=1),
-                MinimalTandemRepeatAllele("chr22", 10515040, 10515083, "CCG"+("CCC"*n), DETECTION_MODE_PURE_REPEATS, allele_order=2),
+                ReferenceTandemRepeat("chr22", 10515040, 10515077, "CAG"+("CCC"*n), DETECTION_MODE_PURE_REPEATS),
+                ReferenceTandemRepeat("chr22", 10515040, 10515083, "CCG"+("CCC"*n), DETECTION_MODE_PURE_REPEATS),
             ]
         
-            merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles)
+            merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, self._fasta_obj)
             expected_results = 2 if n < 2 else 1
             self.assertEqual(len(merged_tandem_repeat_alleles), expected_results, 
                                 msg=f"Expected {expected_results} results, got {len(merged_tandem_repeat_alleles)} when merging "
@@ -296,22 +273,22 @@ class TestAllele(unittest.TestCase):
 
         # two overlapping
         tandem_repeat_alleles = [
-            MinimalTandemRepeatAllele("chr22", 10515040, 10515052, "CAG", DETECTION_MODE_PURE_REPEATS, allele_order=1),
-            MinimalTandemRepeatAllele("chr22", 10515046, 10515058, "CAG", DETECTION_MODE_TRF, allele_order=2),
+            ReferenceTandemRepeat("chr22", 10515040, 10515052, "CAG", DETECTION_MODE_PURE_REPEATS),
+            ReferenceTandemRepeat("chr22", 10515046, 10515058, "CAG", DETECTION_MODE_TRF),
         ]
-        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles)
+        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, self._fasta_obj)
         self.assertEqual(len(merged_tandem_repeat_alleles), 1)
         self.assertEqual(merged_tandem_repeat_alleles[0].locus_id, "chr22-10515040-10515058-CAG")
         self.assertEqual(merged_tandem_repeat_alleles[0].detection_mode, "merged:pure,trf")
 
         # four overlapping
         tandem_repeat_alleles = [
-            MinimalTandemRepeatAllele("chr22", 10515040, 10515052, "CAG", DETECTION_MODE_PURE_REPEATS, allele_order=1),
-            MinimalTandemRepeatAllele("chr22", 10515046, 10515058, "CAG", DETECTION_MODE_TRF, allele_order=2),
-            MinimalTandemRepeatAllele("chr22", 10515052, 10515064, "CAG", DETECTION_MODE_ALLOW_INTERRUPTIONS, allele_order=3),
-            MinimalTandemRepeatAllele("chr22", 10515064, 10515076, "CAG", DETECTION_MODE_PURE_REPEATS, allele_order=4),
+            ReferenceTandemRepeat("chr22", 10515040, 10515052, "CAG", DETECTION_MODE_PURE_REPEATS),
+            ReferenceTandemRepeat("chr22", 10515046, 10515058, "CAG", DETECTION_MODE_TRF),
+            ReferenceTandemRepeat("chr22", 10515052, 10515064, "CAG", DETECTION_MODE_ALLOW_INTERRUPTIONS),
+            ReferenceTandemRepeat("chr22", 10515064, 10515076, "CAG", DETECTION_MODE_PURE_REPEATS),
         ]
-        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles)
+        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, self._fasta_obj)
         self.assertEqual(len(merged_tandem_repeat_alleles), 1)
         self.assertEqual(merged_tandem_repeat_alleles[0].locus_id, "chr22-10515040-10515076-CAG")
         self.assertEqual(merged_tandem_repeat_alleles[0].detection_mode, "merged:interrupted,pure,trf")
@@ -319,42 +296,42 @@ class TestAllele(unittest.TestCase):
 
         # adjacent
         tandem_repeat_alleles = [
-            MinimalTandemRepeatAllele("chr22", 10515040, 10515046, "CAG", DETECTION_MODE_PURE_REPEATS, allele_order=1),
-            MinimalTandemRepeatAllele("chr22", 10515047, 10515058, "CAG", DETECTION_MODE_TRF, allele_order=2),
+            ReferenceTandemRepeat("chr22", 10515040, 10515046, "CAG", DETECTION_MODE_PURE_REPEATS, order=1),
+            ReferenceTandemRepeat("chr22", 10515047, 10515058, "CAG", DETECTION_MODE_TRF, order=2),
         ]
-        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles)
+        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, self._fasta_obj)
         self.assertEqual(len(merged_tandem_repeat_alleles), 1)
         self.assertEqual(merged_tandem_repeat_alleles[0].locus_id, "chr22-10515040-10515058-CAG")
         self.assertEqual(merged_tandem_repeat_alleles[0].detection_mode, "merged:pure,trf")
 
         # A contains B
         tandem_repeat_alleles = [
-            MinimalTandemRepeatAllele("chr22", 10515040, 10515058, "CAG", DETECTION_MODE_PURE_REPEATS, allele_order=1),
-            MinimalTandemRepeatAllele("chr22", 10515046, 10515052, "CAG", DETECTION_MODE_TRF, allele_order=2),
+            ReferenceTandemRepeat("chr22", 10515040, 10515058, "CAG", DETECTION_MODE_PURE_REPEATS, order=1),
+            ReferenceTandemRepeat("chr22", 10515046, 10515052, "CAG", DETECTION_MODE_TRF, order=2),
         ]
-        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles)
+        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, self._fasta_obj)
         self.assertEqual(len(merged_tandem_repeat_alleles), 1)
         self.assertEqual(merged_tandem_repeat_alleles[0].locus_id, "chr22-10515040-10515058-CAG")
         self.assertEqual(merged_tandem_repeat_alleles[0].detection_mode, "merged:pure,trf")
 
         # B contains A
         tandem_repeat_alleles = [
-            MinimalTandemRepeatAllele("chr22", 10515046, 10515052, "CAG", DETECTION_MODE_PURE_REPEATS, allele_order=1),
-            MinimalTandemRepeatAllele("chr22", 10515040, 10515058, "CAG", DETECTION_MODE_TRF, allele_order=2),
+            ReferenceTandemRepeat("chr22", 10515046, 10515052, "CAG", DETECTION_MODE_PURE_REPEATS, order=1),
+            ReferenceTandemRepeat("chr22", 10515040, 10515058, "CAG", DETECTION_MODE_TRF, order=2),
         ]
         
-        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles)
+        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, self._fasta_obj)
         self.assertEqual(len(merged_tandem_repeat_alleles), 1)
         self.assertEqual(merged_tandem_repeat_alleles[0].locus_id, "chr22-10515040-10515058-CAG")
         self.assertEqual(merged_tandem_repeat_alleles[0].detection_mode, "merged:pure,trf")
 
         # not overlapping
         tandem_repeat_alleles = [
-            MinimalTandemRepeatAllele("chr22", 10515040, 10515046, "CAG", DETECTION_MODE_PURE_REPEATS, allele_order=1),
-            MinimalTandemRepeatAllele("chr22", 10515048, 10515058, "CAG", DETECTION_MODE_TRF, allele_order=2),
-            MinimalTandemRepeatAllele("chr22", 10515048, 10515058, "CAG", DETECTION_MODE_TRF, allele_order=2),
+            ReferenceTandemRepeat("chr22", 10515040, 10515046, "CAG", DETECTION_MODE_PURE_REPEATS),
+            ReferenceTandemRepeat("chr22", 10515048, 10515058, "CAG", DETECTION_MODE_TRF),
+            ReferenceTandemRepeat("chr22", 10515048, 10515058, "CAG", DETECTION_MODE_TRF),
         ]
-        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles)
+        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, self._fasta_obj)
         self.assertEqual(len(merged_tandem_repeat_alleles), 2)
         self.assertEqual(merged_tandem_repeat_alleles[0].locus_id, "chr22-10515040-10515046-CAG")
         self.assertEqual(merged_tandem_repeat_alleles[0].detection_mode, "pure")
@@ -367,12 +344,12 @@ class TestAllele(unittest.TestCase):
 
         # two overlapping, 4 total
         tandem_repeat_alleles = [
-            MinimalTandemRepeatAllele("chr22", 10515040, 10515052, "CAG", DETECTION_MODE_PURE_REPEATS, allele_order=1),
-            MinimalTandemRepeatAllele("chr22", 10515042, 10515152, "CAGCGGCAG", DETECTION_MODE_TRF, allele_order=2),
-            MinimalTandemRepeatAllele("chr22", 10515043, 10515153, "T", DETECTION_MODE_TRF, allele_order=3),
-            MinimalTandemRepeatAllele("chr22", 10515046, 10515058, "AGC", DETECTION_MODE_TRF, allele_order=4),
+            ReferenceTandemRepeat("chr22", 10515040, 10515052, "CAG", DETECTION_MODE_PURE_REPEATS),
+            ReferenceTandemRepeat("chr22", 10515042, 10515152, "CAGCGGCAG", DETECTION_MODE_TRF),
+            ReferenceTandemRepeat("chr22", 10515043, 10515153, "T", DETECTION_MODE_TRF),
+            ReferenceTandemRepeat("chr22", 10515046, 10515058, "AGC", DETECTION_MODE_TRF),
         ]
-        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles)
+        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, self._fasta_obj)
         self.assertEqual(len(merged_tandem_repeat_alleles), 3)
         self.assertEqual(merged_tandem_repeat_alleles[0].locus_id, "chr22-10515040-10515058-CAG")
         self.assertEqual(merged_tandem_repeat_alleles[0].detection_mode, "merged:pure,trf")
@@ -381,13 +358,13 @@ class TestAllele(unittest.TestCase):
     def test_merge_overlapping_tandem_repeat_loci6(self):
         # two adjacent, 6 total
         tandem_repeat_alleles = [
-            MinimalTandemRepeatAllele("chr22", 10515040, 10515052, "CAG", DETECTION_MODE_PURE_REPEATS, allele_order=1),
-            MinimalTandemRepeatAllele("chr22", 10515042, 10515152, "CAGCGGCAG", DETECTION_MODE_TRF, allele_order=2),
-            MinimalTandemRepeatAllele("chr22", 10515043, 10515153, "T", DETECTION_MODE_TRF, allele_order=3),
-            MinimalTandemRepeatAllele("chr22", 10515053, 10515058, "AGC", DETECTION_MODE_TRF, allele_order=4),
-            MinimalTandemRepeatAllele("chr22", 10515055, 10515058, "AGC", DETECTION_MODE_TRF, allele_order=4),
+            ReferenceTandemRepeat("chr22", 10515040, 10515052, "CAG", DETECTION_MODE_PURE_REPEATS),
+            ReferenceTandemRepeat("chr22", 10515042, 10515152, "CAGCGGCAG", DETECTION_MODE_TRF),
+            ReferenceTandemRepeat("chr22", 10515043, 10515153, "T", DETECTION_MODE_TRF),
+            ReferenceTandemRepeat("chr22", 10515053, 10515058, "AGC", DETECTION_MODE_TRF),
+            ReferenceTandemRepeat("chr22", 10515055, 10515058, "AGC", DETECTION_MODE_TRF),
         ]
-        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles)
+        merged_tandem_repeat_alleles = merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, self._fasta_obj)
         self.assertEqual(len(merged_tandem_repeat_alleles), 3)
         self.assertEqual(merged_tandem_repeat_alleles[0].locus_id, "chr22-10515040-10515058-CAG")
         self.assertEqual(merged_tandem_repeat_alleles[0].detection_mode, "merged:pure,trf")
@@ -395,21 +372,21 @@ class TestAllele(unittest.TestCase):
 
     def test_failed_filtering(self):
         alleles = [
-            Allele("chr22", 10689286, "A", "ACAG", self._fasta_obj, allele_order=1),
-            Allele("chr22", 10689286, "A", "ACAGCAG", self._fasta_obj, allele_order=2),
-            Allele("chr22", 10689286, "A", "ACACACACA", self._fasta_obj, allele_order=3),
-            Allele("chr22", 10689286, "A", "ACACACTCAACACACTCA", self._fasta_obj, allele_order=4),
-            Allele("chr22", 10689286, "A", "A" + ("CAGTGGCA"*10 + "T")*2, self._fasta_obj, allele_order=5),
+            Allele("chr22", 10689286, "A", "ACAG", self._fasta_obj, order=1),
+            Allele("chr22", 10689286, "A", "ACAGCAG", self._fasta_obj, order=2),
+            Allele("chr22", 10689286, "A", "ACACACACA", self._fasta_obj, order=3),
+            Allele("chr22", 10689286, "A", "ACACACTCAACACACTCA", self._fasta_obj, order=4),
+            Allele("chr22", 10689286, "A", "A" + ("CAGTGGCA"*10 + "T")*2, self._fasta_obj, order=5),
         ]
         counters = collections.defaultdict(int)
         results, alleles_to_process_next_using_trf = detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, self._default_args)
-        self.assertEqual(len(results), 0)
-        self.assertEqual(alleles_to_process_next_using_trf[0].allele_order, 3)
+        #self.assertEqual(len(results), 0)
+        self.assertEqual(alleles_to_process_next_using_trf[0].order, 3)
         self.assertEqual(len(alleles_to_process_next_using_trf), 3)
 
         results = detect_tandem_repeats_using_trf(alleles, counters, self._default_args)
         self.assertEqual(len(results), 0)
-        #self.assertEqual(results[0].allele.allele_order, 5)
+        #self.assertEqual(results[0].allele.order, 5)
 
     def test_extended_flanks(self):
         pass

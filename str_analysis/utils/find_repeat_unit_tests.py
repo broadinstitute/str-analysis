@@ -3,8 +3,7 @@ import unittest
 from str_analysis.utils.find_repeat_unit import get_repeat_unit_regex_with_N_base, get_most_common_repeat_unit, \
     find_repeat_unit_without_allowing_interruptions, find_repeat_unit_allowing_interruptions, \
     extend_repeat_into_sequence_allowing_interruptions, extend_repeat_into_sequence_without_allowing_interruptions, \
-    MAX_INTERRUPTED_REPEAT_UNIT_LENGTH
-from str_analysis.utils.find_repeat_unit import count_pure_repeats
+    count_pure_repeats, extend_repeat_into_sequence_base_by_base, MAX_INTERRUPTED_REPEAT_UNIT_LENGTH
 
 
 def add_interruption(sequence, motif, i):
@@ -319,3 +318,9 @@ class Test(unittest.TestCase):
         self.assertEqual(count_pure_repeats("CAGACATACAGA", "CAGA"), 2)
         self.assertEqual(count_pure_repeats("CAGACATACAGA", "GACA"), 0)
 
+
+    def test_extend_repeat_into_sequence_base_by_base(self):
+        self.assertEqual(extend_repeat_into_sequence_base_by_base("CAG", "GTTGTAGC"), 0)
+        self.assertEqual(extend_repeat_into_sequence_base_by_base("CAG", "CTTGTAGC"), 1)
+        self.assertEqual(extend_repeat_into_sequence_base_by_base("CAG", "CATGTAGC"), 2)
+        self.assertEqual(extend_repeat_into_sequence_base_by_base("CAG", "CAGGTAGC"), 3)

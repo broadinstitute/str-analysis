@@ -6,7 +6,6 @@ import gzip
 from intervaltree import IntervalTree, Interval
 import os
 import pandas as pd
-from pprint import pformat
 import pyBigWig
 import pysam
 import re
@@ -17,7 +16,7 @@ from str_analysis.compute_catalog_stats import compute_catalog_stats
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from str_analysis.utils.eh_catalog_utils import (parse_motifs_from_locus_structure,
                                                  convert_json_records_to_bed_format_tuples, get_variant_catalog_iterator)
-from str_analysis.utils.file_utils import open_file, file_exists, download_local_copy
+from str_analysis.utils.file_utils import file_exists, download_local_copy
 from str_analysis.utils.find_repeat_unit import find_repeat_unit_without_allowing_interruptions
 from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval, GENE_MODELS
 from str_analysis.utils.misc_utils import parse_interval

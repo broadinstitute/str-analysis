@@ -130,6 +130,20 @@ def find_repeat_unit_without_allowing_interruptions(sequence, allow_partial_repe
     return sequence, 1, False
 
 
+def extend_repeat_into_sequence_base_by_base(repeat_unit, sequence):
+    if not repeat_unit:
+        raise ValueError(f"Invalid repeat_unit: {repeat_unit}")
+
+    number_of_matching_bases = 0
+    for i in range(0, len(sequence)):
+        if repeat_unit[i % len(repeat_unit)] == sequence[i]:
+            number_of_matching_bases += 1
+        else:
+            break
+
+    return number_of_matching_bases
+
+
 def find_repeat_unit_allowing_interruptions(sequence, allow_partial_repeats=False):
     """Check whether the given nucleotide sequence entirely consists of repeats of some smaller repeat unit
     (eg. CAGCAGCAGCAGCAG = 5xCAG), allowing 1 position to vary across repeats (eg. CAG.CAA.CAG.CAA would be counted as
