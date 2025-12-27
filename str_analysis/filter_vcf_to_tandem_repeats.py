@@ -10,7 +10,7 @@ such as genotyping.
 
 This script is the next iteration of the filter_vcf_to_STR_variants.py script. It implements multiple approaches to
 detecting repeat sequences within each variant - first doing a fast, brute-force scan for perfect (or nearly perfect)
-repeats. If not repeats are detected in this first step, it runs TandemRepeatFinder to discover more imperfect repeats
+repeats. If no repeats are detected in this first step, it runs TandemRepeatFinder to discover more imperfect repeats
 (particularly VNTRs). The script then merges overlapping tandem repeat alleles that have very similar motifs and writes
 the results to output files. Unlike the original filter_vcf_to_STR_variants.py script, it now separates tandem repeat
 locus discovery from genotyping (with genotyping now an optional downstream step than can be performed using the
@@ -50,7 +50,7 @@ import shutil
 import tqdm
 
 from concurrent.futures import ThreadPoolExecutor
-from pprint import pformat, pprint
+from pprint import pformat
 
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from str_analysis.utils.find_repeat_unit import find_repeat_unit_allowing_interruptions
@@ -60,8 +60,7 @@ from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_with
 from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_base_by_base
 from str_analysis.utils.file_utils import open_file, file_exists
 from str_analysis.utils.trf_runner import TRFRunner
-from str_analysis.utils.find_motif_utils import compute_repeat_purity, compute_motif_length_purity, \
-    compute_most_common_motif
+from str_analysis.utils.find_motif_utils import compute_repeat_purity, compute_most_common_motif
 
 DETECTION_MODE_PURE_REPEATS = "pure"
 DETECTION_MODE_ALLOW_INTERRUPTIONS = "interrupted"
@@ -727,6 +726,7 @@ class ReferenceTandemRepeat:
 
         self._canonical_repeat_unit = None
         self._repeat_sequence = None
+        self._summary_string = None
 
     @property
     def chrom(self):
