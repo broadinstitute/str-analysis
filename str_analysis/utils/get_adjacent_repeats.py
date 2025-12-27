@@ -93,7 +93,7 @@ def get_adjacent_repeats(locus_interval_0based, repeat_unit, pysam_fasta_file, i
         # since ExpansionHunter works slightly better with repeats that are exact multiples of the repeat unit
         adj_repeat.start_1based += (adj_repeat.end_1based - adj_repeat.start_1based + 1) % len(adj_repeat.repeat_unit)
 
-        if max_adjacent_repeats and len(adjacent_repeats_on_left) + 1 >= max_adjacent_repeats:
+        if max_adjacent_repeats and len(adjacent_repeats_on_left) >= max_adjacent_repeats:
             break
 
         # record the ref spacer (if one exists) between the next repeat on the left, and the current repeat
@@ -148,7 +148,7 @@ def get_adjacent_repeats(locus_interval_0based, repeat_unit, pysam_fasta_file, i
         # since ExpansionHunter works slightly better with repeats that are exact multiples of the repeat unit
         adj_repeat.end_1based -= (adj_repeat.end_1based - adj_repeat.start_1based + 1) % len(adj_repeat.repeat_unit)
 
-        if max_adjacent_repeats and len(adjacent_repeats_on_right) + 1 >= max_adjacent_repeats:
+        if max_adjacent_repeats and len(adjacent_repeats_on_right) >= max_adjacent_repeats:
             break
 
         # record the ref spacer (if one exists) between the next repeat on the right, and the current repeat

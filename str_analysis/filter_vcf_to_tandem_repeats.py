@@ -259,7 +259,7 @@ class Allele:
 
         self._k = {"left": 0, "right": 0}  # controls the size of the left and right flanking sequences
         self._already_retrieved_k = {"left": None, "right": None}  # tracks the current size of the left and right flanking sequences
-        self._previously_increased_flanking_sequence_size = False  # tracks whether either the left or right flanking sequence size was increased from it's starting size
+        self._previously_increased_flanking_sequence_size = False  # tracks whether either the left or right flanking sequence size was increased from its starting size
         self._shortened_variant_id = None
 
     def _get_flanking_sequence_size(self, left_or_right):
@@ -1093,7 +1093,7 @@ def parse_input_vcf_file(args, counters, fasta_obj):
 
 
 def check_if_allele_is_tandem_repeat(allele, args, detection_mode):
-    """Determine if the given allele is a tandem repeat expansion or contraction or not. 
+    """Determine if the given allele is a tandem repeat expansion or contraction or not.
     This is done by performing a brute-force scan for perfect (or nearly perfect) repeats in the allele sequence, and then extending the repeats
     into the flanking reference sequences.
 
@@ -1101,10 +1101,11 @@ def check_if_allele_is_tandem_repeat(allele, args, detection_mode):
         allele (Allele): allele record
         args (argparse.Namespace): command-line arguments parsed by parse_args()
         detection_mode (str): Should be either DETECTION_MODE_PURE_REPEATS or DETECTION_MODE_ALLOW_INTERRUPTIONS
-    Return:
+
+    Returns:
         2-tuple (TandemRepeatAllele, str):
-            TandemRepeatAllele: if the allele represents a tandem repeat, this will be a TandemRepeatAllele object, otherwise it will be None. 
-            str: if the allele is not a tandem repeat, this will be a string describing the reason why the allele failed tandem repeat filters, 
+            TandemRepeatAllele: if the allele represents a tandem repeat, this will be a TandemRepeatAllele object, otherwise it will be None.
+            str: if the allele is not a tandem repeat, this will be a string describing the reason why the allele failed tandem repeat filters,
                 or otherwise None if it passed all filters.
     """
 
@@ -1191,8 +1192,9 @@ def check_if_tandem_repeat_allele_failed_filters(args, tandem_repeat_allele, det
     Args:
         args (argparse.Namespace): command-line arguments parsed by parse_args()
         tandem_repeat_allele (TandemRepeatAllele): The tandem repeat allele.
+        detected_by_trf (bool): Whether this allele was detected by TRF (applies stricter filters if True).
 
-    Return:
+    Returns:
         str: A string describing the reason why the allele failed filters, or None if the allele passed all filters.
     """
     total_repeats = tandem_repeat_allele.num_repeats_in_left_flank + tandem_repeat_allele.num_repeats_in_variant + tandem_repeat_allele.num_repeats_in_right_flank
@@ -1229,15 +1231,15 @@ def check_if_tandem_repeat_allele_failed_filters(args, tandem_repeat_allele, det
     return None  # did not fail filters
 
 
-def run_trf(alleles, args, thread_id=1):
+def run_trf(alleles, args, thread_id=0):
     """Run TRF on the given allele records.
-    
+
     Args:
         alleles (list): List of Allele objects to run TRF on.
         args (argparse.Namespace): Command-line arguments parsed by parse_args().
         thread_id (int): ID of thread executing this function, starting from 0.
 
-    Return:
+    Returns:
         list of 3-tuples: (tandem_repeat_allele, filter_reason, allele)
             tandem_repeat_allele (TandemRepeatAllele): tandem repeat allele object if the allele is a tandem repeat, None otherwise
             filter_reason (str): string describing the reason why the allele failed filters, or None if the allele passed all filters

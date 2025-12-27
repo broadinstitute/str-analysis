@@ -307,8 +307,16 @@ def compute_motif_length_purity(nucleotide_sequence, motif_length, distance_metr
     # slice the reference sequence into subsequences of length motif_length and then get the most common motif
     if len(nucleotide_sequence) < motif_length:
         return float('nan'), None
+    elif motif_length == len(nucleotide_sequence):
+        return 1, nucleotide_sequence
+    else:
+        end_index = len(nucleotide_sequence) - len(nucleotide_sequence) % motif_length
 
-    most_common_motif = compute_most_common_motif(nucleotide_sequence, repeat_unit_length)
+    sliced_motif_list = [nucleotide_sequence[i:i+motif_length] for i in range(0, end_index, motif_length)]
+    if len(sliced_motif_list) == 0:
+        return float('nan'), None
+
+    most_common_motif = collections.Counter(sliced_motif_list).most_common(1)[0][0]
 
     # remove the first occurrence of the most common motif from the sliced nucleotide sequence list. If this wasn't
     # done, the purity would be artificially skewed higher for longer motif lengths since a larger part of the
