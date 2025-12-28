@@ -1,4 +1,6 @@
+#TAG = us-central1-docker.pkg.dev/cmg-analysis/docker-repo/str-analysis:latest
 TAG = weisburd/str-analysis:latest
+
 
 all: build push
 
