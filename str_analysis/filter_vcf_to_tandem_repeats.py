@@ -797,7 +797,7 @@ def do_catalog_subcommand(args):
 
     # parse input VCF
     counters = collections.defaultdict(int)
-    alleles_from_vcf = parse_input_vcf_file(args, counters, fasta_obj)
+    alleles_from_vcf = (args, counters, fasta_obj)
 
     # detect tandem repeats
     alleles_that_are_tandem_repeats, alleles_to_process_using_trf = detect_perfect_and_almost_perfect_tandem_repeats(
@@ -977,7 +977,7 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
     return tandem_repeat_alleles
 
 
-def parse_input_vcf_file(args, counters, fasta_obj):
+def parse_input_vcf_file(argparse_input_vcf_files, counters, fasta_obj):
     """Parse the input VCF file and return a list of Allele objects."""
 
     vcf_iterator = get_input_vcf_iterator(args, include_header=False)
@@ -1717,6 +1717,19 @@ def get_input_vcf_iterator(args, include_header=False):
                         intervals.append(f"{chrom}:{int(start)}-{int(end)}")
             else:
                 intervals.append(interval_or_bed_file)
+
+        if intervals:
+            normalized_intervals = []
+            for interval in intervals:
+                chrom, start_0based, end = parse_interval(interval)
+                chrom = chrom.replace("chr", "")
+                chrom = f"chr{chrom}"
+                normalized_intervals.append((chrom, start_0based, end))
+
+            normalized_intervals.sort()
+
+            intervals = [f"{chrom}:{start_0based}-{end}" for chrom, start_0based, end in normalized_intervals]
+
 
         vcf_iterator = itertools.chain(
             vcf_iterator,
