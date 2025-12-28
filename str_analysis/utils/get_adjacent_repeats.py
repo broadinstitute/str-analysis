@@ -25,8 +25,8 @@ def get_repeat_unit_from_fasta(chrom, start_1based, end_1based, repeat_unit_leng
     return repeat_unit
 
 
-def compute_locus_id(chrom, start_1based, end_1based, repeat_unit):
-    return f"{chrom}:{start_1based}-{end_1based}-{repeat_unit}"
+def compute_locus_id(chrom, start_0based, end_1based, repeat_unit):
+    return f"{chrom}-{start_0based}-{end_1based}-{repeat_unit}"
 
 
 def get_adjacent_repeats(locus_interval_0based, repeat_unit, pysam_fasta_file, interval_tree_0based,

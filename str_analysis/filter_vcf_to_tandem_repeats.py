@@ -1393,7 +1393,7 @@ def run_trf(alleles, args, thread_id=0):
             if best_motif_size <= 2 and len(motif_size_to_tandem_repeat_allele) > 1:
                 # get the entry that has the max alignment score
                 max_alignment_score = 0
-                for motif_size, matching_trf_results in motif_size_to_passing_trf_results.items():
+                for motif_size, matching_trf_results in sorted(motif_size_to_passing_trf_results.items()):
                     alignment_score = 0
                     for _trf_result in matching_trf_results.values():
                         alignment_score += _trf_result["alignment_score"]
@@ -1412,7 +1412,7 @@ def run_trf(alleles, args, thread_id=0):
 
     if args.verbose:
         print(f"thread {thread_id}: TRF allele filter reasons:")
-        for key, count in trf_allele_filter_counters.items():
+        for key, count in sorted(trf_allele_filter_counters.items()):
             print(f"{count:10,d} {key}")
 
     return results
@@ -1491,7 +1491,7 @@ def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, pyfaidx_fasta_ob
             motif_id_to_tr_allele_group_end_1based[current_repeat_unit_id] = tr_allele.end_1based
 
         if len(motif_id_to_tr_allele_group) > 0:
-            for current_repeat_unit_id, tr_allele_group in motif_id_to_tr_allele_group.items():
+            for current_repeat_unit_id, tr_allele_group in sorted(motif_id_to_tr_allele_group.items()):
                 tr_allele_groups_to_merge.append(tr_allele_group)
 
         # merge tandem repeats in groups
@@ -1636,7 +1636,7 @@ def write_tsv(tandem_repeat_alleles, args):
 
     extra_header_columns = []
     if args.copy_info_field_keys_to_tsv:
-        for key, count in args.copy_info_field_keys_to_tsv.items():
+        for key, count in sorted(args.copy_info_field_keys_to_tsv.items()):
             if count > 0:
                 extra_header_columns.append(key)
             else:
@@ -1908,6 +1908,7 @@ def do_merge_subcommand(args):
         if len(all_trs) > args.batch_size or path_i == len(args.input_bed_paths) - 1:
             if args.verbose:
                 print("="*100)
+
             all_trs = merge_overlapping_tandem_repeat_loci(all_trs, fasta_obj, verbose=args.verbose)
 
         for input_file in input_files_to_close:
