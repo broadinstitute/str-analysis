@@ -1494,7 +1494,7 @@ def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, pyfaidx_fasta_ob
             motif_id_to_tr_allele_group_end_1based[current_repeat_unit_id] = tr_allele.end_1based
 
         if len(motif_id_to_tr_allele_group) > 0:
-            for current_repeat_unit_id, tr_allele_group in sorted(motif_id_to_tr_allele_group.items()):
+            for current_repeat_unit_id, tr_allele_group in sorted(motif_id_to_tr_allele_group.items(), key=str):
                 tr_allele_groups_to_merge.append(tr_allele_group)
 
         # merge tandem repeats in groups
