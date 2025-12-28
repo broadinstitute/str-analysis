@@ -78,7 +78,7 @@ def get_variant_catalog_iterator(variant_catalog_json_or_bed, show_progress_bar=
                         locus_id = info["ID"]
                         locus_structure = info["STRUC"].replace("n", "*")
                     else:
-                        motif = fields[3].strip("()*+").upper()
+                        motif = fields[3].split(":")[0].strip("()*+").upper()
                         locus_id = f"{chrom}-{start_0based}-{end_1based}-{motif}"
                         locus_structure = f"({motif})*"
                         if not ACGTN_REGEX.match(motif):
@@ -146,9 +146,9 @@ def group_overlapping_loci(
         for record in records_in_chrom:
             if only_group_loci_with_similar_motifs:
                 motifs = parse_motifs_from_locus_structure(record["LocusStructure"])
-                if len(motifs) == 0:
-                    raise ValueError(f"This method does not support locus definitions with more than one motif in the "
-                                     f"LocusStructure like {record['LocusStructure']}")
+                if len(motifs) != 1:
+                    raise ValueError(f"This method requires exactly one motif in the "
+                                     f"LocusStructure, but got {len(motifs)} motifs in {record['LocusStructure']}")
 
                 record_motif = motifs[0]
                 current_repeat_unit_id = compute_repeat_unit_id(

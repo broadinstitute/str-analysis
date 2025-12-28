@@ -8,6 +8,7 @@ import re
 import requests
 import sys
 import tempfile
+import threading
 
 from google.cloud import storage
 
@@ -84,8 +85,8 @@ def download_local_copy(url_or_google_storage_path, verbose=False):
                 print(f"Downloading {url_or_google_storage_path} to {path}")
 
             # try using gsutil first (it's currently more reliable than hfs.copy)
-            gcloud_request_pays_arg = f"-u {gcloud_requester_pays_project}" if gcloud_requester_pays_project is not None else ""
-            os.system(f"gsutil {gcloud_request_pays_arg} -m cp {url_or_google_storage_path} {path}.temp")
+            gcloud_requester_pays_arg = f"-u {gcloud_requester_pays_project}" if gcloud_requester_pays_project is not None else ""
+            os.system(f"gsutil {gcloud_requester_pays_arg} -m cp {url_or_google_storage_path} {path}.temp")
             if not os.path.isfile(f"{path}.temp"):
                 # fall back on hfs.copy
                 try:
@@ -130,4 +131,44 @@ def get_byte_range_from_google_storage(google_storage_path, start_bytes, end_byt
     return blob.download_as_bytes(start=start_bytes, end=end_bytes-1, raw_download=True)
 
 
+def tee_stdout_and_stderr_to_log_file(log_path):
+    """Redirects stdout and stderr to both the console and a log file.
 
+    This function creates a "tee" behavior for stdout and stderr, where all output
+    is written to both the original destinations (console) and a log file simultaneously.
+
+    Args:
+        log_path (str): Path to the log file where output will be written
+
+    Note:
+        Uses daemon threads which will be terminated when the main program exits.
+    """
+    log_fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+
+    # Save original fds
+    stdout_fd = os.dup(1)
+    stderr_fd = os.dup(2)
+
+    def _tee(src_fd, dst_fds):
+        while True:
+            data = os.read(src_fd, 1024)
+            if not data:
+                break
+            for fd in dst_fds:
+                os.write(fd, data)
+
+    # Create pipes
+    r_out, w_out = os.pipe()
+    r_err, w_err = os.pipe()
+
+    # Redirect stdout/stderr → pipes
+    os.dup2(w_out, 1)
+    os.dup2(w_err, 2)
+
+    # Start tee threads
+    threading.Thread(target=_tee, args=(r_out, [stdout_fd, log_fd]), daemon=True).start()
+    threading.Thread(target=_tee, args=(r_err, [stderr_fd, log_fd]), daemon=True).start()
+
+    # Re-wrap Python streams
+    sys.stdout = os.fdopen(1, 'w', buffering=1)
+    sys.stderr = os.fdopen(2, 'w', buffering=1)
