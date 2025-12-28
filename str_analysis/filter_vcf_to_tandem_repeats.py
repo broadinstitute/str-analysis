@@ -1737,9 +1737,15 @@ def get_input_vcf_iterator(args, include_header=False):
 
             intervals = [f"{chrom}:{start_0based}-{end}" for chrom, start_0based, end in normalized_intervals]
 
+        def fetch_interval(tabix_file, interval):
+            try:
+                yield from tabix_file.fetch(interval)
+            except Exception as e:
+                print(f"WARNING: Unable to fetch interval {interval}: {e}. Skipping..")
+
         vcf_iterator = itertools.chain(
             vcf_iterator,
-            (line for interval in intervals for line in tabix_file.fetch(interval)),
+            (line for interval in intervals for line in fetch_interval(tabix_file, interval)),
         )
     else:
         if args.verbose:
