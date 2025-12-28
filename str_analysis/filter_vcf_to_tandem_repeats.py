@@ -126,9 +126,9 @@ def parse_args():
     catalog_p.add_argument("--min-indel-size-to-run-trf", default=7, type=int, help="Only run TandemRepeatFinder (TRF) "
         "on insertions and deletions that are at least this many base pairs.")
 
-    catalog_p.add_argument("--trf-min-repeats-in-reference", default=2, help="For TRF results, require a locus to span "
+    catalog_p.add_argument("--trf-min-repeats-in-reference", type=int, default=2, help="For TRF results, require a locus to span "
         "at least this many repeats in the reference genome. This helps filter out noisy, low-quality TRF results.")
-    catalog_p.add_argument("--trf-min-purity", default=0.2, help="For TRF results, filter out locus definitions where the "
+    catalog_p.add_argument("--trf-min-purity", type=float, default=0.2, help="For TRF results, filter out locus definitions where the "
         "repeat purity is below this threshold (defined as the fraction of bases that correspond to perfect repeats "
         "of the locus motif).")
     catalog_p.add_argument("--trf-working-dir", default=TRF_WORKING_DIR, help="Directory to store intermediate files "
