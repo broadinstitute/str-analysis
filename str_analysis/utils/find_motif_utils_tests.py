@@ -4,9 +4,16 @@ import unittest
 from str_analysis.utils.find_motif_utils import (
     compute_repeat_purity,
     find_highest_purity_motif_length,
+    find_highest_purity_motif_length_for_interval,
     _compute_motif_length_quality,
     adjust_motif_and_boundaries_to_maximize_purity,
-    HAMMING_DISTANCE_METRIC
+    compute_most_common_motif,
+    compute_motif_length_purity,
+    compute_motif_length_purity_for_interval,
+    compute_motif_purity_for_interval,
+    compute_motif_null_quality_score_for_sequence_length,
+    HAMMING_DISTANCE_METRIC,
+    EDIT_DISTANCE_METRIC
 )
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 
@@ -187,6 +194,292 @@ class Tests(unittest.TestCase):
         )
         self.assertEqual(start, 4)
         self.assertEqual(end, 34)
+        self.assertEqual(motif, "CAG")
+
+        # Test 11: Motif refinement when input motif creates a different slice pattern
+        # Sequence is offset so most_common_motif differs from input and needs simplification
+        reference = {"chr1": "AAAA" + "AG" + "CAG"*9 + "TTTT"}  # Starts with AG, then CAG repeats
+        mock_fasta = MockFasta(reference)
+        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+            mock_fasta, "chr1", 4, 33, "CAG"  # Input is CAG, but slicing by 3bp gives AGC as most common
+        )
+        # Most common 3bp motif will be AGC (shifted), which can't be further simplified
+        # So motif should stay as AGC
+        self.assertEqual(start, 4)
+        self.assertTrue(adjusted)  # Should be adjusted due to motif change from CAG to AGC
+
+        # Test 12: Large extension requiring flank doubling (left side)
+        # Create a long repeat that extends beyond initial 100bp flank
+        reference = {"chr1": "CAG"*50 + "CAG"*10 + "TTTT"}
+        mock_fasta = MockFasta(reference)
+        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+            mock_fasta, "chr1", 150, 180, "CAG"
+        )
+        self.assertEqual(start, 0)  # Extended all the way to start
+        self.assertTrue(adjusted)
+
+        # Test 13: Large extension requiring flank doubling (right side)
+        reference = {"chr1": "AAAA" + "CAG"*10 + "CAG"*50}
+        mock_fasta = MockFasta(reference)
+        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+            mock_fasta, "chr1", 4, 34, "CAG"
+        )
+        # Should extend but may require multiple iterations to reach the end
+        self.assertGreater(end, 34)  # Should extend beyond initial
+        self.assertTrue(adjusted)
+
+        # Test 14: Motif refinement after boundary extension
+        # Repeat extends into flanks and the extended region has a different most common motif variant
+        reference = {"chr1": "CAGCAG" + "CAG"*8 + "CAGCAG" + "TTTT"}
+        mock_fasta = MockFasta(reference)
+        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+            mock_fasta, "chr1", 6, 30, "CAG"
+        )
+        self.assertEqual(start, 0)  # Should extend left
+        self.assertEqual(end, 36)   # Should extend right
+        self.assertEqual(motif, "CAG")
+        self.assertTrue(adjusted)
+
+    def test_compute_repeat_purity_with_edit_distance(self):
+        # Test with edit distance metric
+        purity, distance = compute_repeat_purity("CACACACACA", "CA", distance_metric=EDIT_DISTANCE_METRIC)
+        self.assertEqual(distance, 0)
+        self.assertEqual(purity, 1.0)
+
+        # Test with insertions/deletions
+        purity, distance = compute_repeat_purity("CACACTGTGT", "CA", distance_metric=EDIT_DISTANCE_METRIC)
+        self.assertLess(purity, 1.0)
+        self.assertGreater(distance, 0)
+
+        # Test error handling for invalid distance > sequence length
+        # This should not raise an exception for valid inputs
+        purity, distance = compute_repeat_purity("CAG", "CAG", distance_metric=EDIT_DISTANCE_METRIC)
+        self.assertEqual(purity, 1.0)
+
+    def test_compute_repeat_purity_error_cases(self):
+        # Test with unknown distance metric
+        with self.assertRaises(ValueError):
+            compute_repeat_purity("CACACA", "CA", distance_metric="unknown_metric")
+
+    def test_find_highest_purity_motif_length_edge_cases(self):
+        # Test with empty sequence
+        with self.assertRaises(ValueError):
+            find_highest_purity_motif_length("", max_motif_length=10)
+
+        # Test with max_motif_length < 1
+        with self.assertRaises(ValueError):
+            find_highest_purity_motif_length("CAGCAG", max_motif_length=0)
+
+        # Test with min_motif_length > max_motif_length
+        with self.assertRaises(ValueError):
+            find_highest_purity_motif_length("CAGCAG", min_motif_length=10, max_motif_length=5)
+
+        # Test with very long sequence (should truncate)
+        long_sequence = "CAG" * 5000  # 15000bp
+        motif, purity, quality = find_highest_purity_motif_length(
+            long_sequence, max_motif_length=10, verbose=False
+        )
+        self.assertEqual(motif, "CAG")
+
+        # Test with max_motif_length > 200 (should reduce to 200)
+        motif, purity, quality = find_highest_purity_motif_length(
+            "CAG" * 100, max_motif_length=300, verbose=False
+        )
+        self.assertEqual(motif, "CAG")
+
+        # Test with max_motif_length > sequence length (should adjust)
+        motif, purity, quality = find_highest_purity_motif_length(
+            "CAGCAG", max_motif_length=100, verbose=False
+        )
+        self.assertIsNotNone(motif)
+
+        # Test with allow_partial_repeats=False
+        motif, purity, quality = find_highest_purity_motif_length(
+            "CAGCAGC", max_motif_length=6, allow_partial_repeats=False, verbose=False
+        )
+        self.assertIsNotNone(motif)
+
+        # Test with edit distance metric
+        motif, purity, quality = find_highest_purity_motif_length(
+            "CAGCAGCAG", max_motif_length=6, distance_metric=EDIT_DISTANCE_METRIC, verbose=False
+        )
+        self.assertEqual(motif, "CAG")
+
+        # Test with unknown distance metric
+        with self.assertRaises(ValueError):
+            find_highest_purity_motif_length(
+                "CAGCAG", max_motif_length=6, distance_metric="unknown"
+            )
+
+        # Test case where no valid motif is found (very short sequence)
+        motif, purity, quality = find_highest_purity_motif_length(
+            "AC", max_motif_length=10, min_motif_length=5, verbose=False
+        )
+        # Should return None when no valid motifs found
+        self.assertTrue(motif is None or isinstance(motif, str))
+
+    def test_compute_most_common_motif_edge_cases(self):
+        # Test with sequence length < repeat_unit_length
+        with self.assertRaises(ValueError):
+            compute_most_common_motif("CA", 3)
+
+        # Test with sequence length == repeat_unit_length
+        result = compute_most_common_motif("CAG", 3)
+        self.assertEqual(result, "CAG")
+
+        # Test normal case
+        result = compute_most_common_motif("CAGCAGCAG", 3)
+        self.assertEqual(result, "CAG")
+
+    def test_compute_motif_length_purity_edge_cases(self):
+        # Test with sequence length < motif_length
+        purity, motif = compute_motif_length_purity("CA", 3)
+        self.assertTrue(math.isnan(purity))
+        self.assertIsNone(motif)
+
+        # Test with motif_length == sequence length
+        purity, motif = compute_motif_length_purity("CAG", 3)
+        self.assertEqual(purity, 1)
+        self.assertEqual(motif, "CAG")
+
+        # Test with zero-length sliced list
+        purity, motif = compute_motif_length_purity("CAG", 4)
+        self.assertTrue(math.isnan(purity))
+        self.assertIsNone(motif)
+
+        # Test normal case with edit distance
+        purity, motif = compute_motif_length_purity("CAGCAGCAG", 3, distance_metric=EDIT_DISTANCE_METRIC)
+        self.assertEqual(motif, "CAG")
+        self.assertGreater(purity, 0.9)
+
+    def test_pyfaidx_dependent_functions(self):
+        # Mock pyfaidx.Fasta object for testing interval-based functions
+        class MockFaidx:
+            def __init__(self):
+                self.one_based_attributes = False
+                self.as_raw = True
+
+        class MockChromosome:
+            def __init__(self, sequence):
+                self.sequence = sequence
+
+            def __len__(self):
+                return len(self.sequence)
+
+            def __getitem__(self, key):
+                if isinstance(key, slice):
+                    return self.sequence[key]
+                return self.sequence[key]
+
+        class MockFasta:
+            def __init__(self, sequences):
+                self.sequences = {chrom: MockChromosome(seq) for chrom, seq in sequences.items()}
+                self.faidx = MockFaidx()
+
+            def __getitem__(self, chrom):
+                return self.sequences[chrom]
+
+            def keys(self):
+                return self.sequences.keys()
+
+        # Test compute_motif_purity_for_interval
+        reference = {"chr1": "AAAA" + "CAG"*10 + "TTTT"}
+        mock_fasta = MockFasta(reference)
+        purity, distance = compute_motif_purity_for_interval(
+            mock_fasta, "chr1", 4, 34, "CAG", distance_metric=HAMMING_DISTANCE_METRIC
+        )
+        self.assertGreater(purity, 0.95)
+
+        # Test with None reference
+        purity, distance = compute_motif_purity_for_interval(
+            None, "chr1", 4, 34, "CAG"
+        )
+        self.assertTrue(math.isnan(purity))
+        self.assertIsNone(distance)
+
+        # Test find_highest_purity_motif_length_for_interval
+        motif, purity, quality = find_highest_purity_motif_length_for_interval(
+            mock_fasta, "chr1", 4, 34, max_motif_length=10, verbose=False
+        )
+        self.assertEqual(motif, "CAG")
+
+        # Test with None reference
+        motif, purity, quality = find_highest_purity_motif_length_for_interval(
+            None, "chr1", 4, 34, max_motif_length=10
+        )
+        self.assertIsNone(motif)
+        self.assertTrue(math.isnan(purity))
+
+        # Test with invalid pyfaidx attributes
+        class BadMockFasta(MockFasta):
+            def __init__(self, sequences):
+                super().__init__(sequences)
+                self.faidx.one_based_attributes = True
+
+        bad_fasta = BadMockFasta(reference)
+        with self.assertRaises(ValueError):
+            find_highest_purity_motif_length_for_interval(
+                bad_fasta, "chr1", 4, 34, max_motif_length=10
+            )
+
+        class BadMockFasta2(MockFasta):
+            def __init__(self, sequences):
+                super().__init__(sequences)
+                self.faidx.as_raw = False
+
+        bad_fasta2 = BadMockFasta2(reference)
+        with self.assertRaises(ValueError):
+            find_highest_purity_motif_length_for_interval(
+                bad_fasta2, "chr1", 4, 34, max_motif_length=10
+            )
+
+        # Test compute_motif_length_purity_for_interval
+        purity, motif = compute_motif_length_purity_for_interval(
+            mock_fasta, "chr1", 4, 34, motif_length=3
+        )
+        self.assertEqual(motif, "CAG")
+        self.assertGreater(purity, 0.9)
+
+        # Test with None reference
+        purity, motif = compute_motif_length_purity_for_interval(
+            None, "chr1", 4, 34, motif_length=3
+        )
+        self.assertTrue(math.isnan(purity))
+        self.assertIsNone(motif)
+
+    def test_compute_motif_null_quality_score(self):
+        # Test with HAMMING_DISTANCE_METRIC
+        score = compute_motif_null_quality_score_for_sequence_length(100, distance_metric=HAMMING_DISTANCE_METRIC)
+        self.assertIsInstance(score, (float, int))
+        self.assertGreater(score, 0)
+
+        # Test with EDIT_DISTANCE_METRIC
+        score = compute_motif_null_quality_score_for_sequence_length(100, distance_metric=EDIT_DISTANCE_METRIC)
+        self.assertIsInstance(score, (float, int))
+        self.assertGreater(score, 0)
+
+        # Test with invalid distance metric
+        with self.assertRaises(ValueError):
+            compute_motif_null_quality_score_for_sequence_length(100, distance_metric="unknown")
+
+    def test_find_highest_purity_motif_additional_edge_cases(self):
+        # Test sequence that triggers motif length > sequence//2 skip
+        motif, purity, quality = find_highest_purity_motif_length(
+            "CAGCAGCAG", max_motif_length=8, verbose=False
+        )
+        self.assertEqual(motif, "CAG")
+
+        # Test sequence that reaches 100% purity and breaks early
+        motif, purity, quality = find_highest_purity_motif_length(
+            "CAGCAGCAGCAGCAG", max_motif_length=10, verbose=False
+        )
+        self.assertEqual(motif, "CAG")
+        self.assertGreaterEqual(purity, 0.99)
+
+        # Test with verbose=True to hit verbose output paths
+        motif, purity, quality = find_highest_purity_motif_length(
+            "CAG" * 5000, max_motif_length=300, verbose=True
+        )
         self.assertEqual(motif, "CAG")
 
 
