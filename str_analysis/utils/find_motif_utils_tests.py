@@ -91,154 +91,169 @@ class Tests(unittest.TestCase):
         # Test 1: No adjustment needed - repeat doesn't extend into flanks
         reference = {"chr1": "AAAA" + "CAG"*10 + "TTTT"}
         mock_fasta = MockFasta(reference)
-        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+        start, end, motif, adjusted, purity = adjust_motif_and_boundaries_to_maximize_purity(
             mock_fasta, "chr1", 4, 34, "CAG"
         )
         self.assertEqual(start, 4)
         self.assertEqual(end, 34)
         self.assertEqual(motif, "CAG")
         self.assertFalse(adjusted)
+        self.assertEqual(purity, 1.0)
 
         # Test 2: Extension into left flank
         reference = {"chr1": "CAG"*5 + "CAG"*10 + "TTTT"}
         mock_fasta = MockFasta(reference)
-        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+        start, end, motif, adjusted, purity = adjust_motif_and_boundaries_to_maximize_purity(
             mock_fasta, "chr1", 15, 45, "CAG"
         )
         self.assertEqual(start, 0)  # Extended to start of chromosome
         self.assertEqual(end, 45)
         self.assertEqual(motif, "CAG")
         self.assertTrue(adjusted)
+        self.assertEqual(purity, 1.0)
 
         # Test 3: Extension into right flank
         reference = {"chr1": "AAAA" + "CAG"*10 + "CAG"*5}
         mock_fasta = MockFasta(reference)
-        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+        start, end, motif, adjusted, purity = adjust_motif_and_boundaries_to_maximize_purity(
             mock_fasta, "chr1", 4, 34, "CAG"
         )
         self.assertEqual(start, 4)
         self.assertEqual(end, 49)  # Extended to include right flank repeats
         self.assertEqual(motif, "CAG")
         self.assertTrue(adjusted)
+        self.assertEqual(purity, 1.0)
 
         # Test 4: Extension into both flanks
         reference = {"chr1": "CAG"*3 + "CAG"*10 + "CAG"*3}
         mock_fasta = MockFasta(reference)
-        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+        start, end, motif, adjusted, purity = adjust_motif_and_boundaries_to_maximize_purity(
             mock_fasta, "chr1", 9, 39, "CAG"
         )
         self.assertEqual(start, 0)  # Extended left
         self.assertEqual(end, 48)   # Extended right
         self.assertEqual(motif, "CAG")
         self.assertTrue(adjusted)
+        self.assertEqual(purity, 1.0)
 
         # Test 5: Near chromosome start boundary (actual_left_flank_size < requested)
         reference = {"chr1": "CA" + "CAG"*10 + "TTTT"}
         mock_fasta = MockFasta(reference)
-        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+        start, end, motif, adjusted, purity = adjust_motif_and_boundaries_to_maximize_purity(
             mock_fasta, "chr1", 2, 32, "CAG"
         )
         self.assertEqual(start, 2)  # Stays at position 2 (can't go to negative)
         self.assertEqual(end, 32)
         self.assertEqual(motif, "CAG")
         self.assertFalse(adjusted)
+        self.assertEqual(purity, 1.0)
 
         # Test 6: Near chromosome end boundary (actual_right_flank_size < requested)
         reference = {"chr1": "AAAA" + "CAG"*10 + "TT"}
         mock_fasta = MockFasta(reference)
-        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+        start, end, motif, adjusted, purity = adjust_motif_and_boundaries_to_maximize_purity(
             mock_fasta, "chr1", 4, 34, "CAG"
         )
         self.assertEqual(start, 4)
         self.assertEqual(end, 34)
         self.assertEqual(motif, "CAG")
         self.assertFalse(adjusted)
+        self.assertEqual(purity, 1.0)
 
         # Test 7: Locus too small (less than motif length)
         reference = {"chr1": "AAAA" + "CA" + "TTTT"}
         mock_fasta = MockFasta(reference)
-        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+        start, end, motif, adjusted, purity = adjust_motif_and_boundaries_to_maximize_purity(
             mock_fasta, "chr1", 4, 6, "CAG"
         )
         self.assertEqual(start, 4)  # Returns unchanged
         self.assertEqual(end, 6)
         self.assertEqual(motif, "CAG")
         self.assertFalse(adjusted)
+        import math
+        self.assertTrue(math.isnan(purity))  # Purity is NaN when sequence < motif length
 
         # Test 8: Motif refinement - most common motif differs from input
         # Sequence has mostly CAGCAG but one CAACAG interruption
         reference = {"chr1": "AAAA" + "CAG"*5 + "CAA" + "CAG"*4 + "TTTT"}
         mock_fasta = MockFasta(reference)
-        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+        start, end, motif, adjusted, purity = adjust_motif_and_boundaries_to_maximize_purity(
             mock_fasta, "chr1", 4, 34, "CAG"
         )
         self.assertEqual(start, 4)
         self.assertEqual(end, 34)
         self.assertEqual(motif, "CAG")  # Should still be CAG (most common)
         # adjusted might be True or False depending on whether motif was refined
+        self.assertGreater(purity, 0.8)  # High purity despite one interruption
 
         # Test 9: Extension with motif that's already at chromosome start
         reference = {"chr1": "CAG"*20}
         mock_fasta = MockFasta(reference)
-        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+        start, end, motif, adjusted, purity = adjust_motif_and_boundaries_to_maximize_purity(
             mock_fasta, "chr1", 30, 45, "CAG"
         )
         self.assertEqual(start, 0)  # Extended all the way to start
         self.assertTrue(adjusted)
+        self.assertEqual(purity, 1.0)
 
         # Test 10: Zero-length right flank case (at chromosome end)
         reference = {"chr1": "AAAA" + "CAG"*10}
         mock_fasta = MockFasta(reference)
-        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+        start, end, motif, adjusted, purity = adjust_motif_and_boundaries_to_maximize_purity(
             mock_fasta, "chr1", 4, 34, "CAG"
         )
         self.assertEqual(start, 4)
         self.assertEqual(end, 34)
         self.assertEqual(motif, "CAG")
+        self.assertEqual(purity, 1.0)
 
         # Test 11: Motif refinement when input motif creates a different slice pattern
         # Sequence is offset so most_common_motif differs from input and needs simplification
         reference = {"chr1": "AAAA" + "AG" + "CAG"*9 + "TTTT"}  # Starts with AG, then CAG repeats
         mock_fasta = MockFasta(reference)
-        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+        start, end, motif, adjusted, purity = adjust_motif_and_boundaries_to_maximize_purity(
             mock_fasta, "chr1", 4, 33, "CAG"  # Input is CAG, but slicing by 3bp gives AGC as most common
         )
         # Most common 3bp motif will be AGC (shifted), which can't be further simplified
         # So motif should stay as AGC
         self.assertEqual(start, 4)
         self.assertTrue(adjusted)  # Should be adjusted due to motif change from CAG to AGC
+        self.assertGreater(purity, 0.8)
 
         # Test 12: Large extension requiring flank doubling (left side)
         # Create a long repeat that extends beyond initial 100bp flank
         reference = {"chr1": "CAG"*50 + "CAG"*10 + "TTTT"}
         mock_fasta = MockFasta(reference)
-        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+        start, end, motif, adjusted, purity = adjust_motif_and_boundaries_to_maximize_purity(
             mock_fasta, "chr1", 150, 180, "CAG"
         )
         self.assertEqual(start, 0)  # Extended all the way to start
         self.assertTrue(adjusted)
+        self.assertEqual(purity, 1.0)
 
         # Test 13: Large extension requiring flank doubling (right side)
         reference = {"chr1": "AAAA" + "CAG"*10 + "CAG"*50}
         mock_fasta = MockFasta(reference)
-        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+        start, end, motif, adjusted, purity = adjust_motif_and_boundaries_to_maximize_purity(
             mock_fasta, "chr1", 4, 34, "CAG"
         )
         # Should extend but may require multiple iterations to reach the end
         self.assertGreater(end, 34)  # Should extend beyond initial
         self.assertTrue(adjusted)
+        self.assertEqual(purity, 1.0)
 
         # Test 14: Motif refinement after boundary extension
         # Repeat extends into flanks and the extended region has a different most common motif variant
         reference = {"chr1": "CAGCAG" + "CAG"*8 + "CAGCAG" + "TTTT"}
         mock_fasta = MockFasta(reference)
-        start, end, motif, adjusted = adjust_motif_and_boundaries_to_maximize_purity(
+        start, end, motif, adjusted, purity = adjust_motif_and_boundaries_to_maximize_purity(
             mock_fasta, "chr1", 6, 30, "CAG"
         )
         self.assertEqual(start, 0)  # Should extend left
         self.assertEqual(end, 36)   # Should extend right
         self.assertEqual(motif, "CAG")
         self.assertTrue(adjusted)
+        self.assertEqual(purity, 1.0)
 
     def test_compute_repeat_purity_with_edit_distance(self):
         # Test with edit distance metric

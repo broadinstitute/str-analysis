@@ -488,18 +488,22 @@ def adjust_motif_and_boundaries_to_maximize_purity(pyfaidx_reference_fasta_obj, 
         repeat_unit (str): initial repeat motif
 
     Returns:
-        tuple: (adjusted_start_0based, adjusted_end_1based, adjusted_repeat_unit, was_adjusted)
+        tuple: (adjusted_start_0based, adjusted_end_1based, adjusted_repeat_unit, was_adjusted, purity)
             - adjusted_start_0based (int): adjusted 0-based start position
             - adjusted_end_1based (int): adjusted 1-based end position
             - adjusted_repeat_unit (str): refined repeat motif
             - was_adjusted (bool): True if any adjustments were made
+            - purity (float): purity of the adjusted repeat region with respect to the adjusted motif
     """
     if end_1based - start_0based < len(repeat_unit):
-        return start_0based, end_1based, repeat_unit, False
+        reference_sequence = pyfaidx_reference_fasta_obj[chrom][start_0based:end_1based]
+        purity, _ = compute_repeat_purity(reference_sequence, repeat_unit, include_partial_repeats=True)
+        return start_0based, end_1based, repeat_unit, False, purity
 
     left_flank_size = right_flank_size = 100
 
     adjusted = False
+    repeat_sequence = None
     need_another_iteration = True
     while need_another_iteration:
         need_another_iteration = False
@@ -551,14 +555,17 @@ def adjust_motif_and_boundaries_to_maximize_purity(pyfaidx_reference_fasta_obj, 
 
         # If boundaries were extended, recompute the most common motif for the new region
         if extra_bases_in_left_flank > 0 or extra_bases_in_right_flank > 0:
-            new_repeat_sequence = pyfaidx_reference_fasta_obj[chrom][start_0based:end_1based]
-            most_common_motif = compute_most_common_motif(new_repeat_sequence, len(repeat_unit))
+            repeat_sequence = pyfaidx_reference_fasta_obj[chrom][start_0based:end_1based]
+            most_common_motif = compute_most_common_motif(repeat_sequence, len(repeat_unit))
             if most_common_motif != repeat_unit:
                 simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(
                     most_common_motif, allow_partial_repeats=False)
                 repeat_unit = simplified_repeat_unit
 
-    return start_0based, end_1based, repeat_unit, adjusted
+    # Calculate purity for the final adjusted region using the sequence already in memory
+    purity, _ = compute_repeat_purity(repeat_sequence, repeat_unit, include_partial_repeats=True)
+
+    return start_0based, end_1based, repeat_unit, adjusted, purity
 
 
 """
