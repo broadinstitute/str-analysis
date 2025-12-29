@@ -4,7 +4,10 @@ import random
 
 from rapidfuzz.distance import Hamming, Levenshtein
 
-from str_analysis.utils.find_repeat_unit import find_repeat_unit_without_allowing_interruptions
+from str_analysis.utils.find_repeat_unit import (
+    find_repeat_unit_without_allowing_interruptions,
+    extend_repeat_into_sequence_base_by_base
+)
 from str_analysis.utils.fasta_utils import normalize_chrom_using_pyfaidx_fasta
 from str_analysis.utils.trf_runner import TRFRunner
 
@@ -468,6 +471,95 @@ def find_optimal_motif_using_TRF(trf_executable_path, nucleotide_sequence, max_m
     quality_score = highest_purity_motif_score / max_score
 
     return highest_purity_motif, quality_score
+
+
+def adjust_motif_and_boundaries_to_maximize_purity(pyfaidx_reference_fasta_obj, chrom, start_0based, end_1based, repeat_unit):
+    """Adjusts tandem repeat locus boundaries and refines the motif to maximize purity.
+
+    Examines the most common motif within the current locus boundaries, extends boundaries
+    into flanking sequences if the repeat continues, and updates the motif if a simplified
+    version is found. Repeats until no further extensions are possible.
+
+    Args:
+        pyfaidx_reference_fasta_obj: pyfaidx.Fasta object for the reference genome
+        chrom (str): chromosome name
+        start_0based (int): 0-based start position of the repeat locus
+        end_1based (int): 1-based end position of the repeat locus
+        repeat_unit (str): initial repeat motif
+
+    Returns:
+        tuple: (adjusted_start_0based, adjusted_end_1based, adjusted_repeat_unit, was_adjusted)
+            - adjusted_start_0based (int): adjusted 0-based start position
+            - adjusted_end_1based (int): adjusted 1-based end position
+            - adjusted_repeat_unit (str): refined repeat motif
+            - was_adjusted (bool): True if any adjustments were made
+    """
+    if end_1based - start_0based < len(repeat_unit):
+        return start_0based, end_1based, repeat_unit, False
+
+    left_flank_size = right_flank_size = 100
+
+    adjusted = False
+    need_another_iteration = True
+    while need_another_iteration:
+        need_another_iteration = False
+
+        # Calculate extraction boundaries
+        extraction_start = max(0, start_0based - left_flank_size)
+        extraction_end = min(end_1based + right_flank_size, len(pyfaidx_reference_fasta_obj[chrom]))
+        nucleotide_sequence = pyfaidx_reference_fasta_obj[chrom][extraction_start:extraction_end]
+
+        # Calculate actual flank sizes (may be smaller than requested if near chromosome boundaries)
+        actual_left_flank_size = start_0based - extraction_start
+        actual_right_flank_size = extraction_end - end_1based
+
+        # Extract repeat sequence (excluding flanks)
+        if actual_right_flank_size > 0:
+            repeat_sequence = nucleotide_sequence[actual_left_flank_size:-actual_right_flank_size]
+        else:
+            repeat_sequence = nucleotide_sequence[actual_left_flank_size:]
+
+        most_common_motif = compute_most_common_motif(repeat_sequence, len(repeat_unit))
+        if most_common_motif != repeat_unit:
+            simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(most_common_motif, allow_partial_repeats=False)
+            repeat_unit = simplified_repeat_unit
+            adjusted = True
+
+        # Check left flank for repeat extension
+        left_flanking_sequence = nucleotide_sequence[:actual_left_flank_size]
+        extra_bases_in_left_flank = extend_repeat_into_sequence_base_by_base(repeat_unit[::-1], left_flanking_sequence[::-1])
+        if extra_bases_in_left_flank > 0:
+            start_0based = max(0, start_0based - extra_bases_in_left_flank)
+            adjusted = True
+            if extra_bases_in_left_flank + len(repeat_unit) >= actual_left_flank_size and start_0based > 0:
+                left_flank_size *= 2
+                need_another_iteration = True
+
+        # Check right flank for repeat extension
+        if actual_right_flank_size > 0:
+            right_flanking_sequence = nucleotide_sequence[-actual_right_flank_size:]
+        else:
+            right_flanking_sequence = ""
+
+        extra_bases_in_right_flank = extend_repeat_into_sequence_base_by_base(repeat_unit, right_flanking_sequence)
+        if extra_bases_in_right_flank > 0:
+            end_1based = min(end_1based + extra_bases_in_right_flank, len(pyfaidx_reference_fasta_obj[chrom]))
+            adjusted = True
+            if actual_right_flank_size > 0 and extra_bases_in_right_flank + len(repeat_unit) >= actual_right_flank_size and end_1based < len(pyfaidx_reference_fasta_obj[chrom]):
+                right_flank_size *= 2
+                need_another_iteration = True
+
+        # If boundaries were extended, recompute the most common motif for the new region
+        if extra_bases_in_left_flank > 0 or extra_bases_in_right_flank > 0:
+            new_repeat_sequence = pyfaidx_reference_fasta_obj[chrom][start_0based:end_1based]
+            most_common_motif = compute_most_common_motif(new_repeat_sequence, len(repeat_unit))
+            if most_common_motif != repeat_unit:
+                simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(
+                    most_common_motif, allow_partial_repeats=False)
+                repeat_unit = simplified_repeat_unit
+
+    return start_0based, end_1based, repeat_unit, adjusted
+
 
 """
 generate_motif_null_distributions_using_random_sequences(max_sequence_length=10001, distance_metric=HAMMING_DISTANCE_METRIC, verbose=True)
