@@ -482,9 +482,13 @@ class TandemRepeatAllele:
         if self._num_repeat_bases_in_left_flank + self._num_repeat_bases_in_variant + self._num_repeat_bases_in_right_flank < len(self._repeat_unit):
             return
 
-        most_common_motif = compute_most_common_motif(self.variant_and_flanks_repeat_sequence, len(self._repeat_unit))
-        self.repeat_unit_adjusted = most_common_motif != self._repeat_unit  # for debugging
-        self._repeat_unit = most_common_motif
+        most_common_motif = compute_most_common_motif(
+            self.variant_and_flanks_repeat_sequence, len(self._repeat_unit))
+        if most_common_motif != self._repeat_unit:
+            simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(
+                most_common_motif, allow_partial_repeats=False)
+            self.repeat_unit_adjusted = True  # for debugging
+            self._repeat_unit = simplified_repeat_unit
 
         left_flanking_sequence = self._allele.get_left_flanking_sequence()
         extra_bases_in_left_flank = extend_repeat_into_sequence_base_by_base(
@@ -499,9 +503,13 @@ class TandemRepeatAllele:
         self.added_extra_bases_to_left_flank = bool(extra_bases_in_left_flank)
         self.added_extra_bases_to_right_flank = bool(extra_bases_in_right_flank)
         if self.added_extra_bases_to_left_flank or self.added_extra_bases_to_right_flank:
-            most_common_motif = compute_most_common_motif(self.variant_and_flanks_repeat_sequence, len(self._repeat_unit))
-            self.repeat_unit_adjusted = self.repeat_unit_adjusted or most_common_motif != self._repeat_unit
-            self._repeat_unit = most_common_motif
+            most_common_motif = compute_most_common_motif(
+                self.variant_and_flanks_repeat_sequence, len(self._repeat_unit))
+            if most_common_motif != self._repeat_unit:
+                simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(
+                    most_common_motif, allow_partial_repeats=False)
+                self.repeat_unit_adjusted = True  # for debugging
+                self._repeat_unit = simplified_repeat_unit
 
     @property
     def chrom(self):
@@ -1413,7 +1421,7 @@ def run_trf(alleles, args, thread_id=0):
             - keep definitions with the highest purity and/or quality score, or those above some threshold(s) 
             """
 
-    if args.verbose:
+    if args.debug:
         print(f"thread {thread_id}: TRF allele filter reasons:")
         for key, count in sorted(trf_allele_filter_counters.items()):
             print(f"{count:10,d} {key}")
