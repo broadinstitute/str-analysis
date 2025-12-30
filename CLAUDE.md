@@ -78,3 +78,7 @@ Tests use Python's `unittest` framework:
 - Located alongside the modules they test in `str_analysis/` and `str_analysis/utils/`
 - Some manual tests named `*__manual_unittest.py` (excluded from automated runs)
 - Data files for tests in `str_analysis/data/tests/`
+
+## Git
+
+- commit messages should be a single phrase (eg. "Added comprehensive tests for <script name>")

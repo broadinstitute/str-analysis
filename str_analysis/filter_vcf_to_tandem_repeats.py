@@ -59,7 +59,6 @@ from str_analysis.utils.find_repeat_unit import find_repeat_unit_allowing_interr
 from str_analysis.utils.find_repeat_unit import find_repeat_unit_without_allowing_interruptions
 from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_allowing_interruptions
 from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_without_allowing_interruptions
-from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_base_by_base
 from str_analysis.utils.file_utils import open_file, file_exists
 from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.trf_runner import TRFRunner
@@ -438,7 +437,7 @@ class TandemRepeatAllele:
             self, 
             allele,
             repeat_unit,
-            adjust_repeat_unit_and_boundaries_to_maximize_purity,
+            adjust_repeat_unit,
             num_repeat_bases_in_left_flank,
             num_repeat_bases_in_variant, 
             num_repeat_bases_in_right_flank, 
@@ -449,7 +448,7 @@ class TandemRepeatAllele:
         Args:
             allele (Allele): the allele record that this TandemRepeatAllele object is based on
             repeat_unit (str): the repeat unit of the tandem repeat allele
-            adjust_repeat_unit_and_boundaries_to_maximize_purity (bool): whether to set the repeat unit to the most common motif in the variant sequence of the same length as the given repeat unit
+            adjust_repeat_unit (bool): whether to set the repeat unit to the most common motif in the variant sequence of the same length as the given repeat unit
             num_repeat_bases_in_left_flank (int): the number of repeat bases in the left flanking sequence
             num_repeat_bases_in_variant (int): the number of repeat bases in the variant
             num_repeat_bases_in_right_flank (int): the number of repeat bases in the right flanking sequence
@@ -462,8 +461,8 @@ class TandemRepeatAllele:
         self._num_repeat_bases_in_variant = num_repeat_bases_in_variant
         self._num_repeat_bases_in_right_flank = num_repeat_bases_in_right_flank
 
-        if adjust_repeat_unit_and_boundaries_to_maximize_purity:
-            self._adjust_repeat_unit_and_boundaries_to_maximize_purity()
+        if adjust_repeat_unit:
+            self._adjust_repeat_unit_to_maximize_purity()
 
         self._repeat_unit_length = len(self._repeat_unit)
         self._detection_mode = detection_mode
@@ -478,38 +477,15 @@ class TandemRepeatAllele:
         if self._start_0based > self._end_1based:
             raise ValueError(f"Logic error: start_0based ({self._start_0based}) > end_1based ({self._end_1based})")
 
-    def _adjust_repeat_unit_and_boundaries_to_maximize_purity(self):
+    def _adjust_repeat_unit_to_maximize_purity(self):
         if self._num_repeat_bases_in_left_flank + self._num_repeat_bases_in_variant + self._num_repeat_bases_in_right_flank < len(self._repeat_unit):
             return
 
-        most_common_motif = compute_most_common_motif(
-            self.variant_and_flanks_repeat_sequence, len(self._repeat_unit))
-        if most_common_motif != self._repeat_unit:
-            simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(
-                most_common_motif, allow_partial_repeats=False)
+        most_common_motif = compute_most_common_motif(self.variant_and_flanks_repeat_sequence, len(self._repeat_unit))
+        simplified_motif, _, _ = find_repeat_unit_without_allowing_interruptions(most_common_motif, allow_partial_repeats=False)
+        if simplified_motif != self._repeat_unit:
             self.repeat_unit_adjusted = True  # for debugging
-            self._repeat_unit = simplified_repeat_unit
-
-        left_flanking_sequence = self._allele.get_left_flanking_sequence()
-        extra_bases_in_left_flank = extend_repeat_into_sequence_base_by_base(
-            self._repeat_unit[::-1], left_flanking_sequence[::-1][self._num_repeat_bases_in_left_flank:])
-        self._num_repeat_bases_in_left_flank += extra_bases_in_left_flank
-
-        right_flanking_sequence = self._allele.get_right_flanking_sequence()
-        extra_bases_in_right_flank = extend_repeat_into_sequence_base_by_base(
-            self._repeat_unit, right_flanking_sequence[self._num_repeat_bases_in_right_flank:])
-        self._num_repeat_bases_in_right_flank += extra_bases_in_right_flank
-
-        self.added_extra_bases_to_left_flank = bool(extra_bases_in_left_flank)
-        self.added_extra_bases_to_right_flank = bool(extra_bases_in_right_flank)
-        if self.added_extra_bases_to_left_flank or self.added_extra_bases_to_right_flank:
-            most_common_motif = compute_most_common_motif(
-                self.variant_and_flanks_repeat_sequence, len(self._repeat_unit))
-            if most_common_motif != self._repeat_unit:
-                simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(
-                    most_common_motif, allow_partial_repeats=False)
-                self.repeat_unit_adjusted = True  # for debugging
-                self._repeat_unit = simplified_repeat_unit
+            self._repeat_unit = simplified_motif
 
     @property
     def chrom(self):
@@ -1180,7 +1156,7 @@ def check_if_allele_is_tandem_repeat(allele, args, detection_mode):
     tandem_repeat_allele = TandemRepeatAllele(
         allele,
         repeat_unit,
-        adjust_repeat_unit_and_boundaries_to_maximize_purity=True,
+        adjust_repeat_unit=True,
         num_repeat_bases_in_left_flank=num_repeat_bases_in_left_flank,
         num_repeat_bases_in_variant=len(allele.variant_bases),
         num_repeat_bases_in_right_flank=num_repeat_bases_in_right_flank,
@@ -1368,7 +1344,7 @@ def run_trf(alleles, args, thread_id=0):
             tandem_repeat_allele = TandemRepeatAllele(
                 allele,
                 repeat_unit=simplified_repeat_unit,
-                adjust_repeat_unit_and_boundaries_to_maximize_purity=True,
+                adjust_repeat_unit=True,
                 num_repeat_bases_in_left_flank=matching_trf_results.get("left", {}).get("tandem_repeat_bases_in_flank", 0),
                 num_repeat_bases_in_variant=len(allele.variant_bases),
                 num_repeat_bases_in_right_flank=matching_trf_results.get("right", {}).get("tandem_repeat_bases_in_flank", 0),
