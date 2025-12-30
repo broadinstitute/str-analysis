@@ -495,7 +495,14 @@ class TandemRepeatAllele:
         if self._num_repeat_bases_in_left_flank + self._num_repeat_bases_in_variant + self._num_repeat_bases_in_right_flank < len(self._repeat_unit):
             return
 
-        most_common_motif = compute_most_common_motif(self.variant_and_flanks_repeat_sequence, len(self._repeat_unit))
+        try:
+            most_common_motif = compute_most_common_motif(self.variant_and_flanks_repeat_sequence, len(self._repeat_unit))
+        except ValueError as e:
+            raise ValueError(
+                f"Error computing most common motif for allele at {self.chrom}:{self.start_0based}-{self.end_1based} "
+                f"with repeat unit '{self._repeat_unit}': {str(e)}"
+            ) from e
+
         simplified_motif, _, _ = find_repeat_unit_without_allowing_interruptions(most_common_motif, allow_partial_repeats=False)
         if simplified_motif != self._repeat_unit:
             self.repeat_unit_adjusted = True  # for debugging
