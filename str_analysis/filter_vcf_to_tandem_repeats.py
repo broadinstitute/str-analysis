@@ -903,7 +903,9 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
                 continue
             
             # this allele was found to be a tandem repeat using the current detection mode
-            if tandem_repeat_allele.do_repeats_cover_entire_flanking_sequence():
+            if tandem_repeat_allele.do_repeats_cover_entire_flanking_sequence() and not (
+                    tandem_repeat_allele.allele.get_left_flank_stops_at_N() or
+                    tandem_repeat_allele.allele.get_right_flank_stops_at_N()):
                 print(f"WARNING: allele {allele} was found to be a tandem repeat using detection mode {detection_mode}, "
                       f"but the repeats cover the entire flanking sequence even though it is longer than "
                       f"{MAX_FLANKING_SEQUENCE_SIZE:,}bp. Skipping...")
