@@ -1563,21 +1563,25 @@ def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, pyfaidx_fasta_ob
 
 def need_to_reprocess_allele_with_extended_flanking_sequence(tandem_repeat_allele):
     """Check if the tandem repeat allele needs to be reprocessed with an extended flanking sequence.
-    
+
     Args:
         tandem_repeat_allele (TandemRepeatAllele): the tandem repeat allele to check
     """
 
     if tandem_repeat_allele.do_repeats_cover_entire_flanking_sequence():
+        flanks_increased = False
         if tandem_repeat_allele.do_repeats_cover_entire_left_flanking_sequence() and not tandem_repeat_allele.allele.get_left_flank_stops_at_N():
             tandem_repeat_allele.allele.increase_left_flanking_sequence_size()
+            flanks_increased = True
         if tandem_repeat_allele.do_repeats_cover_entire_right_flanking_sequence() and not tandem_repeat_allele.allele.get_right_flank_stops_at_N():
             tandem_repeat_allele.allele.increase_right_flanking_sequence_size()
-        
-        if tandem_repeat_allele.allele.get_expected_left_flanking_sequence_size() <= MAX_FLANKING_SEQUENCE_SIZE \
+            flanks_increased = True
+
+        if flanks_increased \
+            and tandem_repeat_allele.allele.get_expected_left_flanking_sequence_size() <= MAX_FLANKING_SEQUENCE_SIZE \
             and tandem_repeat_allele.allele.get_expected_right_flanking_sequence_size() <= MAX_FLANKING_SEQUENCE_SIZE:
             return True
-    
+
     return False
 
 
