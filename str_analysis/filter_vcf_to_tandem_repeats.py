@@ -247,6 +247,8 @@ class Allele:
 
         self._left_flanking_reference_sequence = None
         self._right_flanking_reference_sequence = None
+        self._left_flank_stops_at_N = False
+        self._right_flank_stops_at_N = False
 
         if len(self._ref) == len(self._alt):
             raise ValueError(f"Logic error: variant {self._chrom}:{self._pos}:{self._ref}:{self._alt} is a SNV/MNV")
@@ -315,6 +317,7 @@ class Allele:
             n_pos = self._left_flanking_reference_sequence[::-1].find('N')
             if n_pos != -1:
                 # N found - keep only the portion to the right of the N (closer to variant)
+                self._left_flank_stops_at_N = True
                 self._left_flanking_reference_sequence = self._left_flanking_reference_sequence[len(self._left_flanking_reference_sequence) - n_pos:]
                 self._left_flank_start_0based = self._left_flank_end - len(self._left_flanking_reference_sequence)
         elif left_or_right == "right":
@@ -326,6 +329,7 @@ class Allele:
             n_pos = self._right_flanking_reference_sequence.find('N')
             if n_pos != -1:
                 # N found - keep only the portion before the N
+                self._right_flank_stops_at_N = True
                 self._right_flanking_reference_sequence = self._right_flanking_reference_sequence[:n_pos]
                 self._right_flank_end = self._right_flank_start_0based + n_pos
         else:
@@ -356,6 +360,14 @@ class Allele:
     def get_right_flank_end(self):
         self._retrieve_flanking_sequence("right")
         return self._right_flank_end
+
+    def get_left_flank_stops_at_N(self):
+        self._retrieve_flanking_sequence("left")
+        return self._left_flank_stops_at_N
+
+    def get_right_flank_stops_at_N(self):
+        self._retrieve_flanking_sequence("right")
+        return self._right_flank_stops_at_N
 
     def increase_left_flanking_sequence_size(self):
         """Increases the size of the left flanking sequence without reading it in yet."""
@@ -1557,9 +1569,9 @@ def need_to_reprocess_allele_with_extended_flanking_sequence(tandem_repeat_allel
     """
 
     if tandem_repeat_allele.do_repeats_cover_entire_flanking_sequence():
-        if tandem_repeat_allele.do_repeats_cover_entire_left_flanking_sequence():
+        if tandem_repeat_allele.do_repeats_cover_entire_left_flanking_sequence() and not tandem_repeat_allele.allele.get_left_flank_stops_at_N():
             tandem_repeat_allele.allele.increase_left_flanking_sequence_size()
-        if tandem_repeat_allele.do_repeats_cover_entire_right_flanking_sequence():
+        if tandem_repeat_allele.do_repeats_cover_entire_right_flanking_sequence() and not tandem_repeat_allele.allele.get_right_flank_stops_at_N():
             tandem_repeat_allele.allele.increase_right_flanking_sequence_size()
         
         if tandem_repeat_allele.allele.get_expected_left_flanking_sequence_size() <= MAX_FLANKING_SEQUENCE_SIZE \
