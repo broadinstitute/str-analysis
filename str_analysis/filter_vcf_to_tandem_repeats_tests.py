@@ -129,11 +129,19 @@ class TestAllele(unittest.TestCase):
         for expected_length in [1000, 3000, 10000, 30000, 100000]:
             for allele in [self._poly_a_insertion1, self._poly_a_insertion2, self._poly_a_deletion1, self._poly_a_deletion2]:
                 allele.increase_flanking_sequence_size()
-                self.assertEqual(len(allele.get_left_flanking_sequence()), expected_length)
-                self.assertEqual(len(allele.get_right_flanking_sequence()), expected_length)
+                left_flank = allele.get_left_flanking_sequence()
+                right_flank = allele.get_right_flanking_sequence()
 
-                self.assertEqual(allele.get_right_flank_end(), allele.get_right_flank_start_0based() + expected_length)
-                self.assertEqual(allele.get_left_flank_end(), allele.get_left_flank_start_0based() + expected_length)
+                # Flanking sequences may be shorter than expected if N's are encountered
+                self.assertLessEqual(len(left_flank), expected_length)
+                self.assertLessEqual(len(right_flank), expected_length)
+
+                # Verify no N's in flanking sequences
+                self.assertNotIn("N", left_flank)
+                self.assertNotIn("N", right_flank)
+
+                self.assertEqual(allele.get_right_flank_end(), allele.get_right_flank_start_0based() + len(right_flank))
+                self.assertEqual(allele.get_left_flank_end(), allele.get_left_flank_start_0based() + len(left_flank))
 
     def test_allele_variant_id(self):
         """Test variant ID generation."""
@@ -170,6 +178,104 @@ class TestAllele(unittest.TestCase):
         self.assertTrue(allele.previously_increased_flanking_sequence_size)
         # increase_flanking_sequence_size() increases both left and right, so count is 2
         self.assertEqual(allele.number_of_times_flanking_sequence_size_was_increased, 2)
+
+    def test_flanking_sequences_exclude_ns_left(self):
+        """Test that N's in left flanking sequence are excluded."""
+        # Create mock fasta object with N's in the left flank
+        mock_fasta = mock.MagicMock()
+        mock_fasta.faidx.one_based_attributes = False
+        mock_chrom = mock.MagicMock()
+
+        # Sequence with N's: ...NNNACGT[variant at 1000]...
+        # When retrieving left flank, it should stop at the N
+        left_sequence = "ACGT" + "N" * 10 + "ACGT"
+        right_sequence = "G" * 300
+
+        def mock_getitem(slice_obj):
+            if slice_obj.start < 1000:
+                # Left flanking region
+                start_offset = max(0, 1000 - slice_obj.stop)
+                return left_sequence[start_offset:]
+            else:
+                # Right flanking region
+                return right_sequence[:slice_obj.stop - slice_obj.start]
+
+        mock_chrom.__getitem__.side_effect = mock_getitem
+        mock_chrom.__len__.return_value = 100000
+        mock_fasta.__getitem__.return_value = mock_chrom
+
+        allele = Allele("chr1", 1000, "A", "AAAAA", mock_fasta)
+        left_flank = allele.get_left_flanking_sequence()
+
+        # Left flanking sequence should not contain any N's
+        self.assertNotIn("N", left_flank)
+        # Should have been truncated to just "ACGT" (after the N's)
+        self.assertTrue(left_flank.endswith("ACGT"))
+
+    def test_flanking_sequences_exclude_ns_right(self):
+        """Test that N's in right flanking sequence are excluded."""
+        # Create mock fasta object with N's in the right flank
+        mock_fasta = mock.MagicMock()
+        mock_fasta.faidx.one_based_attributes = False
+        mock_chrom = mock.MagicMock()
+
+        # Sequence with N's: ...[variant at 1000]ACGTNNN...
+        # When retrieving right flank, it should stop at the N
+        left_sequence = "G" * 300
+        right_sequence = "ACGT" + "N" * 10 + "ACGT"
+
+        def mock_getitem(slice_obj):
+            if slice_obj.start < 1000:
+                # Left flanking region
+                return left_sequence[-(slice_obj.stop - slice_obj.start):]
+            else:
+                # Right flanking region
+                return right_sequence[:slice_obj.stop - slice_obj.start]
+
+        mock_chrom.__getitem__.side_effect = mock_getitem
+        mock_chrom.__len__.return_value = 100000
+        mock_fasta.__getitem__.return_value = mock_chrom
+
+        allele = Allele("chr1", 1000, "A", "AAAAA", mock_fasta)
+        right_flank = allele.get_right_flanking_sequence()
+
+        # Right flanking sequence should not contain any N's
+        self.assertNotIn("N", right_flank)
+        # Should have been truncated to just "ACGT" (before the N's)
+        self.assertEqual(right_flank, "ACGT")
+
+    def test_flanking_sequences_no_ns(self):
+        """Test that flanking sequences without N's are unchanged."""
+        # Create mock fasta object without N's
+        mock_fasta = mock.MagicMock()
+        mock_fasta.faidx.one_based_attributes = False
+        mock_chrom = mock.MagicMock()
+
+        left_sequence = "A" * 1000
+        right_sequence = "G" * 1000
+
+        def mock_getitem(slice_obj):
+            if slice_obj.start < 1000:
+                # Left flanking region
+                return left_sequence[-(slice_obj.stop - slice_obj.start):]
+            else:
+                # Right flanking region
+                return right_sequence[:slice_obj.stop - slice_obj.start]
+
+        mock_chrom.__getitem__.side_effect = mock_getitem
+        mock_chrom.__len__.return_value = 100000
+        mock_fasta.__getitem__.return_value = mock_chrom
+
+        allele = Allele("chr1", 1000, "A", "AAAAA", mock_fasta)
+        left_flank = allele.get_left_flanking_sequence()
+        right_flank = allele.get_right_flanking_sequence()
+
+        # Both flanking sequences should be 300bp (default size)
+        self.assertEqual(len(left_flank), 300)
+        self.assertEqual(len(right_flank), 300)
+        # Should not contain any N's
+        self.assertNotIn("N", left_flank)
+        self.assertNotIn("N", right_flank)
 
     def test_tandem_repeat_allele_getters(self):
         """Test the TandemRepeatAllele class getters"""

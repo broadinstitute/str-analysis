@@ -310,10 +310,24 @@ class Allele:
         if left_or_right == "left":
             self._left_flank_start_0based = max(self._left_flank_end - num_flanking_bases, 0)
             self._left_flanking_reference_sequence = str(self._fasta_obj[self._chrom][self._left_flank_start_0based : self._left_flank_end]).upper()
+
+            # Stop at N's in the sequence (search in reverse from variant towards left)
+            n_pos = self._left_flanking_reference_sequence[::-1].find('N')
+            if n_pos != -1:
+                # N found - keep only the portion to the right of the N (closer to variant)
+                self._left_flanking_reference_sequence = self._left_flanking_reference_sequence[len(self._left_flanking_reference_sequence) - n_pos:]
+                self._left_flank_start_0based = self._left_flank_end - len(self._left_flanking_reference_sequence)
         elif left_or_right == "right":
             chrom_size = len(self._fasta_obj[self._chrom])
             self._right_flank_end = min(self._right_flank_start_0based + num_flanking_bases, chrom_size)
             self._right_flanking_reference_sequence = str(self._fasta_obj[self._chrom][self._right_flank_start_0based : self._right_flank_end]).upper()
+
+            # Stop at N's in the sequence (search from variant towards right)
+            n_pos = self._right_flanking_reference_sequence.find('N')
+            if n_pos != -1:
+                # N found - keep only the portion before the N
+                self._right_flanking_reference_sequence = self._right_flanking_reference_sequence[:n_pos]
+                self._right_flank_end = self._right_flank_start_0based + n_pos
         else:
             raise ValueError(f"Logic error: left_or_right must be 'left' or 'right', not {left_or_right}")
 
