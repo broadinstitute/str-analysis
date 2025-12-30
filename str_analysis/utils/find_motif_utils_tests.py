@@ -11,6 +11,8 @@ from str_analysis.utils.find_motif_utils import (
     compute_motif_length_purity_for_interval,
     compute_motif_purity_for_interval,
     compute_motif_null_quality_score_for_sequence_length,
+    adjust_motif_to_maximize_purity,
+    adjust_motif_to_maximize_purity_in_interval,
     HAMMING_DISTANCE_METRIC,
     EDIT_DISTANCE_METRIC
 )
@@ -315,5 +317,131 @@ class Tests(unittest.TestCase):
             "CAG" * 5000, max_motif_length=300, verbose=True
         )
         self.assertEqual(motif, "CAG")
+
+    def test_compute_most_common_motif_all_n_check(self):
+        # Test that all-N motifs raise an error
+        with self.assertRaises(ValueError) as context:
+            compute_most_common_motif("NNNNNN", 3)
+        self.assertIn("most common motif", str(context.exception))
+
+        # Test that mixed N and non-N doesn't raise error
+        result = compute_most_common_motif("CAGNNNCAGCAG", 3)
+        # Should return either CAG or NNN depending on which is most common
+        self.assertEqual(len(result), 3)
+
+        # Test case insensitivity with N
+        result = compute_most_common_motif("cagnnncagcag", 3)
+        self.assertEqual(len(result), 3)
+
+    def test_adjust_motif_to_maximize_purity(self):
+        # Test 1: Pure repeat - motif stays the same
+        motif, purity = adjust_motif_to_maximize_purity("CAGCAGCAGCAG", "CAG")
+        self.assertEqual(motif, "CAG")
+        self.assertEqual(purity, 1.0)
+
+        # Test 2: Sequence too short (less than motif length)
+        motif, purity = adjust_motif_to_maximize_purity("CA", "CAG")
+        self.assertEqual(motif, "CAG")
+        self.assertIsNone(purity)
+
+        # Test 3: Sequence contains N
+        motif, purity = adjust_motif_to_maximize_purity("CAGNCAGCAG", "CAG")
+        self.assertEqual(motif, "CAG")
+        self.assertIsNone(purity)
+
+        # Test 4: Motif needs simplification - most common is different
+        # Sequence starts with AG instead of CAG, making AGC the most common 3bp motif
+        motif, purity = adjust_motif_to_maximize_purity("AGCAGCAGCAG", "CAG")
+        # Most common 3bp motif will be AGC (appears 3 times vs CAG appears 0)
+        # AGC simplifies to AGC (can't simplify further)
+        self.assertEqual(motif, "AGC")
+        self.assertGreater(purity, 0.9)
+
+        # Test 5: Motif that can be simplified
+        # Input motif is CAGCAG but sequence is pure CAG repeats
+        motif, purity = adjust_motif_to_maximize_purity("CAGCAGCAGCAG", "CAGCAG")
+        # Most common 6bp motif is CAGCAG, which simplifies to CAG
+        self.assertEqual(motif, "CAG")
+        self.assertEqual(purity, 1.0)
+
+        # Test 6: Case insensitivity
+        motif, purity = adjust_motif_to_maximize_purity("cagcagcagcag", "CAG")
+        self.assertEqual(motif, "CAG")
+        self.assertEqual(purity, 1.0)
+
+        # Test 7: Impure repeat
+        motif, purity = adjust_motif_to_maximize_purity("CAGCAGTTGCAGCAG", "CAG")
+        self.assertEqual(motif, "CAG")
+        self.assertLess(purity, 1.0)
+        self.assertGreater(purity, 0.7)
+
+        # Test 8: Equal length sequence and motif
+        motif, purity = adjust_motif_to_maximize_purity("CAG", "CAG")
+        self.assertEqual(motif, "CAG")
+        self.assertEqual(purity, 1.0)
+
+    def test_adjust_motif_to_maximize_purity_in_interval(self):
+        class MockChromosome:
+            def __init__(self, sequence):
+                self.sequence = sequence
+
+            def __len__(self):
+                return len(self.sequence)
+
+            def __getitem__(self, key):
+                if isinstance(key, slice):
+                    return self.sequence[key]
+                return self.sequence[key]
+
+            def __str__(self):
+                return self.sequence
+
+        class MockFasta:
+            def __init__(self, sequences):
+                self.sequences = {chrom: MockChromosome(seq) for chrom, seq in sequences.items()}
+
+            def __getitem__(self, chrom):
+                return self.sequences[chrom]
+
+            def __contains__(self, chrom):
+                return chrom in self.sequences
+
+            def keys(self):
+                return self.sequences.keys()
+
+        # Test 1: Valid interval with pure repeat
+        reference = {"chr1": "AAAA" + "CAG"*10 + "TTTT"}
+        mock_fasta = MockFasta(reference)
+        motif, purity = adjust_motif_to_maximize_purity_in_interval(
+            mock_fasta, "chr1", 4, 34, "CAG"
+        )
+        self.assertEqual(motif, "CAG")
+        self.assertEqual(purity, 1.0)
+
+        # Test 2: Invalid interval (end <= start)
+        with self.assertRaises(ValueError) as context:
+            adjust_motif_to_maximize_purity_in_interval(
+                mock_fasta, "chr1", 10, 10, "CAG"
+            )
+        self.assertIn("end", str(context.exception))
+        self.assertIn("start", str(context.exception))
+
+        # Test 3: Interval with motif adjustment needed
+        reference = {"chr1": "AGCAGCAGCAGCAG"}
+        mock_fasta = MockFasta(reference)
+        motif, purity = adjust_motif_to_maximize_purity_in_interval(
+            mock_fasta, "chr1", 0, 14, "CAG"
+        )
+        # Most common 3bp will be AGC, which doesn't simplify
+        self.assertEqual(motif, "AGC")
+
+        # Test 4: Interval containing N
+        reference = {"chr1": "CAGNCAGCAGCAG"}
+        mock_fasta = MockFasta(reference)
+        motif, purity = adjust_motif_to_maximize_purity_in_interval(
+            mock_fasta, "chr1", 0, 13, "CAG"
+        )
+        self.assertEqual(motif, "CAG")
+        self.assertIsNone(purity)
 
 

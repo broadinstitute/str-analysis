@@ -476,22 +476,56 @@ def find_optimal_motif_using_TRF(trf_executable_path, nucleotide_sequence, max_m
 
 
 def adjust_motif_to_maximize_purity(nucleotide_sequence, motif):
+    """Adjusts a repeat motif by finding the most common motif in a sequence and simplifying it.
+
+    Examines the most common motif of the same length as the input motif within the sequence
+    and simplifies it if possible (e.g., "CAGCAG" -> "CAG"). Returns the original motif if
+    the sequence is too short or contains N bases.
+
+    Args:
+        nucleotide_sequence (str): the DNA sequence to analyze
+        motif (str): the initial repeat motif
+
+    Returns:
+        tuple: (adjusted_motif, purity)
+            - adjusted_motif (str): the refined repeat motif
+            - purity (float or None): purity of the sequence with respect to the adjusted motif,
+              or None if sequence is too short or contains N
+    """
     nucleotide_sequence = nucleotide_sequence.upper()
     if len(nucleotide_sequence) < len(motif) or "N" in nucleotide_sequence:
-        return motif, False, None
+        return motif, None
 
-    was_motif_adjusted = False
     most_common_motif = compute_most_common_motif(nucleotide_sequence, len(motif))
     simplified_motif, _, _ = find_repeat_unit_without_allowing_interruptions(most_common_motif, allow_partial_repeats=False)
-    if simplified_motif != motif:
-        was_motif_adjusted = True
-        motif = simplified_motif
+    motif = simplified_motif
 
     purity, _ = compute_repeat_purity(nucleotide_sequence, motif, include_partial_repeats=True)
-    return motif, was_motif_adjusted, purity
+    return motif, purity
 
 
 def adjust_motif_to_maximize_purity_in_interval(pyfaidx_reference_fasta_obj, chrom, start_0based, end_1based, motif):
+    """Adjusts a repeat motif for a genomic interval by finding the most common motif and simplifying it.
+
+    Extracts the reference sequence for the specified interval and adjusts the motif by finding
+    the most common motif of the same length and simplifying it if possible.
+
+    Args:
+        pyfaidx_reference_fasta_obj: pyfaidx.Fasta object for the reference genome
+        chrom (str): chromosome name
+        start_0based (int): 0-based start position
+        end_1based (int): 1-based end position
+        motif (str): the initial repeat motif
+
+    Returns:
+        tuple: (adjusted_motif, purity)
+            - adjusted_motif (str): the refined repeat motif
+            - purity (float or None): purity of the interval with respect to the adjusted motif,
+              or None if sequence is too short or contains N
+
+    Raises:
+        ValueError: if end_1based - start_0based < 1
+    """
     if end_1based - start_0based < 1:
         raise ValueError(f"end ({end_1based:,d}) - start ({start_0based:,d}) < 1")
 
