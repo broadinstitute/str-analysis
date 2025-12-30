@@ -968,8 +968,6 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
                 for tandem_repeat_allele, filter_reason, allele in futures[thread_i].result():
                     if filter_reason:
                         counters[f"allele filter: TRF: {filter_reason}"] += 1
-                        #if args.debug:
-                        #    print(f"TRF filtered out: {allele}, filter reason: {filter_reason}")
                         continue
                     
                     # reprocess the allele if the repeats were found to cover the entire left or right flanking sequence
@@ -979,7 +977,9 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
                         continue
 
                     # this allele was found to be a tandem repeat using TRF
-                    if tandem_repeat_allele.do_repeats_cover_entire_flanking_sequence():
+                    if tandem_repeat_allele.do_repeats_cover_entire_flanking_sequence() and not (
+                            tandem_repeat_allele.allele.get_left_flank_stops_at_N() or
+                            tandem_repeat_allele.allele.get_right_flank_stops_at_N()):
                         print(f"WARNING: allele {allele} was found to be a tandem repeat using TRF, but the repeats "
                               f"cover the entire flanking sequence even though it is longer than "
                               f"{MAX_FLANKING_SEQUENCE_SIZE:,}bp. Skipping...")
