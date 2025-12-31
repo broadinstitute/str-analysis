@@ -1542,6 +1542,10 @@ def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, pyfaidx_fasta_ob
             if new_end_1based - new_start_0based >= tr_alleles_group[0].repeat_unit_length:
                 repeat_sequence = str(pyfaidx_fasta_obj[chrom][new_start_0based:new_end_1based]).upper()
                 new_repeat_unit = compute_most_common_motif(repeat_sequence, tr_alleles_group[0].repeat_unit_length)
+
+                simplified_motif, _, _ = find_repeat_unit_without_allowing_interruptions(new_repeat_unit, allow_partial_repeats=False)
+                new_repeat_unit = simplified_motif
+
             else:
                 new_repeat_unit = tr_alleles_group[0].repeat_unit
 
@@ -1934,18 +1938,16 @@ def do_merge_subcommand(args):
                 detection_mode = name_field_tokens[3]
                 input_catalogs_have_details = True
 
-            # check if the repeat unit itself consists of perfect repeats of a smaller repeat unit (this happends in ~3% of TRs detected by TRF)
+            # check if the repeat unit itself consists of perfect repeats of a smaller repeat unit (this happens in ~3% of TRs detected by TRF)
             simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(repeat_unit, allow_partial_repeats=False)
             if len(simplified_repeat_unit) != len(repeat_unit):
                 simplified_repeat_units_counter += 1
-
-            repeat_unit = simplified_repeat_unit
 
             current_catalog_trs.append(ReferenceTandemRepeat(
                 chrom=fields[0],
                 start_0based=int(fields[1]),
                 end_1based=int(fields[2]),
-                repeat_unit=repeat_unit,
+                repeat_unit=simplified_repeat_unit,
                 detection_mode=detection_mode,
             ))
         
