@@ -1,13 +1,14 @@
 import argparse
 import collections
 import ijson
+import numpy as np
 import os
 import pandas as pd
 import pysam
 import re
 import statistics
 import tqdm
-from intervaltree import IntervalTree, Interval
+from ncls import NCLS
 
 from str_analysis.utils.find_motif_utils import compute_repeat_purity
 from str_analysis.utils.fasta_utils import create_normalize_chrom_function
@@ -19,6 +20,113 @@ ACGT_REGEX = re.compile("^[ACGT]+$", re.IGNORECASE)
 ACGTN_REGEX = re.compile("^[ACGTN]+$", re.IGNORECASE)
 
 GENE_REGIONS = ["5utr", "3utr", "cds", "exon", "intergenic", "intron", "promoter"]
+
+
+def build_ncls_trees(intervals_by_chrom):
+    """Build NCLS interval trees from collected intervals.
+
+    Args:
+        intervals_by_chrom (dict): Dictionary mapping chromosome names to interval data
+            with keys 'starts', 'ends', 'indices'
+
+    Returns:
+        dict: Dictionary mapping chromosome names to NCLS objects
+    """
+    ncls_trees = {}
+    for chrom, intervals_data in intervals_by_chrom.items():
+        if len(intervals_data['starts']) > 0:
+            starts = np.array(intervals_data['starts'], dtype=np.int64)
+            ends = np.array(intervals_data['ends'], dtype=np.int64)
+            indices = np.array(intervals_data['indices'], dtype=np.int64)
+            ncls_trees[chrom] = NCLS(starts, ends, indices)
+    return ncls_trees
+
+
+def find_overlapping_intervals(all_intervals, ncls_trees):
+    """Find intervals that overlap each other by at least 2x the larger motif size.
+
+    Args:
+        all_intervals (list): List of interval dictionaries with keys 'chrom', 'start', 'end', 'motif_size'
+        ncls_trees (dict): Dictionary mapping chromosome names to NCLS objects
+
+    Returns:
+        set: Set of tuples (chrom, start, end) representing overlapping intervals
+    """
+    overlapping_intervals = set()
+
+    for interval_data in all_intervals:
+        chrom = interval_data['chrom']
+        start = interval_data['start']
+        end = interval_data['end']
+        motif_size = interval_data['motif_size']
+
+        if chrom not in ncls_trees:
+            continue
+
+        overlaps = list(ncls_trees[chrom].find_overlap(start, max(end, start + 1)))
+
+        for _, _, idx in overlaps:
+            if idx < len(all_intervals):
+                other = all_intervals[idx]
+                # Skip self-overlap
+                if other['start'] == start and other['end'] == end:
+                    continue
+
+                # Calculate overlap size
+                overlap_start = max(start, other['start'])
+                overlap_end = min(end, other['end'])
+                overlap_size = max(0, overlap_end - overlap_start)
+
+                larger_motif_size = max(motif_size, other['motif_size'])
+                if overlap_size >= 2 * larger_motif_size:
+                    overlapping_intervals.add((chrom, start, end))
+                    overlapping_intervals.add((chrom, other['start'], other['end']))
+                    break
+
+    return overlapping_intervals
+
+
+def count_merged_base_pairs(intervals_by_chrom):
+    """Count total base pairs covered by merging overlapping intervals.
+
+    Args:
+        intervals_by_chrom (dict): Dictionary mapping chromosome names to interval data
+            with keys 'starts', 'ends'
+
+    Returns:
+        int: Total number of base pairs covered by merged intervals
+    """
+    total_base_pairs = 0
+
+    for chrom, intervals_data in intervals_by_chrom.items():
+        if len(intervals_data['starts']) == 0:
+            continue
+
+        # Sort intervals by start position
+        sorted_indices = np.argsort(intervals_data['starts'])
+        starts = np.array(intervals_data['starts'])[sorted_indices]
+        ends = np.array(intervals_data['ends'])[sorted_indices]
+
+        # Merge overlapping intervals
+        if len(starts) > 0:
+            merged_start = starts[0]
+            merged_end = ends[0]
+
+            for i in range(1, len(starts)):
+                if starts[i] <= merged_end:
+                    # Overlapping, extend the current merged interval
+                    merged_end = max(merged_end, ends[i])
+                else:
+                    # Non-overlapping, add the previous merged interval
+                    total_base_pairs += merged_end - merged_start
+                    merged_start = starts[i]
+                    merged_end = ends[i]
+
+            # Add the last merged interval
+            total_base_pairs += merged_end - merged_start
+
+    return total_base_pairs
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Compute and print stats for annotated repeat catalogs")
@@ -67,7 +175,9 @@ def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verb
     if show_progress_bar:
         records = tqdm.tqdm(records, unit=" records", unit_scale=True, total=n_loci)
 
-    interval_trees = collections.defaultdict(IntervalTree)  # used to check for overlap between records in the catalog
+    # Collect intervals for each chromosome to build NCLS trees later
+    intervals_by_chrom = collections.defaultdict(lambda: {'starts': [], 'ends': [], 'indices': [], 'motif_sizes': []})
+    all_intervals = []  # Store all intervals with metadata for overlap checking
     overlapping_intervals = set()
     counters = collections.defaultdict(int)
 
@@ -192,16 +302,18 @@ def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verb
                 fraction_pure_bases_bin = round(int(fraction_pure_bases*10)/10, 1)
                 counters[f"fraction_pure_bases:{fraction_pure_bases_bin}"] += 1
 
-            # check for overlap with other loci in the catalog
-            for overlapping_interval in interval_trees[chrom].overlap(start_0based, max(end, start_0based + 1)):
-                overlapping_interval_motif_size = overlapping_interval.data
-                larger_motif_size = max(motif_size, overlapping_interval_motif_size)
-                if overlapping_interval.overlap_size(start_0based, end) >= 2*larger_motif_size:
-                    overlapping_intervals.add((chrom, start_0based, end))
-                    overlapping_intervals.add((chrom, overlapping_interval.begin, overlapping_interval.end))
-                    break
-
-            interval_trees[chrom].add(Interval(start_0based, max(end, start_0based + 1), data=len(motif)))
+            # Collect interval for later NCLS tree building and overlap checking
+            interval_idx = len(all_intervals)
+            intervals_by_chrom[chrom]['starts'].append(start_0based)
+            intervals_by_chrom[chrom]['ends'].append(max(end, start_0based + 1))
+            intervals_by_chrom[chrom]['indices'].append(interval_idx)
+            intervals_by_chrom[chrom]['motif_sizes'].append(motif_size)
+            all_intervals.append({
+                'chrom': chrom,
+                'start': start_0based,
+                'end': end,
+                'motif_size': motif_size,
+            })
 
         if "FlanksAndLocusMappability" in record:
             min_overall_mappability = min(min_overall_mappability, record["FlanksAndLocusMappability"])
@@ -211,11 +323,20 @@ def compute_catalog_stats(catalog_name, records, reference_fasta_path=None, verb
             mappability_bin = round(int(record["FlanksAndLocusMappability"]*10)/10, 1)
             counters[f"mappability:{mappability_bin}"] += 1
 
-    for interval_tree in interval_trees.values():
-        tree_with_merged_overlaps = interval_tree.copy()
-        tree_with_merged_overlaps.merge_overlaps()
-        for interval in tree_with_merged_overlaps:
-            counters['total_base_pairs_covered_by_loci'] += interval.length()
+    # Build NCLS trees for overlap detection and base pair counting
+    if verbose:
+        print("Building NCLS trees for overlap detection...")
+    ncls_trees = build_ncls_trees(intervals_by_chrom)
+
+    # Check for overlaps between intervals
+    if verbose:
+        print("Checking for overlapping intervals...")
+    overlapping_intervals = find_overlapping_intervals(all_intervals, ncls_trees)
+
+    # Count total base pairs covered by merging overlapping intervals
+    if verbose:
+        print("Counting total base pairs covered...")
+    counters['total_base_pairs_covered_by_loci'] = count_merged_base_pairs(intervals_by_chrom)
 
     print("")
     print(f"Stats for {catalog_name}:")
