@@ -32,6 +32,8 @@ def parse_args():
     parser.add_argument("--motif-length-match-sufficient-for-VNTRs", action="store_true", help="If this flag is specified, "
         "overlapping VNTR locus definitions (those with motif > 6bp) will not have to have the same canonical motif "
         "for them to be considered the same locus definition. Instead, only their motif lengths will have to be the same.")
+    parser.add_argument("--only-compare-loci-from-different-catalogs", action="store_true", help="If this flag is specified, "
+        "loci will be not be compared to and merged with loci in the same input catalog - only in different catalogs.")
     parser.add_argument("--add-found-in-fields", action="store_true", help="If specified, then 'FoundIn<CatalogName>' "
         "fields will be added to the output catalog to indicate which input catalogs contain this locus. "
         "This requires the output format to be set to JSON.")
@@ -244,11 +246,16 @@ def check_for_sufficient_overlap_and_motif_match(
         counters=None,
         min_overlap_fraction=0.66,
         min_jaccard_similarity=None,
-        motif_length_match_sufficient_for_VNTRs=False):
+        motif_length_match_sufficient_for_VNTRs=False,
+        only_compare_loci_from_different_catalogs=False,
+):
 
     existing_record = existing_interval.data
     new_record = new_interval.data
     overlap_size = existing_interval.overlap_size(new_interval)
+
+    if only_compare_loci_from_different_catalogs and existing_record["Filename"] == new_record["Filename"]:
+        return None
 
     if min_jaccard_similarity is not None:
         intersection_size = new_interval.overlap_size(existing_interval)
@@ -326,6 +333,7 @@ def add_variant_catalog_to_interval_trees(
         min_overlap_fraction=0.01,
         min_jaccard_similarity=None,
         motif_length_match_sufficient_for_VNTRs=False,
+        only_compare_loci_from_different_catalogs=False,
         discard_extra_fields_from_input_catalogs=False,
         stats=None,
         verbose=False,
@@ -368,6 +376,7 @@ def add_variant_catalog_to_interval_trees(
         current_catalog_name = new_record.get("Source", catalog_name)
 
         new_record["Source"] = current_catalog_name
+        new_record["Filename"] = variant_catalog_json_or_bed
 
         new_record_motifs = parse_motifs_from_locus_structure(new_record["LocusStructure"])
         new_record_motifs_string = ",".join(compute_canonical_motif(m) for m in new_record_motifs)
@@ -390,7 +399,9 @@ def add_variant_catalog_to_interval_trees(
                 counters=counters,
                 min_overlap_fraction=min_overlap_fraction,
                 min_jaccard_similarity=min_jaccard_similarity,
-                motif_length_match_sufficient_for_VNTRs=motif_length_match_sufficient_for_VNTRs)
+                motif_length_match_sufficient_for_VNTRs=motif_length_match_sufficient_for_VNTRs,
+                only_compare_loci_from_different_catalogs=only_compare_loci_from_different_catalogs,
+            )
             if existing_interval is not None:
                 break
 
@@ -457,7 +468,7 @@ def add_variant_catalog_to_interval_trees(
             if outer_join_overlap_table is not None:
                 for overlapping_interval in overlapping_intervals:
                     overlapping_record = overlapping_interval.data
-                    if overlapping_record["Source"] == current_catalog_name:
+                    if overlapping_record["Filename"] == variant_catalog_json_or_bed:
                         continue
 
                     they_match = check_for_sufficient_overlap_and_motif_match(
@@ -695,6 +706,7 @@ def write_output_catalog(output_catalog_record_iter, output_path, output_format)
         for record in output_catalog_record_iter:
             record = dict(record)
             record.pop("ChromStartEndMotifs", None)
+            record.pop("Filename", None)
             output_catalog_record_list.append(record)
 
         fopen = gzip.open if output_path.endswith("gz") else open
@@ -779,6 +791,7 @@ def main():
             min_overlap_fraction=args.overlap_fraction,
             min_jaccard_similarity=args.min_jaccard_similarity,
             motif_length_match_sufficient_for_VNTRs=args.motif_length_match_sufficient_for_VNTRs,
+            only_compare_loci_from_different_catalogs=args.only_compare_loci_from_different_catalogs,
             discard_extra_fields_from_input_catalogs=args.discard_extra_fields_from_input_catalogs,
             stats=stats,
             verbose=args.verbose,

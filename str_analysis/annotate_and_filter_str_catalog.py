@@ -50,7 +50,7 @@ def parse_args():
     parser.add_argument("--output-stats", action="store_true", help="Output detailed stats about loci in the catalog")
     parser.add_argument("--verbose", action="store_true", help="Print verbose output.")
     parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
-
+    parser.add_argument("-n", "--process-n-loci", type=int, help="Only process the first N loci from the input catalog")
     annotations_group = parser.add_argument_group("annotations")
     annotations_group.add_argument("--known-disease-associated-loci",
         help="ExpansionHunter catalog .json file with all known disease-associated loci")
@@ -369,6 +369,9 @@ def main():
     for i, catalog_record in enumerate(input_catalog_iterator):
         filter_counters["total"] += 1
 
+        if args.process_n_loci and i >= args.process_n_loci:
+            break
+
         # validate catalog_record
         error = None
         for key in ["LocusId", "ReferenceRegion", "LocusStructure", "VariantType"]:
@@ -623,7 +626,7 @@ def main():
                     has_invalid_bases = True
                     filter_counters["row reference sequence has invalid bases"] += 1
                     break
-            
+
 
             num_repeats_in_reference_list.append(len(ref_fasta_sequence) // len(motif))
 
