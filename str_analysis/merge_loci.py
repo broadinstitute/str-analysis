@@ -254,7 +254,7 @@ def check_for_sufficient_overlap_and_motif_match(
     new_record = new_interval.data
     overlap_size = existing_interval.overlap_size(new_interval)
 
-    if only_compare_loci_from_different_catalogs and existing_record["Filename"] == new_record["Filename"]:
+    if only_compare_loci_from_different_catalogs and existing_record["FilenameHash"] == new_record["FilenameHash"]:
         return None
 
     if min_jaccard_similarity is not None:
@@ -376,7 +376,7 @@ def add_variant_catalog_to_interval_trees(
         current_catalog_name = new_record.get("Source", catalog_name)
 
         new_record["Source"] = current_catalog_name
-        new_record["Filename"] = variant_catalog_json_or_bed
+        new_record["FilenameHash"] = hash(variant_catalog_json_or_bed)
 
         new_record_motifs = parse_motifs_from_locus_structure(new_record["LocusStructure"])
         new_record_motifs_string = ",".join(compute_canonical_motif(m) for m in new_record_motifs)
@@ -468,7 +468,7 @@ def add_variant_catalog_to_interval_trees(
             if outer_join_overlap_table is not None:
                 for overlapping_interval in overlapping_intervals:
                     overlapping_record = overlapping_interval.data
-                    if overlapping_record["Filename"] == variant_catalog_json_or_bed:
+                    if overlapping_record["FilenameHash"] == hash(variant_catalog_json_or_bed):
                         continue
 
                     they_match = check_for_sufficient_overlap_and_motif_match(
@@ -706,7 +706,7 @@ def write_output_catalog(output_catalog_record_iter, output_path, output_format)
         for record in output_catalog_record_iter:
             record = dict(record)
             record.pop("ChromStartEndMotifs", None)
-            record.pop("Filename", None)
+            record.pop("FilenameHash", None)
             output_catalog_record_list.append(record)
 
         fopen = gzip.open if output_path.endswith("gz") else open
