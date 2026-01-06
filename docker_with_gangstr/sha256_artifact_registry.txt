@@ -1,1 +1,1 @@
-sha256:3dc6b4b3cf7f53e5629cb72a6ea8dfa045e4fbebde6be1a4b9d5d7f73faa27cb
+us-central1-docker.pkg.dev/cmg-analysis/docker-repo/str-analysis-with-gangstr@sha256:3dc6b4b3cf7f53e5629cb72a6ea8dfa045e4fbebde6be1a4b9d5d7f73faa27cb

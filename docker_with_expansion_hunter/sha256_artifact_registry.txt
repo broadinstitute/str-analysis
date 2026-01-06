@@ -1,1 +1,1 @@
-sha256:31fabe5958278f013b71179d9a40494cc932d6d229c5b0809b14aba78461ed04
+us-central1-docker.pkg.dev/cmg-analysis/docker-repo/str-analysis-with-expansion-hunter@sha256:31fabe5958278f013b71179d9a40494cc932d6d229c5b0809b14aba78461ed04
