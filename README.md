@@ -62,6 +62,7 @@ docker run -it weisburd/str-analysis:latest
 - **compute_average_genotype_quality_per_sample** - Computes average Q score per sample from a genotype table.
 - **check_combined_results_tsv_for_pathogenic_repeats** - Filters combined results for potential pathogenic expansions at known disease loci.
 - **check_combined_results_tsv_for_genome_wide_repeats** - Filters combined results for potential pathogenic expansions genome-wide.
+- **run_reviewer** - Takes ExpansionHunter output files for a single sample and runs REViewer on the subset of loci where the genotypes exceed locus-specific thresholds specified in the variant catalog.
 
 ---
 
@@ -79,12 +80,11 @@ docker run -it weisburd/str-analysis:latest
 
 ---
 
-## Read Extraction & Visualization
+## Read Extraction
 
 - **make_bamlet** - Optimized version of ExpansionHunterDenovo's make-bamlet.py. For a given STR region, extracts all relevant reads from a BAM or CRAM file into a much smaller BAMlet which can be used as input to ExpansionHunter instead of the full BAM/CRAM but yield the same genotype. Reduces I/O operations for better performance.
 - **make_minicram_for_expansion_hunter** - Extracts minimal CRAM subset needed for ExpansionHunter genotyping.
 - **print_reads** - Extracts reads from CRAM/BAM files overlapping genomic intervals (lightweight alternative to GATK PrintReads).
-- **run_reviewer** - Takes ExpansionHunter output files for a single sample and runs REViewer on the subset of loci where the genotypes exceed locus-specific thresholds specified in the variant catalog.
 
 ---
 
