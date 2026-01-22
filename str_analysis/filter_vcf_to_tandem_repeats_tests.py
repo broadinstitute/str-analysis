@@ -3399,5 +3399,66 @@ class TestWriteFunctions(unittest.TestCase):
         self.assertEqual(len(lines), 3)  # Header + 2 data rows
 
 
+class TestRepeatUnitSimilarity(unittest.TestCase):
+    """Test the compute_repeat_unit_id and are_repeat_units_similar functions."""
+
+    def test_similar_short_motifs_same(self):
+        """Test that identical short motifs (<=6bp) are considered similar."""
+        self.assertTrue(are_repeat_units_similar("CAG", "CAG"))
+        self.assertTrue(are_repeat_units_similar("AAAAAA", "AAAAAA"))
+        self.assertTrue(are_repeat_units_similar("A", "A"))
+
+    def test_similar_short_motifs_different(self):
+        """Test that different short motifs (<=6bp) are NOT similar."""
+        self.assertFalse(are_repeat_units_similar("CAG", "CTG"))
+        self.assertFalse(are_repeat_units_similar("CAG", "CAA"))
+        self.assertFalse(are_repeat_units_similar("AT", "CG"))
+
+    def test_similar_short_motifs_different_length(self):
+        """Test that short motifs with different lengths are NOT similar."""
+        self.assertFalse(are_repeat_units_similar("CAG", "CAGC"))
+        self.assertFalse(are_repeat_units_similar("A", "AA"))
+        self.assertFalse(are_repeat_units_similar("AAAAAA", "AAAAAAA"))
+
+    def test_similar_long_motifs_same_length(self):
+        """Test that long motifs (>6bp) with same length ARE similar (current behavior).
+
+        Note: This documents the current behavior where long motifs are only compared
+        by length. This may be overly permissive - see issue #4 in the bug list.
+        """
+        # Current behavior: long motifs with same length are considered similar
+        self.assertTrue(are_repeat_units_similar("CAGCAGC", "AAAAAAA"))
+        self.assertTrue(are_repeat_units_similar("ATATATAT", "CGCGCGCG"))
+
+    def test_similar_long_motifs_different_length(self):
+        """Test that long motifs (>6bp) with different lengths are NOT similar."""
+        self.assertFalse(are_repeat_units_similar("CAGCAGC", "CAGCAGCA"))
+        self.assertFalse(are_repeat_units_similar("AAAAAAA", "AAAAAAAA"))
+
+    def test_compute_repeat_unit_id_short_motifs(self):
+        """Test compute_repeat_unit_id returns the motif itself for short motifs."""
+        from str_analysis.filter_vcf_to_tandem_repeats import compute_repeat_unit_id
+        self.assertEqual(compute_repeat_unit_id("CAG"), "CAG")
+        self.assertEqual(compute_repeat_unit_id("A"), "A")
+        self.assertEqual(compute_repeat_unit_id("AAAAAA"), "AAAAAA")
+
+    def test_compute_repeat_unit_id_long_motifs(self):
+        """Test compute_repeat_unit_id returns the length for long motifs."""
+        from str_analysis.filter_vcf_to_tandem_repeats import compute_repeat_unit_id
+        self.assertEqual(compute_repeat_unit_id("AAAAAAA"), 7)
+        self.assertEqual(compute_repeat_unit_id("CAGCAGCAGCAG"), 12)
+
+    def test_boundary_case_6bp(self):
+        """Test the boundary case at exactly 6bp."""
+        from str_analysis.filter_vcf_to_tandem_repeats import compute_repeat_unit_id
+        # 6bp should still use the motif itself
+        self.assertEqual(compute_repeat_unit_id("AAAAAA"), "AAAAAA")
+        self.assertFalse(are_repeat_units_similar("AAAAAA", "AAAAAT"))
+
+        # 7bp should use length
+        self.assertEqual(compute_repeat_unit_id("AAAAAAA"), 7)
+        self.assertTrue(are_repeat_units_similar("AAAAAAA", "AAAAAAC"))
+
+
 if __name__ == "__main__":
     unittest.main()
