@@ -396,6 +396,37 @@ class TestTandemRepeatAllele(unittest.TestCase):
         self.assertIsNotNone(summary)
         self.assertIsInstance(summary, str)
 
+    def test_summary_string_format(self):
+        """Test summary_string shows correct repeat count (not divided by motif length).
+
+        This test verifies the fix for a bug where num_repeats_in_variant_and_flanks
+        was incorrectly divided by repeat_unit_length, causing e.g. 10 repeats of a 3bp
+        motif to show as "3.3x" instead of "10.0x".
+        """
+        allele = Allele("chr22", 10515040, "T", "TAAGA", self._fasta_obj)
+        tr_allele = TandemRepeatAllele(allele, "AAGA", False, 0, 4, 37, DETECTION_MODE_PURE_REPEATS)
+
+        # Get the actual number of repeats
+        num_repeats = tr_allele.num_repeats_in_variant_and_flanks
+
+        # The summary string should show this exact count with 1 decimal place
+        expected_repeat_str = f"{num_repeats:0.1f}x"
+        summary = tr_allele.summary_string
+
+        # Verify the repeat count in the summary string is correct
+        self.assertIn(expected_repeat_str, summary,
+            f"Summary string '{summary}' should contain '{expected_repeat_str}' "
+            f"(num_repeats={num_repeats}, motif_length={tr_allele.repeat_unit_length})")
+
+        # Also verify it does NOT contain an incorrectly divided value
+        # (which would happen if we divided by motif length again)
+        wrong_value = num_repeats / tr_allele.repeat_unit_length
+        wrong_repeat_str = f"{wrong_value:0.1f}x"
+        if wrong_repeat_str != expected_repeat_str:
+            self.assertNotIn(wrong_repeat_str, summary,
+                f"Summary string should NOT contain '{wrong_repeat_str}' "
+                f"(incorrectly divided by motif length)")
+
     def test_variant_and_flanks_repeat_sequence(self):
         """Test variant_and_flanks_repeat_sequence property."""
         allele = Allele("chr22", 10515040, "T", "TAAGA", self._fasta_obj)
