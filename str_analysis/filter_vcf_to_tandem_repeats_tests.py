@@ -808,9 +808,10 @@ class TestTRFIntegration(unittest.TestCase):
         try:
             result = detect_tandem_repeats_using_trf(alleles, counters, self._args)
             self.assertIsInstance(result, list)
-        except Exception:
-            # If TRF execution fails, that's expected in test environment
-            pass
+        except (FileNotFoundError, OSError) as e:
+            # TRF executable not available - skip the test
+            # OSError covers cases where the binary exists but can't execute
+            self.skipTest(f"TRF not available: {e}")
 
     def tearDown(self):
         """Tear down test case."""
@@ -2053,7 +2054,9 @@ class TestGenotypingPipeline(unittest.TestCase):
             pyfaidx.Fasta(fasta_path)
             self._temp_files.append(fasta_path + ".fai")
             return fasta_path
-        except Exception:
+        except (ImportError, IOError, OSError):
+            # ImportError - pyfaidx not installed
+            # IOError/OSError - file system errors during indexing
             return None
 
     def test_genotype_simple_expansion_hom(self):
@@ -2815,7 +2818,9 @@ class TestEndToEndGenotyping(unittest.TestCase):
             pyfaidx.Fasta(fasta_path)
             self._temp_files.append(fasta_path + ".fai")
             return fasta_path
-        except Exception:
+        except (ImportError, IOError, OSError):
+            # ImportError - pyfaidx not installed
+            # IOError/OSError - file system errors during indexing
             return None
 
     def _create_test_bed_and_index(self, bed_content):
