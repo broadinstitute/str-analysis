@@ -2874,7 +2874,7 @@ def write_bed(tandem_repeat_alleles, args, detailed=False):
                 name_field += f":{(tandem_repeat_allele.end_1based - tandem_repeat_allele.start_0based)/tandem_repeat_allele.repeat_unit_length:0.1f}x"
                 if tandem_repeat_allele.detection_mode is not None:
                     name_field += f":{tandem_repeat_allele.detection_mode}"
-                name_field += f":p{tandem_repeat_allele.repeat_purity:0.2}"
+                name_field += f":p{tandem_repeat_allele.repeat_purity:0.2f}"
             else:
                 name_field = tandem_repeat_allele.repeat_unit
 
