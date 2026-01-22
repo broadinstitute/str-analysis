@@ -132,3 +132,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Claude history files
+CLAUDE_HISTORY*.md
+.prompt/
