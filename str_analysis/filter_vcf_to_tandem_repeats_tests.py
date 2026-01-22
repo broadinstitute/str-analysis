@@ -29,7 +29,7 @@ from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele
     detect_chromosome_naming_convention, normalize_chromosome_name, \
     open_vcf_for_genotyping, get_overlapping_vcf_variants, \
     convert_variants_to_haplotype_sequence, extract_haplotype_sequences_from_vcf, \
-    compute_repeat_counts_from_sequence, genotype_single_locus
+    compute_repeat_counts_from_sequence, genotype_single_locus, write_tsv
 
 
 class TestAllele(unittest.TestCase):
@@ -3286,6 +3286,86 @@ chr1\t34\t.\tC\tT\t.\tPASS\t.\tGT\t0/1
         self.assertEqual(row["Allele2Sequence"], "")
         # But NumOverlappingVariants should still be counted
         self.assertEqual(int(row["NumOverlappingVariants"]), 2)
+
+
+class TestWriteFunctions(unittest.TestCase):
+    """Test the write_tsv and write_bed functions."""
+
+    def setUp(self):
+        """Set up test case with temp directory and mock args."""
+        self._temp_dir = tempfile.mkdtemp()
+        self._output_prefix = os.path.join(self._temp_dir, "test_output")
+        self._args = argparse.Namespace(
+            output_prefix=self._output_prefix,
+            copy_info_field_keys_to_tsv=None,
+            verbose=False,
+        )
+
+    def tearDown(self):
+        """Clean up temp directory."""
+        if os.path.exists(self._temp_dir):
+            shutil.rmtree(self._temp_dir)
+
+    def test_write_tsv_with_reference_tandem_repeat(self):
+        """Test write_tsv doesn't crash with ReferenceTandemRepeat objects.
+
+        ReferenceTandemRepeat objects lack some TandemRepeatAllele properties
+        (ins_or_del, allele, is_pure_repeat, info_field_dict). The write_tsv
+        function should handle this gracefully without crashing.
+        """
+        ref_tr = ReferenceTandemRepeat("chr1", 1000, 1030, "CAG", DETECTION_MODE_PURE_REPEATS)
+
+        # write_tsv should not crash on a ReferenceTandemRepeat
+        write_tsv([ref_tr], self._args)
+
+        # Check that output file was created
+        tsv_output_path = f"{self._output_prefix}.tandem_repeats.tsv.gz"
+        self.assertTrue(os.path.exists(tsv_output_path))
+
+        # Read and verify the output
+        import gzip
+        with gzip.open(tsv_output_path, 'rt') as f:
+            lines = f.readlines()
+
+        self.assertEqual(len(lines), 2)  # Header + 1 data row
+
+        header = lines[0].strip().split('\t')
+        values = lines[1].strip().split('\t')
+        row = dict(zip(header, values))
+
+        # Verify expected values
+        self.assertEqual(row["Chrom"], "chr1")
+        self.assertEqual(row["Start0Based"], "1000")
+        self.assertEqual(row["End1Based"], "1030")
+        self.assertEqual(row["Motif"], "CAG")
+        self.assertEqual(row["MotifSize"], "3")
+
+        # ReferenceTandemRepeat-specific: these fields should be empty
+        self.assertEqual(row["INS_or_DEL"], "")
+        self.assertEqual(row["VcfPos"], "")
+        self.assertEqual(row["IsPureRepeat"], "")
+
+    def test_write_tsv_with_mixed_objects(self):
+        """Test write_tsv with a mix of ReferenceTandemRepeat objects.
+
+        After merging, the tandem_repeat_alleles list may contain both
+        TandemRepeatAllele and ReferenceTandemRepeat objects.
+        """
+        ref_tr1 = ReferenceTandemRepeat("chr1", 1000, 1030, "CAG", DETECTION_MODE_PURE_REPEATS)
+        ref_tr2 = ReferenceTandemRepeat("chr2", 2000, 2040, "AAAG", DETECTION_MODE_TRF)
+
+        # write_tsv should handle multiple ReferenceTandemRepeat objects
+        write_tsv([ref_tr1, ref_tr2], self._args)
+
+        # Check output
+        tsv_output_path = f"{self._output_prefix}.tandem_repeats.tsv.gz"
+        self.assertTrue(os.path.exists(tsv_output_path))
+
+        import gzip
+        with gzip.open(tsv_output_path, 'rt') as f:
+            lines = f.readlines()
+
+        self.assertEqual(len(lines), 3)  # Header + 2 data rows
 
 
 if __name__ == "__main__":
