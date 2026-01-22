@@ -2186,9 +2186,6 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
 def detect_tandem_repeats_using_trf(alleles, counters, args):
     """Runs TandemRepeatFinder (TRF) on a list of indel alleles to detect tandem repeats."""
 
-    # set up TRF working dir
-    original_working_dir = os.getcwd()
-
     tandem_repeat_alleles = []
     first_iteration = True
     alleles_to_process_next = alleles
@@ -2201,58 +2198,58 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
         if os.path.isdir(trf_working_dir):
             raise ValueError(f"ERROR: TRF working directory already exists: {trf_working_dir}. Each TRF run should be in a unique directory to avoid filename collisions.")
 
-        if args.debug: 
+        if args.debug:
             print("-"*100)
             print(f"TRF working directory: {trf_working_dir}")
         os.makedirs(trf_working_dir)
-        os.chdir(trf_working_dir)
-        
-        n_threads = min(args.trf_threads, len(alleles_to_process_next))
-        if args.verbose:
-            print(f"Launching {n_threads} TRF instance(s) to check {len(alleles_to_process_next):,d} indel alleles for tandem repeats", 
-                    "after extending their flanking sequences" if not first_iteration else "")
-        first_iteration = False
 
-        alleles_to_reprocess = []
-        with ThreadPoolExecutor(max_workers=n_threads) as ex:
-            
-            futures = []
-            for thread_i in range(0, n_threads):
-                thread_input_alleles = [allele for allele_i, allele in enumerate(alleles_to_process_next) if allele_i % n_threads == thread_i]
-                futures.append(ex.submit(run_trf, thread_input_alleles, args, thread_i))
-                
-            # collect and process results from all threads
-            for thread_i in range(0, n_threads):
-                for tandem_repeat_allele, filter_reason, allele in futures[thread_i].result():
-                    if filter_reason:
-                        counters[f"allele filter: TRF: {filter_reason}"] += 1
-                        continue
-                    
-                    # reprocess the allele if the repeats were found to cover the entire left or right flanking sequence
-                    if need_to_reprocess_allele_with_extended_flanking_sequence(tandem_repeat_allele):
-                        counters[f"allele op: increased flanking sequence size {tandem_repeat_allele.allele.number_of_times_flanking_sequence_size_was_increased}x for TRF"] += 1
-                        alleles_to_reprocess.append(allele)
-                        continue
+        try:
+            n_threads = min(args.trf_threads, len(alleles_to_process_next))
+            if args.verbose:
+                print(f"Launching {n_threads} TRF instance(s) to check {len(alleles_to_process_next):,d} indel alleles for tandem repeats",
+                        "after extending their flanking sequences" if not first_iteration else "")
+            first_iteration = False
 
-                    # this allele was found to be a tandem repeat using TRF
-                    if tandem_repeat_allele.do_repeats_cover_entire_flanking_sequence() and not (
-                            tandem_repeat_allele.allele.get_left_flank_stops_at_N() or
-                            tandem_repeat_allele.allele.get_right_flank_stops_at_N()):
-                        print(f"WARNING: allele {allele} was found to be a tandem repeat using TRF, but the repeats "
-                              f"cover the entire flanking sequence even though it is longer than "
-                              f"{MAX_FLANKING_SEQUENCE_SIZE:,}bp. Skipping...")
-                    else:
-                        tandem_repeat_alleles.append(tandem_repeat_allele)
+            alleles_to_reprocess = []
+            with ThreadPoolExecutor(max_workers=n_threads) as ex:
 
-        alleles_to_process_next = alleles_to_reprocess
+                futures = []
+                for thread_i in range(0, n_threads):
+                    thread_input_alleles = [allele for allele_i, allele in enumerate(alleles_to_process_next) if allele_i % n_threads == thread_i]
+                    futures.append(ex.submit(run_trf, thread_input_alleles, args, thread_i, trf_working_dir))
 
-        elapsed = datetime.datetime.now() - start_time
-        if args.verbose:
-            print(f"Found {len(tandem_repeat_alleles) - before_counter:,d} additional tandem repeats after running TRF for {elapsed.seconds//60}m {elapsed.seconds%60}s"
-              + (f", and will recheck {len(alleles_to_process_next):,d} other alleles after extending their flanking sequences" if len(alleles_to_process_next) > 0 else ""))
-        os.chdir(original_working_dir)
-        if not args.debug:
-            shutil.rmtree(trf_working_dir)
+                # collect and process results from all threads
+                for thread_i in range(0, n_threads):
+                    for tandem_repeat_allele, filter_reason, allele in futures[thread_i].result():
+                        if filter_reason:
+                            counters[f"allele filter: TRF: {filter_reason}"] += 1
+                            continue
+
+                        # reprocess the allele if the repeats were found to cover the entire left or right flanking sequence
+                        if need_to_reprocess_allele_with_extended_flanking_sequence(tandem_repeat_allele):
+                            counters[f"allele op: increased flanking sequence size {tandem_repeat_allele.allele.number_of_times_flanking_sequence_size_was_increased}x for TRF"] += 1
+                            alleles_to_reprocess.append(allele)
+                            continue
+
+                        # this allele was found to be a tandem repeat using TRF
+                        if tandem_repeat_allele.do_repeats_cover_entire_flanking_sequence() and not (
+                                tandem_repeat_allele.allele.get_left_flank_stops_at_N() or
+                                tandem_repeat_allele.allele.get_right_flank_stops_at_N()):
+                            print(f"WARNING: allele {allele} was found to be a tandem repeat using TRF, but the repeats "
+                                  f"cover the entire flanking sequence even though it is longer than "
+                                  f"{MAX_FLANKING_SEQUENCE_SIZE:,}bp. Skipping...")
+                        else:
+                            tandem_repeat_alleles.append(tandem_repeat_allele)
+
+            alleles_to_process_next = alleles_to_reprocess
+
+            elapsed = datetime.datetime.now() - start_time
+            if args.verbose:
+                print(f"Found {len(tandem_repeat_alleles) - before_counter:,d} additional tandem repeats after running TRF for {elapsed.seconds//60}m {elapsed.seconds%60}s"
+                  + (f", and will recheck {len(alleles_to_process_next):,d} other alleles after extending their flanking sequences" if len(alleles_to_process_next) > 0 else ""))
+        finally:
+            if not args.debug:
+                shutil.rmtree(trf_working_dir)
 
     return tandem_repeat_alleles
 
@@ -2511,13 +2508,15 @@ def check_if_tandem_repeat_allele_failed_filters(args, tandem_repeat_allele, det
     return None  # did not fail filters
 
 
-def run_trf(alleles, args, thread_id=0):
+def run_trf(alleles, args, thread_id=0, trf_working_dir=None):
     """Run TRF on the given allele records.
 
     Args:
         alleles (list): List of Allele objects to run TRF on.
         args (argparse.Namespace): Command-line arguments parsed by parse_args().
         thread_id (int): ID of thread executing this function, starting from 0.
+        trf_working_dir (str): Directory where TRF input/output files will be written.
+            If None, uses the current working directory.
 
     Returns:
         list of 3-tuples: (tandem_repeat_allele, filter_reason, allele)
@@ -2526,8 +2525,10 @@ def run_trf(alleles, args, thread_id=0):
             allele (Allele): Allele object that was processed
     """
 
+    if trf_working_dir is None:
+        trf_working_dir = os.getcwd()
 
-    trf_fasta_filename = f"trf_input_sequences__thread{thread_id}.fa"
+    trf_fasta_filename = os.path.join(trf_working_dir, f"trf_input_sequences__thread{thread_id}.fa")
     with open(trf_fasta_filename, "wt") as f:
         # reverse the left flanking sequence + variant bases so that TRF starts detecting repeats from the
         # end of the variant sequence rather than some random point in the flanking region. This will
