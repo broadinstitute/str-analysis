@@ -6,6 +6,7 @@ import argparse
 import collections
 import os
 import pkgutil
+import shutil
 import tempfile
 import unittest
 from unittest import mock
@@ -58,6 +59,7 @@ class TestAllele(unittest.TestCase):
         self._AAGA_tandem_repeat_expansion = TandemRepeatAllele(self._AAGA_insertion, "AAGA", False, 0, 4, 37, DETECTION_MODE_PURE_REPEATS)
         self._AAGA_tandem_repeat_contraction = TandemRepeatAllele(self._AAGA_deletion, "AAGA", False, 0, 4, 33, DETECTION_MODE_PURE_REPEATS)
 
+        self._trf_working_dir = tempfile.mkdtemp()
         self._default_args = argparse.Namespace(
             min_repeat_unit_length=1,
             max_repeat_unit_length=1000,
@@ -65,7 +67,7 @@ class TestAllele(unittest.TestCase):
             min_repeats=3,
             min_tandem_repeat_length=9,
             debug=False,
-            trf_working_dir=tempfile.mkdtemp(),
+            trf_working_dir=self._trf_working_dir,
             input_vcf_prefix="test",
             trf_executable_path="trf",
             trf_threads=2,
@@ -323,6 +325,8 @@ class TestAllele(unittest.TestCase):
         fai_path = self._temp_fasta_path + ".fai"
         if os.path.exists(fai_path):
             os.unlink(fai_path)
+        if os.path.exists(self._trf_working_dir):
+            shutil.rmtree(self._trf_working_dir)
 
 
 class TestTandemRepeatAllele(unittest.TestCase):
@@ -764,13 +768,14 @@ class TestTRFIntegration(unittest.TestCase):
 
         self._fasta_obj = pyfaidx.Fasta(self._temp_fasta_path, one_based_attributes=False, as_raw=True)
 
+        self._trf_working_dir = tempfile.mkdtemp()
         self._args = argparse.Namespace(
             min_repeat_unit_length=1,
             max_repeat_unit_length=1000,
             min_repeats=3,
             min_tandem_repeat_length=9,
             debug=False,
-            trf_working_dir=tempfile.mkdtemp(),
+            trf_working_dir=self._trf_working_dir,
             input_vcf_prefix="test",
             trf_executable_path="trf",
             trf_threads=2,
@@ -815,6 +820,8 @@ class TestTRFIntegration(unittest.TestCase):
         fai_path = self._temp_fasta_path + ".fai"
         if os.path.exists(fai_path):
             os.unlink(fai_path)
+        if os.path.exists(self._trf_working_dir):
+            shutil.rmtree(self._trf_working_dir)
 
 
 class TestChromosomeNamingFunctions(unittest.TestCase):
@@ -2762,7 +2769,6 @@ class TestEndToEndGenotyping(unittest.TestCase):
                 if os.path.exists(idx_file):
                     os.unlink(idx_file)
         if self._temp_dir and os.path.exists(self._temp_dir):
-            import shutil
             shutil.rmtree(self._temp_dir)
 
     def _create_temp_file(self, content, suffix, compress=False):
