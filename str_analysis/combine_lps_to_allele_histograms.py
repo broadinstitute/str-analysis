@@ -82,7 +82,7 @@ def main():
     parser.add_argument("--trid-list", help="Optional path of file that lists TRIDs (one per line) to "
                         "include in the output. If not specified, all TRIDs in the input tables will be included.")
     parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
-
+    parser.add_argument("--skip-loci-without-outliers", action="store_true", help="Skip loci with outliers")
     parser.add_argument("input_tables", nargs="+", help="Input TSV files with LPS scores")
 
     args = parser.parse_args()
@@ -188,6 +188,16 @@ def main():
         out_f.write("\t".join(header) + "\n")
         output_row_counter = 0
         for (trid, motif) in sorted(trid_to_short_allele_histogram.keys()):
+            all_allele_outliers = convert_sample_ids_to_string(
+                trid_to_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids)
+            short_allele_outliers = convert_sample_ids_to_string(
+                trid_to_short_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids)
+            hemizygous_allele_outliers = convert_sample_ids_to_string(
+                trid_to_hemizygous_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids)
+
+            if args.skip_loci_without_outliers and not all_allele_outliers and not short_allele_outliers and not hemizygous_allele_outliers:
+                continue
+
             output_row = {
                 "LocusId": trid,
                 "Motif": motif,
@@ -195,12 +205,9 @@ def main():
                 "ShortAlleleHistogram": convert_counts_to_histogram_string(trid_to_short_allele_histogram[(trid, motif)]),
                 "HemizygousAlleleHistogram": convert_counts_to_histogram_string(trid_to_hemizygous_allele_histogram[(trid, motif)]),
 
-                "OutlierSampleIds_AllAlleles": convert_sample_ids_to_string(
-                    trid_to_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids),
-                "OutlierSampleIds_ShortAlleles": convert_sample_ids_to_string(
-                    trid_to_short_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids),
-                "OutlierSampleIds_HemizygousAlleles": convert_sample_ids_to_string(
-                    trid_to_hemizygous_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids),
+                "OutlierSampleIds_AllAlleles": all_allele_outliers,
+                "OutlierSampleIds_ShortAlleles": short_allele_outliers,
+                "OutlierSampleIds_HemizygousAlleles": hemizygous_allele_outliers,
             }
             out_f.write("\t".join(str(output_row[col]) for col in header) + "\n")
             output_row_counter += 1
