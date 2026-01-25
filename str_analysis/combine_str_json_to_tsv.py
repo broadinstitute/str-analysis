@@ -46,7 +46,7 @@ def parse_args(args_list=None):
     p.add_argument("--include-extra-trgt-fields", action="store_true",
         help="If specified, additional fields from TRGT will be added. The input json files are expected to be the "
              "result of running convert_trgt_vcf_to_expansion_hunter_json.")
-    p.add_argument('--trgt-purity-threshold', type=float)
+    p.add_argument("--trgt-purity-threshold", type=float)
 
     p.add_argument("--include-extra-longtr-fields", action="store_true",
         help="If specified, additional fields from LongTR will be added. The input json files are expected to be the "

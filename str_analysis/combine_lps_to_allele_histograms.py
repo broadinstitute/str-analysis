@@ -101,9 +101,6 @@ def main():
             )
         else:
             args.output_path = f"combined.{len(args.input_tables)}_input_tables.lps_allele_histograms.tsv.gz"
-    else:
-        args.output_path = args.output_path
-
     if not args.trid_list:
         trids_to_include = None
     else:
@@ -141,7 +138,7 @@ def main():
                 sample_id = get_lps_filename_prefix(input_table)
 
             print(f"Processing {input_table} with sample {sample_id}")
-            total_line_count = line_count = 0
+            total_line_count = included_line_count = 0
             for line in f:
                 total_line_count += 1
                 fields = line.rstrip().split("\t")
@@ -149,7 +146,7 @@ def main():
                 if trids_to_include is not None and trid not in trids_to_include:
                     continue
 
-                line_count += 1
+                included_line_count += 1
                 motif = fields[1]
                 lps = fields[2]
                 lps_values = [int(v) for v in lps.split(",")]
@@ -170,7 +167,7 @@ def main():
                 if is_hemizygous:
                     update_histograms(trid, motif, short_allele, trid_to_hemizygous_allele_histogram, trid_to_hemizygous_allele_sample_ids, sample_id, args.n_outlier_sample_ids)
 
-            print(f"Processed {line_count:,d} out of {total_line_count:,d} rows from {input_table}")
+            print(f"Processed {included_line_count:,d} out of {total_line_count:,d} rows from {input_table}")
 
 
     print(f"Writing output to {args.output_path}")

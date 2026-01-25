@@ -42,6 +42,13 @@ def parse_args(args_list=None):
                    help="Don't output the per-variant table.")
     p.add_argument("--dont-output-bed-file", action="store_true",
                    help="Don't output the BED file.")
+    p.add_argument("--dont-output-repeat-counts-table", action="store_true",
+                   help="Don't output the repeat counts table.")
+
+    p.add_argument("--min-purity-threshold", type=float,
+                   help="Skip records where the long allele has purity below this threshold (0.0 to 1.0).")
+    p.add_argument("--max-methylation-threshold", type=float,
+                   help="Skip records where the long allele has methylation above this threshold (0.0 to 1.0).")
 
     p.add_argument("-n", "--n-loci", type=int,
                    help="Only process the first N loci from the VCF.")
@@ -225,6 +232,20 @@ def process_vcf_line(line, sample_id, args, sample_metadata_row, variant_columns
     mean_methylation = genotype_dict.get("AM", "").split(",") if genotype_dict.get("AM") else ["", ""]
     spanning_reads = genotype_dict.get("SD", "").split(",") if genotype_dict.get("SD") else ["", ""]
 
+    # Filter by purity threshold (applies to long allele only)
+    if args.min_purity_threshold is not None and allele_purities:
+        purity = allele_purities[-1]  # Alleles are sorted smaller first, so last is longest
+        if purity not in ("", "."):
+            if float(purity) < args.min_purity_threshold:
+                return None, None
+
+    # Filter by methylation threshold (applies to long allele only)
+    if args.max_methylation_threshold is not None and mean_methylation:
+        meth = mean_methylation[-1]  # Alleles are sorted smaller first, so last is longest
+        if meth not in ("", "."):
+            if float(meth) > args.max_methylation_threshold:
+                return None, None
+
     ref_region = f"{chrom}:{start_1based - 1}-{end_1based}"
     allele_count = len(allele_sizes_bp)
 
@@ -384,6 +405,7 @@ def main():
     allele_records_counter = 0
     loci_processed = 0
     bed_file_records = []
+    repeat_counts_records = []  # List of (trid, motif, genotype) tuples
 
     with fopen(args.vcf_path, "rt") as vcf:
         line_iter = vcf
@@ -429,6 +451,15 @@ def main():
                     allele_output_file.write("\t".join(values) + "\n")
                     allele_records_counter += 1
 
+            # Collect repeat counts records
+            if not args.dont_output_repeat_counts_table and variant_rows:
+                for row in variant_rows:
+                    trid = row["VariantId"]
+                    motif = row["RepeatUnit"]
+                    genotype_values = sorted(int(x) for x in row["Genotype"].split("/"))
+                    genotype = ",".join(str(x) for x in genotype_values)
+                    repeat_counts_records.append((trid, motif, genotype))
+
     # Close output files
     if variant_output_file:
         variant_output_file.close()
@@ -447,6 +478,15 @@ def main():
 
     if not args.dont_output_allele_table:
         print(f"Wrote {allele_records_counter:,d} records to {output_prefix}.alleles.tsv.gz")
+
+    # Write repeat counts table
+    if not args.dont_output_repeat_counts_table:
+        repeat_counts_path = f"{output_prefix}.repeat_counts.txt.gz"
+        with gzip.open(repeat_counts_path, "wt") as f:
+            f.write(f"trid\tmotif\t{sample_id}\n")
+            for trid, motif, genotype in repeat_counts_records:
+                f.write(f"{trid}\t{motif}\t{genotype}\n")
+        print(f"Wrote {len(repeat_counts_records):,d} records to {repeat_counts_path}")
 
 
 if __name__ == "__main__":
