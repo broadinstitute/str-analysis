@@ -33,7 +33,7 @@ docker run -it weisburd/str-analysis:latest
 - **call_non_ref_motifs** - Takes a BAM/CRAM file and, optionally, an ExpansionHunter variant catalog. For each locus, determines which STR motifs are supported by reads overlapping that locus before running ExpansionHunter on the detected motif(s). Useful for detecting non-reference pathogenic motifs (e.g., RFC1). ([docs](https://github.com/broadinstitute/str-analysis/blob/main/docs/call_non_ref_motifs.md))
 - **filter_vcf_to_tandem_repeats** - Modern iteration of *filter_vcf_to_STR_variants*. Takes a VCF (single-sample or multi-sample) and filters it to insertions and deletions that represent tandem repeat expansions or contractions. Uses both brute-force k-mer search for perfect repeats and TandemRepeatFinder for imperfect repeats (VNTRs). Separates locus discovery from genotyping for more flexible downstream analysis.
 - **filter_vcf_to_STR_variants** - Original version of the above tool. Takes a single-sample VCF file and filters it to the INS/DEL variants that represent tandem repeat expansions or contractions by performing brute-force k-mer search on each variant's inserted or deleted bases. This tool was a core part of [Weisburd, B., Tiao, G. & Rehm, H. L. Insights from a genome-wide truth set of tandem repeat variation. (2023)](https://www.biorxiv.org/content/10.1101/2023.05.05.539588v1)
-- **parse_motif_composition** - Parses sequences to extract motif frequency counts.
+- **parse_motif_composition** - Simple algorithm that takes a table of motifs known to occur at a particular VNTR or STR locus with motif variability (such as CACNA1C or RFC1), and also takes a BAM/CRAM data file, and then computes the observed frequency of these motifs in the reads aligned to this locus.
 
 ---
 
@@ -62,6 +62,7 @@ docker run -it weisburd/str-analysis:latest
 - **compute_average_genotype_quality_per_sample** - Computes average Q score per sample from a genotype table.
 - **check_combined_results_tsv_for_pathogenic_repeats** - Filters combined results for potential pathogenic expansions at known disease loci.
 - **check_combined_results_tsv_for_genome_wide_repeats** - Filters combined results for potential pathogenic expansions genome-wide.
+- **run_reviewer** - Takes ExpansionHunter output files for a single sample and runs REViewer on the subset of loci where the genotypes exceed locus-specific thresholds specified in the variant catalog.
 
 ---
 
@@ -79,12 +80,11 @@ docker run -it weisburd/str-analysis:latest
 
 ---
 
-## Read Extraction & Visualization
+## Read Extraction
 
 - **make_bamlet** - Optimized version of ExpansionHunterDenovo's make-bamlet.py. For a given STR region, extracts all relevant reads from a BAM or CRAM file into a much smaller BAMlet which can be used as input to ExpansionHunter instead of the full BAM/CRAM but yield the same genotype. Reduces I/O operations for better performance.
 - **make_minicram_for_expansion_hunter** - Extracts minimal CRAM subset needed for ExpansionHunter genotyping.
 - **print_reads** - Extracts reads from CRAM/BAM files overlapping genomic intervals (lightweight alternative to GATK PrintReads).
-- **run_reviewer** - Takes ExpansionHunter output files for a single sample and runs REViewer on the subset of loci where the genotypes exceed locus-specific thresholds specified in the variant catalog.
 
 ---
 
