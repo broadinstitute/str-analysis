@@ -33,6 +33,7 @@ X-264744-264774-AAAG	AAAG	4x:1	4x:1	4x:1	4x:sample1_xy	4x:sample1_xy	4x:sample1_
 import argparse
 import collections
 import gzip
+import json
 import os
 import re
 import tqdm
@@ -304,7 +305,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--n-outlier-sample-ids", type=int, default=10,
                         help="Number of samples with the largest alleles to record as outliers")
-    parser.add_argument("-o", "--output-path", help="Output TSV file")
+    parser.add_argument("-o", "--output-prefix", help="Output TSV and JSON file prefix")
     parser.add_argument("--use-sample-id-from-header", action="store_true", help="Use the sample ID from "
                         "the header of each input table instead of deriving it from the filename prefix")
     parser.add_argument("--trid-list", help="Optional path of file that lists TRIDs (one per line) to "
@@ -323,14 +324,18 @@ def main():
 
 
 
-    if not args.output_path:
+    if not args.output_prefix:
         if len(args.input_tables) == 1:
-            args.output_path = os.path.join(
+            args.output_prefix = os.path.join(
                 os.path.dirname(args.input_tables[0]),
-                f"{get_lps_filename_prefix(args.input_tables[0])}.lps_allele_histograms.tsv.gz",
+                f"{get_lps_filename_prefix(args.input_tables[0])}.lps_allele_histograms",
             )
         else:
-            args.output_path = f"combined.{len(args.input_tables)}_input_tables.lps_allele_histograms.tsv.gz"
+            args.output_prefix = f"combined.{len(args.input_tables)}_input_tables.lps_allele_histograms"
+
+    args.output_path = f"{args.output_prefix}.tsv.gz"
+    args.output_json_path = f"{args.output_prefix}.json.gz"
+
     if not args.trid_list:
         trids_to_include = None
     else:
@@ -408,9 +413,9 @@ def main():
         "OutlierSampleIds_HemizygousAlleles",
     ]
 
-    fopen = gzip.open if args.output_path.endswith("gz") else open
-    with fopen(args.output_path, "wt") as out_f:
+    with gzip.open(args.output_path, "wt") as out_f, gzip.open(args.output_json_path, "wt") as out_f2:
         out_f.write("\t".join(header) + "\n")
+        out_f2.write("[\n")
         output_row_counter = 0
         for (trid, motif) in sorted(trid_to_short_allele_histogram.keys()):
             all_allele_outliers = convert_sample_ids_to_string(
@@ -423,8 +428,23 @@ def main():
             if args.skip_loci_without_outliers and not all_allele_outliers and not short_allele_outliers and not hemizygous_allele_outliers:
                 continue
 
+            # Parse reference region from TRID (format: <chrom>-<start>-<end>-<motif>)
+            trid_parts = trid.split("-")
+            if len(trid_parts) != 4:
+                raise ValueError(f"Unexpected TRID format: {trid}. Expected <chrom>-<start>-<end>-<motif>")
+            chrom, start_0based, end, trid_motif = trid_parts
+            if not start_0based.isdigit() or not end.isdigit():
+                raise ValueError(f"Unexpected TRID format: {trid}. Start and end must be integers")
+            if not re.fullmatch(r"[ACGTN]+", trid_motif):
+                raise ValueError(f"Unexpected TRID format: {trid}. Motif must contain only A, C, G, T")
+            reference_region = f"{chrom}:{start_0based}-{end}"
+
             output_row = {
                 "LocusId": trid,
+                "ReferenceRegion": reference_region,
+                "LocusStructure": f"({motif})*",
+                "VariantType": "Repeat",
+
                 "Motif": motif,
                 "AllAlleleHistogram": convert_counts_to_histogram_string(trid_to_allele_histogram[(trid, motif)]),
                 "ShortAlleleHistogram": convert_counts_to_histogram_string(trid_to_short_allele_histogram[(trid, motif)]),
@@ -435,7 +455,14 @@ def main():
                 "OutlierSampleIds_HemizygousAlleles": hemizygous_allele_outliers,
             }
             out_f.write("\t".join(str(output_row[col]) for col in header) + "\n")
+
+            # Write JSON record
+            if output_row_counter > 0:
+                out_f2.write(",\n")
+            out_f2.write(json.dumps(output_row))
             output_row_counter += 1
+
+        out_f2.write("\n]\n")
 
     print(f"Wrote {output_row_counter:,d} rows to {args.output_path}")
 
