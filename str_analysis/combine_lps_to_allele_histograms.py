@@ -107,7 +107,7 @@ def parse_lps_table(
         included_line_count = 0
         for line in f:
             total_line_count += 1
-            fields = line.rstrip().split("\t")
+            fields = line.rstrip('\n\r').split("\t")
             trid = fields[0]
             if trids_to_include is not None and trid not in trids_to_include:
                 continue
@@ -209,7 +209,7 @@ def parse_combined_lps_allele_histograms_table(
         sample_ids = set()
         for line in f:
             total_line_count += 1
-            fields = line.rstrip().split("\t")
+            fields = line.rstrip('\n\r').split("\t")
             trid = fields[0]
             if trids_to_include is not None and trid not in trids_to_include:
                 continue
@@ -311,6 +311,8 @@ def main():
                         "include in the output. If not specified, all TRIDs in the input tables will be included.")
     parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     parser.add_argument("--skip-loci-without-outliers", action="store_true", help="Skip loci with outliers")
+    parser.add_argument("--allow-overlapping-samples", action="store_true",
+                        help="Allow sample IDs to appear in multiple input tables (will merge their histograms)")
     parser.add_argument("input_tables", nargs="+", help="Input TSV files with LPS scores")
 
     args = parser.parse_args()
@@ -384,9 +386,10 @@ def main():
 
         # Check for overlapping sample IDs
         overlapping_sample_ids = all_seen_sample_ids & table_sample_ids
-        if overlapping_sample_ids:
+        if overlapping_sample_ids and not args.allow_overlapping_samples:
             raise ValueError(f"Input table {input_table} contains sample IDs that were already seen in "
-                           f"previous input tables: {sorted(overlapping_sample_ids)}")
+                           f"previous input tables: {sorted(overlapping_sample_ids)}. "
+                           f"Use --allow-overlapping-samples to merge histograms from overlapping samples.")
         all_seen_sample_ids.update(table_sample_ids)
 
         print(f"Processed {included_line_count:,d} out of {total_line_count:,d} rows from {input_table}")
