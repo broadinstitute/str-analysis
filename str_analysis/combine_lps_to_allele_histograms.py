@@ -56,6 +56,234 @@ def get_lps_filename_prefix(lps_table_path):
     return re.sub("(.lps)?(.txt|.tsv)(.gz)?$", "", os.path.basename(lps_table_path))
 
 
+def parse_lps_table(
+    input_table_path,
+    trids_to_include,
+    n_outlier_sample_ids,
+    trid_to_allele_histogram,
+    trid_to_allele_sample_ids,
+    trid_to_short_allele_histogram,
+    trid_to_short_allele_sample_ids,
+    trid_to_hemizygous_allele_histogram,
+    trid_to_hemizygous_allele_sample_ids,
+    use_sample_id_from_header=False,
+):
+    """Parse an LPS table and update the histogram dictionaries.
+
+    Args:
+        input_table_path: Path to the input LPS table file.
+        trids_to_include: Set of TRIDs to include, or None to include all.
+        n_outlier_sample_ids: Number of outlier sample IDs to track per allele.
+        trid_to_allele_histogram: Dict to update with all allele counts.
+        trid_to_allele_sample_ids: Dict to update with all allele sample IDs.
+        trid_to_short_allele_histogram: Dict to update with short allele counts.
+        trid_to_short_allele_sample_ids: Dict to update with short allele sample IDs.
+        trid_to_hemizygous_allele_histogram: Dict to update with hemizygous allele counts.
+        trid_to_hemizygous_allele_sample_ids: Dict to update with hemizygous allele sample IDs.
+        use_sample_id_from_header: If True, use sample ID from header; otherwise derive from filename.
+
+    Returns:
+        Tuple of (included_line_count, total_line_count, sample_ids) where sample_ids is a set
+        containing the single sample ID from this table.
+
+    Raises:
+        ValueError: If the header format is unexpected.
+    """
+    fopen = gzip.open if input_table_path.endswith("gz") else open
+    with fopen(input_table_path, "rt") as f:
+        header_fields = next(f).rstrip().split("\t")
+        if len(header_fields) < 3 or header_fields[0] != "trid" or header_fields[1] != "motif":
+            raise ValueError(f"Unexpected header in {input_table_path}: {header_fields}. Expecting trid, motif, <sample id>")
+
+        if use_sample_id_from_header:
+            sample_id = header_fields[2]
+        else:
+            sample_id = get_lps_filename_prefix(input_table_path)
+
+        sample_ids = {sample_id}
+        print(f"Processing {input_table_path} with sample {sample_id}")
+
+        total_line_count = 0
+        included_line_count = 0
+        for line in f:
+            total_line_count += 1
+            fields = line.rstrip().split("\t")
+            trid = fields[0]
+            if trids_to_include is not None and trid not in trids_to_include:
+                continue
+
+            included_line_count += 1
+            motif = fields[1]
+            lps = fields[2]
+            lps_values = [int(v) for v in lps.split(",")]
+
+            is_hemizygous = len(lps_values) == 1
+            short_allele = min(lps_values)
+            long_allele = max(lps_values)
+
+            # update trid_to_allele_histogram
+            update_histograms(trid, motif, short_allele, trid_to_allele_histogram, trid_to_allele_sample_ids, sample_id, n_outlier_sample_ids)
+            if not is_hemizygous:
+                update_histograms(trid, motif, long_allele, trid_to_allele_histogram, trid_to_allele_sample_ids, sample_id, n_outlier_sample_ids)
+
+            # update trid_to_short_allele_histogram
+            update_histograms(trid, motif, short_allele, trid_to_short_allele_histogram, trid_to_short_allele_sample_ids, sample_id, n_outlier_sample_ids)
+
+            # update trid_to_hemizygous_allele_histogram
+            if is_hemizygous:
+                update_histograms(trid, motif, short_allele, trid_to_hemizygous_allele_histogram, trid_to_hemizygous_allele_sample_ids, sample_id, n_outlier_sample_ids)
+
+    return included_line_count, total_line_count, sample_ids
+
+
+def parse_histogram_string(histogram_string):
+    """Parse a histogram string like '10x:1,11x:2' into a dict {10: 1, 11: 2}."""
+    if not histogram_string:
+        return {}
+    result = {}
+    for entry in histogram_string.split(","):
+        allele_str, count_str = entry.split("x:")
+        result[int(allele_str)] = int(count_str)
+    return result
+
+
+def parse_sample_ids_string(sample_ids_string):
+    """Parse a sample IDs string like '10x:sample1,11x:sample2' into a dict {10: ['sample1'], 11: ['sample2']}."""
+    if not sample_ids_string:
+        return {}
+    result = {}
+    for entry in sample_ids_string.split(","):
+        allele_str, sample_id = entry.split("x:", 1)
+        allele = int(allele_str)
+        if allele not in result:
+            result[allele] = []
+        result[allele].append(sample_id)
+    return result
+
+
+def parse_combined_lps_allele_histograms_table(
+    input_table_path,
+    trids_to_include,
+    n_outlier_sample_ids,
+    trid_to_allele_histogram,
+    trid_to_allele_sample_ids,
+    trid_to_short_allele_histogram,
+    trid_to_short_allele_sample_ids,
+    trid_to_hemizygous_allele_histogram,
+    trid_to_hemizygous_allele_sample_ids,
+):
+    """Parse a combined LPS allele histograms table and merge into the histogram dictionaries.
+
+    Args:
+        input_table_path: Path to the input allele histograms table file.
+        trids_to_include: Set of TRIDs to include, or None to include all.
+        n_outlier_sample_ids: Number of outlier sample IDs to track per allele.
+        trid_to_allele_histogram: Dict to update with all allele counts.
+        trid_to_allele_sample_ids: Dict to update with all allele sample IDs.
+        trid_to_short_allele_histogram: Dict to update with short allele counts.
+        trid_to_short_allele_sample_ids: Dict to update with short allele sample IDs.
+        trid_to_hemizygous_allele_histogram: Dict to update with hemizygous allele counts.
+        trid_to_hemizygous_allele_sample_ids: Dict to update with hemizygous allele sample IDs.
+
+    Returns:
+        Tuple of (included_line_count, total_line_count, sample_ids) where sample_ids is a set
+        containing all sample IDs found in the outlier columns.
+
+    Raises:
+        ValueError: If the header format is unexpected.
+    """
+    fopen = gzip.open if input_table_path.endswith("gz") else open
+    with fopen(input_table_path, "rt") as f:
+        header_fields = next(f).rstrip().split("\t")
+        expected_header = ["LocusId", "Motif", "AllAlleleHistogram", "ShortAlleleHistogram",
+                          "HemizygousAlleleHistogram", "OutlierSampleIds_AllAlleles",
+                          "OutlierSampleIds_ShortAlleles", "OutlierSampleIds_HemizygousAlleles"]
+        if header_fields != expected_header:
+            raise ValueError(f"Unexpected header in {input_table_path}: {header_fields}. "
+                           f"Expecting {expected_header}")
+
+        print(f"Processing combined histograms table {input_table_path}")
+
+        total_line_count = 0
+        included_line_count = 0
+        sample_ids = set()
+        for line in f:
+            total_line_count += 1
+            fields = line.rstrip().split("\t")
+            trid = fields[0]
+            if trids_to_include is not None and trid not in trids_to_include:
+                continue
+
+            included_line_count += 1
+            motif = fields[1]
+
+            # Parse and merge all allele histogram
+            all_allele_hist = parse_histogram_string(fields[2])
+            for allele, count in all_allele_hist.items():
+                trid_to_allele_histogram[(trid, motif)][allele] += count
+
+            # Parse and merge short allele histogram
+            short_allele_hist = parse_histogram_string(fields[3])
+            for allele, count in short_allele_hist.items():
+                trid_to_short_allele_histogram[(trid, motif)][allele] += count
+
+            # Parse and merge hemizygous allele histogram
+            hemizygous_allele_hist = parse_histogram_string(fields[4])
+            for allele, count in hemizygous_allele_hist.items():
+                trid_to_hemizygous_allele_histogram[(trid, motif)][allele] += count
+
+            # Parse and merge sample IDs (respecting n_outlier_sample_ids limit)
+            all_sample_ids_dict = parse_sample_ids_string(fields[5] if len(fields) > 5 else "")
+            for allele, sample_list in all_sample_ids_dict.items():
+                sample_ids.update(sample_list)
+                existing = trid_to_allele_sample_ids[(trid, motif)][allele]
+                for sample_id in sample_list:
+                    if len(existing) < 2 * n_outlier_sample_ids and sample_id not in existing:
+                        existing.append(sample_id)
+
+            short_sample_ids_dict = parse_sample_ids_string(fields[6] if len(fields) > 6 else "")
+            for allele, sample_list in short_sample_ids_dict.items():
+                sample_ids.update(sample_list)
+                existing = trid_to_short_allele_sample_ids[(trid, motif)][allele]
+                for sample_id in sample_list:
+                    if len(existing) < 2 * n_outlier_sample_ids and sample_id not in existing:
+                        existing.append(sample_id)
+
+            hemizygous_sample_ids_dict = parse_sample_ids_string(fields[7] if len(fields) > 7 else "")
+            for allele, sample_list in hemizygous_sample_ids_dict.items():
+                sample_ids.update(sample_list)
+                existing = trid_to_hemizygous_allele_sample_ids[(trid, motif)][allele]
+                for sample_id in sample_list:
+                    if len(existing) < 2 * n_outlier_sample_ids and sample_id not in existing:
+                        existing.append(sample_id)
+
+    return included_line_count, total_line_count, sample_ids
+
+
+def detect_input_table_type(input_table_path):
+    """Detect whether the input table is an LPS table or a combined histograms table.
+
+    Args:
+        input_table_path: Path to the input table file.
+
+    Returns:
+        'lps' if it's an LPS table, 'histograms' if it's a combined histograms table.
+
+    Raises:
+        ValueError: If the header format is not recognized.
+    """
+    fopen = gzip.open if input_table_path.endswith("gz") else open
+    with fopen(input_table_path, "rt") as f:
+        header_fields = next(f).rstrip().split("\t")
+
+    if len(header_fields) >= 3 and header_fields[0] == "trid" and header_fields[1] == "motif":
+        return "lps"
+    elif header_fields[0] == "LocusId" and header_fields[1] == "Motif":
+        return "histograms"
+    else:
+        raise ValueError(f"Unrecognized header format in {input_table_path}: {header_fields}")
+
+
 def convert_sample_ids_to_string(allele_sample_ids, n_outlier_sample_ids=10):
     output_value = []
     output_sample_id_counter = 0
@@ -76,7 +304,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--n-outlier-sample-ids", type=int, default=10,
                         help="Number of samples with the largest alleles to record as outliers")
-    parser.add_argument("--output-path", help="Output TSV file")
+    parser.add_argument("-o", "--output-path", help="Output TSV file")
     parser.add_argument("--use-sample-id-from-header", action="store_true", help="Use the sample ID from "
                         "the header of each input table instead of deriving it from the filename prefix")
     parser.add_argument("--trid-list", help="Optional path of file that lists TRIDs (one per line) to "
@@ -125,49 +353,43 @@ def main():
     if args.show_progress_bar:
         input_table_iterator = tqdm.tqdm(input_table_iterator, unit=" tables")
 
+    all_seen_sample_ids = set()
     for input_table in input_table_iterator:
-        fopen = gzip.open if input_table.endswith("gz") else open
-        with fopen(input_table, "rt") as f:
-            header_fields = next(f).rstrip().split("\t")
-            if len(header_fields) < 3 or header_fields[0] != "trid" or header_fields[1] != "motif":
-                parser.error(f"Unexpected header in {input_table}: {header_fields}. Expecting trid, motif, <sample id>")
+        table_type = detect_input_table_type(input_table)
+        if table_type == "lps":
+            included_line_count, total_line_count, table_sample_ids = parse_lps_table(
+                input_table,
+                trids_to_include,
+                args.n_outlier_sample_ids,
+                trid_to_allele_histogram,
+                trid_to_allele_sample_ids,
+                trid_to_short_allele_histogram,
+                trid_to_short_allele_sample_ids,
+                trid_to_hemizygous_allele_histogram,
+                trid_to_hemizygous_allele_sample_ids,
+                use_sample_id_from_header=args.use_sample_id_from_header,
+            )
+        else:
+            included_line_count, total_line_count, table_sample_ids = parse_combined_lps_allele_histograms_table(
+                input_table,
+                trids_to_include,
+                args.n_outlier_sample_ids,
+                trid_to_allele_histogram,
+                trid_to_allele_sample_ids,
+                trid_to_short_allele_histogram,
+                trid_to_short_allele_sample_ids,
+                trid_to_hemizygous_allele_histogram,
+                trid_to_hemizygous_allele_sample_ids,
+            )
 
-            if args.use_sample_id_from_header:
-                sample_id = header_fields[2]
-            else:
-                sample_id = get_lps_filename_prefix(input_table)
+        # Check for overlapping sample IDs
+        overlapping_sample_ids = all_seen_sample_ids & table_sample_ids
+        if overlapping_sample_ids:
+            raise ValueError(f"Input table {input_table} contains sample IDs that were already seen in "
+                           f"previous input tables: {sorted(overlapping_sample_ids)}")
+        all_seen_sample_ids.update(table_sample_ids)
 
-            print(f"Processing {input_table} with sample {sample_id}")
-            total_line_count = included_line_count = 0
-            for line in f:
-                total_line_count += 1
-                fields = line.rstrip().split("\t")
-                trid = fields[0]
-                if trids_to_include is not None and trid not in trids_to_include:
-                    continue
-
-                included_line_count += 1
-                motif = fields[1]
-                lps = fields[2]
-                lps_values = [int(v) for v in lps.split(",")]
-
-                is_hemizygous = len(lps_values) == 1
-                short_allele = min(lps_values)
-                long_allele = max(lps_values)
-
-                # update trid_to_allele_histogram
-                update_histograms(trid, motif, short_allele, trid_to_allele_histogram, trid_to_allele_sample_ids, sample_id, args.n_outlier_sample_ids)
-                if not is_hemizygous:
-                    update_histograms(trid, motif, long_allele, trid_to_allele_histogram, trid_to_allele_sample_ids, sample_id, args.n_outlier_sample_ids)
-
-                # update trid_to_short_allele_histogram
-                update_histograms(trid, motif, short_allele, trid_to_short_allele_histogram, trid_to_short_allele_sample_ids, sample_id, args.n_outlier_sample_ids)
-
-                # update trid_to_hemizygous_allele_histogram
-                if is_hemizygous:
-                    update_histograms(trid, motif, short_allele, trid_to_hemizygous_allele_histogram, trid_to_hemizygous_allele_sample_ids, sample_id, args.n_outlier_sample_ids)
-
-            print(f"Processed {included_line_count:,d} out of {total_line_count:,d} rows from {input_table}")
+        print(f"Processed {included_line_count:,d} out of {total_line_count:,d} rows from {input_table}")
 
 
     print(f"Writing output to {args.output_path}")
