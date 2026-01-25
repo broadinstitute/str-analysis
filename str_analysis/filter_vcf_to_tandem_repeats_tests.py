@@ -13,6 +13,7 @@ from unittest import mock
 
 import pyfaidx
 
+from str_analysis.utils.fasta_utils import create_normalize_chrom_function
 from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele, ReferenceTandemRepeat, \
     GenotypedTandemRepeat, \
     DETECTION_MODE_PURE_REPEATS, DETECTION_MODE_ALLOW_INTERRUPTIONS, DETECTION_MODE_TRF, \
@@ -26,7 +27,6 @@ from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele
     detect_tandem_repeats_using_trf, check_if_allele_is_tandem_repeat, \
     check_if_tandem_repeat_allele_failed_filters, compute_repeat_unit_id, are_repeat_units_similar, \
     need_to_reprocess_allele_with_extended_flanking_sequence, \
-    detect_chromosome_naming_convention, normalize_chromosome_name, \
     open_vcf_for_genotyping, get_overlapping_vcf_variants, \
     convert_variants_to_haplotype_sequence, extract_haplotype_sequences_from_vcf, \
     compute_repeat_counts_from_sequence, genotype_single_locus, write_tsv
@@ -856,37 +856,6 @@ class TestTRFIntegration(unittest.TestCase):
             shutil.rmtree(self._trf_working_dir)
 
 
-class TestChromosomeNamingFunctions(unittest.TestCase):
-    """Test chromosome naming detection and normalization functions."""
-
-    def test_normalize_chromosome_name_add_chr_prefix(self):
-        """Test adding chr prefix when target convention is 'chr'."""
-        self.assertEqual(normalize_chromosome_name("1", "chr"), "chr1")
-        self.assertEqual(normalize_chromosome_name("X", "chr"), "chrX")
-        self.assertEqual(normalize_chromosome_name("22", "chr"), "chr22")
-
-    def test_normalize_chromosome_name_already_has_chr(self):
-        """Test chromosome name that already has chr prefix."""
-        self.assertEqual(normalize_chromosome_name("chr1", "chr"), "chr1")
-        self.assertEqual(normalize_chromosome_name("chrX", "chr"), "chrX")
-
-    def test_normalize_chromosome_name_remove_chr_prefix(self):
-        """Test removing chr prefix when target convention is 'no_chr'."""
-        self.assertEqual(normalize_chromosome_name("chr1", "no_chr"), "1")
-        self.assertEqual(normalize_chromosome_name("chrX", "no_chr"), "X")
-        self.assertEqual(normalize_chromosome_name("chr22", "no_chr"), "22")
-
-    def test_normalize_chromosome_name_no_chr_already(self):
-        """Test chromosome name that already doesn't have chr prefix."""
-        self.assertEqual(normalize_chromosome_name("1", "no_chr"), "1")
-        self.assertEqual(normalize_chromosome_name("X", "no_chr"), "X")
-
-    def test_normalize_chromosome_name_unknown_convention(self):
-        """Test normalization with unknown convention returns as-is."""
-        self.assertEqual(normalize_chromosome_name("chr1", None), "chr1")
-        self.assertEqual(normalize_chromosome_name("1", None), "1")
-
-
 class TestVCFFunctions(unittest.TestCase):
     """Test VCF-related functions for genotyping."""
 
@@ -917,9 +886,12 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
 """
         vcf_path = self._create_temp_vcf(vcf_content)
         try:
-            vcf_file, sample_name, chrom_convention = open_vcf_for_genotyping(vcf_path)
+            vcf_file, sample_name, normalize_chrom = open_vcf_for_genotyping(vcf_path)
             self.assertEqual(sample_name, "SAMPLE1")
-            self.assertEqual(chrom_convention, "chr")
+            # Verify normalize_chrom is callable and normalizes correctly for chr prefix VCF
+            self.assertTrue(callable(normalize_chrom))
+            self.assertEqual(normalize_chrom("1"), "chr1")
+            self.assertEqual(normalize_chrom("chr1"), "chr1")
             vcf_file.close()
         finally:
             os.unlink(vcf_path)
@@ -934,8 +906,11 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
 """
         vcf_path = self._create_temp_vcf(vcf_content)
         try:
-            vcf_file, sample_name, chrom_convention = open_vcf_for_genotyping(vcf_path)
-            self.assertEqual(chrom_convention, "no_chr")
+            vcf_file, sample_name, normalize_chrom = open_vcf_for_genotyping(vcf_path)
+            # Verify normalize_chrom is callable and normalizes correctly for no-chr VCF
+            self.assertTrue(callable(normalize_chrom))
+            self.assertEqual(normalize_chrom("chr1"), "1")
+            self.assertEqual(normalize_chrom("1"), "1")
             vcf_file.close()
         finally:
             os.unlink(vcf_path)
@@ -983,7 +958,7 @@ chr1\t2000\t.\tC\tCA\t.\tPASS\t.\tGT\t0/1
 
             # Fetch variants overlapping region 990-1060 (should get 2 variants)
             variants, has_multiallelic = get_overlapping_vcf_variants(
-                vcf_file, "chr1", 990, 1060, vcf_chrom_convention="chr"
+                vcf_file, "chr1", 990, 1060, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True)
             )
 
             self.assertEqual(len(variants), 2)
@@ -1022,7 +997,7 @@ chr1\t1000\t.\tA\tAT,ATT,ATTT\t.\tPASS\t.\tGT\t1/2
             vcf_file = pysam.VariantFile(vcf_gz_path)
 
             variants, has_multiallelic = get_overlapping_vcf_variants(
-                vcf_file, "chr1", 990, 1010, vcf_chrom_convention="chr"
+                vcf_file, "chr1", 990, 1010, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True)
             )
 
             self.assertEqual(len(variants), 1)
@@ -1058,7 +1033,7 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
 
             # Fetch from region that has no variants
             variants, has_multiallelic = get_overlapping_vcf_variants(
-                vcf_file, "chr1", 2000, 3000, vcf_chrom_convention="chr"
+                vcf_file, "chr1", 2000, 3000, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True)
             )
 
             self.assertEqual(len(variants), 0)
@@ -1094,7 +1069,7 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
 
             # Fetch from chromosome not in VCF
             variants, has_multiallelic = get_overlapping_vcf_variants(
-                vcf_file, "chr2", 1000, 2000, vcf_chrom_convention="chr"
+                vcf_file, "chr2", 1000, 2000, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True)
             )
 
             self.assertEqual(len(variants), 0)
@@ -1130,7 +1105,7 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
 
             # Query using chr1 but VCF has "1" - should normalize correctly
             variants, has_multiallelic = get_overlapping_vcf_variants(
-                vcf_file, "chr1", 990, 1010, vcf_chrom_convention="no_chr"
+                vcf_file, "chr1", 990, 1010, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=False)
             )
 
             self.assertEqual(len(variants), 1)
@@ -2127,7 +2102,7 @@ chr1\t4\t.\tC\tCCAG\t.\tPASS\t.\tGT\t1|1
         vcf_file = pysam.VariantFile(vcf_gz_path)
 
         try:
-            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, vcf_chrom_convention="chr")
+            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
 
             # Both alleles should have 5 repeats (reference 4 + insertion 1)
             self.assertEqual(result.zygosity, "HOM")
@@ -2180,7 +2155,7 @@ chr1\t4\t.\tCAGC\tC\t.\tPASS\t.\tGT\t0|1
         vcf_file = pysam.VariantFile(vcf_gz_path)
 
         try:
-            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, vcf_chrom_convention="chr")
+            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
 
             # Haplotype 0: reference = 4 repeats
             # Haplotype 1: deletion = 3 repeats (9bp)
@@ -2226,7 +2201,7 @@ chr1\t1\t.\tA\tT\t.\tPASS\t.\tGT\t0|1
         vcf_file = pysam.VariantFile(vcf_gz_path)
 
         try:
-            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, vcf_chrom_convention="chr")
+            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
 
             self.assertEqual(result.zygosity, "HOM")
             self.assertEqual(result.num_repeats_allele1, 4)
@@ -2271,7 +2246,7 @@ chr1\t10\t.\tC\tCCAG\t.\tPASS\t.\tGT\t0|1
         vcf_file = pysam.VariantFile(vcf_gz_path)
 
         try:
-            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, vcf_chrom_convention="chr")
+            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
 
             # Both haplotypes get one insertion, so both have 6 repeats
             self.assertEqual(result.zygosity, "HOM")
@@ -2312,7 +2287,7 @@ chr1\t4\t.\tC\tCCAG\t.\tPASS\t.\tGT\t./.
         vcf_file = pysam.VariantFile(vcf_gz_path)
 
         try:
-            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, vcf_chrom_convention="chr")
+            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
 
             # Both haplotypes should be None (missing)
             self.assertIsNone(result.allele1_sequence)
@@ -2357,7 +2332,7 @@ chr1\t7\t.\tC\tT\t.\tPASS\t.\tGT\t0/1
         vcf_file = pysam.VariantFile(vcf_gz_path)
 
         try:
-            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, vcf_chrom_convention="chr")
+            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
 
             # Should be missing due to unphased multiple variants
             self.assertIsNone(result.zygosity)
@@ -2403,7 +2378,7 @@ chr1\t4\t.\tC\tCCAG,CCAGCAG\t.\tPASS\t.\tGT\t1/2
         vcf_file = pysam.VariantFile(vcf_gz_path)
 
         try:
-            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, vcf_chrom_convention="chr")
+            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
 
             # Should be missing due to multi-allelic variant
             self.assertIsNone(result.zygosity)
@@ -2451,7 +2426,7 @@ chr1\t3\t.\tGGC\tGC\t.\tPASS\t.\tGT\t0|1
         vcf_file = pysam.VariantFile(vcf_gz_path)
 
         try:
-            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, vcf_chrom_convention="chr")
+            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
 
             # Haplotype 0 should be reference
             self.assertEqual(result.allele1_sequence, "CAGCAGCAGCAG")
@@ -2497,7 +2472,7 @@ chr1\t3\t.\tGGC\tGC\t.\tPASS\t.\tGT\t0|1
         vcf_file = pysam.VariantFile(vcf_gz_path)
 
         try:
-            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, vcf_chrom_convention="no_chr")
+            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=False))
 
             # Should successfully genotype despite naming mismatch
             self.assertEqual(result.zygosity, "HET")
@@ -2537,7 +2512,7 @@ chr1\t4\t.\tC\tCCAG\t.\tPASS\t.\tGT\t.|1
         vcf_file = pysam.VariantFile(vcf_gz_path)
 
         try:
-            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, vcf_chrom_convention="chr")
+            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
 
             # Should be HEMI with one allele present
             self.assertEqual(result.zygosity, "HEMI")
@@ -2580,7 +2555,7 @@ chr1\t7\t.\tC\tT\t.\tPASS\t.\tGT\t0|1
         vcf_file = pysam.VariantFile(vcf_gz_path)
 
         try:
-            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, vcf_chrom_convention="chr")
+            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
 
             # Allele 1 (reference) should be pure
             self.assertIsNotNone(result.allele1_purity)
@@ -2625,7 +2600,7 @@ chr1\t4\t.\tC\tCCAG\t.\tPASS\t.\tGT\t0|1
         vcf_file = pysam.VariantFile(vcf_gz_path)
 
         try:
-            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, vcf_chrom_convention="chr")
+            result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
             tsv_dict = result.to_tsv_dict()
 
             # Check required columns are present
@@ -2982,7 +2957,7 @@ chr1\t619\t.\tC\tCAG\t.\tPASS\t.\tGT\t0|1
             show_progress_bar=False,
             write_vcf=False,
             write_json=False,
-            add_motif_counts=None,
+            add_motif_composition=None,
             trf_executable_path=None,
         )
 
@@ -3143,7 +3118,7 @@ chr1\t51\t.\tC\tCCAGCAG\t.\tPASS\t.\tGT\t0|1
             show_progress_bar=False,
             write_vcf=False,
             write_json=True,  # Enable JSON output
-            add_motif_counts=None,
+            add_motif_composition=None,
             trf_executable_path=None,
         )
 
@@ -3183,7 +3158,7 @@ chr1\t51\t.\tC\tCCAGCAG\t.\tPASS\t.\tGT\t0|1
         """Test JSON output with basic motif counting enabled.
 
         Verifies that motif counts are correctly computed when
-        --add-motif-counts basic is specified.
+        --add-motif-composition basic is specified.
         """
         import pyfaidx
         import gzip
@@ -3225,7 +3200,7 @@ chr1\t1\t.\tA\tT\t.\tPASS\t.\tGT\t0|0
             show_progress_bar=False,
             write_vcf=False,
             write_json=True,
-            add_motif_counts="basic",  # Enable basic motif counting
+            add_motif_composition="basic",  # Enable basic motif counting
             trf_executable_path=None,
         )
 
@@ -3293,7 +3268,7 @@ chr1\t34\t.\tC\tT\t.\tPASS\t.\tGT\t0/1
             show_progress_bar=False,
             write_vcf=False,
             write_json=False,
-            add_motif_counts=None,
+            add_motif_composition=None,
             trf_executable_path=None,
         )
 

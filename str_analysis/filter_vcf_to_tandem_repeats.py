@@ -57,6 +57,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pprint import pformat
 
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
+from str_analysis.utils.fasta_utils import create_normalize_chrom_function
 from str_analysis.utils.find_repeat_unit import find_repeat_unit_allowing_interruptions
 from str_analysis.utils.find_repeat_unit import find_repeat_unit_without_allowing_interruptions
 from str_analysis.utils.find_repeat_unit import extend_repeat_into_sequence_allowing_interruptions
@@ -122,7 +123,7 @@ GENOTYPE_TSV_OUTPUT_COLUMNS = [
     "NumRepeatsLongAllele",
     "RepeatSizeShortAlleleBp",
     "RepeatSizeLongAlleleBp",
-    "Zygosity",        # HOM, HET, or HEMI (see Design Decisions #2, #13)
+    "Zygosity",        # HOM, HET, or HEMI
     "IsPureRepeat",
     "RepeatPurity",
     "Allele1Sequence",
@@ -228,14 +229,13 @@ def parse_args():
     genotype_p.add_argument("--show-progress-bar", help="Show a progress bar in the terminal when processing variants.", action="store_true")
     genotype_p.add_argument("--write-vcf", help="Output a VCF file with the subset of variants that contributed to TR genotyping.", action="store_true")
     genotype_p.add_argument("--write-json", help="Output a JSON file containing all genotyped TR loci.", action="store_true")
-    genotype_p.add_argument("--add-motif-counts", choices=["basic", "trf"],
+    genotype_p.add_argument("--add-motif-composition", choices=["basic", "trf"],
                             help="Add motif composition to JSON output. 'basic' splits sequence into motif-sized chunks, "
                             "'trf' uses TandemRepeatsFinder for accurate detection. Requires --write-json.")
     genotype_p.add_argument("--trf-executable-path", help="Path to the TandemRepeatsFinder (TRF) executable. "
-                            "Required if --add-motif-counts trf is specified.")
-    genotype_p.add_argument("--min-overlapping-variants", type=int, default=0,
-                            help="Only output TR loci that have at least this many overlapping variants. "
-                            "Default is 0, which outputs all loci including reference-only genotypes.")
+                            "Required if --add-motif-composition trf is specified.")
+    genotype_p.add_argument("--skip-hom-ref-loci", action="store_true",
+                            help="Skip loci that have no overlapping variants (i.e., homozygous reference loci) and don't include them in the output.")
     genotype_p.add_argument("input_vcf_path", help="Input VCF single-sample VCF file containing variant genotypes from which to compute the TR genotypes.")
 
     args = p.parse_args()
@@ -251,10 +251,10 @@ def parse_args():
             args.copy_info_field_keys_to_tsv = {key: 0 for key in args.copy_info_field_keys_to_tsv}
         
     if args.subcommand == "genotype":
-        if args.add_motif_counts and not args.write_json:
-            p.error("--add-motif-counts requires --write-json to be specified")
-        if args.add_motif_counts == "trf" and not args.trf_executable_path:
-            p.error("--add-motif-counts trf requires --trf-executable-path to be specified")
+        if args.add_motif_composition and not args.write_json:
+            p.error("--add-motif-composition requires --write-json to be specified")
+        if args.add_motif_composition == "trf" and not args.trf_executable_path:
+            p.error("--add-motif-composition trf requires --trf-executable-path to be specified")
 
     if args.subcommand == "catalog" or args.subcommand == "genotype":
         args.input_vcf_prefix = re.sub(".vcf(.gz|.bgz)?$", "", os.path.basename(args.input_vcf_path))
@@ -812,7 +812,6 @@ class ReferenceTandemRepeat:
         self._detection_mode = detection_mode
 
         self._canonical_repeat_unit = None
-        self._repeat_sequence = None
         self._summary_string = None
 
     @property
@@ -1213,7 +1212,7 @@ class GenotypedTandemRepeat:
             "RepeatSizeLongAlleleBp": self.repeat_size_long_allele_bp,
             "Zygosity": self.zygosity,
             "IsPureRepeat": self.is_pure_repeat,
-            "RepeatPurity": round(self.repeat_purity, 4) if self.repeat_purity is not None else None,
+            "RepeatPurity": round(self.repeat_purity, 3) if self.repeat_purity is not None else None,
             "Allele1Sequence": self.allele1_sequence,
             "Allele2Sequence": self.allele2_sequence,
             "NumOverlappingVariants": self.num_overlapping_variants,
@@ -1286,15 +1285,23 @@ def parse_catalog_bed_file(catalog_bed_path, intervals=None, verbose=False):
         input_files_to_close.append(bed_iterator)
 
     # Parse the BED file into a list of ReferenceTandemRepeat objects
-    for line in bed_iterator:
+    for line_num, line in enumerate(bed_iterator, start=1):
         fields = line.strip().split("\t")
         if len(fields) < 4:
-            raise ValueError(f"Invalid BED file format in {catalog_bed_path}: expected at least 4 columns, got {len(fields)}: {line}")
+            raise ValueError(f"Invalid BED file format in {catalog_bed_path} on line {line_num}: "
+                           f"expected at least 4 columns, got {len(fields)}: {line.strip()}")
 
         # The name field may contain additional info after the motif, separated by ":"
         # e.g., "CAG:3bp:19.0x:pure_repeats" - we only need the first token (motif)
         name_field_tokens = fields[3].split(":")
-        repeat_unit = name_field_tokens[0]
+        repeat_unit = name_field_tokens[0].upper()
+
+        # Validate that repeat_unit contains only valid DNA bases
+        invalid_bases = set(repeat_unit) - DNA_BASES
+        if invalid_bases:
+            raise ValueError(f"Invalid repeat unit in {catalog_bed_path} on line {line_num}: "
+                           f"'{repeat_unit}' contains non-DNA characters {invalid_bases}. "
+                           f"Line contents: {line.strip()}")
 
         # Use the motif exactly as specified in the catalog - do NOT simplify
         # This preserves the original annotation and avoids confusion
@@ -1315,86 +1322,21 @@ def parse_catalog_bed_file(catalog_bed_path, intervals=None, verbose=False):
     return tr_loci
 
 
-def detect_chromosome_naming_convention(file_obj, file_type="vcf"):
-    """Detect whether chromosome names use 'chr' prefix or not.
-
-    Args:
-        file_obj: A pysam.VariantFile, pyfaidx.Fasta, or pysam.TabixFile object
-        file_type (str): Type of file: 'vcf', 'fasta', or 'bed'
-
-    Returns:
-        str: 'chr' if chromosomes use chr prefix (e.g., 'chr1'),
-             'no_chr' if chromosomes don't use chr prefix (e.g., '1'),
-             None if unable to determine
-    """
-    try:
-        if file_type == "vcf":
-            # Get chromosome names from VCF header
-            chroms = list(file_obj.header.contigs)
-        elif file_type == "fasta":
-            # Get chromosome names from fasta index
-            chroms = list(file_obj.keys())
-        elif file_type == "bed":
-            # For TabixFile, get contigs from index
-            chroms = list(file_obj.contigs)
-        else:
-            return None
-
-        if not chroms:
-            return None
-
-        # Check first few chromosomes
-        has_chr_prefix = any(c.startswith("chr") for c in chroms[:10])
-        has_no_chr_prefix = any(c in ("1", "2", "3", "X", "Y") for c in chroms[:10])
-
-        if has_chr_prefix:
-            return "chr"
-        elif has_no_chr_prefix:
-            return "no_chr"
-        return None
-    except Exception:
-        return None
-
-
-def normalize_chromosome_name(chrom, target_convention):
-    """Normalize a chromosome name to match the target naming convention.
-
-    Args:
-        chrom (str): Chromosome name to normalize
-        target_convention (str): Target convention - 'chr' or 'no_chr'
-
-    Returns:
-        str: Normalized chromosome name
-    """
-    if target_convention == "chr":
-        # Add chr prefix if not present
-        if not chrom.startswith("chr"):
-            return "chr" + chrom
-        return chrom
-    elif target_convention == "no_chr":
-        # Remove chr prefix if present
-        if chrom.startswith("chr"):
-            return chrom[3:]
-        return chrom
-    # If convention unknown, return as-is
-    return chrom
-
-
 def open_vcf_for_genotyping(vcf_path):
     """Open a VCF file for genotyping and validate it's single-sample.
 
     This function opens the VCF file, validates that it contains exactly one
-    sample (as required for genotyping), and detects the chromosome naming
-    convention for later normalization.
+    sample (as required for genotyping), and creates a chromosome name
+    normalization function based on the VCF's naming convention.
 
     Args:
         vcf_path (str): Path to the VCF file (can be .gz/.bgz compressed)
 
     Returns:
-        tuple: (pysam.VariantFile, str, str) containing:
+        tuple: (pysam.VariantFile, str, function) containing:
             - The opened VCF file object
             - The sample name
-            - Chromosome naming convention ('chr' or 'no_chr')
+            - A function to normalize chromosome names to match VCF convention
 
     Raises:
         ValueError: If the VCF is not a single-sample VCF
@@ -1417,13 +1359,15 @@ def open_vcf_for_genotyping(vcf_path):
 
     sample_name = sample_names[0]
 
-    # Detect chromosome naming convention
-    chrom_convention = detect_chromosome_naming_convention(vcf_file, file_type="vcf")
+    # Create chromosome normalization function based on VCF naming convention
+    vcf_chroms = list(vcf_file.header.contigs)
+    has_chr_prefix = any(c.startswith("chr") for c in vcf_chroms[:10]) if vcf_chroms else False
+    normalize_chrom = create_normalize_chrom_function(has_chr_prefix)
 
-    return vcf_file, sample_name, chrom_convention
+    return vcf_file, sample_name, normalize_chrom
 
 
-def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, vcf_chrom_convention=None):
+def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, normalize_chrom=None):
     """Fetch VCF variants that overlap a genomic interval.
 
     This function retrieves all VCF variant records that overlap the specified
@@ -1435,8 +1379,8 @@ def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, vcf_chrom_c
         chrom (str): Chromosome name
         start_0based (int): Start position (0-based, inclusive)
         end (int): End position (0-based, exclusive / 1-based inclusive)
-        vcf_chrom_convention (str): Chromosome naming convention of VCF ('chr' or 'no_chr').
-            If provided, chromosome names will be normalized to match.
+        normalize_chrom (function): Function to normalize chromosome names to match
+            the VCF naming convention. If provided, will be called on chrom.
 
     Returns:
         tuple: (list, bool) containing:
@@ -1449,10 +1393,7 @@ def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, vcf_chrom_c
         including variants whose POS is before start_0based but whose REF allele
         extends into the locus. This is handled by the tabix index.
     """
-    # Normalize chromosome name if convention is known
-    fetch_chrom = chrom
-    if vcf_chrom_convention:
-        fetch_chrom = normalize_chromosome_name(chrom, vcf_chrom_convention)
+    fetch_chrom = normalize_chrom(chrom) if normalize_chrom else chrom
 
     try:
         # pysam fetch uses 0-based half-open coordinates
@@ -1875,7 +1816,7 @@ def compute_repeat_counts_from_sequence(sequence, repeat_unit):
     }
 
 
-def genotype_single_locus(tr_locus, vcf_file, fasta_obj, vcf_chrom_convention=None, verbose=False):
+def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, verbose=False):
     """Genotype a single tandem repeat locus using VCF variants.
 
     This function takes a TR locus from a catalog, fetches any overlapping VCF variants,
@@ -1886,8 +1827,8 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, vcf_chrom_convention=No
         tr_locus (ReferenceTandemRepeat): The tandem repeat locus from the catalog
         vcf_file (pysam.VariantFile): An open pysam VariantFile object for fetching variants
         fasta_obj (pyfaidx.Fasta): Reference genome fasta object (with one_based_attributes=False)
-        vcf_chrom_convention (str): Chromosome naming convention of VCF ('chr' or 'no_chr').
-            If provided, chromosome names will be normalized to match.
+        normalize_chrom (function): Function to normalize chromosome names to match
+            the VCF naming convention. If provided, will be called on chromosome names.
         verbose (bool): If True, print detailed output for debugging
 
     Returns:
@@ -1915,7 +1856,7 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, vcf_chrom_convention=No
     # Fetch overlapping VCF variants
     variants, has_multiallelic = get_overlapping_vcf_variants(
         vcf_file, chrom, start_0based, end,
-        vcf_chrom_convention=vcf_chrom_convention
+        normalize_chrom=normalize_chrom
     )
 
     if verbose:
@@ -2008,11 +1949,10 @@ def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
     show_progress_bar = getattr(args, 'show_progress_bar', False)
 
     # Open VCF file once for all loci
-    vcf_file, sample_name, vcf_chrom_convention = open_vcf_for_genotyping(vcf_path)
+    vcf_file, sample_name, normalize_chrom = open_vcf_for_genotyping(vcf_path)
 
     if verbose:
         print(f"Genotyping {len(catalog_loci):,d} TR loci using variants from sample: {sample_name}")
-        print(f"VCF chromosome naming convention: {vcf_chrom_convention}")
 
     # Initialize counters for statistics
     counters = collections.defaultdict(int)
@@ -2030,7 +1970,7 @@ def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
             tr_locus,
             vcf_file,
             fasta_obj,
-            vcf_chrom_convention=vcf_chrom_convention,
+            normalize_chrom=normalize_chrom,
             verbose=verbose,
         )
         genotyped_loci.append(genotyped)
@@ -2936,11 +2876,16 @@ def write_tsv(tandem_repeat_alleles, args):
         
         for tandem_repeat_allele in tandem_repeat_alleles:
             # Handle ReferenceTandemRepeat objects which lack some TandemRepeatAllele properties
-            ins_or_del = getattr(tandem_repeat_allele, 'ins_or_del', "") if hasattr(tandem_repeat_allele, 'ins_or_del') else ""
-            allele = getattr(tandem_repeat_allele, 'allele', None) if hasattr(tandem_repeat_allele, 'allele') else None
-            vcf_pos = allele.pos if allele is not None else ""
-            is_pure_repeat = tandem_repeat_allele.is_pure_repeat if hasattr(tandem_repeat_allele, 'is_pure_repeat') else ""
-            info_field_dict = tandem_repeat_allele.info_field_dict if hasattr(tandem_repeat_allele, 'info_field_dict') else {}
+            if isinstance(tandem_repeat_allele, ReferenceTandemRepeat):
+                ins_or_del = ""
+                vcf_pos = ""
+                is_pure_repeat = ""
+                info_field_dict = {}
+            else:
+                ins_or_del = tandem_repeat_allele.ins_or_del
+                vcf_pos = tandem_repeat_allele.allele.pos
+                is_pure_repeat = tandem_repeat_allele.is_pure_repeat
+                info_field_dict = tandem_repeat_allele.info_field_dict
 
             output_row = [
                 tandem_repeat_allele.chrom,
@@ -3191,13 +3136,22 @@ def do_merge_subcommand(args):
 
         # parse the BED file into a list of ReferenceTandemRepeat objects
         current_catalog_trs = []
-        for line in bed_iterator:
+        for line_num, line in enumerate(bed_iterator, start=1):
             fields = line.strip().split("\t")
             if len(fields) < 4:
-                raise ValueError(f"Invalid BED file format in {input_bed_path}: {line}")
-            
+                raise ValueError(f"Invalid BED file format in {input_bed_path} on line {line_num}: "
+                               f"expected at least 4 columns, got {len(fields)}: {line.strip()}")
+
             name_field_tokens = fields[3].split(":")
-            repeat_unit = name_field_tokens[0]
+            repeat_unit = name_field_tokens[0].upper()
+
+            # Validate that repeat_unit contains only valid DNA bases
+            invalid_bases = set(repeat_unit) - DNA_BASES
+            if invalid_bases:
+                raise ValueError(f"Invalid repeat unit in {input_bed_path} on line {line_num}: "
+                               f"'{repeat_unit}' contains non-DNA characters {invalid_bases}. "
+                               f"Line contents: {line.strip()}")
+
             detection_mode = None
             if args.write_detailed_bed and len(name_field_tokens) >= 3:
                 #motif_size = int(name_field_tokens[1])
@@ -3298,22 +3252,20 @@ def write_genotypes_tsv(genotyped_loci, args):
         args (argparse.Namespace): Command-line arguments. Must have:
             - output_prefix (str): Prefix for output file path
             - verbose (bool): If True, print detailed output
-            - min_overlapping_variants (int): Minimum number of overlapping variants
-                required to include a locus in the output. Default is 0.
+            - skip_hom_ref_loci (bool): If True, skip loci with no overlapping variants.
 
     Returns:
         str: Path to the output TSV file
     """
-    # Get min_overlapping_variants with default of 0
-    min_overlapping_variants = getattr(args, 'min_overlapping_variants', 0)
+    # Get skip_hom_ref_loci with default of False
+    skip_hom_ref_loci = getattr(args, 'skip_hom_ref_loci', False)
 
-    # Filter loci based on min_overlapping_variants
-    if min_overlapping_variants > 0:
+    # Filter loci based on skip_hom_ref_loci
+    if skip_hom_ref_loci:
         filtered_loci = [locus for locus in genotyped_loci
-                         if locus.num_overlapping_variants >= min_overlapping_variants]
+                         if locus.num_overlapping_variants > 0]
         if args.verbose:
-            print(f"Filtered {len(genotyped_loci) - len(filtered_loci):,d} loci with "
-                  f"< {min_overlapping_variants} overlapping variants")
+            print(f"Skipped {len(genotyped_loci) - len(filtered_loci):,d} homozygous reference loci")
     else:
         filtered_loci = genotyped_loci
 
@@ -3370,15 +3322,21 @@ def compute_motif_counts_basic(sequence, motif_size):
     return dict(counts)
 
 
-def compute_motif_counts_with_trf(genotyped_loci, trf_executable_path, verbose=False):
+def compute_motif_counts_with_trf(genotyped_loci, trf_executable_path, min_allele_length_for_trf=12, verbose=False):
     """Compute motif counts for all alleles using TandemRepeatsFinder.
 
-    This function runs TRF on all allele sequences in a batched approach,
-    writing all sequences to a single FASTA file and running TRF once.
+    This function runs TRF on allele sequences that are long enough to benefit
+    from TRF analysis. Shorter sequences fall back on the basic method.
+
+    The threshold for using TRF is: sequence length >= max(12bp, 2 * motif_size).
+    This ensures TRF has enough sequence to work with (at least 2 repeats).
 
     Args:
         genotyped_loci (list): List of GenotypedTandemRepeat objects
         trf_executable_path (str): Path to the TRF executable
+        min_allele_length_for_trf (int): Minimum allele sequence length to use TRF.
+            Sequences shorter than max(min_allele_length_for_trf, 2 * motif_size)
+            fall back to basic chunking. Default is 12.
         verbose (bool): If True, print progress information
 
     Returns:
@@ -3391,55 +3349,57 @@ def compute_motif_counts_with_trf(genotyped_loci, trf_executable_path, verbose=F
                 }
             }
     """
+    results = collections.defaultdict(dict)
+
+    # Separate alleles into TRF vs basic based on sequence length
+    # Use TRF if sequence length >= max(12bp, 2 * motif_size)
+    sequences_for_trf = []  # (seq_id, sequence)
+    for locus in genotyped_loci:
+        for allele_key, sequence in [("allele1", locus.allele1_sequence), ("allele2", locus.allele2_sequence)]:
+            if not sequence:
+                continue
+
+            if len(sequence) >= max(min_allele_length_for_trf, 2 * locus.motif_size):
+                sequences_for_trf.append((f"{locus.locus_id}${allele_key}", sequence))
+            else:
+                results[locus.locus_id][allele_key] = compute_motif_counts_basic(sequence, locus.motif_size)
+
+    # If no sequences need TRF, return early
+    if not sequences_for_trf:
+        return results
+
     # Create TRFRunner with html_mode=True to get individual motif copies
     trf_runner = TRFRunner(
         trf_executable_path,
         html_mode=True,
     )
 
-    # Collect all sequences that need motif counting
-    # Use format: locus_id$allele1 or locus_id$allele2
-    sequences_to_analyze = []
-    for locus in genotyped_loci:
-        if locus.allele1_sequence:
-            sequences_to_analyze.append((f"{locus.locus_id}$allele1", locus.allele1_sequence))
-        if locus.allele2_sequence:
-            sequences_to_analyze.append((f"{locus.locus_id}$allele2", locus.allele2_sequence))
-
-    if not sequences_to_analyze:
-        return {}
-
     if verbose:
-        print(f"Running TRF on {len(sequences_to_analyze)} allele sequences...")
+        print(f"Running TRF on {len(sequences_for_trf)} allele sequences...")
 
     # Write all sequences to a temp FASTA file
     with tempfile.NamedTemporaryFile(mode="w", suffix=".fasta", delete=False) as temp_fasta:
         temp_fasta_path = temp_fasta.name
-        for seq_id, sequence in sequences_to_analyze:
+        for seq_id, sequence in sequences_for_trf:
             temp_fasta.write(f">{seq_id}\n")
             temp_fasta.write(f"{sequence}\n")
 
     try:
         # Determine max period based on longest sequence
-        max_seq_len = max(len(seq) for _, seq in sequences_to_analyze)
+        max_seq_len = max(len(seq) for _, seq in sequences_for_trf)
         max_period = max(1, min(max_seq_len // 2, 2000))
 
         # Run TRF once on the entire FASTA
         trf_runner.run_trf_on_fasta_file(temp_fasta_path, max_period=max_period)
 
         # Parse results for each sequence
-        results = {}
-        total_sequences = len(sequences_to_analyze)
+        total_sequences = len(sequences_for_trf)
 
-        for seq_idx, (seq_id, _) in enumerate(sequences_to_analyze, start=1):
+        for seq_idx, (seq_id, _) in enumerate(sequences_for_trf, start=1):
             # Parse the locus_id and allele from the sequence ID
             parts = seq_id.rsplit("$", 1)
             locus_id = parts[0]
             allele_key = parts[1]  # "allele1" or "allele2"
-
-            # Initialize result dict for this locus if needed
-            if locus_id not in results:
-                results[locus_id] = {}
 
             # Parse TRF HTML results for this sequence
             trf_records = trf_runner.parse_html_results(
@@ -3495,24 +3455,22 @@ def write_genotypes_json(genotyped_loci, args):
         args (argparse.Namespace): Command-line arguments. Must have:
             - output_prefix (str): Prefix for output file path
             - verbose (bool): If True, print detailed output
-            - add_motif_counts (str or None): If "basic" or "trf", compute and
-                include motif counts in the output
-            - min_overlapping_variants (int): Minimum number of overlapping variants
-                required to include a locus in the output. Default is 0.
+            - add_motif_composition (str or None): If "basic" or "trf", compute and
+                include motif composition in the output
+            - skip_hom_ref_loci (bool): If True, skip loci with no overlapping variants.
 
     Returns:
         str: Path to the output JSON file
     """
-    # Get min_overlapping_variants with default of 0
-    min_overlapping_variants = getattr(args, 'min_overlapping_variants', 0)
+    # Get skip_hom_ref_loci with default of False
+    skip_hom_ref_loci = getattr(args, 'skip_hom_ref_loci', False)
 
-    # Filter loci based on min_overlapping_variants
-    if min_overlapping_variants > 0:
+    # Filter loci based on skip_hom_ref_loci
+    if skip_hom_ref_loci:
         filtered_loci = [locus for locus in genotyped_loci
-                         if locus.num_overlapping_variants >= min_overlapping_variants]
+                         if locus.num_overlapping_variants > 0]
         if args.verbose:
-            print(f"Filtered {len(genotyped_loci) - len(filtered_loci):,d} loci with "
-                  f"< {min_overlapping_variants} overlapping variants")
+            print(f"Skipped {len(genotyped_loci) - len(filtered_loci):,d} homozygous reference loci")
     else:
         filtered_loci = genotyped_loci
 
@@ -3521,9 +3479,9 @@ def write_genotypes_json(genotyped_loci, args):
 
     # Compute motif counts if requested
     motif_counts_by_locus = {}
-    include_motif_counts = bool(args.add_motif_counts)
+    include_motif_counts = bool(args.add_motif_composition)
 
-    if args.add_motif_counts == "basic":
+    if args.add_motif_composition == "basic":
         if args.verbose:
             print("Computing motif counts using basic chunking method...")
         for locus in filtered_loci:
@@ -3532,7 +3490,7 @@ def write_genotypes_json(genotyped_loci, args):
                 "allele2": compute_motif_counts_basic(locus.allele2_sequence, locus.motif_size),
             }
 
-    elif args.add_motif_counts == "trf":
+    elif args.add_motif_composition == "trf":
         motif_counts_by_locus = compute_motif_counts_with_trf(
             filtered_loci,
             args.trf_executable_path,
@@ -3578,22 +3536,20 @@ def write_genotypes_vcf(genotyped_loci, input_vcf_path, args):
         args (argparse.Namespace): Command-line arguments. Must have:
             - output_prefix (str): Prefix for output file path
             - verbose (bool): If True, print detailed output
-            - min_overlapping_variants (int): Minimum number of overlapping variants
-                required to include a locus in the output. Default is 0.
+            - skip_hom_ref_loci (bool): If True, skip loci with no overlapping variants.
 
     Returns:
         str: Path to the output VCF file (gzip-compressed)
     """
-    # Get min_overlapping_variants with default of 0
-    min_overlapping_variants = getattr(args, 'min_overlapping_variants', 0)
+    # Get skip_hom_ref_loci with default of False
+    skip_hom_ref_loci = getattr(args, 'skip_hom_ref_loci', False)
 
-    # Filter loci based on min_overlapping_variants
-    if min_overlapping_variants > 0:
+    # Filter loci based on skip_hom_ref_loci
+    if skip_hom_ref_loci:
         filtered_loci = [locus for locus in genotyped_loci
-                         if locus.num_overlapping_variants >= min_overlapping_variants]
+                         if locus.num_overlapping_variants > 0]
         if args.verbose:
-            print(f"Filtered {len(genotyped_loci) - len(filtered_loci):,d} loci with "
-                  f"< {min_overlapping_variants} overlapping variants for VCF output")
+            print(f"Skipped {len(genotyped_loci) - len(filtered_loci):,d} homozygous reference loci for VCF output")
     else:
         filtered_loci = genotyped_loci
 
@@ -3795,15 +3751,15 @@ def do_genotype_subcommand(args):
     )
 
     # Write TSV output
-    tsv_output_path = write_genotypes_tsv(genotyped_loci, args)
+    write_genotypes_tsv(genotyped_loci, args)
 
     # Write JSON output if requested
     if args.write_json:
-        json_output_path = write_genotypes_json(genotyped_loci, args)
+        write_genotypes_json(genotyped_loci, args)
 
     # Write VCF output if requested
     if args.write_vcf:
-        vcf_output_path = write_genotypes_vcf(genotyped_loci, args.input_vcf_path, args)
+        write_genotypes_vcf(genotyped_loci, args.input_vcf_path, args)
 
     # Print summary
     if args.verbose:
