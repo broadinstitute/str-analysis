@@ -4,6 +4,7 @@
 
 import argparse
 import gzip
+import os
 import re
 
 import numpy as np
@@ -350,10 +351,11 @@ def main():
 
     print(f"Processing {args.vcf_path}")
 
-    # Determine output prefix
+    # Determine output prefix (default to current directory)
     output_prefix = args.output_prefix
     if output_prefix is None:
-        output_prefix = re.sub(r"\.vcf(\.gz)?$", "", args.vcf_path)
+        basename = os.path.basename(args.vcf_path)
+        output_prefix = re.sub(r"\.vcf(\.gz)?$", "", basename)
 
     # Load sample metadata if provided
     sample_metadata_row = None
@@ -403,9 +405,18 @@ def main():
 
     variant_records_counter = 0
     allele_records_counter = 0
+    bed_records_counter = 0
+    repeat_counts_counter = 0
     loci_processed = 0
-    bed_file_records = []
-    repeat_counts_records = []  # List of (trid, motif, genotype) tuples
+
+    # Open BED and repeat counts files for streaming output
+    bed_output_file = None
+    repeat_counts_file = None
+    if not args.dont_output_bed_file:
+        bed_output_file = open(f"{output_prefix}.bed", "wt")
+    if not args.dont_output_repeat_counts_table:
+        repeat_counts_file = gzip.open(f"{output_prefix}.repeat_counts.txt.gz", "wt")
+        repeat_counts_file.write(f"trid\tmotif\t{sample_id}\n")
 
     with fopen(args.vcf_path, "rt") as vcf:
         line_iter = vcf
@@ -439,10 +450,12 @@ def main():
                     variant_output_file.write("\t".join(values) + "\n")
                     variant_records_counter += 1
 
-                    # Collect BED records
-                    if not args.dont_output_bed_file:
-                        chrom, start, end = parse_interval(row["ReferenceRegion"])
-                        bed_file_records.append([chrom, start, end, row["SummaryString"], "."])
+            # Write BED records
+            if not args.dont_output_bed_file:
+                for row in variant_rows:
+                    chrom, start, end = parse_interval(row["ReferenceRegion"])
+                    bed_output_file.write(f"{chrom}\t{start}\t{end}\t{row['SummaryString']}\t.\n")
+                    bed_records_counter += 1
 
             # Write allele rows
             if not args.dont_output_allele_table and allele_rows:
@@ -451,27 +464,32 @@ def main():
                     allele_output_file.write("\t".join(values) + "\n")
                     allele_records_counter += 1
 
-            # Collect repeat counts records
+            # Write repeat counts records
             if not args.dont_output_repeat_counts_table and variant_rows:
                 for row in variant_rows:
                     trid = row["VariantId"]
                     motif = row["RepeatUnit"]
                     genotype_values = sorted(int(x) for x in row["Genotype"].split("/"))
                     genotype = ",".join(str(x) for x in genotype_values)
-                    repeat_counts_records.append((trid, motif, genotype))
+                    repeat_counts_file.write(f"{trid}\t{motif}\t{genotype}\n")
+                    repeat_counts_counter += 1
 
     # Close output files
     if variant_output_file:
         variant_output_file.close()
     if allele_output_file:
         allele_output_file.close()
+    if bed_output_file:
+        bed_output_file.close()
+    if repeat_counts_file:
+        repeat_counts_file.close()
 
-    # Write BED file
     if not args.dont_output_bed_file:
-        with open(f"{output_prefix}.bed", "wt") as f:
-            for bed_record in sorted(bed_file_records, key=lambda r: (r[0], r[1])):
-                f.write("\t".join(map(str, bed_record)) + "\n")
-        print(f"Wrote {len(bed_file_records):,d} records to {output_prefix}.bed")
+        # Bgzip and tabix index the BED file
+        bed_path = f"{output_prefix}.bed"
+        os.system(f"bgzip -f {bed_path}")
+        os.system(f"tabix -f -p bed {bed_path}.gz")
+        print(f"Wrote {bed_records_counter:,d} records to {bed_path}.gz")
 
     if not args.dont_output_variant_table:
         print(f"Wrote {variant_records_counter:,d} records to {output_prefix}.variants.tsv.gz")
@@ -479,14 +497,8 @@ def main():
     if not args.dont_output_allele_table:
         print(f"Wrote {allele_records_counter:,d} records to {output_prefix}.alleles.tsv.gz")
 
-    # Write repeat counts table
     if not args.dont_output_repeat_counts_table:
-        repeat_counts_path = f"{output_prefix}.repeat_counts.txt.gz"
-        with gzip.open(repeat_counts_path, "wt") as f:
-            f.write(f"trid\tmotif\t{sample_id}\n")
-            for trid, motif, genotype in repeat_counts_records:
-                f.write(f"{trid}\t{motif}\t{genotype}\n")
-        print(f"Wrote {len(repeat_counts_records):,d} records to {repeat_counts_path}")
+        print(f"Wrote {repeat_counts_counter:,d} records to {output_prefix}.repeat_counts.txt.gz")
 
 
 if __name__ == "__main__":
