@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install --no-install-recommends --yes \
     time
 
 # install htslib
-ENV HTSLIB_VERSION="1.20"
+ENV HTSLIB_VERSION="1.23"
 RUN wget -q https://github.com/samtools/htslib/releases/download/${HTSLIB_VERSION}/htslib-${HTSLIB_VERSION}.tar.bz2 \
 	&& tar xjf htslib-${HTSLIB_VERSION}.tar.bz2 \
 	&& rm htslib-${HTSLIB_VERSION}.tar.bz2 \
@@ -39,12 +39,23 @@ RUN wget -q https://github.com/samtools/htslib/releases/download/${HTSLIB_VERSIO
 	&& make clean
 
 # install samtools
-ENV SAMTOOLS_VERSION="1.20"
+ENV SAMTOOLS_VERSION="1.23"
 RUN wget -q https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VERSION}/samtools-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& tar xjf samtools-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& rm samtools-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& cd samtools-${SAMTOOLS_VERSION} \
 	&& ./configure --enable-libcurl --enable-gcs --enable-s3 \
+	&& make \
+	&& make install \
+	&& make clean
+
+# install bcftools
+ENV BCFTOOLS_VERSION="1.23"
+RUN wget -q https://github.com/samtools/bcftools/releases/download/${BCFTOOLS_VERSION}/bcftools-${BCFTOOLS_VERSION}.tar.bz2 \
+	&& tar xjf bcftools-${BCFTOOLS_VERSION}.tar.bz2 \
+	&& rm bcftools-${BCFTOOLS_VERSION}.tar.bz2 \
+	&& cd bcftools-${BCFTOOLS_VERSION} \
+	&& ./configure \
 	&& make \
 	&& make install \
 	&& make clean
