@@ -53,9 +53,9 @@ def parse_args():
     parser.add_argument("-n", "--process-n-loci", type=int, help="Only process the first N loci from the input catalog")
     annotations_group = parser.add_argument_group("annotations")
     annotations_group.add_argument("--known-disease-associated-loci",
-        help="ExpansionHunter catalog .json file with all known disease-associated loci")
-    #default="~/code/str-analysis/str_analysis/catalogs/catalog_without_offtargets.GRCh38.json")
-    #default="https://raw.githubusercontent.com/broadinstitute/str-analysis/main/str_analysis/catalogs/catalog_without_offtargets.GRCh38.json")
+        help="ExpansionHunter catalog .json file with all known disease-associated loci",
+        #default="~/code/str-analysis/str_analysis/catalogs/catalog_without_offtargets.GRCh38.json")
+        default="https://raw.githubusercontent.com/broadinstitute/str-analysis/main/str_analysis/catalogs/catalog_without_offtargets.GRCh38.json")
     annotations_group.add_argument("--genes-gtf", help="Gene models gtf file path or url.")
     annotations_group.add_argument("--gene-models-source", action="append", help="Source of the genes-gtf file. "
         "Can be specified more than once to annotate with multiple gene models.", choices=["gencode", "mane", "refseq"])
