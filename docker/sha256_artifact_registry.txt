@@ -1,1 +1,1 @@
-us-central1-docker.pkg.dev/cmg-analysis/docker-repo/str-analysis@sha256:64b7ee8bdff500c5d691fc2c3701af6c5dbb53110bc5111bb153134b46236b16
+us-central1-docker.pkg.dev/cmg-analysis/docker-repo/str-analysis@sha256:7a79a03ef5c3b068e0a83bf80bbdb893dda0d858016925c57628cbabcbabdb8f
