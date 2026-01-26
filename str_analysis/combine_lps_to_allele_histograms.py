@@ -54,7 +54,7 @@ def convert_counts_to_histogram_string(allele_counts):
 
 
 def get_lps_filename_prefix(lps_table_path):
-    return re.sub("(.lps)?(.txt|.tsv)(.gz)?$", "", os.path.basename(lps_table_path))
+    return re.sub("(.lps|.repeat_counts)?(.txt|.tsv)(.gz)?$", "", os.path.basename(lps_table_path))
 
 
 def parse_lps_table(
@@ -363,6 +363,9 @@ def main():
     all_seen_sample_ids = set()
     for input_table in input_table_iterator:
         table_type = detect_input_table_type(input_table)
+        if table_type == "histograms" and args.use_sample_id_from_header:
+            print(f"NOTE: --use-sample-id-from-header has no effect since {input_table} is a combined LPS "
+                  f"allele histogram table rather than a per-sample table")
         if table_type == "lps":
             included_line_count, total_line_count, table_sample_ids = parse_lps_table(
                 input_table,
