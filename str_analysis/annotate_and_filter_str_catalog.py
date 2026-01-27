@@ -155,8 +155,11 @@ def parse_args():
 
     if not args.skip_gene_annotations and args.genes_gtf and not file_exists(os.path.expanduser(args.genes_gtf)):
         parser.error(f"File not found: {args.genes_gtf}")
-    if not args.skip_disease_loci_annotations and args.known_disease_associated_loci and not file_exists(os.path.expanduser(args.known_disease_associated_loci)):
-        parser.error(f"File not found: {args.known_disease_associated_loci}")
+    if not args.skip_disease_loci_annotations and args.known_disease_associated_loci:
+        if any(args.known_disease_associated_loci.startswith(prefix) for prefix in ("http://", "https://", "gs://")):
+            args.known_disease_associated_loci = download_local_copy(args.known_disease_associated_loci)
+        if not file_exists(os.path.expanduser(args.known_disease_associated_loci)):
+            parser.error(f"File not found: {args.known_disease_associated_loci}")
     if not file_exists(os.path.expanduser(args.catalog_json_or_bed)):
         parser.error(f"File not found: {args.catalog_json_or_bed}")
 
