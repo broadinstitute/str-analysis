@@ -78,18 +78,17 @@ RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1
     && chmod 777 trf409.linux64 \
     && mv trf409.linux64 /usr/bin/trf
 
-# install Rust/cargo
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/root/.cargo/bin:$PATH"
-
-# build TRGT from source
-RUN git clone https://github.com/bw2/trgt.git \
+# install Rust/cargo, build TRGT from source, then remove Rust/cargo
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    && . "$HOME/.cargo/env" \
+    && git clone https://github.com/bw2/trgt.git \
     && cd trgt \
     && cargo build --release \
     && mv target/release/trgt /usr/bin/trgt \
     && chmod 777 /usr/bin/trgt \
     && cd .. \
-    && rm -rf trgt
+    && rm -rf trgt \
+    && rustup self uninstall -y
 
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
