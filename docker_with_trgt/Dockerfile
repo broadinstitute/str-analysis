@@ -29,7 +29,9 @@ RUN apt-get update && apt-get install --no-install-recommends --yes \
     openssl \
     libffi-dev \
     parallel \
-    time
+    time \
+    cmake \
+    libclang-dev
 
 # install htslib
 ENV HTSLIB_VERSION="1.20"
