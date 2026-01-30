@@ -139,7 +139,11 @@ def group_overlapping_loci(
         return chrom
 
     # process records one chromosome at a time
+    seen_chroms = set()
     for chrom, records_in_chrom in itertools.groupby(catalog_record_iterator, key=get_chrom_from_record):
+        if chrom in seen_chroms:
+            raise ValueError(f"Input catalog is not sorted: chromosome {chrom} appears non-consecutively. "
+                             f"All records for a chromosome must be grouped together.")
         motif_id_to_record_group = collections.defaultdict(list)
         motif_id_to_record_group_end_1based = collections.defaultdict(int)
         previous_record_coordinates = None
@@ -189,3 +193,5 @@ def group_overlapping_loci(
         if len(motif_id_to_record_group) > 0:
             for current_repeat_unit_id, record_group in motif_id_to_record_group.items():
                 yield record_group
+
+        seen_chroms.add(chrom)
