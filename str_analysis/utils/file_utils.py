@@ -75,7 +75,13 @@ def get_file_size(path):
 
 
 def download_local_copy(url_or_google_storage_path, verbose=False):
-    """Downloads the given URL or gs:// path to a local temp file and returns the path to the local file."""
+    """Downloads the given URL or gs:// path to a local temp file and returns the path to the local file.
+    If the path is already a local file, returns it as-is.
+    """
+
+    # Handle local file paths - return as-is
+    if not url_or_google_storage_path.startswith(("gs://", "http://", "https://")):
+        return os.path.expanduser(url_or_google_storage_path)
 
     temp_dir = tempfile.gettempdir()
     if url_or_google_storage_path.startswith("gs://"):
