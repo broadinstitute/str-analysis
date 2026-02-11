@@ -1607,7 +1607,6 @@ def extract_haplotype_sequences_from_vcf(chrom, start_0based, end, fasta_obj, vc
     for haplotype in (0, 1):
         variant_list = []
         missing_genotype = False
-        skipped_star_allele = False
 
         for variant in vcf_variants:
             gt = variant.samples[0].get("GT")
@@ -1634,12 +1633,11 @@ def extract_haplotype_sequences_from_vcf(chrom, start_0based, end, fasta_obj, vc
             alt_allele = variant.alleles[gt_value]
 
             # Skip star alleles - they indicate overlap with a previously specified deletion.
-            # Track that we skipped one, since if we ONLY have star alleles (no actual deletion
-            # record), returning reference would be incorrect.
+            # The actual deletion is represented by a separate VCF record which pysam will
+            # fetch if it overlaps this locus.
             if alt_allele == "*":
                 if verbose:
                     print(f"Haplotype {haplotype}: Skipping star allele at {variant.pos}")
-                skipped_star_allele = True
                 continue
 
             if verbose:
@@ -1696,10 +1694,7 @@ def extract_haplotype_sequences_from_vcf(chrom, start_0based, end, fasta_obj, vc
                 output_offset_at_locus_end += length_change
             # If variant spans the locus start boundary, special handling needed
             elif variant_start_0based < start_0based < variant_end_0based:
-                # For STR genotyping, when a variant overlaps the locus boundary,
-                # we want to capture the full alt allele. We include from where
-                # the variant starts in the output sequence.
-                bases_before_locus = start_0based - variant_start_0based  # Currently unused but documents intent
+                # Variant overlaps the locus boundary — include from where the variant starts
                 output_offset_at_locus_start = variant_start_0based - fetch_start
                 output_offset_at_locus_end += length_change
             # If variant is entirely within the locus, only adjust the end offset
