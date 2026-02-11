@@ -957,12 +957,11 @@ chr1\t2000\t.\tC\tCA\t.\tPASS\t.\tGT\t0/1
             vcf_file = pysam.VariantFile(vcf_gz_path)
 
             # Fetch variants overlapping region 990-1060 (should get 2 variants)
-            variants, has_multiallelic = get_overlapping_vcf_variants(
+            variants = get_overlapping_vcf_variants(
                 vcf_file, "chr1", 990, 1060, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True)
             )
 
             self.assertEqual(len(variants), 2)
-            self.assertFalse(has_multiallelic)
             self.assertEqual(variants[0].pos, 1000)
             self.assertEqual(variants[1].pos, 1050)
 
@@ -996,12 +995,11 @@ chr1\t1000\t.\tA\tAT,ATT,ATTT\t.\tPASS\t.\tGT\t1/2
 
             vcf_file = pysam.VariantFile(vcf_gz_path)
 
-            variants, has_multiallelic = get_overlapping_vcf_variants(
+            variants = get_overlapping_vcf_variants(
                 vcf_file, "chr1", 990, 1010, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True)
             )
 
             self.assertEqual(len(variants), 1)
-            self.assertTrue(has_multiallelic)  # Should detect multi-allelic
 
             vcf_file.close()
         except FileNotFoundError:
@@ -1032,12 +1030,11 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
             vcf_file = pysam.VariantFile(vcf_gz_path)
 
             # Fetch from region that has no variants
-            variants, has_multiallelic = get_overlapping_vcf_variants(
+            variants = get_overlapping_vcf_variants(
                 vcf_file, "chr1", 2000, 3000, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True)
             )
 
             self.assertEqual(len(variants), 0)
-            self.assertFalse(has_multiallelic)
 
             vcf_file.close()
         except FileNotFoundError:
@@ -1068,12 +1065,11 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
             vcf_file = pysam.VariantFile(vcf_gz_path)
 
             # Fetch from chromosome not in VCF
-            variants, has_multiallelic = get_overlapping_vcf_variants(
+            variants = get_overlapping_vcf_variants(
                 vcf_file, "chr2", 1000, 2000, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True)
             )
 
             self.assertEqual(len(variants), 0)
-            self.assertFalse(has_multiallelic)
 
             vcf_file.close()
         except FileNotFoundError:
@@ -1104,7 +1100,7 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
             vcf_file = pysam.VariantFile(vcf_gz_path)
 
             # Query using chr1 but VCF has "1" - should normalize correctly
-            variants, has_multiallelic = get_overlapping_vcf_variants(
+            variants = get_overlapping_vcf_variants(
                 vcf_file, "chr1", 990, 1010, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=False)
             )
 
@@ -1517,11 +1513,7 @@ class TestExtractHaplotypeSequencesFromVcf(unittest.TestCase):
         self.assertEqual(result[1], "CAGCAGCAG")
 
     def test_multiple_unphased_variants_returns_missing(self):
-        """Test that multiple unphased variants returns missing genotype (None, None).
-
-        Per Design Decision #3: If multiple variants overlap AND any GT is unphased,
-        return (None, None) to indicate missing genotype.
-        """
+        """Test that multiple unphased variants returns missing genotype (None, None)."""
         mock_fasta = self._create_mock_fasta()
 
         variant1 = self._create_mock_variant(
@@ -1649,11 +1641,7 @@ class TestExtractHaplotypeSequencesFromVcf(unittest.TestCase):
         self.assertEqual(result[1], "CTGCGGCAGCAG")
 
     def test_variant_spanning_beyond_locus_is_trimmed(self):
-        """Test that variants spanning beyond locus boundaries are properly handled.
-
-        Per Design Decision #4: Fetch reference with padding to cover all variants,
-        build full haplotype, trim to locus boundaries.
-        """
+        """Test that variants spanning beyond locus boundaries are properly handled."""
         # Create a longer reference sequence for this test
         # Use DNA bases: AT prefix, CAG repeats, then GC suffix
         extended_ref = "ATCAGCAGCAGCAGCAGCAGCAGC"
@@ -1842,8 +1830,8 @@ class TestGenotypeSingleLocus(unittest.TestCase):
         self.assertEqual(result.num_repeats_allele1, 5)
         self.assertEqual(result.num_repeats_allele2, 5)
 
-    def test_multiallelic_variant_returns_missing(self):
-        """Test that multi-allelic variants cause missing genotype."""
+    def test_multiallelic_variant_is_genotyped(self):
+        """Test that multi-allelic variants are genotyped normally."""
         # Multi-allelic variant has >2 alleles
         variant = mock.MagicMock()
         variant.pos = 1
@@ -1866,13 +1854,8 @@ class TestGenotypeSingleLocus(unittest.TestCase):
 
         result = genotype_single_locus(tr_locus, mock_vcf, mock_fasta)
 
-        # Should be missing genotype due to multi-allelic
-        self.assertIsNone(result.zygosity)
-        self.assertIsNone(result.num_repeats_allele1)
-        self.assertIsNone(result.num_repeats_allele2)
-        self.assertIsNone(result.allele1_sequence)
-        self.assertIsNone(result.allele2_sequence)
-        # Variants should still be recorded
+        # Multi-allelic variants should be genotyped normally
+        self.assertIsNotNone(result.zygosity)
         self.assertEqual(result.num_overlapping_variants, 1)
 
     def test_multiple_unphased_variants_returns_missing(self):
@@ -2298,11 +2281,7 @@ chr1\t4\t.\tC\tCCAG\t.\tPASS\t.\tGT\t./.
             fasta_obj.close()
 
     def test_genotype_unphased_multiple_variants_returns_missing(self):
-        """Test that multiple unphased variants cause missing genotype.
-
-        Per Design Decision #3: If multiple variants overlap AND any GT is unphased,
-        return missing genotype.
-        """
+        """Test that multiple unphased variants cause missing genotype."""
         import pysam
         import pyfaidx
 
@@ -2344,12 +2323,8 @@ chr1\t7\t.\tC\tT\t.\tPASS\t.\tGT\t0/1
             vcf_file.close()
             fasta_obj.close()
 
-    def test_genotype_multiallelic_variant_returns_missing(self):
-        """Test that multi-allelic variants (>2 alleles) cause missing genotype.
-
-        Per Design Decision #15: Mark entire locus as missing if any overlapping
-        variant has >2 alleles.
-        """
+    def test_genotype_multiallelic_variant(self):
+        """Test that multi-allelic variants are genotyped normally."""
         import pysam
         import pyfaidx
 
@@ -2357,7 +2332,7 @@ chr1\t7\t.\tC\tT\t.\tPASS\t.\tGT\t0/1
         if fasta_path is None:
             self.skipTest("pyfaidx unavailable")
 
-        # Multi-allelic variant: REF with two ALT alleles
+        # Multi-allelic variant: REF with two ALT alleles, GT 1/2
         vcf_content = """##fileformat=VCFv4.2
 ##contig=<ID=chr1,length=18>
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1
@@ -2380,22 +2355,17 @@ chr1\t4\t.\tC\tCCAG,CCAGCAG\t.\tPASS\t.\tGT\t1/2
         try:
             result = genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
 
-            # Should be missing due to multi-allelic variant
-            self.assertIsNone(result.zygosity)
-            self.assertIsNone(result.num_repeats_allele1)
-            self.assertIsNone(result.num_repeats_allele2)
-            # Variant should still be recorded
+            # Multi-allelic variant should be genotyped: allele 1 = +1 CAG, allele 2 = +2 CAG
+            self.assertEqual(result.zygosity, "HET")
+            self.assertEqual(result.num_repeats_allele1, 5)
+            self.assertEqual(result.num_repeats_allele2, 6)
             self.assertEqual(result.num_overlapping_variants, 1)
         finally:
             vcf_file.close()
             fasta_obj.close()
 
     def test_genotype_variant_spanning_beyond_locus(self):
-        """Test that variants spanning beyond locus boundaries are handled correctly.
-
-        Per Design Decision #4: Fetch reference with padding to cover all variants,
-        build full haplotype, trim to locus boundaries.
-        """
+        """Test that variants spanning beyond locus boundaries are handled correctly."""
         import pysam
         import pyfaidx
 
@@ -2438,11 +2408,7 @@ chr1\t3\t.\tGGC\tGC\t.\tPASS\t.\tGT\t0|1
             fasta_obj.close()
 
     def test_chromosome_naming_normalization_no_chr(self):
-        """Test that chromosome names are normalized correctly (chr1 vs 1).
-
-        Per Design Decision #14: Auto-detect convention from each file and
-        normalize internally.
-        """
+        """Test that chromosome names are normalized correctly (chr1 vs 1)."""
         import pysam
         import pyfaidx
 

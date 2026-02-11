@@ -1370,10 +1370,6 @@ def open_vcf_for_genotyping(vcf_path):
 def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, normalize_chrom=None):
     """Fetch VCF variants that overlap a genomic interval.
 
-    This function retrieves all VCF variant records that overlap the specified
-    genomic interval. It handles chromosome naming normalization and detects
-    multi-allelic variants that should cause the locus to be marked as missing.
-
     Args:
         vcf_file (pysam.VariantFile): An open pysam VariantFile object
         chrom (str): Chromosome name
@@ -1383,10 +1379,7 @@ def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, normalize_c
             the VCF naming convention. If provided, will be called on chrom.
 
     Returns:
-        tuple: (list, bool) containing:
-            - List of pysam.VariantRecord objects sorted by position
-            - Boolean flag indicating if a multi-allelic variant (>2 alleles) was found,
-              which means the locus should be marked as missing per Design Decision #15
+        list: List of pysam.VariantRecord objects sorted by position
 
     Note:
         pysam's fetch() automatically returns all variants that overlap the interval,
@@ -1400,22 +1393,12 @@ def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, normalize_c
         variants = list(vcf_file.fetch(fetch_chrom, start_0based, end))
     except ValueError:
         # Chromosome not found in VCF - return empty list
-        return [], False
-
-    # Check for multi-allelic variants (>2 alleles including ref)
-    has_multiallelic = False
-    for variant in variants:
-        # variant.alleles includes ref + all alts
-        # A biallelic site has 2 alleles (ref + 1 alt)
-        # A multi-allelic site has >2 alleles (ref + 2+ alts)
-        if len(variant.alleles) > 2:
-            has_multiallelic = True
-            break
+        return []
 
     # Sort by position
     variants.sort(key=lambda v: v.pos)
 
-    return variants, has_multiallelic
+    return variants
 
 
 def convert_variants_to_haplotype_sequence(pos_1based, reference_sequence, variants, verbose=False):
@@ -1565,12 +1548,12 @@ def extract_haplotype_sequences_from_vcf(chrom, start_0based, end, fasta_obj, vc
 
     Notes:
         - If multiple variants overlap AND any GT is unphased (contains '/' not '|'),
-          returns (None, None) to indicate missing genotype per Design Decision #3
+          returns (None, None) to indicate missing genotype
         - Variants whose REF extends beyond locus boundaries are handled by fetching
-          an expanded reference region and trimming the result per Design Decision #4
+          an expanded reference region and trimming the result
         - Star alleles ('*') are skipped as they indicate overlap with a deletion
     """
-    # Check for phasing ambiguity first (Design Decision #3)
+    # Check for phasing ambiguity first
     # If multiple variants overlap AND any GT is unphased, return missing genotype
     if len(vcf_variants) > 1:
         for variant in vcf_variants:
@@ -1691,7 +1674,7 @@ def extract_haplotype_sequences_from_vcf(chrom, start_0based, end, fasta_obj, vc
 
         # Trim the haplotype sequence back to the original locus boundaries.
         # This is needed because we may have fetched an expanded region to cover
-        # variants that extend beyond the locus (per Design Decision #4).
+        # variants that extend beyond the locus.
         #
         # The key insight is that indels shift positions in the output sequence.
         # For example, if an insertion of 3bp occurs before the locus start,
@@ -1788,7 +1771,7 @@ def compute_repeat_counts_from_sequence(sequence, repeat_unit):
         }
 
     # Calculate number of full repeats using simple integer division
-    # This is the formula specified in Design Decision #1
+    # Repeat count formula
     num_repeats = len(sequence) // len(repeat_unit)
     repeat_size_bp = len(sequence)
 
@@ -1842,8 +1825,7 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, v
     Notes:
         - No overlapping variants → both alleles equal reference (HOM)
         - Missing genotype on one haplotype → HEMI
-        - Multiple unphased variants overlapping → missing genotype (Design Decision #3)
-        - Multi-allelic variants → missing genotype (Design Decision #15)
+        - Multiple unphased variants overlapping → missing genotype
     """
     chrom = tr_locus.chrom
     start_0based = tr_locus.start_0based
@@ -1854,29 +1836,13 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, v
         print(f"Genotyping locus: {tr_locus.locus_id}")
 
     # Fetch overlapping VCF variants
-    variants, has_multiallelic = get_overlapping_vcf_variants(
+    variants = get_overlapping_vcf_variants(
         vcf_file, chrom, start_0based, end,
         normalize_chrom=normalize_chrom
     )
 
     if verbose:
-        print(f"  Found {len(variants)} overlapping variants, has_multiallelic={has_multiallelic}")
-
-    # If any overlapping variant is multi-allelic (>2 alleles), mark locus as missing
-    # per Design Decision #15
-    if has_multiallelic:
-        if verbose:
-            print(f"  Multi-allelic variant found - marking genotype as missing")
-        return GenotypedTandemRepeat(
-            tr_locus=tr_locus,
-            overlapping_variants=variants,
-            allele1_sequence=None,
-            allele2_sequence=None,
-            num_repeats_allele1=None,
-            num_repeats_allele2=None,
-            allele1_purity=None,
-            allele2_purity=None,
-        )
+        print(f"  Found {len(variants)} overlapping variants")
 
     # Extract haplotype sequences
     # This handles phasing ambiguity (multiple unphased variants) by returning (None, None)
@@ -3301,7 +3267,6 @@ def compute_motif_counts_basic(sequence, motif_size):
     Note:
         This assumes the sequence starts at a motif boundary. Sequences that
         don't align with motif boundaries may give unexpected results.
-        See Design Decision #10.
     """
     if not sequence:
         return None
@@ -3520,7 +3485,7 @@ def write_genotypes_vcf(genotyped_loci, input_vcf_path, args):
     indicating which TR locus/loci it contributed to.
 
     A variant that overlaps multiple TR loci is written once with comma-separated
-    locus IDs and motifs in the INFO field (per Design Decision #11).
+    locus IDs and motifs in the INFO field.
 
     Args:
         genotyped_loci (list): List of GenotypedTandemRepeat objects
