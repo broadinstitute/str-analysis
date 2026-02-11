@@ -2250,14 +2250,6 @@ def parse_input_vcf_file(args, counters, fasta_obj):
         if not vcf_alt:
             raise ValueError(f"No ALT allele found in VCF row #{vcf_line_i + 1:,d}: {vcf_fields}")
 
-        if len(alt_alleles) > 2:
-            if args.verbose:
-                vcf_chrom_without_chr_prefix = vcf_chrom.replace("chr", "")
-                print(f"WARNING: VCF row #{vcf_line_i:,d}: {vcf_chrom_without_chr_prefix}-{vcf_pos}-{vcf_ref}-{vcf_alt}: multi-allelic variant has "
-                    f"{len(alt_alleles)} alt alleles. This script doesn't support more than 2 alt alleles. Skipping...")
-            counters[f"WARNING: multi-allelic variant with {len(alt_alleles)} alt alleles"] += 1
-            continue
-
         # Handle '*' alleles
         if "*" in alt_alleles:
             # if this variant has 1 regular allele and 1 "*" allele (which represents an overlapping deletion), discard the
