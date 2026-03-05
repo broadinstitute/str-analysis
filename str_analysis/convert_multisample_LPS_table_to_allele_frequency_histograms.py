@@ -11,6 +11,7 @@ and outputs a per-locus summary table with allele frequency histograms and stati
 import argparse
 import collections
 import gzip
+import json
 import os
 import numpy as np
 import tqdm
@@ -152,6 +153,7 @@ def main():
     parser.add_argument("--no-header", action="store_true", help="If set, assume the first row is data (not a header) and generate synthetic sample names (_s1, _s2, ...)")
     parser.add_argument("--population", choices=["AFR", "AMR", "EAS", "EUR", "SAS"], help="If specified, only process samples from this population")
     parser.add_argument("--sex", choices=["male", "female"], help="If specified, only process samples from this sex")
+    parser.add_argument("--output-format", choices=["TSV", "JSON"], default="TSV", help="Output format (default: TSV)")
     parser.add_argument("-n", "--num-samples", type=int, default=None, help="Number of samples to process")
     parser.add_argument("-l", "--num-loci", type=int, default=None, help="Number of loci to process")
     args = parser.parse_args()
@@ -216,14 +218,20 @@ def main():
         output_path += f".only_{args.sex}"
 
     output_path += f".{len(sample_ids_to_include_list)}_samples"
-    output_path += ".tsv.gz"
+    if args.output_format == "JSON":
+        output_path += ".json.gz"
+    else:
+        output_path += ".tsv.gz"
     print(f"Writing data from {len(sample_ids_to_include_list):,d} samples to {output_path}")
     with fopen(args.input_table, "rt") as infile, gzip.open(output_path, "wt") as outfile:
         if not args.no_header:
             next(infile)  # skip header
 
-        # Write header
-        outfile.write("\t".join(HEADER_FIELDS) + "\n")
+        if args.output_format == "TSV":
+            outfile.write("\t".join(HEADER_FIELDS) + "\n")
+        else:
+            outfile.write("[\n")
+            json_first_row = True
 
         line_count = 0
         for line_number, line in tqdm.tqdm(enumerate(infile), unit=" lines", unit_scale=True):
@@ -260,7 +268,16 @@ def main():
 
             row = compute_row(locus_id, motif, alleles, alleles_by_sample_id)
             if row:
-                outfile.write("\t".join(str(row[field]) for field in HEADER_FIELDS) + "\n")
+                if args.output_format == "JSON":
+                    if not json_first_row:
+                        outfile.write(",\n")
+                    json_first_row = False
+                    outfile.write("  " + json.dumps(row, indent=2).replace("\n", "\n  "))
+                else:
+                    outfile.write("\t".join(str(row[field]) for field in HEADER_FIELDS) + "\n")
+
+        if args.output_format == "JSON":
+            outfile.write("\n]\n")
 
     print(f"Wrote {line_count:9,d} lines to {output_path}")
 
