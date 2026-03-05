@@ -94,6 +94,11 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
     && rm -rf trgt \
     && rustup self uninstall -y
 
+# install trgt-lps
+RUN wget -q https://github.com/PacificBiosciences/trgt-lps/releases/download/0.10.0/trgt-lps-v0.10.0.gz \
+    && gunzip trgt-lps-v0.10.0.gz \
+    && chmod 777 trgt-lps-v0.10.0 \
+    && mv trgt-lps-v0.10.0 /usr/bin/trgt-lps
 
 ENV HTSLIB_CONFIGURE_OPTIONS="--enable-s3 --enable-gcs --enable-libcurl --with-libdeflate"
 RUN python3 -m pip install --upgrade --no-cache-dir git+https://github.com/broadinstitute/str-analysis
