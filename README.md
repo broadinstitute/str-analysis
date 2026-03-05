@@ -69,6 +69,7 @@ docker run -it weisburd/str-analysis:latest
 ## TRGT and LPS Processing
 
 - **combine_single_sample_lps_to_allele_histograms** - Takes one or more tables of LPS (likelihood per sample) scores and combines them into per-locus allele histograms. Useful for aggregating genotype data across large cohorts.
+- **convert_multisample_LPS_table_to_allele_frequency_histograms** - Takes a wide-format TSV of multisample LPS genotypes (one column per sample, allele sizes as comma-separated pairs) and outputs a per-locus summary table with allele frequency histograms and statistics (min, max, mean, median, mode, stdev, percentiles).
 
 ---
 
