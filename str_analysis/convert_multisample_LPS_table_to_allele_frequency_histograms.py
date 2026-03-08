@@ -16,7 +16,6 @@ import os
 import numpy as np
 import tqdm
 
-
 HEADER_FIELDS = [
     "LocusId",
     "Motif",
@@ -148,7 +147,7 @@ HG00099                  3,3
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--sample-metadata-tsv", default="hprc-lps_2025-12-06/1kGP_metadata.tsv", help="Sample ancestry metadata TSV file")
+    parser.add_argument("--sample-metadata-tsv", default="https://storage.googleapis.com/tandem-repeat-catalog/1kGP_metadata.tsv", help="Sample ancestry metadata TSV file (local path or URL)")
     parser.add_argument("--input-table", default="hprc-lps_2025-12-06/hprc-lps.txt.gz", help="Combine HPRC LPS dataset")
     parser.add_argument("--no-header", action="store_true", help="If set, assume the first row is data (not a header) and generate synthetic sample names (_s1, _s2, ...)")
     parser.add_argument("--population", choices=["AFR", "AMR", "EAS", "EUR", "SAS"], help="If specified, only process samples from this population")
