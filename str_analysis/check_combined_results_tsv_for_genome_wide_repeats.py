@@ -126,11 +126,11 @@ def compute_threshold_lookup_by_motif(variant_catalog_path):
     threshold_lookup = {}
     for record in variant_catalog:
         if "LocusId" not in record:
-            print(f"WARNING: 'LocusId' key not found in variant catalog record for {pformat(record)}")
+            print(f"WARNING: 'LocusId' key not found in variant catalog record for {json.dumps(record)}")
             continue
 
         if set(record["RepeatUnit"]) - set("ACGT"):
-            print(f"Skipping {locus_id} because motif contains non-ACGT bases: {record['RepeatUnit']}")
+            print(f"Skipping {record['LocusId']} because motif contains non-ACGT bases: {record['RepeatUnit']}")
             continue
 
         locus_id = record["LocusId"]
@@ -144,10 +144,10 @@ def compute_threshold_lookup_by_motif(variant_catalog_path):
                 continue
 
             inheritance_modes = {
-                disease_record.get("InheritanceMode", "AD") for disease_record in record.get("Diseases", []) if "Inheritance" in disease_record
+                disease_record.get("InheritanceMode", "AD") for disease_record in record.get("Diseases", []) if "InheritanceMode" in disease_record
             }
 
-            inheritance_mode = next(iter(inheritance_modes))
+            inheritance_mode = next(iter(inheritance_modes), "AD")
             if len(inheritance_modes) > 1:
                 print(f"WARNING: Multiple inheritance modes found for {locus_id}: {inheritance_modes}. Using the first one: ", inheritance_mode)
 
@@ -309,7 +309,7 @@ def load_results_table(args):
         df[df[args.sample_affected_status_column] == "Unknown"][args.sample_id_column][0:10]))
     if sum(~df[args.sample_affected_status_column].isin({"Affected", "Not Affected", "Unknown"})) > 0:
         print(f"Examples of {args.sample_id_column} with other affected status:", ", ".join(
-            df[df[args.sample_affected_status_column].isin({"Affected", "Not Affected", "Unknown"})][args.sample_id_column][0:10]))
+            df[~df[args.sample_affected_status_column].isin({"Affected", "Not Affected", "Unknown"})][args.sample_id_column][0:10]))
     unexpected_affected_column_values = set(df[args.sample_affected_status_column]) - {"Affected", "Not Affected", "Unknown"}
     if unexpected_affected_column_values:
         raise ValueError(f"Unexpected affected status values: {unexpected_affected_column_values}:  {collections.Counter(df[args.sample_affected_status_column])}")
@@ -635,6 +635,8 @@ def main():
         results_df = print_results_for_locus(args, locus_id, locus_df, threshold_lookup_by_motif)
 
         if results_df is not None:
+            if args.sample_id and not arg_sample_id_set & set(results_df[args.sample_id_column]):
+                continue
             print(f"Found {len(results_df):,d} results for locus {locus_id}")
             results_dfs.append(results_df)
 
