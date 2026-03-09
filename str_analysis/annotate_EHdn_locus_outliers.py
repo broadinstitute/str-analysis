@@ -176,9 +176,9 @@ def add_catalog_record_to_row(interval_tree):
                 if key not in outlier_table_row and key not in ("ReferenceRegion", "LocusStructure", "RepeatUnit", "LocusId", "CanonicalMotif", "VariantType"):
                     outlier_table_row_copy[key] = value
 
-            return outlier_table_row_copy
+            return dict(outlier_table_row_copy)
 
-        return outlier_table_row
+        return dict(outlier_table_row)
 
     return get_overlapping_interval
 
