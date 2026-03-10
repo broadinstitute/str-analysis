@@ -41,6 +41,32 @@ def _format_decimal(value):
     return round(float(value), 2)
 
 
+def compute_histograms(allele_sizes, alleles_by_sample_id):
+    """Compute allele size and biallelic histogram strings.
+
+    Args:
+        allele_sizes: list of allele sizes
+        alleles_by_sample_id: dict mapping sample_id to list of allele sizes
+
+    Returns:
+        tuple of (allele_size_histogram_str, biallelic_histogram_str), or ("", "") if empty
+    """
+    if not allele_sizes:
+        return "", ""
+
+    allele_counts = collections.Counter(allele_sizes)
+    genotype_counts = collections.defaultdict(int)
+    for allele_list in alleles_by_sample_id.values():
+        if len(allele_list) == 1:
+            allele_list = allele_list * 2
+        genotype_counts[tuple(sorted(allele_list))] += 1
+
+    return (
+        ",".join(f"{size}x:{count}" for size, count in sorted(allele_counts.items())),
+        ",".join(f"{g[0]}/{g[1]}:{count}" for g, count in sorted(genotype_counts.items(), key=lambda x: (x[0][0], x[0][1]))),
+    )
+
+
 def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id):
     """Compute statistics for a group of allele sizes.
 
@@ -71,28 +97,22 @@ def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id):
     allele_sizes = sorted(allele_sizes)
     allele_counts = collections.Counter(allele_sizes)
 
-    genotype_counts = collections.defaultdict(int)
     short_alleles = []
     for sample_id, allele_list in alleles_by_sample_id.items():
         if len(allele_list) == 1:
             short_alleles.append(allele_list[0])
-            allele_list = allele_list * 2
         elif len(allele_list) == 2:
             short_alleles.append(min(allele_list))
         else:
             raise ValueError(f"Found {len(allele_list)} alleles for {sample_id} in {locus_id} {motif}")
 
-        genotype_counts[tuple(sorted(allele_list))] += 1
+    allele_histogram, biallelic_histogram = compute_histograms(allele_sizes, alleles_by_sample_id)
 
     return {
         "LocusId": locus_id,
         "Motif": motif,
-        "AlleleSizeHistogram": ",".join(
-            f"{allele_size}x:{count}" for allele_size, count in sorted(allele_counts.items())
-        ),
-        "BiallelicHistogram": ",".join(
-            f"{genotype[0]}/{genotype[1]}:{count}" for genotype, count in sorted(genotype_counts.items(), key=lambda x: (x[0][0], x[0][1]))
-        ),
+        "AlleleSizeHistogram": allele_histogram,
+        "BiallelicHistogram": biallelic_histogram,
         "Min": int(min(allele_sizes)),
         "Mode": min(size for size, count in allele_counts.items() if count == allele_counts.most_common(1)[0][1]),
         "Mean": f"{np.mean(allele_sizes):.2f}",
@@ -152,10 +172,19 @@ def main():
     parser.add_argument("--no-header", action="store_true", help="If set, assume the first row is data (not a header) and generate synthetic sample names (_s1, _s2, ...)")
     parser.add_argument("--population", choices=["AFR", "AMR", "EAS", "EUR", "SAS"], help="If specified, only process samples from this population")
     parser.add_argument("--sex", choices=["male", "female"], help="If specified, only process samples from this sex")
+    parser.add_argument("--stratify-by-population", action="store_true", help="If set, add per-population histogram columns to the output")
+    parser.add_argument("--stratify-by-sex", action="store_true", help="If set, add per-sex histogram columns to the output")
     parser.add_argument("--output-format", choices=["TSV", "JSON"], default="TSV", help="Output format (default: TSV)")
     parser.add_argument("-n", "--num-samples", type=int, default=None, help="Number of samples to process")
     parser.add_argument("-l", "--num-loci", type=int, default=None, help="Number of loci to process")
     args = parser.parse_args()
+
+    if args.stratify_by_population and args.population:
+        parser.error("--stratify-by-population and --population are mutually exclusive")
+    if args.stratify_by_sex and args.sex:
+        parser.error("--stratify-by-sex and --sex are mutually exclusive")
+    if (args.stratify_by_population or args.stratify_by_sex) and args.no_header:
+        parser.error("--stratify-by-population and --stratify-by-sex require a header row with real sample ids")
 
     if not os.path.isfile(args.input_table):
         parser.error(f"Input file {args.input_table} does not exist")
@@ -183,7 +212,8 @@ def main():
         sample_ids_to_include_list = sample_ids_in_input_table
         if args.num_samples is not None and len(sample_ids_to_include_list) > args.num_samples:
             sample_ids_to_include_list = sample_ids_to_include_list[:args.num_samples]
-        sample_ids_to_include = set(sample_ids_to_include_list)
+        sample_id_to_stratum = {}
+        strata_labels = []
     else:
         import pandas as pd
         df_metadata = pd.read_table(args.sample_metadata_tsv)
@@ -204,10 +234,32 @@ def main():
         sample_ids_to_include_list = [s for s in sample_ids_in_input_table if s in valid_ids]
         if args.num_samples is not None and len(sample_ids_to_include_list) > args.num_samples:
             sample_ids_to_include_list = sample_ids_to_include_list[:args.num_samples]
-        sample_ids_to_include = set(sample_ids_to_include_list)
+            df_metadata = df_metadata[df_metadata.SampleId.isin(set(sample_ids_to_include_list))]
 
-        print(f"Included sample ids: {', '.join(sample_ids_to_include_list)}")
+        # Build sample_id -> stratum_label mapping for stratification
+        sample_id_to_stratum = {}
+        strata_labels = []
+        if args.stratify_by_population or args.stratify_by_sex:
+            df_included = df_metadata[df_metadata.SampleId.isin(set(sample_ids_to_include_list))]
+            if args.stratify_by_population and args.stratify_by_sex:
+                stratum_series = df_included.Population + ":" + df_included.Sex
+            elif args.stratify_by_population:
+                stratum_series = df_included.Population
+            else:
+                stratum_series = df_included.Sex
+            sample_id_to_stratum = dict(zip(df_included.SampleId, stratum_series))
+            strata_labels = sorted(set(sample_id_to_stratum.values()))
 
+    sample_ids_to_include = set(sample_ids_to_include_list)
+
+    # Build output header with stratified histogram columns
+    output_header = list(HEADER_FIELDS)
+    for label in strata_labels:
+        output_header.append(f"AlleleSizeHistogram:{label}")
+    for label in strata_labels:
+        output_header.append(f"BiallelicHistogram:{label}")
+
+    # Build output path
     output_dir = os.path.dirname(args.input_table)
     output_path = os.path.join(output_dir, os.path.basename(args.input_table).replace(".tsv", "").replace(".txt", "").replace(".gz", ""))
     output_path += ".per_locus_and_motif"
@@ -215,19 +267,23 @@ def main():
         output_path += f".only_{args.population}"
     if args.sex:
         output_path += f".only_{args.sex}"
-
+    if args.stratify_by_population:
+        output_path += ".by_population"
+    if args.stratify_by_sex:
+        output_path += ".by_sex"
     output_path += f".{len(sample_ids_to_include_list)}_samples"
     if args.output_format == "JSON":
         output_path += ".json.gz"
     else:
         output_path += ".tsv.gz"
+
     print(f"Writing data from {len(sample_ids_to_include_list):,d} samples to {output_path}")
     with fopen(args.input_table, "rt") as infile, gzip.open(output_path, "wt") as outfile:
         if not args.no_header:
             next(infile)  # skip header
 
         if args.output_format == "TSV":
-            outfile.write("\t".join(HEADER_FIELDS) + "\n")
+            outfile.write("\t".join(output_header) + "\n")
         else:
             outfile.write("[\n")
             json_first_row = True
@@ -252,6 +308,8 @@ def main():
 
             alleles = []
             alleles_by_sample_id = collections.defaultdict(list)
+            stratum_alleles = collections.defaultdict(list)
+            stratum_alleles_by_sample_id = collections.defaultdict(lambda: collections.defaultdict(list))
             for sample_id, allele_sizes in zip(header_fields[2:], fields[2:]):
                 if sample_id not in sample_ids_to_include:
                     continue
@@ -264,16 +322,28 @@ def main():
                         raise ValueError(f"Expected integer allele size, got {allele_size} in line #{line_number + 1}: {line}")
                     alleles.append(allele_size)
                     alleles_by_sample_id[sample_id].append(allele_size)
+                    if sample_id in sample_id_to_stratum:
+                        stratum = sample_id_to_stratum[sample_id]
+                        stratum_alleles[stratum].append(allele_size)
+                        stratum_alleles_by_sample_id[stratum][sample_id].append(allele_size)
 
             row = compute_row(locus_id, motif, alleles, alleles_by_sample_id)
             if row:
+                for label in strata_labels:
+                    allele_histogram, biallelic_histogram = compute_histograms(
+                        stratum_alleles.get(label, []),
+                        stratum_alleles_by_sample_id.get(label, {}),
+                    )
+                    row[f"AlleleSizeHistogram:{label}"] = allele_histogram
+                    row[f"BiallelicHistogram:{label}"] = biallelic_histogram
+
                 if args.output_format == "JSON":
                     if not json_first_row:
                         outfile.write(",\n")
                     json_first_row = False
                     outfile.write("  " + json.dumps(row, indent=2).replace("\n", "\n  "))
                 else:
-                    outfile.write("\t".join(str(row[field]) for field in HEADER_FIELDS) + "\n")
+                    outfile.write("\t".join(str(row[field]) for field in output_header) + "\n")
 
         if args.output_format == "JSON":
             outfile.write("\n]\n")
