@@ -1,4 +1,4 @@
-import argparse
+import configargparse
 import collections
 import ijson
 import intervaltree
@@ -17,9 +17,9 @@ REQUIRED_OUTPUT_FIELDS = {"LocusId", "ReferenceRegion", "LocusStructure", "Varia
 SEPARATOR_FOR_MULTIPLE_SOURCES = " ||| "
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Combines two or more repeat catalogs into a single catalog. Loci "
+    parser = configargparse.ArgumentParser(description="Combines two or more repeat catalogs into a single catalog. Loci "
         "that have similar motifs and overlap either by more than the given threshold or by at least two repeats of "
-        "the larger motif among the two can be merged or discarded.")
+        "the larger motif among the two can be merged or discarded.", formatter_class=configargparse.ArgumentDefaultsRawHelpFormatter)
     parser.add_argument("-f", "--overlap-fraction", default=0.66, type=float, help="For 2 overlapping locus definitions "
         "to be considered as the same, they must share the same canonical motif and also either "
         "1) overlap by at least 2 repeats of that motif, or 2) overlap by at least this fraction. "
@@ -29,6 +29,10 @@ def parse_args():
     parser.add_argument("--min-jaccard-similarity", type=float, help="When two loci overlap and have the same "
         "canonical motif, consider them to be different loci if their Jaccard similarity (computed as the "
         "intersection divided by the union) is less than this value.")
+    parser.add_argument("--use-reverse-complement-to-compare-canonical-motifs", action="store_true", help="If this flag is specified, "
+        "reverse complements will be considered when computing canonical motifs for comparison. Without this flag, "
+        "only cyclic rotations are used, so motifs like CCCCGG and GGGCCG (which are reverse complements) "
+        "would be treated as different motifs.")
     parser.add_argument("--motif-length-match-sufficient-for-VNTRs", action="store_true", help="If this flag is specified, "
         "overlapping VNTR locus definitions (those with motif > 6bp) will not have to have the same canonical motif "
         "for them to be considered the same locus definition. Instead, only their motif lengths will have to be the same.")
@@ -248,6 +252,7 @@ def check_for_sufficient_overlap_and_motif_match(
         min_jaccard_similarity=None,
         motif_length_match_sufficient_for_VNTRs=False,
         only_compare_loci_from_different_catalogs=False,
+        include_reverse_complement=False,
 ):
 
     existing_record = existing_interval.data
@@ -287,7 +292,7 @@ def check_for_sufficient_overlap_and_motif_match(
 
     try:
         existing_record_canonical_motif = compute_canonical_motif(
-            existing_record_motifs[0], include_reverse_complement=False)
+            existing_record_motifs[0], include_reverse_complement=include_reverse_complement)
     except Exception as e:
         raise ValueError(f"Error computing canonical motif for {existing_record}: {e}")
 
@@ -299,7 +304,7 @@ def check_for_sufficient_overlap_and_motif_match(
 
     try:
         new_record_canonical_motif = compute_canonical_motif(
-            new_record_motifs[0], include_reverse_complement=False)
+            new_record_motifs[0], include_reverse_complement=include_reverse_complement)
     except Exception as e:
         raise ValueError(f"Error computing canonical motif for {new_record}: {e}")
 
@@ -334,6 +339,7 @@ def add_variant_catalog_to_interval_trees(
         min_jaccard_similarity=None,
         motif_length_match_sufficient_for_VNTRs=False,
         only_compare_loci_from_different_catalogs=False,
+        include_reverse_complement=False,
         discard_extra_fields_from_input_catalogs=False,
         stats=None,
         verbose=False,
@@ -401,6 +407,7 @@ def add_variant_catalog_to_interval_trees(
                 min_jaccard_similarity=min_jaccard_similarity,
                 motif_length_match_sufficient_for_VNTRs=motif_length_match_sufficient_for_VNTRs,
                 only_compare_loci_from_different_catalogs=only_compare_loci_from_different_catalogs,
+                include_reverse_complement=include_reverse_complement,
             )
             if existing_interval is not None:
                 break
@@ -436,7 +443,7 @@ def add_variant_catalog_to_interval_trees(
                 if len(existing_record_motifs) != 1:
                     raise ValueError(f"Unexpected LocusStructure in {existing_record}.")
                 existing_record_motif  = existing_record_motifs[0]
-                existing_record_motif_canonical = compute_canonical_motif(existing_record_motif, include_reverse_complement=False)
+                existing_record_motif_canonical = compute_canonical_motif(existing_record_motif, include_reverse_complement=include_reverse_complement)
                 new_record = {
                     "LocusId": f"{chrom}-{min_start_0based}-{max_end_1based}-{existing_record_motif}",
                     "ReferenceRegion": f"{unmodified_chrom}:{min_start_0based}-{max_end_1based}",
@@ -473,7 +480,8 @@ def add_variant_catalog_to_interval_trees(
 
                     they_match = check_for_sufficient_overlap_and_motif_match(
                         overlapping_interval, new_interval, min_overlap_fraction=min_overlap_fraction,
-                        motif_length_match_sufficient_for_VNTRs=motif_length_match_sufficient_for_VNTRs)
+                        motif_length_match_sufficient_for_VNTRs=motif_length_match_sufficient_for_VNTRs,
+                        include_reverse_complement=include_reverse_complement)
                     if not they_match:
                         continue
 
@@ -552,7 +560,7 @@ def add_variant_catalog_to_interval_trees(
         print(f"Wrote {counters['added']:,d} unique loci from {variant_catalog_filename} to {unique_loci_bed_filename}.gz")
 
 
-def check_whether_to_merge_adjacent_loci(previous_interval, current_interval):
+def check_whether_to_merge_adjacent_loci(previous_interval, current_interval, include_reverse_complement=False):
     """Checks whether the two loci should be merged into a single locus.
 
     Args:
@@ -579,8 +587,8 @@ def check_whether_to_merge_adjacent_loci(previous_interval, current_interval):
         return False, None
 
     previous_motif = previous_motifs[0]
-    previous_motif_shifted = compute_canonical_motif(previous_motifs[0], include_reverse_complement=False)
-    current_motif_shifted = compute_canonical_motif(current_motifs[0], include_reverse_complement=False)
+    previous_motif_shifted = compute_canonical_motif(previous_motifs[0], include_reverse_complement=include_reverse_complement)
+    current_motif_shifted = compute_canonical_motif(current_motifs[0], include_reverse_complement=include_reverse_complement)
     if previous_motif_shifted != current_motif_shifted:
         return False, None
 
@@ -628,6 +636,7 @@ def convert_interval_trees_to_output_records(
     only_loci_present_in_n_catalogs=None,
     merge_adjacent_loci_with_same_motif=False,
     add_found_in_fields=False,
+    include_reverse_complement=False,
 ):
     """Converts the IntervalTrees to a generator for output catalog records.
 
@@ -668,7 +677,7 @@ def convert_interval_trees_to_output_records(
                     previous_interval = interval
                     continue
 
-                should_merge, merged_interval = check_whether_to_merge_adjacent_loci(previous_interval, interval)
+                should_merge, merged_interval = check_whether_to_merge_adjacent_loci(previous_interval, interval, include_reverse_complement=include_reverse_complement)
                 if should_merge:
                     merged_counter += 1
                     previous_interval = merged_interval
@@ -792,6 +801,7 @@ def main():
             min_jaccard_similarity=args.min_jaccard_similarity,
             motif_length_match_sufficient_for_VNTRs=args.motif_length_match_sufficient_for_VNTRs,
             only_compare_loci_from_different_catalogs=args.only_compare_loci_from_different_catalogs,
+            include_reverse_complement=args.use_reverse_complement_to_compare_canonical_motifs,
             discard_extra_fields_from_input_catalogs=args.discard_extra_fields_from_input_catalogs,
             stats=stats,
             verbose=args.verbose,
@@ -810,7 +820,8 @@ def main():
             outer_join_overlap_table=outer_join_overlap_table,
             only_loci_present_in_n_catalogs=len(paths) if args.merge_type == "intersection" else None,
             merge_adjacent_loci_with_same_motif=args.merge_adjacent_loci_with_same_motif,
-            add_found_in_fields=args.add_found_in_fields)
+            add_found_in_fields=args.add_found_in_fields,
+            include_reverse_complement=args.use_reverse_complement_to_compare_canonical_motifs)
 
         # convert the SEPARATOR_FOR_MULTIPLE_SOURCES to commas
         output_catalog_record_generator = replace_separator_for_multiple_entries_in_field(
