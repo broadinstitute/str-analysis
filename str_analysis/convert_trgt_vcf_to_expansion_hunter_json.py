@@ -217,7 +217,7 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                         genotype_CI.append("-".join(ci))
                     genotype_CI = "/".join(genotype_CI)
 
-                    variant_record = info_dict | genotype_dict | {
+                    variant_record = {**info_dict, **genotype_dict, **{
                         "Genotype": genotype,   #"17/17",
                         "GenotypeConfidenceInterval": genotype_CI, #"17-17/17-17",
                         "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
@@ -226,7 +226,7 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                         #"VariantType": "Repeat",
                         "Ref": None if dont_output_REF_ALT_fields else fields[3],
                         "Alt": None if dont_output_REF_ALT_fields else fields[4],
-                    }
+                    }}
                     for key in KEYS_TO_DICARD:
                         if key in variant_record:
                             del variant_record[key]
@@ -258,7 +258,7 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                     for motif_i, motif in enumerate(motifs):
                         variant_id = f"{locus_id}-m{motif_i}-{motif}" if len(motifs) > 1 else locus_id
 
-                        variant_record = info_dict | genotype_dict | {
+                        variant_record = {**info_dict, **genotype_dict, **{
                             "Genotype": motif_count_genotypes[motif_i],   #"17/17",
                             "GenotypeConfidenceInterval": motif_count_genotypes_CIs[motif_i], #"17-17/17-17",
                             "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
@@ -267,7 +267,7 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
                             #"VariantType": "Repeat",
                             "Ref": None if dont_output_REF_ALT_fields else fields[3],
                             "Alt": None if dont_output_REF_ALT_fields else fields[4],
-                        }
+                        }}
 
                         for key in KEYS_TO_DICARD:
                             if key in variant_record:

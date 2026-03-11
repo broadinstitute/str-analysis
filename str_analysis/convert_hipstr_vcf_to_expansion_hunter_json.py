@@ -196,7 +196,7 @@ def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False):
                     #"ReadLength": None,
                     #"FragmentLength": None,
                     "Variants": {
-                        locus_id: info_dict | genotype_dict | {
+                        locus_id: {**info_dict, **genotype_dict, **{
                             "Genotype": f"{num_repeats1}/{num_repeats2}",
                             "GenotypeConfidenceInterval": f"{num_repeats1}-{num_repeats1}/{num_repeats2}-{num_repeats2}",
                             "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
@@ -205,7 +205,7 @@ def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False):
                             "VariantType": "Repeat",
                             "Ref": fields[3],
                             "Alt": fields[4],
-                        }
+                        }}
                     }
                 }
             except Exception as e:

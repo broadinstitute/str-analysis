@@ -181,7 +181,7 @@ def process_gangstr_vcf(vcf_path, variant_catalog=None, sample_id=None):
                     #"ReadLength": None,
                     #"FragmentLength": None,
                     "Variants": {
-                        locus_id: info_dict | genotype_dict | {
+                        locus_id: {**info_dict, **genotype_dict, **{
                             "Genotype": genotype_dict["REPCN"].replace(",", "/"), #"17/17",
                             "GenotypeConfidenceInterval": genotype_dict["REPCI"].replace(",", "/"), #"17-17/17-17",
                             "ReferenceRegion": f"{chrom}:{start_1based - 1}-{end_1based}",
@@ -190,7 +190,7 @@ def process_gangstr_vcf(vcf_path, variant_catalog=None, sample_id=None):
                             "VariantType": "Repeat",
                             "Ref": fields[3],
                             "Alt": fields[4],
-                        }
+                        }}
                     }
                 }
             except Exception as e:
