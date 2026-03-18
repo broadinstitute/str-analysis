@@ -47,6 +47,26 @@
         "Inheritance": "XR"
     },
     {
+        "LocusId": "AFF3",
+        "LocusStructure": "(GCC)*",
+        "ReferenceRegion": "chr2:100721260-100721284",
+        "RepeatUnit": "GCC",
+        "VariantType": "Repeat",
+        "Gene": "AFF3",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000144218",
+        "Diseases": [
+            {
+                "Symbol": "FRA2A",
+                "Name": "Intellectual disability associated with fragile site FRA2A",
+                "Inheritance": "AD",
+                "NormalMax": 20,
+                "PathogenicMin": 300
+            }
+        ],
+        "MainReferenceRegion": "chr2:100721260-100721284"
+    },
+    {
         "LocusId": "AR",
         "LocusStructure": "(GCA)*",
         "ReferenceRegion": "chrX:66765158-66765227",
@@ -63,7 +83,7 @@
                 "Name": "Spinal and bulbar muscular atrophy",
                 "Inheritance": "XR",
                 "OMIM": "313200",
-                "NormalMax": 35,
+                "NormalMax": 34,
                 "PathogenicMin": 38
             }
         ],
@@ -229,7 +249,7 @@
                 "Name": "Spinocerebellar ataxia 2",
                 "Inheritance": "AD",
                 "OMIM": "183090",
-                "NormalMax": 31,
+                "NormalMax": 30,
                 "PathogenicMin": 35,
                 "IntermediateRange": "32-34"
             }
@@ -255,7 +275,7 @@
                 "Inheritance": "AD",
                 "OMIM": "109150",
                 "NormalMax": 44,
-                "PathogenicMin": 56,
+                "PathogenicMin": 60,
                 "IntermediateRange": "45-55"
             }
         ],
@@ -289,7 +309,7 @@
                 "Name": "Spinocerebellar ataxia 7",
                 "Inheritance": "AD",
                 "OMIM": "164500",
-                "NormalMax": 33,
+                "NormalMax": 27,
                 "PathogenicMin": 37,
                 "IntermediateRange": "34-36"
             }
@@ -412,6 +432,27 @@
         "Inheritance": "AD"
     },
     {
+        "LocusId": "CBL",
+        "LocusStructure": "(CGG)*",
+        "ReferenceRegion": "chr11:119076999-119077032",
+        "RepeatUnit": "CGG",
+        "VariantType": "Repeat",
+        "Gene": "CBL",
+        "GeneRegion": "promoter",
+        "GeneId": "ENSG00000110395",
+        "Diseases": [
+            {
+                "Symbol": "JBS",
+                "Name": "Jacobsen syndrome (FRAX11B fragile site)",
+                "Inheritance": "AD",
+                "NormalMax": 79,
+                "PathogenicMin": 101,
+                "IntermediateRange": "80-100"
+            }
+        ],
+        "MainReferenceRegion": "chr11:119076999-119077032"
+    },
+    {
         "LocusId": "CNBP",
         "LocusStructure": "(CAGG)*(CAGA)*(CA)*",
         "ReferenceRegion": [
@@ -441,8 +482,8 @@
                 "Name": "Myotonic dystrophy 2",
                 "Inheritance": "AD",
                 "OMIM": "602668",
-                "NormalMax": 54,
-                "PathogenicMin": 55
+                "NormalMax": 26,
+                "PathogenicMin": 75
             }
         ],
         "MainReferenceRegion": "chr3:128891419-128891499",
@@ -518,7 +559,8 @@
                 "Name": "Spinocerebellar ataxia 37",
                 "Inheritance": "AD",
                 "OMIM": "615945",
-                "PathogenicMin": 31
+                "PathogenicMin": 31,
+                "NormalMax": 30
             }
         ],
         "MainReferenceRegion": "chr1:57832715-57832790",
@@ -604,7 +646,7 @@
                 "Name": "Richieri-Costa-Pereira syndrome",
                 "Inheritance": "AR",
                 "OMIM": "268305",
-                "NormalMax": 11,
+                "NormalMax": 12,
                 "PathogenicMin": 14
             }
         ],
@@ -674,7 +716,7 @@
                 "OMIM": "620174",
                 "PathogenicMin": 320,
                 "IntermediateRange": "250-335",
-                "NormalMax": 250
+                "NormalMax": 179
             }
         ],
         "MainReferenceRegion": "chr13:102813924-102814074",
@@ -766,7 +808,7 @@
                 "Inheritance": "AR",
                 "OMIM": "229300",
                 "NormalMax": 33,
-                "PathogenicMin": 66
+                "PathogenicMin": 56
             }
         ],
         "MainReferenceRegion": "chr9:71652202-71652220",
@@ -1040,7 +1082,7 @@
                 "Name": "Familial adult myoclonic epilepsy 3",
                 "Inheritance": "AD",
                 "OMIM": "613608",
-                "PathogenicMin": 668
+                "PathogenicMin": 650
             }
         ],
         "MainReferenceRegion": "chr5:10356458-10356523",
@@ -1205,7 +1247,7 @@
                 "Inheritance": "AD",
                 "OMIM": "209880",
                 "NormalMax": 20,
-                "PathogenicMin": 24
+                "PathogenicMin": 26
             }
         ],
         "MainReferenceRegion": "chr4:41747989-41748049",
@@ -1470,7 +1512,7 @@
                 "Name": "Familial adult myoclonic epilepsy 1",
                 "Inheritance": "AD",
                 "OMIM": "601068",
-                "PathogenicMin": 100
+                "PathogenicMin": 105
             }
         ],
         "MainReferenceRegion": "chr8:119379051-119379157",
@@ -1562,7 +1604,7 @@
                 "Inheritance": "AD",
                 "OMIM": "607136",
                 "NormalMax": 42,
-                "PathogenicMin": 43
+                "PathogenicMin": 49
             }
         ],
         "MainReferenceRegion": "chr6:170870994-170871105",
@@ -1706,7 +1748,7 @@
                 "Inheritance": "AR",
                 "OMIM": "615777",
                 "NormalMax": 20,
-                "PathogenicMin": 110
+                "PathogenicMin": 72
             }
         ],
         "MainReferenceRegion": "chr16:17564764-17564779",
@@ -1759,7 +1801,7 @@
                 "Inheritance": "AD",
                 "OMIM": "600223",
                 "NormalMax": 26,
-                "PathogenicMin": 41
+                "PathogenicMin": 46
             }
         ],
         "MainReferenceRegion": "chr16:72821593-72821656",
@@ -1810,5 +1852,24 @@
         ],
         "MainReferenceRegion": "chrX:136648985-136649015",
         "Inheritance": "XR"
+    },
+    {
+        "LocusId": "ZNF713",
+        "LocusStructure": "(GCG)*",
+        "ReferenceRegion": "chr7:55955293-55955332",
+        "RepeatUnit": "GCG",
+        "VariantType": "Repeat",
+        "Gene": "ZNF713",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000178665",
+        "Diseases": [
+            {
+                "Symbol": "FRA7A",
+                "Name": "Autism spectrum disorder associated with fragile site FRA7A",
+                "Inheritance": "AD",
+                "PathogenicMin": 450
+            }
+        ],
+        "MainReferenceRegion": "chr7:55955293-55955332"
     }
 ]
