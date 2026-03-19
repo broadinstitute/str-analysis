@@ -180,8 +180,8 @@ def get_strchive_dict(gnomad_catalog):
 
 	print("Downloading loci from STRchive")
 	strchive_data = get_json_from_url(
-		#"https://raw.githubusercontent.com/dashnowlab/STRchive/refs/heads/main/data/STRchive-loci.json"
-		"https://raw.githubusercontent.com/dashnowlab/STRchive/1954f32525846ae91363d3f308b840cbe772f01b/data/STRchive-loci.json"
+		"https://raw.githubusercontent.com/dashnowlab/STRchive/refs/heads/main/data/STRchive-loci.json"
+		#"https://raw.githubusercontent.com/dashnowlab/STRchive/1954f32525846ae91363d3f308b840cbe772f01b/data/STRchive-loci.json"
 	)
 
 	strchive_id_to_gnomad_map = {
@@ -432,7 +432,7 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 		gnomad_motif = d["RepeatUnit"]
 		gnomad_canonical_motif = compute_canonical_motif(gnomad_motif)
 		gnomad_pathogenic_min = ", ".join(map(str, [disease_info.get("PathogenicMin") for disease_info in d.get("Diseases", [])]))
-		gnomad_ref = fasta_file.fetch(gnomad_chrom, gnomad_start, gnomad_end)
+		gnomad_ref = str(fasta_file.fetch(gnomad_chrom, gnomad_start, gnomad_end)).upper()
 
 		stripy_reference_region = None
 		gnomad_differs_from_stripy = False
@@ -444,7 +444,7 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 			stripy_motif = stripy_info["Motif"]
 			stripy_canonical_motif = compute_canonical_motif(stripy_motif)
 			stripy_pathogenic_min = ", ".join(map(str, [disease_info.get("PathogenicMin") for disease_info in stripy_info.get("Diseases", [])]))
-			stripy_ref = fasta_file.fetch(stripy_chrom, stripy_start, stripy_end)
+			stripy_ref = str(fasta_file.fetch(stripy_chrom, stripy_start, stripy_end)).upper()
 
 			gnomad_vs_stripy_distance = max(abs(gnomad_start - stripy_start), abs(gnomad_end - stripy_end))
 			gnomad_differs_from_stripy = gnomad_reference_region != stripy_reference_region and (gnomad_vs_stripy_distance >= motif_size or gnomad_repeats != stripy_repeats)
@@ -464,7 +464,7 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 
 			strchive_motif = strchive_info["reference_motif_reference_orientation"]
 			strchive_canonical_motif = compute_canonical_motif(strchive_motif)
-			strchive_ref = fasta_file.fetch(strchive_chrom, strchive_start, strchive_end)
+			strchive_ref = str(fasta_file.fetch(strchive_chrom, strchive_start, strchive_end)).upper()
 
 			gnomad_vs_strchive_distance = max(abs(gnomad_start - strchive_start), abs(gnomad_end - strchive_end))
 			gnomad_differs_from_strchive = gnomad_reference_region != strchive_reference_region and (gnomad_vs_strchive_distance >= motif_size or gnomad_repeats != strchive_repeats)
@@ -479,7 +479,7 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 			trgt_reference_region = trgt_info["ReferenceRegion"]
 			trgt_canonical_motif = trgt_info["CanonicalMotif"]
 			trgt_repeats = (trgt_end - trgt_start)/motif_size
-			trgt_ref = fasta_file.fetch(trgt_chrom, trgt_start, trgt_end)
+			trgt_ref = str(fasta_file.fetch(trgt_chrom, trgt_start, trgt_end)).upper()
 
 			gnomad_vs_trgt_distance = max(abs(gnomad_start - trgt_start), abs(gnomad_end - trgt_end))
 			gnomad_differs_from_trgt = gnomad_reference_region != trgt_reference_region and (gnomad_vs_trgt_distance >= motif_size or gnomad_repeats != trgt_repeats)

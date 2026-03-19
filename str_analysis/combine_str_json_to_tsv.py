@@ -11,7 +11,6 @@ import pandas as pd
 import pathlib
 from pprint import pformat
 import re
-import statistics
 import sys
 import tqdm
 

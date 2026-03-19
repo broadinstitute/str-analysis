@@ -668,8 +668,10 @@ def add_known_pathogenic_STR_annotations(args, gnomad_json):
     strchive_gene_to_id["HOXA13_1"] = strchive_gene_to_id["HOXA13"]
     strchive_gene_to_id["HOXA13_2"] = strchive_gene_to_id["HOXA13"]
     strchive_gene_to_id["HOXA13_3"] = strchive_gene_to_id["HOXA13"]
+    strchive_gene_to_id["PRE-MIR7-2"] = strchive_gene_to_id["MIR7-2"]
     del strchive_gene_to_id["ARX"]
     del strchive_gene_to_id["HOXA13"]
+    del strchive_gene_to_id["MIR7-2"]
 
     loci_missing_from_strchive = set(gnomad_json.keys()) - set(strchive_gene_to_id.keys())
     for locus_id in loci_missing_from_strchive:
@@ -1292,6 +1294,21 @@ def main():
 
     # Perform validity checks
     validate_json(df, gnomad_json, readviz_json, user_friendly_genotypes_json, no_readviz_images=args.no_readviz)
+
+    # Rename PRE-MIR7-2 to MIR7-2 in all output data structures
+    LOCUS_ID_RENAMES = {"PRE-MIR7-2": "MIR7-2"}
+    for old_id, new_id in LOCUS_ID_RENAMES.items():
+        if old_id in gnomad_json:
+            gnomad_json[new_id] = gnomad_json.pop(old_id)
+            gnomad_json[new_id]["LocusId"] = new_id
+            gnomad_json[new_id]["GeneName"] = new_id
+        if old_id in readviz_json:
+            readviz_json[new_id] = readviz_json.pop(old_id)
+        for record in user_friendly_genotypes_json:
+            if record.get("LocusId") == old_id:
+                record["LocusId"] = new_id
+            if record.get("Id") == old_id:
+                record["Id"] = new_id
 
     # Write out the data structures
     date_stamp = datetime.now().strftime("%Y_%m_%d")
