@@ -32,8 +32,10 @@ Pseudocode:
            b. not a tandem repeat 
            c. a tandem repeat too long for the flanking sequence (increase flanking sequence size and redo #2)
 
-  3. merge tandem repeat alleles that overlap and have similar motifs
-  4. write results to output files
+  3. write results to output files
+
+  NOTE: Merging of overlapping TR loci is handled by the separate 'merge' subcommand, which should be run
+  after the 'catalog' subcommand when combining results from multiple VCFs or when deduplication is desired.
 """
 
 import argparse
@@ -106,8 +108,8 @@ TRF_MAX_SPAN_IN_REFERENCE_THRESHOLD = 10_000      # 10Kb
 
 #FILTER_TR_ALLELE_PARTIAL_REPEAT = "ends in partial repeat"
 
-FILTER_TR_ALLELE_REPEAT_UNIT_TOO_SHORT = "repeat unit < %d bp"
-FILTER_TR_ALLELE_REPEAT_UNIT_TOO_LONG = "repeat unit > %d bp"
+FILTER_TR_ALLELE_REPEAT_UNIT_TOO_SHORT = "repeat unit < {:,d} bp"
+FILTER_TR_ALLELE_REPEAT_UNIT_TOO_LONG = "repeat unit > {:,d} bp"
 
 # Output columns for genotype subcommand TSV output
 GENOTYPE_TSV_OUTPUT_COLUMNS = [
@@ -193,11 +195,8 @@ def parse_args():
     catalog_p.add_argument("--write-detailed-bed", help="Output a second BED file (in addition to the main output BED file of all TR loci) "
                            "where the name field (ie. column 4) contains additional info besides the repeat unit.", action="store_true")
     catalog_p.add_argument("--write-vcf", help="Output a VCF file with all variants that were found to be TRs.", action="store_true")
-    catalog_p.add_argument("--write-filtered-out-variants-to-vcf", help="Output a VCF file with variants where one allele was found to be an TR, "
-                   "but that were still filtered out for reasons such as being multiallelic and having alleles with different motifs, "
-                   "or because one allele was an TR while the other was an SNV. These types of variants are filtered out to reduce complexity "
-                   "in downstream analyses.",
-                   action="store_true")
+    catalog_p.add_argument("--write-filtered-variants-to-vcf", help="Output a VCF file with indel variants that were not identified as TRs. "
+                   "The FILTER column will contain the reason each variant was filtered.", action="store_true")
     catalog_p.add_argument("--write-fasta", help="Output a FASTA file containing all TR alleles", action="store_true")
     catalog_p.add_argument("--write-tsv", help="Output a TSV file containing all TR alleles", action="store_true")
     catalog_p.add_argument("-ik", "--copy-info-field-keys-to-tsv", help="Copy the values of these INFO field keys from the input "
@@ -1990,12 +1989,13 @@ def do_catalog_subcommand(args):
     alleles_from_vcf = parse_input_vcf_file(args, counters, fasta_obj)
 
     # detect tandem repeats
+    filtered_alleles = {} if args.write_filtered_variants_to_vcf else None
     alleles_that_are_tandem_repeats, alleles_to_process_using_trf = detect_perfect_and_almost_perfect_tandem_repeats(
-        alleles_from_vcf, counters, args)
-    
+        alleles_from_vcf, counters, args, filtered_alleles=filtered_alleles)
+
     if not args.dont_run_trf:
         more_alleles_that_are_tandem_repeats = detect_tandem_repeats_using_trf(
-            alleles_to_process_using_trf, counters, args)
+            alleles_to_process_using_trf, counters, args, filtered_alleles=filtered_alleles)
         alleles_that_are_tandem_repeats.extend(more_alleles_that_are_tandem_repeats)
 
     # write results to output file(s)
@@ -2009,9 +2009,10 @@ def do_catalog_subcommand(args):
 
     if args.write_vcf:
         write_vcf(alleles_that_are_tandem_repeats, args, only_write_filtered_out_alleles=False)
-    
-    if args.write_filtered_out_variants_to_vcf:
-        write_vcf(alleles_that_are_tandem_repeats, args, only_write_filtered_out_alleles=True)
+
+    if args.write_filtered_variants_to_vcf:
+        write_vcf(alleles_that_are_tandem_repeats, args, only_write_filtered_out_alleles=True,
+                  filtered_alleles=filtered_alleles)
 
     if args.write_tsv:
         write_tsv(alleles_that_are_tandem_repeats, args)
@@ -2024,7 +2025,7 @@ def do_catalog_subcommand(args):
         print_tr_stats(alleles_that_are_tandem_repeats)
 
 
-def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
+def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args, filtered_alleles=None):
 
     alleles_to_process_next = [(allele, DETECTION_MODE_PURE_REPEATS) for allele in alleles]
     alleles_to_process_next_using_trf = []
@@ -2060,7 +2061,9 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
                     alleles_to_process_next_using_trf.append(allele)
                 else:
                     counters[f"allele filter: {detection_mode}: {filter_reason}"] += 1
-                
+                    if filtered_alleles is not None:
+                        filtered_alleles[(allele.chrom, allele.pos, allele.ref)] = filter_reason
+
                 continue
 
             # reprocess the allele if the repeats were found to cover the entire left or right flanking sequence
@@ -2095,7 +2098,7 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args):
     return tandem_repeat_alleles, alleles_to_process_next_using_trf
 
 
-def detect_tandem_repeats_using_trf(alleles, counters, args):
+def detect_tandem_repeats_using_trf(alleles, counters, args, filtered_alleles=None):
     """Runs TandemRepeatFinder (TRF) on a list of indel alleles to detect tandem repeats."""
 
     tandem_repeat_alleles = []
@@ -2135,6 +2138,8 @@ def detect_tandem_repeats_using_trf(alleles, counters, args):
                     for tandem_repeat_allele, filter_reason, allele in futures[thread_i].result():
                         if filter_reason:
                             counters[f"allele filter: TRF: {filter_reason}"] += 1
+                            if filtered_alleles is not None:
+                                filtered_alleles[(allele.chrom, allele.pos, allele.ref)] = filter_reason
                             continue
 
                         # reprocess the allele if the repeats were found to cover the entire left or right flanking sequence
@@ -2957,13 +2962,15 @@ def get_input_vcf_iterator(args, include_header=False):
     return vcf_iterator
 
 
-def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False):
+def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False, filtered_alleles=None):
     """Write variants that either are or aren't tandem repeats to a VCF file.
-    
+
     Args:
         tandem_repeat_alleles (list): list of TandemRepeatAllele objects
         args (argparse.Namespace): command-line arguments parsed by parse_args()
         only_write_filtered_out_alleles (bool): if True, only write the variants that are not in the tandem_repeats_alleles list
+        filtered_alleles (dict): optional dict mapping (chrom, pos, ref) to filter reason strings.
+            Used when only_write_filtered_out_alleles=True to populate the FILTER column.
     """
 
     vcf_iterator = get_input_vcf_iterator(args, include_header=True)
@@ -3003,7 +3010,6 @@ def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False
             vcf_pos = int(vcf_fields[1])
             vcf_ref = vcf_fields[3].upper()
 
-
             key = (vcf_chrom, vcf_pos, vcf_ref)
             is_tandem_repeat = key in vcf_alleles
             if is_tandem_repeat:
@@ -3021,7 +3027,22 @@ def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False
 
                 line = "\t".join(vcf_fields) + "\n"
 
-            if (not only_write_filtered_out_alleles and is_tandem_repeat) or (only_write_filtered_out_alleles and not is_tandem_repeat):
+            if only_write_filtered_out_alleles and not is_tandem_repeat:
+                # set the FILTER column to the filter reason
+                if filtered_alleles and key in filtered_alleles:
+                    vcf_fields[6] = filtered_alleles[key]
+                else:
+                    # determine filter reason for non-indel variants
+                    vcf_alt = vcf_fields[4].upper()
+                    alt_alleles = [a for a in vcf_alt.split(",") if a != "*"]
+                    if all(len(vcf_ref) == len(a) for a in alt_alleles):
+                        vcf_fields[6] = "SNV" if all(len(a) == 1 for a in alt_alleles) else "MNV"
+                    else:
+                        vcf_fields[6] = "not_TR"
+                line = "\t".join(vcf_fields) + "\n"
+                f.write(line)
+                output_line_counter += 1
+            elif not only_write_filtered_out_alleles and is_tandem_repeat:
                 f.write(line)
                 output_line_counter += 1
 
