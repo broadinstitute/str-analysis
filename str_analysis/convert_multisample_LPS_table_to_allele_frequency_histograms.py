@@ -216,7 +216,7 @@ def main():
         strata_labels = []
     else:
         import pandas as pd
-        df_metadata = pd.read_table(args.sample_metadata_tsv)
+        df_metadata = pd.read_table(args.sample_metadata_tsv, dtype={"SampleId": str})
         all_sample_ids = set(df_metadata.SampleId)
         unexpected_sample_ids = set(sample_ids_in_input_table) - all_sample_ids
         if unexpected_sample_ids:
