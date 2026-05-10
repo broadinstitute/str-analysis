@@ -289,6 +289,7 @@ def main():
             json_first_row = True
 
         line_count = 0
+        rows_written = 0
         for line_number, line in tqdm.tqdm(enumerate(infile), unit=" lines", unit_scale=True):
             fields = line.strip().split("\t")
             if len(fields) < 2:
@@ -344,11 +345,12 @@ def main():
                     outfile.write("  " + json.dumps(row, indent=2).replace("\n", "\n  "))
                 else:
                     outfile.write("\t".join(str(row[field]) for field in output_header) + "\n")
+                rows_written += 1
 
         if args.output_format == "JSON":
             outfile.write("\n]\n")
 
-    print(f"Wrote {line_count:9,d} lines to {output_path}")
+    print(f"Wrote {rows_written:9,d} rows to {output_path}")
 
 if __name__ == "__main__":
     main()
