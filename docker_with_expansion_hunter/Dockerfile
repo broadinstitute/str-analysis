@@ -2,7 +2,7 @@ FROM bitnami/minideb:bullseye
 
 RUN apt-get update && apt-get install --no-install-recommends --yes \
     ca-certificates \
-    wget -q \
+    wget \
     curl \
     pkg-config \
     procps \
@@ -21,7 +21,6 @@ RUN apt-get update && apt-get install --no-install-recommends --yes \
     liblzma-dev \
     libgdbm-dev \
     libc6-dev \
-    zlib1g-dev \
     libsqlite3-dev \
     libssl-dev \
     openssl \
@@ -38,7 +37,8 @@ RUN wget -q https://github.com/samtools/htslib/releases/download/${HTSLIB_VERSIO
 	&& ./configure --enable-libcurl --enable-gcs --enable-s3 \
 	&& make \
 	&& make install \
-	&& make clean
+	&& cd / \
+	&& rm -rf htslib-${HTSLIB_VERSION}
 
 # install samtools
 ENV SAMTOOLS_VERSION="1.20"
@@ -49,39 +49,35 @@ RUN wget -q https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VE
 	&& ./configure --enable-libcurl --enable-gcs --enable-s3 \
 	&& make \
 	&& make install \
-	&& make clean
+	&& cd / \
+	&& rm -rf samtools-${SAMTOOLS_VERSION}
 
 # install bedtools
 ENV BED_TOOLS_VERSION="2.31.0"
 RUN wget https://github.com/arq5x/bedtools2/releases/download/v${BED_TOOLS_VERSION}/bedtools.static \
-	&& chmod 777 bedtools.static \
+	&& chmod 755 bedtools.static \
 	&& mv bedtools.static /usr/bin/bedtools
 
 # install python3.9
 RUN apt-get update && apt-get install --no-install-recommends --yes python3.9 python3-distutils \
-	&& curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
-	&& python3 get-pip.py
+	&& curl https://bootstrap.pypa.io/pip/3.9/get-pip.py -o get-pip.py \
+	&& python3 get-pip.py \
+	&& rm get-pip.py
 
 # install gcloud
-ENV GCLOUD_SDK_VERISON="531.0.0"
-RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
-    && tar xzf google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
+ENV GCLOUD_SDK_VERSION="531.0.0"
+RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${GCLOUD_SDK_VERSION}-linux-x86_64.tar.gz \
+    && tar xzf google-cloud-sdk-${GCLOUD_SDK_VERSION}-linux-x86_64.tar.gz \
+    && rm google-cloud-sdk-${GCLOUD_SDK_VERSION}-linux-x86_64.tar.gz \
     && /google-cloud-sdk/install.sh -q \
     && /google-cloud-sdk/bin/gcloud components update --quiet
 
 ENV PATH=/google-cloud-sdk/bin:$PATH
 
-# install ExpansionHunter fork with optimizations
+# install dependencies for ExpansionHunter build
 RUN apt-get update && apt-get install --no-install-recommends --yes \
     build-essential \
-	libncursesw5-dev \
-	libgdbm-dev \
-	libc6-dev \
-	zlib1g-dev \
-	libsqlite3-dev \
-	libssl-dev \
-	openssl \
-	libffi-dev
+    libncursesw5-dev
 
 RUN python3 -m pip install --upgrade cmake
 
@@ -112,7 +108,7 @@ RUN wget -q https://github.com/bw2/ExpansionHunter/archive/refs/heads/master.zip
 
 # install TRF
 RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1/trf409.linux64 \
-	&& chmod 777 trf409.linux64 \
+	&& chmod 755 trf409.linux64 \
 	&& mv trf409.linux64 /usr/bin/trf
 
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
