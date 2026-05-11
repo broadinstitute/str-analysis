@@ -31,7 +31,8 @@ RUN apt-get update && apt-get install --no-install-recommends --yes \
     parallel \
     time \
     cmake \
-    libclang-dev
+    libclang-dev \
+    grabix
 
 # install htslib
 ENV HTSLIB_VERSION="1.20"
@@ -79,6 +80,8 @@ ENV PATH=/google-cloud-sdk/bin:$PATH
 RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1/trf409.linux64 \
     && chmod 777 trf409.linux64 \
     && mv trf409.linux64 /usr/bin/trf
+
+RUN python3 -m pip install --no-cache-dir trviz pyarrow
 
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
