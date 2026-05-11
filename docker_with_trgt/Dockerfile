@@ -84,7 +84,7 @@ RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1
     && chmod 755 trf409.linux64 \
     && mv trf409.linux64 /usr/bin/trf
 
-RUN python3 -m pip install --no-cache-dir git+https://github.com/bw2/trviz pyarrow
+RUN python3 -m pip install --no-cache-dir git+https://github.com/bw2/trviz@9068d9abc50ec9b8ba478505d3d19496e1f431b9 pyarrow
 
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
