@@ -91,7 +91,7 @@ RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1
     && mv trf409.linux64 /usr/bin/trf
 
 
-RUN python3 -m pip install --no-cache-dir trviz pyarrow
+RUN python3 -m pip install --no-cache-dir git+https://github.com/bw2/trviz pyarrow
 
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
