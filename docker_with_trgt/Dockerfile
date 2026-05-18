@@ -79,6 +79,11 @@ RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cl
 
 ENV PATH=/google-cloud-sdk/bin:$PATH
 
+# install aws-cli (v1 from bullseye apt) for fast multipart S3 downloads via
+# `aws s3 cp --no-sign-request`. Used by the HPRC R2 BAM-localization path.
+RUN apt-get update && apt-get install --no-install-recommends --yes awscli \
+    && rm -rf /var/lib/apt/lists/*
+
 # install TRF
 RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1/trf409.linux64 \
     && chmod 755 trf409.linux64 \
