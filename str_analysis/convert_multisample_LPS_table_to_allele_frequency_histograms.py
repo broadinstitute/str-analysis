@@ -376,10 +376,14 @@ def main():
     # mid-run exception (malformed cell, end-of-input drain mismatch, etc.)
     # doesn't destroy a previous good output file. os.replace promotes it
     # at the end of the function, after the end-of-processing assertion has
-    # passed.
+    # passed. A try/finally guarantees the .tmp is removed on any failure
+    # path, matching extract_vcf_interval_metadata.py and the purity/methylation
+    # script's pattern.
     tmp_output_path = output_path + ".tmp"
     print(f"Writing data from {len(sample_ids_to_include_list):,d} samples to {output_path}")
-    with fopen(args.input_table, "rt") as infile, gzip.open(tmp_output_path, "wt") as outfile:
+    promoted = False
+    try:
+     with fopen(args.input_table, "rt") as infile, gzip.open(tmp_output_path, "wt") as outfile:
         if not args.no_header:
             next(infile)  # skip header
 
@@ -494,33 +498,37 @@ def main():
         if args.output_format == "JSON":
             outfile.write("\n]\n")
 
-    # End-of-processing assertion: every chunk popped from the deque must
-    # correspond to an LPS row. Leftover chunks indicate a mismatch between
-    # the LPS table and --vcf-interval-tsv (e.g. extract emitted records that
-    # the LPS table doesn't have, which would mean LPS rows got paired with
-    # the wrong (Interval, VC) chunks via FIFO).
-    #
-    # Skip the check when --num-loci is in effect: the main loop intentionally
-    # breaks early, so leftover chunks are expected and not a sign of mismatch.
-    if vcf_metadata and args.num_loci is None:
-        unconsumed = sum(len(deq) for deq in vcf_metadata.values())
-        if unconsumed:
-            examples = [key for key, deq in vcf_metadata.items() if deq][:3]
-            # Clean up tmp output before raising so the user isn't left with a
-            # half-baked file from a failed run.
+     # End-of-processing assertion: every chunk popped from the deque must
+     # correspond to an LPS row. Leftover chunks indicate a mismatch between
+     # the LPS table and --vcf-interval-tsv (e.g. extract emitted records that
+     # the LPS table doesn't have, which would mean LPS rows got paired with
+     # the wrong (Interval, VC) chunks via FIFO).
+     #
+     # Skip the check when --num-loci is in effect: the main loop intentionally
+     # breaks early, so leftover chunks are expected and not a sign of mismatch.
+     if vcf_metadata and args.num_loci is None:
+         unconsumed = sum(len(deq) for deq in vcf_metadata.values())
+         if unconsumed:
+             examples = [key for key, deq in vcf_metadata.items() if deq][:3]
+             raise ValueError(
+                 f"{unconsumed:,d} VCF-record chunks in --vcf-interval-tsv were "
+                 f"never consumed by an LPS row (e.g. {examples!r}). The two "
+                 f"inputs are out of sync; re-extract --vcf-interval-tsv from "
+                 f"the same VCF the LPS table was generated from."
+             )
+
+     # Atomic promote: only if the run succeeded (no exception, drain check passed).
+     os.replace(tmp_output_path, output_path)
+     promoted = True
+    finally:
+        # Clean up the .tmp file on any failure path (mid-loop exception,
+        # drain-check failure, anything else); the os.replace above only
+        # fires when the full run succeeds.
+        if not promoted and os.path.exists(tmp_output_path):
             try:
                 os.remove(tmp_output_path)
             except OSError:
                 pass
-            raise ValueError(
-                f"{unconsumed:,d} VCF-record chunks in --vcf-interval-tsv were "
-                f"never consumed by an LPS row (e.g. {examples!r}). The two "
-                f"inputs are out of sync; re-extract --vcf-interval-tsv from "
-                f"the same VCF the LPS table was generated from."
-            )
-
-    # Atomic promote: only if the run succeeded (no exception, drain check passed).
-    os.replace(tmp_output_path, output_path)
     print(f"Wrote {rows_written:9,d} rows to {output_path}")
 
 if __name__ == "__main__":
