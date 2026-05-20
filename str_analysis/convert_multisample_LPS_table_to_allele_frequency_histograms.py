@@ -6,6 +6,30 @@ motif    (example: "A")
 <sample1> <sample2> ...  (example: "3,3" meaning two alleles of size 3; "." for no-call)
 
 and outputs a per-locus summary table with allele frequency histograms and statistics.
+
+When ``--vcf-interval-tsv`` is provided (the small TSV produced by
+extract_vcf_interval_metadata.py with columns ``trid, locus_id, motif,
+interval, vc``), each output row also carries:
+
+    LocusId  = the resolved single locus_id (chrom-start-end-motif) for this row
+    Interval = "{chrom}:{vcf_start_0based}-{vcf_end_1based}"  (always set)
+    VC       = the inner span from INFO/STRUC if the row was genotyped as
+               part of a variation cluster (<VC:...>), or "" for an isolated TR
+               (<TR:...>).
+
+These columns disambiguate the rows that share a LocusId because the same
+LocusId was genotyped under multiple TRGT catalog intervals (e.g. once as a
+standalone TR and once inside a VC).
+
+For each LPS row's (trid, motif) key, the script pops one chunk from the
+pre-built (trid, motif) -> deque[chunk] map, where each chunk groups all
+LocusIds genotyped by the same VCF record (so a compound TRID with three
+LocusIds ending in ``-AGAA`` for motif ``AGAA`` produces a single chunk
+containing three locus_ids, all sharing the same interval/vc, and the
+script emits three output rows from the LPS row's allele data).
+
+The script enforces a process-wide uniqueness invariant: no two output rows
+share the same (LocusId, Interval, VC) tuple.
 """
 
 import argparse
@@ -16,9 +40,12 @@ import os
 import numpy as np
 import tqdm
 
+
 HEADER_FIELDS = [
     "LocusId",
     "Motif",
+    "Interval",
+    "VC",
     "AlleleSizeHistogram",
     "BiallelicHistogram",
     "Min",
@@ -29,10 +56,64 @@ HEADER_FIELDS = [
     "99thPercentile",
     "Max",
     "ShortAllele99thPercentile",
-    "ShortAlleleMax",    
+    "ShortAlleleMax",
     "UniqueAlleleLengths",
     "NumCalledAlleles",
 ]
+
+
+def load_vcf_interval_metadata(tsv_path):
+    """Loads the small interval-metadata TSV into ``(trid, motif) -> deque[chunk]``.
+
+    The TSV is produced by ``data-prep/hprc-lps/extract_vcf_interval_metadata.py``
+    with columns ``trid, locus_id, motif, interval, vc``. Consecutive rows
+    with the same ``(trid, motif, interval, vc)`` come from the same VCF
+    record and are grouped into a single chunk
+    ``(interval, vc, [locus_id, ...])``. The deque preserves VCF order across
+    distinct VCF records that share a ``(trid, motif)`` key (e.g. one TR plus
+    one VC genotyping of the same LocusId).
+
+    Args:
+        tsv_path: Path to the gzipped or plain TSV.
+
+    Returns:
+        ``dict[(trid, motif), collections.deque[(interval, vc, [locus_id, ...])]]``.
+    """
+    opener = gzip.open if str(tsv_path).endswith(".gz") else open
+    metadata = {}
+    current_key = None
+    current_chunk_key = None
+    current_locus_ids = None
+
+    def flush():
+        if current_key is None or current_chunk_key is None:
+            return
+        interval, vc = current_chunk_key
+        metadata.setdefault(current_key, collections.deque()).append(
+            (interval, vc, current_locus_ids)
+        )
+
+    with opener(tsv_path, "rt") as f:
+        header = next(f).rstrip("\n").split("\t")
+        expected = ["trid", "locus_id", "motif", "interval", "vc"]
+        if header != expected:
+            raise ValueError(
+                f"--vcf-interval-tsv header must be {expected!r}; got {header!r}"
+            )
+        for line in f:
+            trid, locus_id, motif, interval, vc = line.rstrip("\n").split("\t")
+            key = (trid, motif)
+            chunk_key = (interval, vc)
+            if key != current_key or chunk_key != current_chunk_key:
+                flush()
+                current_key = key
+                current_chunk_key = chunk_key
+                current_locus_ids = [locus_id]
+            else:
+                current_locus_ids.append(locus_id)
+        flush()
+    return metadata
+
 
 def _format_decimal(value):
     """Format a numeric value as an integer if whole, otherwise round to 2 decimal places."""
@@ -67,14 +148,16 @@ def compute_histograms(allele_sizes, alleles_by_sample_id):
     )
 
 
-def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id):
+def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval="", vc=""):
     """Compute statistics for a group of allele sizes.
 
     Args:
-        locus_id (str): the locus id (can be a comma-separated list of locus ids when it's a variation cluster)
-        motif (str): the motif (in variation clusters, this will correspond to the motif at the end of one of the locus ids)
+        locus_id (str): the single LocusId (chrom-start-end-motif) for this row
+        motif (str): the motif
         allele_sizes (list): the allele sizes for all samples
         alleles_by_sample_id (dict): the alleles for the current key by sample id
+        interval (str): TRGT interval ``"{chrom}:{vcf_start_0based}-{vcf_end_1based}"`` or ``""``
+        vc (str): inner ``<VC:...>`` span or ``""`` for an isolated TR
 
     Returns:
         dict: a dictionary mapping HEADER_FIELDS keys to values, or None if allele_sizes is empty
@@ -82,17 +165,6 @@ def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id):
 
     if not allele_sizes:
         return None
-
-    if "," in locus_id:
-        found_locus_id = None
-        for specific_locus_id in locus_id.split(","):
-            if specific_locus_id.endswith(f"-{motif}"):
-                found_locus_id = specific_locus_id
-                break
-        else:
-            raise ValueError(f"Couldn't resolve locus id for motif {motif} in {locus_id}")
-
-        locus_id = found_locus_id
 
     allele_sizes = sorted(allele_sizes)
     allele_counts = collections.Counter(allele_sizes)
@@ -111,6 +183,8 @@ def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id):
     return {
         "LocusId": locus_id,
         "Motif": motif,
+        "Interval": interval,
+        "VC": vc,
         "AlleleSizeHistogram": allele_histogram,
         "BiallelicHistogram": biallelic_histogram,
         "Min": int(min(allele_sizes)),
@@ -169,6 +243,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--sample-metadata-tsv", default="https://storage.googleapis.com/tandem-repeat-catalog/1kGP_metadata.tsv", help="Sample ancestry metadata TSV file (local path or URL)")
     parser.add_argument("--input-table", default="hprc-lps_2025-12-06/hprc-lps.txt.gz", help="Combine HPRC LPS dataset")
+    parser.add_argument("--vcf-interval-tsv", help="Path to a small TSV.gz produced by data-prep/hprc-lps/extract_vcf_interval_metadata.py (columns: trid, locus_id, motif, interval, vc). Required to populate the LocusId/Interval/VC output columns and resolve compound TRIDs.")
     parser.add_argument("--no-header", action="store_true", help="If set, assume the first row is data (not a header) and generate synthetic sample names (_s1, _s2, ...)")
     parser.add_argument("--population", choices=["AFR", "AMR", "EAS", "EUR", "SAS"], help="If specified, only process samples from this population")
     parser.add_argument("--sex", choices=["male", "female"], help="If specified, only process samples from this sex")
@@ -188,6 +263,9 @@ def main():
 
     if not os.path.isfile(args.input_table):
         parser.error(f"Input file {args.input_table} does not exist")
+
+    if args.vcf_interval_tsv and not os.path.isfile(args.vcf_interval_tsv):
+        parser.error(f"--vcf-interval-tsv {args.vcf_interval_tsv} does not exist")
 
     fopen = gzip.open if args.input_table.endswith("gz") else open
 
@@ -212,7 +290,7 @@ def main():
         sample_ids_to_include_list = sample_ids_in_input_table
         if args.num_samples is not None and len(sample_ids_to_include_list) > args.num_samples:
             sample_ids_to_include_list = sample_ids_to_include_list[:args.num_samples]
-        sample_id_to_stratum = {}
+        sample_id_to_strata = {}
         strata_labels = []
     else:
         import pandas as pd
@@ -236,28 +314,32 @@ def main():
             sample_ids_to_include_list = sample_ids_to_include_list[:args.num_samples]
             df_metadata = df_metadata[df_metadata.SampleId.isin(set(sample_ids_to_include_list))]
 
-        # Build sample_id -> stratum_label mapping for stratification
-        sample_id_to_stratum = {}
+        # Build sample_id -> list of stratum labels. When both stratify flags are
+        # set, each sample contributes to its Pop_Sex cell plus the Pop row-marginal
+        # (across both sexes) and the Sex column-marginal (across all populations).
+        sample_id_to_strata = {}
         strata_labels = []
         if args.stratify_by_population or args.stratify_by_sex:
             df_included = df_metadata[df_metadata.SampleId.isin(set(sample_ids_to_include_list))]
             if args.stratify_by_population and args.stratify_by_sex:
-                stratum_series = df_included.Population + ":" + df_included.Sex
+                sample_id_to_strata = {
+                    sid: [f"{pop}_{sex}", pop, sex]
+                    for sid, pop, sex in zip(df_included.SampleId, df_included.Population, df_included.Sex)
+                }
             elif args.stratify_by_population:
-                stratum_series = df_included.Population
+                sample_id_to_strata = {sid: [pop] for sid, pop in zip(df_included.SampleId, df_included.Population)}
             else:
-                stratum_series = df_included.Sex
-            sample_id_to_stratum = dict(zip(df_included.SampleId, stratum_series))
-            strata_labels = sorted(set(sample_id_to_stratum.values()))
+                sample_id_to_strata = {sid: [sex] for sid, sex in zip(df_included.SampleId, df_included.Sex)}
+            strata_labels = sorted({label for labels in sample_id_to_strata.values() for label in labels})
 
     sample_ids_to_include = set(sample_ids_to_include_list)
 
     # Build output header with stratified histogram columns
     output_header = list(HEADER_FIELDS)
     for label in strata_labels:
-        output_header.append(f"AlleleSizeHistogram:{label}")
+        output_header.append(f"AlleleSizeHistogram__{label}")
     for label in strata_labels:
-        output_header.append(f"BiallelicHistogram:{label}")
+        output_header.append(f"BiallelicHistogram__{label}")
 
     # Build output path
     output_dir = os.path.dirname(args.input_table)
@@ -276,6 +358,19 @@ def main():
         output_path += ".json.gz"
     else:
         output_path += ".tsv.gz"
+
+    # Build the full (trid, motif) -> deque[chunk] map from the small interval
+    # TSV when --vcf-interval-tsv is given. Each chunk groups all LocusIds
+    # genotyped by one VCF record (same interval/vc, differing locus_id).
+    vcf_metadata = {}
+    if args.vcf_interval_tsv:
+        print(f"Loading interval metadata from {args.vcf_interval_tsv}")
+        vcf_metadata = load_vcf_interval_metadata(args.vcf_interval_tsv)
+        chunks_total = sum(len(v) for v in vcf_metadata.values())
+        print(f"Loaded {chunks_total:,d} VCF-record chunks across {len(vcf_metadata):,d} unique (trid, motif) keys")
+
+    # Process-wide uniqueness check for emitted (LocusId, Interval, VC) tuples.
+    seen_output_keys = set()
 
     print(f"Writing data from {len(sample_ids_to_include_list):,d} samples to {output_path}")
     with fopen(args.input_table, "rt") as infile, gzip.open(output_path, "wt") as outfile:
@@ -304,8 +399,37 @@ def main():
             if len(fields) != len(header_fields):
                 raise ValueError(f"Line {line_number + 1} has {len(fields)} fields, expected {len(header_fields)}: {line.strip()[:200]}")
 
-            locus_id = fields[0]
+            trid = fields[0]
             motif = fields[1]
+
+            # Resolve the (trid, motif) key against the pre-loaded VCF metadata
+            # to determine which LocusIds and which (interval, vc) this LPS row
+            # represents. If --vcf-interval-tsv was not provided, fall back to
+            # the legacy single-LocusId / empty Interval&VC behavior.
+            if vcf_metadata:
+                chunks = vcf_metadata.get((trid, motif))
+                if chunks is None:
+                    raise ValueError(
+                        f"Line #{line_number + 1}: no VCF record found for "
+                        f"(trid={trid!r}, motif={motif!r}) in --vcf-interval-tsv"
+                    )
+                if not chunks:
+                    raise ValueError(
+                        f"Line #{line_number + 1}: --vcf-interval-tsv has fewer "
+                        f"chunks than the LPS table has rows for "
+                        f"(trid={trid!r}, motif={motif!r}); all chunks for this "
+                        f"key were already consumed by earlier LPS rows."
+                    )
+                interval, vc, chunk_locus_ids = chunks.popleft()
+            else:
+                if "," in trid:
+                    raise ValueError(
+                        f"Line #{line_number + 1}: compound TRID {trid!r} cannot "
+                        f"be resolved without --vcf-interval-tsv"
+                    )
+                interval = ""
+                vc = ""
+                chunk_locus_ids = [trid]
 
             alleles = []
             alleles_by_sample_id = collections.defaultdict(list)
@@ -323,21 +447,35 @@ def main():
                         raise ValueError(f"Expected integer allele size, got {allele_size} in line #{line_number + 1}: {line}")
                     alleles.append(allele_size)
                     alleles_by_sample_id[sample_id].append(allele_size)
-                    if sample_id in sample_id_to_stratum:
-                        stratum = sample_id_to_stratum[sample_id]
+                    for stratum in sample_id_to_strata.get(sample_id, ()):
                         stratum_alleles[stratum].append(allele_size)
                         stratum_alleles_by_sample_id[stratum][sample_id].append(allele_size)
 
-            row = compute_row(locus_id, motif, alleles, alleles_by_sample_id)
-            if row:
-                for label in strata_labels:
-                    allele_histogram, biallelic_histogram = compute_histograms(
-                        stratum_alleles.get(label, []),
-                        stratum_alleles_by_sample_id.get(label, {}),
-                    )
-                    row[f"AlleleSizeHistogram:{label}"] = allele_histogram
-                    row[f"BiallelicHistogram:{label}"] = biallelic_histogram
+            # Emit one output row per LocusId in the chunk. All rows share the
+            # same per-sample allele data (computed once from the LPS row) but
+            # differ in LocusId. The (LocusId, Interval, VC) tuple must be
+            # process-globally unique.
+            stratified_columns = {}
+            for label in strata_labels:
+                allele_histogram, biallelic_histogram = compute_histograms(
+                    stratum_alleles.get(label, []),
+                    stratum_alleles_by_sample_id.get(label, {}),
+                )
+                stratified_columns[f"AlleleSizeHistogram__{label}"] = allele_histogram
+                stratified_columns[f"BiallelicHistogram__{label}"] = biallelic_histogram
 
+            for locus_id in chunk_locus_ids:
+                row = compute_row(locus_id, motif, alleles, alleles_by_sample_id, interval=interval, vc=vc)
+                if row is None:
+                    continue
+                key = (row["LocusId"], row["Interval"], row["VC"])
+                if key in seen_output_keys:
+                    raise ValueError(
+                        f"Line #{line_number + 1}: duplicate output tuple "
+                        f"(LocusId={key[0]!r}, Interval={key[1]!r}, VC={key[2]!r})"
+                    )
+                seen_output_keys.add(key)
+                row.update(stratified_columns)
                 if args.output_format == "JSON":
                     if not json_first_row:
                         outfile.write(",\n")
@@ -349,6 +487,25 @@ def main():
 
         if args.output_format == "JSON":
             outfile.write("\n]\n")
+
+    # End-of-processing assertion: every chunk popped from the deque must
+    # correspond to an LPS row. Leftover chunks indicate a mismatch between
+    # the LPS table and --vcf-interval-tsv (e.g. extract emitted records that
+    # the LPS table doesn't have, which would mean LPS rows got paired with
+    # the wrong (Interval, VC) chunks via FIFO).
+    #
+    # Skip the check when --num-loci is in effect: the main loop intentionally
+    # breaks early, so leftover chunks are expected and not a sign of mismatch.
+    if vcf_metadata and args.num_loci is None:
+        unconsumed = sum(len(deq) for deq in vcf_metadata.values())
+        if unconsumed:
+            examples = [key for key, deq in vcf_metadata.items() if deq][:3]
+            raise ValueError(
+                f"{unconsumed:,d} VCF-record chunks in --vcf-interval-tsv were "
+                f"never consumed by an LPS row (e.g. {examples!r}). The two "
+                f"inputs are out of sync; re-extract --vcf-interval-tsv from "
+                f"the same VCF the LPS table was generated from."
+            )
 
     print(f"Wrote {rows_written:9,d} rows to {output_path}")
 
