@@ -2286,7 +2286,7 @@
         "Inheritance": "AR"
     },
     {
-        "LocusId": "PRE-MIR7-2",
+        "LocusId": "MIR7-2",
         "LocusStructure": "(TTTG)*",
         "VariantType": "RareRepeat",
         "ReferenceRegion": "chr15:88569433-88569449",
