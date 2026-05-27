@@ -46,7 +46,7 @@ Age of Onset:
                 DMPK                    Paediatric/Adult       Typical: 10-30 [@genereviews:NBK1165]; Range: 0-74 [@pmid:38454488].                                
               EIF4A3                          Paediatric       0 (birth)                                                                                           
                FGF14                               Adult       Typical: 42-70; Range: 21-87 [@genereviews:NBK599589; @pmid:39263992].                              
-                FMR1                   Paediatric, Adult       Typical: FXS 1 to 'first several years of life', FXTAS 60-65 [@genereviews:NBK1384]; Range: 0 [@url:https://www.uptodate.com/contents/fragile-x-syndrome-clinical-features-and-diagnosis-in-children-and-adolescents] - 78 [@pmid:17427188]; detailed description of typical symptom onset and diagnosis available from Arnold et al [@isbn:978-3-031-66932-3].
+                FMR1                   Adult, Paediatric       Typical: FXS 1 to 'first several years of life', FXTAS 60-65 [@genereviews:NBK1384]; Range: 0 [@url:https://www.uptodate.com/contents/fragile-x-syndrome-clinical-features-and-diagnosis-in-children-and-adolescents] - 78 [@pmid:17427188]; detailed description of typical symptom onset and diagnosis available from Arnold et al [@isbn:978-3-031-66932-3].
                FOXL2                          Paediatric       0 (birth)                                                                                           
                  FXN                          Paediatric       Typical: 10-15; Range: 2-80 [@genereviews:NBK1281].                                                 
                GIPC1                               Adult       Typical: 20-34 [@pmid:32413282]; Range: 2 [@pmid:41975469] - 70 [@pmid:33374016].                   
@@ -95,7 +95,6 @@ PathogenicMin for ATXN7  differs between gnomAD (37) and STRipy (36)
 PathogenicMin for ATXN8OS differs between gnomAD (71) and STRipy (80)
 PathogenicMin for BEAN1  differs between gnomAD (110) and STRipy (500)
 PathogenicMin for C9ORF72 differs between gnomAD (31) and STRipy (24)
-PathogenicMin for CACNA1A differs between gnomAD (20) and STRipy (21)
 PathogenicMin for CNBP   differs between gnomAD (75) and STRipy (55)
 PathogenicMin for DMD    is set to 59 in STRipy but not in gnomAD
 PathogenicMin for EIF4A3 differs between gnomAD (14) and STRipy (15)
@@ -123,7 +122,7 @@ NormalMax for AR     differs between gnomAD (34) and STRipy (35)
 NormalMax for ATN1   differs between gnomAD (35) and STRipy (23)
 NormalMax for ATXN1  differs between gnomAD (35) and STRipy (32)
 NormalMax for ATXN10 differs between gnomAD (32) and STRipy (29)
-NormalMax for ATXN2  differs between gnomAD (30) and STRipy (31)
+NormalMax for ATXN2  differs between gnomAD (28) and STRipy (31)
 NormalMax for ATXN7  differs between gnomAD (27) and STRipy (35)
 NormalMax for ATXN8OS differs between gnomAD (50) and STRipy (37)
 NormalMax for C9ORF72 differs between gnomAD (23) and STRipy (19)
@@ -140,6 +139,8 @@ NormalMax for JPH3   differs between gnomAD (28) and STRipy (27)
 NormalMax for PPP2R2B differs between gnomAD (32) and STRipy (31)
 NormalMax for PRNP   differs between gnomAD (4) and STRipy (5)
 NormalMax for RFC1   is set to 11 in gnomAD but not in STRipy
+NormalMax for RILPL1 differs between gnomAD (16) and STRipy (20)
+NormalMax for TBP    differs between gnomAD (40) and STRipy (42)
 NormalMax for TCF4   differs between gnomAD (39) and STRipy (31)
 NormalMax for ZFHX3  differs between gnomAD (26) and STRipy (31)
 ------
@@ -194,7 +195,7 @@ MARCHF6 hg38 ReferenceRegion isn't the same between gnomAD and STRipy
     chr5:10356346-10356412  (13.2 x AAAAT     66bp) TRGT                        hg38 seq:                  ATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTATTTTC
 ------
 NOTCH2NLC hg38 ReferenceRegion isn't the same between gnomAD and STRipy
-    chr1:149390802-149390841  (13.0 x GGC     39bp) gnomAD    90, 60 = pathogenic.min.  hg38 seq:       GGCGGCGGCGGCGGCGGCGGCGGCGGCGGAGGAGGCGGC
+    chr1:149390802-149390841  (13.0 x GGC     39bp) gnomAD    66, 60 = pathogenic.min.  hg38 seq:       GGCGGCGGCGGCGGCGGCGGCGGCGGCGGAGGAGGCGGC
     chr1:149390802-149390842  (13.3 x GGC     40bp) STRchive  66 = pathogenic.min.  hg38 seq:           GGCGGCGGCGGCGGCGGCGGCGGCGGCGGAGGAGGCGGCG
     chr1:149390802-149390829  ( 9.0 x GGC     27bp) STRipy    90, 60 = pathogenic.min.  hg38 seq:       GGCGGCGGCGGCGGCGGCGGCGGCGGC
     chr1:149390802-149390841  (13.0 x CCG     39bp) TRGT                        hg38 seq:               GGCGGCGGCGGCGGCGGCGGCGGCGGCGGAGGAGGCGGC

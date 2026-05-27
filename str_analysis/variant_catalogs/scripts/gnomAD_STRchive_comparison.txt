@@ -43,7 +43,7 @@ Age of Onset:
                 DMPK                    Paediatric/Adult       Typical: 10-30 [@genereviews:NBK1165]; Range: 0-74 [@pmid:38454488].                                
               EIF4A3                          Paediatric       0 (birth)                                                                                           
                FGF14                               Adult       Typical: 42-70; Range: 21-87 [@genereviews:NBK599589; @pmid:39263992].                              
-                FMR1                   Paediatric, Adult       Typical: FXS 1 to 'first several years of life', FXTAS 60-65 [@genereviews:NBK1384]; Range: 0 [@url:https://www.uptodate.com/contents/fragile-x-syndrome-clinical-features-and-diagnosis-in-children-and-adolescents] - 78 [@pmid:17427188]; detailed description of typical symptom onset and diagnosis available from Arnold et al [@isbn:978-3-031-66932-3].
+                FMR1                   Adult, Paediatric       Typical: FXS 1 to 'first several years of life', FXTAS 60-65 [@genereviews:NBK1384]; Range: 0 [@url:https://www.uptodate.com/contents/fragile-x-syndrome-clinical-features-and-diagnosis-in-children-and-adolescents] - 78 [@pmid:17427188]; detailed description of typical symptom onset and diagnosis available from Arnold et al [@isbn:978-3-031-66932-3].
                FOXL2                          Paediatric       0 (birth)                                                                                           
                  FXN                          Paediatric       Typical: 10-15; Range: 2-80 [@genereviews:NBK1281].                                                 
                GIPC1                               Adult       Typical: 20-34 [@pmid:32413282]; Range: 2 [@pmid:41975469] - 70 [@pmid:33374016].                   
@@ -85,7 +85,6 @@ Age of Onset:
                 ZIC3                          Paediatric       0                                                                                                   
 ------
 PathogenicMin for AFF2   differs between gnomAD (200) and STRchive (201)
-PathogenicMin for CACNA1A differs between gnomAD (20) and STRchive (21)
 PathogenicMin for CSNK1E is set to 745 in STRchive but not in gnomAD
 PathogenicMin for DMD    is set to 59 in STRchive but not in gnomAD
 PathogenicMin for FAM193B differs between gnomAD (190) and STRchive (194)
@@ -96,7 +95,6 @@ PathogenicMin for PRNP   differs between gnomAD (9) and STRchive (5)
 PathogenicMin for TCF4   differs between gnomAD (50) and STRchive (51)
 PathogenicMin for VWA1   differs between gnomAD (3) and STRchive (1)
 ------
-NormalMax for ATXN2  differs between gnomAD (30) and STRchive (28)
 NormalMax for COMP   is set to 5 in STRchive but not in gnomAD
 NormalMax for CSNK1E is set to 48 in STRchive but not in gnomAD
 NormalMax for DMD    is set to 33 in STRchive but not in gnomAD
@@ -104,8 +102,6 @@ NormalMax for FAM193B is set to 50 in STRchive but not in gnomAD
 NormalMax for NOTCH2NLC differs between gnomAD (41) and STRchive (37)
 NormalMax for PABPN1 differs between gnomAD (6) and STRchive (10)
 NormalMax for PRE-MIR7-2 is set to 4 in STRchive but not in gnomAD
-NormalMax for RILPL1 differs between gnomAD (20) and STRchive (16)
-NormalMax for TBP    differs between gnomAD (42) and STRchive (40)
 NormalMax for ZNF713 is set to 22 in STRchive but not in gnomAD
 ------
 ABCD3 hg38 ReferenceRegion isn't the same between gnomAD and STRchive
@@ -186,7 +182,7 @@ C9ORF72 hg38 ReferenceRegion isn't the same between gnomAD and STRchive
 ------
 CACNA1A hg38 ReferenceRegion isn't the same between gnomAD and STRchive
     chr19:13207858-13207897  (13.0 x CTG     39bp) official catalog from EH repo
-    chr19:13207858-13207897  (13.0 x CTG     39bp) gnomAD    20 = pathogenic.min.  hg38 seq:            CTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTG
+    chr19:13207858-13207897  (13.0 x CTG     39bp) gnomAD    21 = pathogenic.min.  hg38 seq:            CTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTG
     chr19:13207858-13207898  (13.3 x CTG     40bp) STRchive  21 = pathogenic.min.  hg38 seq:            CTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTGC
     chr19:13207858-13207897  (13.0 x CAG     39bp) STRipy    21 = pathogenic.min.  hg38 seq:            CTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTG
     chr19:13207858-13207897  (13.0 x AGC     39bp) TRGT                        hg38 seq:                CTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTG
@@ -308,7 +304,7 @@ NOP56 hg38 ReferenceRegion isn't the same between gnomAD and STRchive
     chr20:2652733-2652775  ( 7.0 x AGGCCC     42bp) TRGT                        hg38 seq:                GGCCTGGGCCTGGGCCTGGGCCTGCGCCTGCGCCTGCGCCTG
 ------
 NOTCH2NLC hg38 ReferenceRegion isn't the same between gnomAD and STRchive
-    chr1:149390802-149390841  (13.0 x GGC     39bp) gnomAD    90, 60 = pathogenic.min.  hg38 seq:       GGCGGCGGCGGCGGCGGCGGCGGCGGCGGAGGAGGCGGC
+    chr1:149390802-149390841  (13.0 x GGC     39bp) gnomAD    66, 60 = pathogenic.min.  hg38 seq:       GGCGGCGGCGGCGGCGGCGGCGGCGGCGGAGGAGGCGGC
     chr1:149390802-149390842  (13.3 x GGC     40bp) STRchive  66 = pathogenic.min.  hg38 seq:           GGCGGCGGCGGCGGCGGCGGCGGCGGCGGAGGAGGCGGCG
     chr1:149390802-149390829  ( 9.0 x GGC     27bp) STRipy    90, 60 = pathogenic.min.  hg38 seq:       GGCGGCGGCGGCGGCGGCGGCGGCGGC
     chr1:149390802-149390841  (13.0 x CCG     39bp) TRGT                        hg38 seq:               GGCGGCGGCGGCGGCGGCGGCGGCGGCGGAGGAGGCGGC
