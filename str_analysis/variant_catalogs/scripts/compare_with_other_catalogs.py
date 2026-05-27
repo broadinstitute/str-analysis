@@ -185,7 +185,7 @@ def get_strchive_dict(gnomad_catalog):
 	)
 
 	strchive_id_to_gnomad_map = {
-		"pre-MIR7-2_CHNG3": "PRE-MIR7-2",
+		"pre-MIR7-2_CHNG3": "MIR7-2",
 		"HOXA13_1": "HOXA13",
 		"HOXA13_2": "HOXA13",
 		"HOXA13_3": "HOXA13",
@@ -224,7 +224,7 @@ def get_strchive_dict(gnomad_catalog):
 		d["Diseases"] = [{
 			"Name": d["disease"],
 			"Symbol": d["disease_id"],
-			"Inheritance": ",".join(d["inheritance"]),
+			"Inheritance": "/".join(d["inheritance"]),
 			"Onset": d["age_onset"],
 			"NormalMax": d["benign_max"],
 			"IntermediateRange": f"{d['intermediate_min']}-{d['intermediate_max']}",
