@@ -1,9 +1,7 @@
 ------
 BCLAF3 is in gnomAD but not in STRchive
 C11ORF80 is in gnomAD but not in STRchive
-CSNK1E is in gnomAD but not in STRchive
 EP400 is in gnomAD but not in STRchive
-FAM193B is in gnomAD but not in STRchive
 FRA10AC1 is in gnomAD but not in STRchive
 NOTCH2NLA is in gnomAD but not in STRchive
 TMEM185A is in gnomAD but not in STRchive
@@ -13,6 +11,7 @@ Canonical motifs for PABPN1 differ between gnomAD (CCG) and STRchive (CNG)
 Canonical motifs for ZIC3   differ between gnomAD (CCG) and STRchive (CNG)
 ------
 Inheritance mode for ATXN2  differ between gnomAD (AD) and STRchive (AD,AR)
+Inheritance mode for CSNK1E differ between gnomAD () and STRchive (AR)
 Inheritance mode for DMD    differ between gnomAD () and STRchive (XR)
 Inheritance mode for FOXL2  differ between gnomAD (AD) and STRchive (AD,AR)
 Inheritance mode for PABPN1 differ between gnomAD (AD) and STRchive (AD,AR)
@@ -47,7 +46,7 @@ Age of Onset:
                 FMR1                   Paediatric, Adult       Typical: FXS 1 to 'first several years of life', FXTAS 60-65 [@genereviews:NBK1384]; Range: 0 [@url:https://www.uptodate.com/contents/fragile-x-syndrome-clinical-features-and-diagnosis-in-children-and-adolescents] - 78 [@pmid:17427188]; detailed description of typical symptom onset and diagnosis available from Arnold et al [@isbn:978-3-031-66932-3].
                FOXL2                          Paediatric       0 (birth)                                                                                           
                  FXN                          Paediatric       Typical: 10-15; Range: 2-80 [@genereviews:NBK1281].                                                 
-               GIPC1                               Adult       Typical: 20-34 [@pmid:32413282]; Range: 14 [@pmid:32413282] - 70 [@pmid:33374016].                  
+               GIPC1                               Adult       Typical: 20-34 [@pmid:32413282]; Range: 2 [@pmid:41975469] - 70 [@pmid:33374016].                   
                  GLS                          Paediatric       Early childhood (2-4) [@pmid:30970188; @pmid:35913761].                                             
             HOXA13_1                          Paediatric       0 (birth)                                                                                           
             HOXA13_2                          Paediatric       0 (birth)                                                                                           
@@ -87,7 +86,9 @@ Age of Onset:
 ------
 PathogenicMin for AFF2   differs between gnomAD (200) and STRchive (201)
 PathogenicMin for CACNA1A differs between gnomAD (20) and STRchive (21)
+PathogenicMin for CSNK1E is set to 745 in STRchive but not in gnomAD
 PathogenicMin for DMD    is set to 59 in STRchive but not in gnomAD
+PathogenicMin for FAM193B differs between gnomAD (190) and STRchive (194)
 PathogenicMin for FMR1   differs between gnomAD (55) and STRchive (201)
 PathogenicMin for NOTCH2NLC differs between gnomAD (60) and STRchive (66)
 PathogenicMin for PABPN1 differs between gnomAD (7) and STRchive (12)
@@ -95,8 +96,11 @@ PathogenicMin for PRNP   differs between gnomAD (9) and STRchive (5)
 PathogenicMin for TCF4   differs between gnomAD (50) and STRchive (51)
 PathogenicMin for VWA1   differs between gnomAD (3) and STRchive (1)
 ------
+NormalMax for ATXN2  differs between gnomAD (30) and STRchive (28)
 NormalMax for COMP   is set to 5 in STRchive but not in gnomAD
+NormalMax for CSNK1E is set to 48 in STRchive but not in gnomAD
 NormalMax for DMD    is set to 33 in STRchive but not in gnomAD
+NormalMax for FAM193B is set to 50 in STRchive but not in gnomAD
 NormalMax for NOTCH2NLC differs between gnomAD (41) and STRchive (37)
 NormalMax for PABPN1 differs between gnomAD (6) and STRchive (10)
 NormalMax for PRE-MIR7-2 is set to 4 in STRchive but not in gnomAD
@@ -206,6 +210,10 @@ CSTB hg38 ReferenceRegion isn't the same between gnomAD and STRchive
     chr21:43776442-43776479  ( 3.1 x CGCGGGGCGGGG     37bp) STRchive  30 = pathogenic.min.  hg38 seq:   GCGCGGGGCGGGGCGCGGGGCGGGGCGCGGGGCGGGG
     chr21:43776443-43776479  ( 3.0 x CCCCGCCCCGCG     36bp) STRipy    30 = pathogenic.min.  hg38 seq:    CGCGGGGCGGGGCGCGGGGCGGGGCGCGGGGCGGGG
     chr21:43776443-43776479  ( 3.0 x CCCCGCCCCGCG     36bp) TRGT                        hg38 seq:        CGCGGGGCGGGGCGCGGGGCGGGGCGCGGGGCGGGG
+------
+CSNK1E hg38 ReferenceRegion isn't the same between gnomAD and STRchive
+    chr22:38317282-38317306  ( 8.0 x GCC     24bp) gnomAD     = pathogenic.min.  hg38 seq:              GCCGCCGCCGCCGCCGCCGCCGCC
+    chr22:38317282-38317375  (31.0 x CCG     93bp) STRchive  745 = pathogenic.min.  hg38 seq:           GCCGCCGCCGCCGCCGCCGCCGCCGCGCTCCGCTCGGCCCCGGCCGGGCTCTGGCTCTGGGCTCTCGCCGCCGCCGCCGCCGCCGCCGCCGCC
 ------
 DAB1 hg38 ReferenceRegion isn't the same between gnomAD and STRchive
     chr1:57367043-57367118  (15.0 x AAAAT     75bp) gnomAD    31 = pathogenic.min.  hg38 seq:           AAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAATAAAAT
@@ -391,4 +399,4 @@ ZIC3 hg38 motif isn't the same between gnomAD and STRchive
     chrX:137566826-137566856  (10.0 x GCN     30bp) STRchive  12 = pathogenic.min.  hg38 seq:           GCCGCCGCCGCCGCCGCCGCCGCCGCTGCC
     chrX:137566826-137566856  (10.0 x GCC     30bp) STRipy    12 = pathogenic.min.  hg38 seq:           GCCGCCGCCGCCGCCGCCGCCGCCGCTGCC
 
-47 out of 70 loci have a different hg38 ReferenceRegion or motif in gnomAD vs other catalogs
+48 out of 72 loci have a different hg38 ReferenceRegion or motif in gnomAD vs other catalogs

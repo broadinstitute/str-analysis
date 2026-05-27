@@ -571,6 +571,8 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 def main():
 	parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	parser.add_argument("-R", "--reference-fasta", help="hg38 reference fasta file path", default="~/hg38.fa")
+	parser.add_argument("--only-compare-with-strchive", action="store_true",
+						help="Only compare gnomAD with STRchive, skipping STRipy and TRGT comparisons.")
 	args = parser.parse_args()
 
 	args.reference_fasta = os.path.expanduser(args.reference_fasta)
@@ -578,14 +580,18 @@ def main():
 	if not os.path.isfile(args.reference_fasta):
 		parser.error(f"Reference fasta file not found: {args.reference_fasta}")
 
+	if args.only_compare_with_strchive:
+		catalogs_to_compare = [OTHER_CATALOG_NAME_STRCHIVE]
+	else:
+		catalogs_to_compare = [OTHER_CATALOG_NAME_STRCHIVE, OTHER_CATALOG_NAME_STRIPY, OTHER_CATALOG_NAME_TRGT]
+
 	official_EH_catalog_loci = get_official_expansion_hunter_catalog_dict()
 	gnomad_catalog = get_gnomad_catalog()
-	trgt_lookup = get_trgt_catalog()
-
 	strchive_lookup = get_strchive_dict(gnomad_catalog)
-	stripy_lookup = get_stripy_dict()
+	stripy_lookup = get_stripy_dict() if OTHER_CATALOG_NAME_STRIPY in catalogs_to_compare else {}
+	trgt_lookup = get_trgt_catalog() if OTHER_CATALOG_NAME_TRGT in catalogs_to_compare else {}
 
-	for compare_with in OTHER_CATALOG_NAME_STRCHIVE,:  # OTHER_CATALOG_NAME_TRGT, OTHER_CATALOG_NAME_STRIPY,
+	for compare_with in catalogs_to_compare:
 		print("="*100)
 		print(f"Comparing gnomAD with {compare_with}")
 		compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_lookup, strchive_lookup, trgt_lookup,

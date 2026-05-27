@@ -399,9 +399,9 @@
                 "Name": "Spinocerebellar ataxia 2",
                 "Inheritance": "AD",
                 "OMIM": "183090",
-                "NormalMax": 30,
+                "NormalMax": 28,
                 "PathogenicMin": 35,
-                "IntermediateRange": "32-34"
+                "IntermediateRange": "29-34"
             }
         ],
         "OfftargetRegions": [
@@ -684,8 +684,8 @@
                 "Inheritance": "AD",
                 "OMIM": "183086",
                 "NormalMax": 18,
-                "PathogenicMin": 20,
-                "IntermediateRange": "19-19"
+                "PathogenicMin": 21,
+                "IntermediateRange": "19-20"
             }
         ],
         "OfftargetRegions": [
@@ -1901,8 +1901,8 @@
                 "Name": "Neuronal intranuclear inclusion disease",
                 "Inheritance": "AD",
                 "OMIM": "603472",
-                "NormalMax": 39,
-                "PathogenicMin": 90
+                "NormalMax": 37,
+                "PathogenicMin": 66
             },
             {
                 "Symbol": "ETM6",
@@ -2287,7 +2287,7 @@
                 "Name": "Oculopharyngodistal myopathy type 4",
                 "Inheritance": "AD",
                 "OMIM": "619790",
-                "NormalMax": 20,
+                "NormalMax": 16,
                 "PathogenicMin": 120
             }
         ],
@@ -2532,7 +2532,7 @@
                 "Name": "Spinocerebellar ataxia 17",
                 "Inheritance": "AD",
                 "OMIM": "607136",
-                "NormalMax": 42,
+                "NormalMax": 40,
                 "PathogenicMin": 49
             }
         ],
