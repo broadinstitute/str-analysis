@@ -325,21 +325,25 @@ def split_sequence_into_motifs(nucleotide_sequence, motif_size):
             for i in range(0, len(nucleotide_sequence) - motif_size + 1, motif_size)]
 
 
-def format_motifs_as_sequence_string(motif_list):
-    """Format an ordered list of motifs as a bracketed string.
+def format_motifs_as_sequence_string(motif_list, prefix="", suffix=""):
+    """Format an ordered list of motifs as a bracketed string, optionally surrounded by literal bases.
 
-    For example, ["CAG", "CAG", "CCG", "CAG"] becomes "[CAG][CAG][CCG][CAG]".
+    For example, ["CAG", "CAG", "CCG", "CAG"] becomes "[CAG][CAG][CCG][CAG]". A non-empty prefix or suffix
+    is included as literal (unbracketed) bases - e.g. prefix="CA", motif_list=["GCA", "GCA", "GCC"],
+    suffix="G" becomes "CA[GCA][GCA][GCC]G".
 
     Args:
         motif_list (list): Ordered list of motif strings.
+        prefix (str): Literal bases preceding the first motif (not bracketed).
+        suffix (str): Literal bases following the last motif (not bracketed).
 
     Returns:
-        str: Bracketed motif sequence string, or None if motif_list is None or empty.
+        str: Bracketed motif sequence string, or None if motif_list, prefix, and suffix are all empty.
     """
-    if not motif_list:
+    if not motif_list and not prefix and not suffix:
         return None
 
-    return "".join(f"[{motif}]" for motif in motif_list)
+    return prefix + "".join(f"[{motif}]" for motif in (motif_list or [])) + suffix
 
 
 def compute_motif_length_purity(nucleotide_sequence, motif_length, distance_metric=DEFAULT_DISTANCE_METRIC):

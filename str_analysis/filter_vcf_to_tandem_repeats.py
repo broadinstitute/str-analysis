@@ -75,6 +75,10 @@ DETECTION_MODE_PURE_REPEATS = "pure"
 DETECTION_MODE_ALLOW_INTERRUPTIONS = "interrupted"
 DETECTION_MODE_TRF = "trf"
 
+# Methods used to parse an allele sequence into an ordered list of motifs for --add-motif-composition
+MOTIF_DETECTION_METHOD_TRF = "trf"
+MOTIF_DETECTION_METHOD_BASIC_SPLIT = "basic-split"
+
 # Valid IUPAC DNA bases for allele validation
 DNA_BASES = set("ACGTNRYSWKMBDHV")
 
@@ -93,8 +97,6 @@ MAX_FLANKING_SEQUENCE_SIZE = 1_000_000  # bp
 
 
 FILTER_ALLELE_WITH_N_BASES = "contains Ns in the variant sequence"
-FILTER_ALLELE_SNV_OR_MNV = "SNV/MNV"
-FILTER_ALLELE_MNV_INDEL = "complex multinucleotide indel"
 FILTER_ALLELE_INDEL_WITHOUT_REPEATS = "INDEL without repeats"
 FILTER_ALLELE_TOO_BIG = f"INDEL > {MAX_INDEL_SIZE:,d}bp"
 FILTER_TR_ALLELE_NOT_ENOUGH_REPEATS = "contains < {:,d} full repeats"
@@ -133,7 +135,9 @@ GENOTYPE_TSV_OUTPUT_COLUMNS = [
     "Allele1Sequence",
     "Allele2Sequence",
     "Allele1MotifSequence",
+    "Allele1SequenceMotifSplittingMethod",
     "Allele2MotifSequence",
+    "Allele2SequenceMotifSplittingMethod",
     "NumOverlappingVariants",
     "VariantPositions",
 ]
@@ -244,14 +248,21 @@ def parse_args():
     genotype_p.add_argument("--write-json", help="Output a JSON file containing all genotyped TR loci.", action="store_true")
     genotype_p.add_argument("--add-motif-composition", choices=["basic", "trf"],
                             help="Add the parsed motif sequence for each allele to the output (eg. '[CAG][CAG][CCG][CAG]'). "
-                            "'basic' splits the allele sequence into motif-sized chunks, 'trf' uses TandemRepeatsFinder "
-                            "for more accurate detection. The motif sequence is added to both the TSV and JSON outputs, "
-                            "while per-allele motif counts are added to the JSON output only.")
+                            "'basic' naively splits the allele sequence into subsequences the size of the annotated motif, "
+                            "while 'trf' uses TandemRepeatsFinder for more flexible detection that allows for insertions or deletions within"
+                            "the repeat sequence. The motif sequence is added to both the TSV and JSON outputs, while per-allele "
+                            "motif counts are added to the JSON output only.")
     genotype_p.add_argument("--trf-executable-path", help="Path to the TandemRepeatsFinder (TRF) executable. "
                             "Required if --add-motif-composition trf is specified.")
+    genotype_p.add_argument("--min-allele-length-for-trf-motif-splitting", type=int, default=12,
+                            help="Only used with --add-motif-composition trf. Allele sequences shorter than "
+                            "max(this value, 2 * motif_size) are split into motifs using the basic splitting method "
+                            "rather than running TandemRepeatsFinder (TRF).")
     genotype_p.add_argument("--skip-hom-ref-loci", action="store_true",
-                            help="Skip loci that have no overlapping variants (i.e., homozygous reference loci) and don't include them in the output.")
-    genotype_p.add_argument("input_vcf_path", help="Input VCF single-sample VCF file containing variant genotypes from which to compute the TR genotypes.")
+                            help="Skip loci that have no overlapping variants (i.e., homozygous reference loci) and "
+                                 "don't include them in the output.")
+    genotype_p.add_argument("input_vcf_path", help="Input VCF single-sample VCF file containing variant genotypes from "
+                                                   "which to compute the TR genotypes.")
 
     args = p.parse_args()
 
@@ -1156,9 +1167,10 @@ class GenotypedTandemRepeat:
         """Convert this genotyped locus to a dictionary for TSV output.
 
         Args:
-            motif_lists (dict): Optional dict with keys 'allele1' and 'allele2', each mapping to an ordered
-                list of motifs parsed from that allele's sequence. If provided, the parsed motif sequence is
-                added for each allele (eg. "[CAG][CAG][CCG][CAG]").
+            motif_lists (dict): Optional dict with keys 'allele1' and 'allele2', each a parsed-motif entry
+                {"motifs": [...], "prefix": str, "suffix": str} (or None), plus 'allele1_method' and
+                'allele2_method' naming the method used ("trf" or "basic-split"). If provided, the parsed
+                motif sequence (eg. "CA[GCA][GCA][GCC]G") and detection method are added for each allele.
 
         Returns:
             dict: Dictionary with keys matching GENOTYPE_TSV_OUTPUT_COLUMNS.
@@ -1199,8 +1211,10 @@ class GenotypedTandemRepeat:
             "RepeatPurity": purity_str,
             "Allele1Sequence": self.allele1_sequence if self.allele1_sequence is not None else "",
             "Allele2Sequence": self.allele2_sequence if self.allele2_sequence is not None else "",
-            "Allele1MotifSequence": format_motifs_as_sequence_string(motif_lists.get("allele1")) or "" if motif_lists else "",
-            "Allele2MotifSequence": format_motifs_as_sequence_string(motif_lists.get("allele2")) or "" if motif_lists else "",
+            "Allele1MotifSequence": (format_motif_entry_as_sequence_string(motif_lists.get("allele1")) or "") if motif_lists else "",
+            "Allele1SequenceMotifSplittingMethod": (motif_lists.get("allele1_method") or "") if motif_lists else "",
+            "Allele2MotifSequence": (format_motif_entry_as_sequence_string(motif_lists.get("allele2")) or "") if motif_lists else "",
+            "Allele2SequenceMotifSplittingMethod": (motif_lists.get("allele2_method") or "") if motif_lists else "",
             "NumOverlappingVariants": self.num_overlapping_variants,
             "VariantPositions": variant_positions_str,
         }
@@ -1209,9 +1223,11 @@ class GenotypedTandemRepeat:
         """Convert this genotyped locus to a dictionary for JSON output.
 
         Args:
-            motif_lists (dict): Optional dict with keys 'allele1' and 'allele2', each mapping to an ordered
-                list of motifs parsed from that allele's sequence. If provided, the parsed motif sequence
-                (eg. "[CAG][CAG][CCG][CAG]") and per-allele motif counts are added for each allele.
+            motif_lists (dict): Optional dict with keys 'allele1' and 'allele2', each a parsed-motif entry
+                {"motifs": [...], "prefix": str, "suffix": str} (or None), plus 'allele1_method' and
+                'allele2_method' naming the method used ("trf" or "basic-split"). If provided, the parsed
+                motif sequence (eg. "CA[GCA][GCA][GCC]G"), per-allele motif counts (full motifs only,
+                excluding prefix/suffix), and detection method are added for each allele.
 
         Returns:
             dict: Dictionary with all fields for JSON serialization. Unlike to_tsv_dict(),
@@ -1242,12 +1258,14 @@ class GenotypedTandemRepeat:
         }
 
         if motif_lists:
-            allele1_motifs = motif_lists.get("allele1")
-            allele2_motifs = motif_lists.get("allele2")
-            result["Allele1MotifCounts"] = dict(collections.Counter(allele1_motifs)) if allele1_motifs else None
-            result["Allele2MotifCounts"] = dict(collections.Counter(allele2_motifs)) if allele2_motifs else None
-            result["Allele1MotifSequence"] = format_motifs_as_sequence_string(allele1_motifs)
-            result["Allele2MotifSequence"] = format_motifs_as_sequence_string(allele2_motifs)
+            allele1_entry = motif_lists.get("allele1")
+            allele2_entry = motif_lists.get("allele2")
+            result["Allele1MotifCounts"] = dict(collections.Counter(allele1_entry["motifs"])) if allele1_entry and allele1_entry["motifs"] else None
+            result["Allele2MotifCounts"] = dict(collections.Counter(allele2_entry["motifs"])) if allele2_entry and allele2_entry["motifs"] else None
+            result["Allele1MotifSequence"] = format_motif_entry_as_sequence_string(allele1_entry)
+            result["Allele2MotifSequence"] = format_motif_entry_as_sequence_string(allele2_entry)
+            result["Allele1SequenceMotifSplittingMethod"] = motif_lists.get("allele1_method")
+            result["Allele2SequenceMotifSplittingMethod"] = motif_lists.get("allele2_method")
 
         return result
 
@@ -1373,6 +1391,14 @@ def open_vcf_for_genotyping(vcf_path):
 
     vcf_file = pysam.VariantFile(vcf_path)
 
+    # Genotyping fetches variants per-locus, which requires a tabix/csi index. An unindexed
+    # VCF makes every fetch raise "fetch requires an index", which get_overlapping_vcf_variants
+    # would otherwise silently swallow and report every locus as homozygous-reference. Fail loudly.
+    if vcf_file.index is None:
+        raise ValueError(
+            f"VCF file must be bgzip-compressed and tabix/csi-indexed for genotyping, but no index "
+            f"was found for: {vcf_path}. Run e.g. `bgzip {vcf_path} && tabix -p vcf {vcf_path}.gz`")
+
     # Validate single-sample VCF
     sample_names = list(vcf_file.header.samples)
     if len(sample_names) == 0:
@@ -1425,6 +1451,32 @@ def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, normalize_c
     variants.sort(key=lambda v: v.pos)
 
     return variants
+
+
+def trim_shared_suffix(ref, alt):
+    """Trim the shared trailing bases of a variant's ref and alt alleles.
+
+    For example, ref="ATCAG" alt="TTTCAG" share the suffix "CAG", so this returns
+    ("AT", "TTT"). Trimming is only applied when both alleles are longer than 1 bp,
+    matching the convention used when applying variants to a haplotype sequence.
+
+    Args:
+        ref (str): Reference allele
+        alt (str): Alternate allele
+
+    Returns:
+        tuple: (trimmed_ref, trimmed_alt)
+    """
+    if len(ref) > 1 and len(alt) > 1:
+        common_suffix_length = 0
+        for j in range(1, min(len(ref), len(alt)) + 1):
+            if ref[-j] == alt[-j]:
+                common_suffix_length += 1
+            else:
+                break
+        if common_suffix_length > 0:
+            return ref[:-common_suffix_length], alt[:-common_suffix_length]
+    return ref, alt
 
 
 def convert_variants_to_haplotype_sequence(pos_1based, reference_sequence, variants, verbose=False):
@@ -1504,22 +1556,12 @@ def convert_variants_to_haplotype_sequence(pos_1based, reference_sequence, varia
 
         # Handle shared suffix trimming between ref and alt alleles
         # This handles cases like ref="CAGCAG" alt="CAG" where they share a "CAG" suffix
-        if len(variant_ref) > 1 and len(variant_alt) > 1:
-            common_suffix_length = 0
-            for j in range(1, min(len(variant_ref), len(variant_alt)) + 1):
-                if variant_ref[-j] == variant_alt[-j]:
-                    common_suffix_length += 1
-                else:
-                    break
-
-            if common_suffix_length > 0 and verbose:
-                print(f"Removing shared suffix ({common_suffix_length} bp) from ref and alt alleles:")
-                print(f"  ref: {variant_ref} -> {variant_ref[:-common_suffix_length]}")
-                print(f"  alt: {variant_alt} -> {variant_alt[:-common_suffix_length]}")
-
-            if common_suffix_length > 0:
-                variant_ref = variant_ref[:-common_suffix_length]
-                variant_alt = variant_alt[:-common_suffix_length]
+        trimmed_ref, trimmed_alt = trim_shared_suffix(variant_ref, variant_alt)
+        if verbose and (trimmed_ref != variant_ref or trimmed_alt != variant_alt):
+            print(f"Removing shared suffix from ref and alt alleles:")
+            print(f"  ref: {variant_ref} -> {trimmed_ref}")
+            print(f"  alt: {variant_alt} -> {trimmed_alt}")
+        variant_ref, variant_alt = trimmed_ref, trimmed_alt
 
         # Apply the variant: add alt allele to output
         output_sequence += variant_alt
@@ -1642,6 +1684,15 @@ def extract_haplotype_sequences_from_vcf(chrom, start_0based, end, fasta_obj, vc
                 missing_genotype = True
                 break
 
+            # Haploid genotypes (e.g. a chrX/chrY call with GT == (1,)) have no second
+            # haplotype, so treat the absent haplotype as missing and let the existing
+            # HEMI logic handle it instead of indexing out of range.
+            if haplotype >= len(gt):
+                if verbose:
+                    print(f"Haplotype {haplotype}: Haploid genotype at {variant.pos}; no allele for this haplotype")
+                missing_genotype = True
+                break
+
             gt_value = gt[haplotype]
 
             # Handle missing genotype (.)
@@ -1697,41 +1748,41 @@ def extract_haplotype_sequences_from_vcf(chrom, start_0based, end, fasta_obj, vc
             continue
 
         # Trim the haplotype sequence back to the original locus boundaries.
-        # This is needed because we may have fetched an expanded region to cover
-        # variants that extend beyond the locus.
+        # We may have built the haplotype over an expanded fetch region to cover
+        # variants that extend beyond the locus, so map the genomic locus interval
+        # [start_0based, end) to offsets in the output sequence by walking the same
+        # construction that convert_variants_to_haplotype_sequence performed.
         #
-        # The key insight is that indels shift positions in the output sequence.
-        # For example, if an insertion of 3bp occurs before the locus start,
-        # we need to shift both the start and end offsets by +3 in the output.
+        # Each variant's (suffix-trimmed) alt bases are anchored to the variant's
+        # start position, while reference bases keep their true genomic coordinate.
+        # This makes a variant that straddles a locus boundary fall on the side where
+        # it starts, which is correct for both the start and end boundaries (the old
+        # offset arithmetic mishandled boundary-spanning indels).
+        def locus_offset_in_output(boundary_0based):
+            output_pos = 0
+            genomic_pos = fetch_start  # next reference position not yet consumed
+            for variant_pos_1based, variant_ref, variant_alt in variant_list:
+                variant_ref, variant_alt = trim_shared_suffix(variant_ref, variant_alt)
+                variant_start_0based = variant_pos_1based - 1
+                if boundary_0based <= genomic_pos:
+                    return output_pos
+                # Reference bases between the current position and this variant,
+                # up to the boundary
+                ref_run_end = min(variant_start_0based, boundary_0based)
+                if ref_run_end > genomic_pos:
+                    output_pos += ref_run_end - genomic_pos
+                if boundary_0based <= variant_start_0based:
+                    return output_pos
+                # The variant starts before the boundary, so its alt bases (anchored
+                # to the variant start) all fall on the near side of the boundary
+                output_pos += len(variant_alt)
+                genomic_pos = max(genomic_pos, variant_start_0based + len(variant_ref))
+            # Trailing reference bases after the last variant
+            if boundary_0based > genomic_pos:
+                output_pos += boundary_0based - genomic_pos
+            return output_pos
 
-        # Start with the offsets assuming no variants (just the fetch region offset)
-        output_offset_at_locus_start = start_0based - fetch_start
-        output_offset_at_locus_end = end - fetch_start
-
-        # Adjust offsets based on indels that occur before or within the locus
-        for variant_pos_1based, variant_ref, variant_alt in variant_list:
-            variant_start_0based = variant_pos_1based - 1
-            length_change = len(variant_alt) - len(variant_ref)
-
-            # If variant is entirely before locus start, adjust start offset
-            variant_end_0based = variant_start_0based + len(variant_ref)
-            if variant_end_0based <= start_0based:
-                output_offset_at_locus_start += length_change
-                output_offset_at_locus_end += length_change
-            # If variant spans the locus start boundary, special handling needed
-            elif variant_start_0based < start_0based < variant_end_0based:
-                # Variant overlaps the locus boundary — include from where the variant starts.
-                # Adjust relative to the accumulated offset (which already includes prior indel shifts)
-                # rather than overwriting it, so earlier length changes are preserved.
-                output_offset_at_locus_start += variant_start_0based - start_0based
-                output_offset_at_locus_end += length_change
-            # If variant is entirely within the locus, only adjust the end offset
-            elif start_0based <= variant_start_0based < end:
-                # Indels within the locus change the total length of the output
-                output_offset_at_locus_end += length_change
-
-        # Extract the trimmed sequence
-        haplotype_seq = full_haplotype_seq[output_offset_at_locus_start:output_offset_at_locus_end]
+        haplotype_seq = full_haplotype_seq[locus_offset_in_output(start_0based):locus_offset_in_output(end)]
         haplotype_sequences.append(haplotype_seq)
 
     return tuple(haplotype_sequences)
@@ -2262,15 +2313,12 @@ def parse_input_vcf_file(args, counters, fasta_obj):
         for alt_allele in alt_alleles:
             if len(vcf_ref) == len(alt_allele):
                 counters[f"allele filter: {'SNV' if len(alt_allele) == 1 else 'MNV'}"] += 1
-                #allele_filter_reason = FILTER_ALLELE_SNV_OR_MNV
                 continue
             elif len(vcf_ref) < len(alt_allele) and not alt_allele.startswith(vcf_ref):
                 counters[f"allele filter: complex MNV deletion/insertion"] += 1
-                #allele_filter_reason = FILTER_ALLELE_MNV_INDEL
                 continue
             elif len(alt_allele) < len(vcf_ref) and not vcf_ref.startswith(alt_allele):
                 counters[f"allele filter: complex MNV insertion/deletion"] += 1
-                #allele_filter_reason = FILTER_ALLELE_MNV_INDEL
                 continue
 
             allele = Allele(
@@ -2636,6 +2684,10 @@ def compute_repeat_unit_id(canonical_repeat_unit):
     if len(canonical_repeat_unit) <= 6:
         return canonical_repeat_unit
     else:
+        # Intentional: for motifs longer than 6bp, only the motif length is used as the id, so any
+        # two long motifs of the same length are treated as the same repeat unit when grouping loci
+        # for merging. This is by design - large VNTR motifs vary between samples/assemblies, and
+        # collapsing them by length keeps overlapping loci of the same period in a single merged group.
         return len(canonical_repeat_unit)
 
 
@@ -3010,11 +3062,26 @@ def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False
         (tr.chrom, tr.allele.pos, tr.allele.ref, tr.allele.alt): tr for tr in tandem_repeat_alleles
     }
 
+    # Declare the custom INFO fields appended below. Number=. (variable) because each is a
+    # comma-separated list over only the tandem-repeat ALT alleles at a site, not all ALTs.
+    # END is a VCF-reserved INFO key, so the tandem-repeat end coordinate is written as TR_END.
+    tr_info_header_lines = [
+        '##INFO=<ID=MOTIF,Number=.,Type=String,Description="Repeat unit of each tandem-repeat ALT allele at this site">',
+        '##INFO=<ID=MOTIF_SIZE,Number=.,Type=Integer,Description="Repeat unit length of each tandem-repeat ALT allele">',
+        '##INFO=<ID=START_0BASED,Number=.,Type=Integer,Description="0-based start coordinate of each tandem repeat">',
+        '##INFO=<ID=TR_END,Number=.,Type=Integer,Description="1-based end coordinate of each tandem repeat">',
+        '##INFO=<ID=DETECTED,Number=.,Type=String,Description="Motif detection method for each tandem-repeat ALT allele">',
+    ]
+
     with open(output_vcf_path, "w") as f:
         vcf_line_i = 0
         output_line_counter = 0
         for line in vcf_iterator:
             if line.startswith("#"):
+                # Insert the custom INFO declarations just before the #CHROM column header line
+                if line.startswith("#CHROM"):
+                    for info_line in tr_info_header_lines:
+                        f.write(info_line + "\n")
                 f.write(line)
                 continue
 
@@ -3054,12 +3121,16 @@ def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False
                 vcf_fields[7] += "MOTIF=" + ",".join(tr.repeat_unit for tr in tr_alleles_at_site)
                 vcf_fields[7] += ";MOTIF_SIZE=" + ",".join(str(tr.repeat_unit_length) for tr in tr_alleles_at_site)
                 vcf_fields[7] += ";START_0BASED=" + ",".join(str(tr.start_0based) for tr in tr_alleles_at_site)
-                vcf_fields[7] += ";END=" + ",".join(str(tr.end_1based) for tr in tr_alleles_at_site)
+                vcf_fields[7] += ";TR_END=" + ",".join(str(tr.end_1based) for tr in tr_alleles_at_site)
                 vcf_fields[7] += ";DETECTED=" + ",".join(tr.detection_mode for tr in tr_alleles_at_site)
 
             if only_write_filtered_out_alleles:
                 # Write the record if it has at least one non-tandem-repeat ALT allele (its filter reason
                 # would otherwise be lost). Records where every ALT is a tandem repeat are skipped here.
+                # Intentional: for mixed multi-allelic sites (some TR and some non-TR ALTs) the original
+                # record is written unchanged - we do not split it per-ALT or strip the tandem-repeat ALT
+                # and its appended TR INFO. Keeping the whole record preserves the site's genotype fields
+                # and the filtered-out VCF is only meant to record which sites had a non-TR allele.
                 if not has_non_tandem_repeat_alt:
                     continue
                 # set the FILTER column to the filter reason
@@ -3122,7 +3193,6 @@ def do_merge_subcommand(args):
     fasta_obj = pyfaidx.Fasta(args.reference_fasta_path, one_based_attributes=False, as_raw=True)
 
     all_trs = []
-    input_catalogs_have_details = False
 
     if not args.output_prefix:
         if len(args.input_bed_paths) == 1:
@@ -3169,10 +3239,9 @@ def do_merge_subcommand(args):
                                f"Line contents: {line.strip()}")
 
             detection_mode = None
-            if args.write_detailed_bed and len(name_field_tokens) >= 3:
+            if args.write_detailed_bed and len(name_field_tokens) >= 4:
                 #motif_size = int(name_field_tokens[1])
                 detection_mode = name_field_tokens[3]
-                input_catalogs_have_details = True
 
             # check if the repeat unit itself consists of perfect repeats of a smaller repeat unit (this happens in ~3% of TRs detected by TRF)
             simplified_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(repeat_unit, allow_partial_repeats=False)
@@ -3208,7 +3277,7 @@ def do_merge_subcommand(args):
 
     write_bed(all_trs, args)    
 
-    if args.write_detailed_bed and input_catalogs_have_details:
+    if args.write_detailed_bed:
         for tr in all_trs:
             repeat_sequence = str(fasta_obj[tr.chrom][tr.start_0based:tr.end_1based]).upper()
             tr.repeat_purity, _ = compute_repeat_purity(
@@ -3312,6 +3381,42 @@ def write_genotypes_tsv(genotyped_loci, args, motif_lists_by_locus=None):
     return tsv_output_path
 
 
+def build_basic_split_motif_entry(sequence, motif_size):
+    """Split a sequence into motif-sized chunks, keeping any trailing partial chunk as a suffix.
+
+    Unlike a bare split_sequence_into_motifs() call, the trailing remainder is preserved (as the suffix)
+    instead of being dropped.
+
+    Args:
+        sequence (str): The allele nucleotide sequence to split.
+        motif_size (int): The motif size in base pairs.
+
+    Returns:
+        dict: A parsed-motif entry {"motifs": [...], "prefix": "", "suffix": "..."}, or None if the
+            sequence is empty. For example, "CAGCAGCA" with motif_size 3 returns
+            {"motifs": ["CAG", "CAG"], "prefix": "", "suffix": "CA"} which renders as "[CAG][CAG]CA".
+    """
+    if not sequence:
+        return None
+    motifs = split_sequence_into_motifs(sequence, motif_size)
+    return {"motifs": motifs, "prefix": "", "suffix": sequence[len(motifs) * motif_size:]}
+
+
+def format_motif_entry_as_sequence_string(entry):
+    """Render a parsed-motif entry as a bracketed sequence string (eg. "CA[GCA][GCA][GCC]G").
+
+    Args:
+        entry (dict): Parsed-motif entry with keys "motifs" (list), "prefix" (str), and "suffix" (str),
+            or None for a missing/empty allele.
+
+    Returns:
+        str: The rendered string, or None if entry is None or empty.
+    """
+    if not entry:
+        return None
+    return format_motifs_as_sequence_string(entry["motifs"], prefix=entry["prefix"], suffix=entry["suffix"])
+
+
 def compute_motif_composition(genotyped_loci, args):
     """Compute the ordered list of motifs parsed from each allele's sequence, for each locus.
 
@@ -3323,18 +3428,24 @@ def compute_motif_composition(genotyped_loci, args):
         args: Argument namespace with attributes:
             - add_motif_composition (str or None): "basic", "trf", or None (in which case nothing is computed)
             - trf_executable_path (str): Path to the TRF executable (required if add_motif_composition == "trf")
+            - min_allele_length_for_trf_motif_splitting (int): Optional. Allele sequences shorter than
+                max(this value, 2 * motif_size) are split using the basic method instead of TRF. Defaults to 12.
             - skip_hom_ref_loci (bool): If True, loci with no overlapping variants are skipped (matching the
                 output writers) so that no motif composition is computed for loci that won't be written.
             - verbose (bool): If True, print progress information
 
     Returns:
-        dict: Dictionary mapping locus_id to a dict with keys 'allele1' and 'allele2', each mapping to an
-            ordered list of motifs (or None). Returns an empty dict if args.add_motif_composition is not set.
+        dict: Dictionary mapping locus_id to a dict with keys 'allele1' and 'allele2' (each a parsed-motif
+            entry {"motifs": [...], "prefix": str, "suffix": str}, or None) and
+            'allele1_method'/'allele2_method' (each naming the method that produced that allele's motifs:
+            "trf", "basic-split", or None). Returns an empty dict if args.add_motif_composition is not set.
             Example:
             {
                 "chr1-100-150-CAG": {
-                    "allele1": ["CAG", "CAG", "CCG", "CAG"],
-                    "allele2": ["CAG", "CAG", "CAG"],
+                    "allele1": {"motifs": ["CAG", "CAG", "CCG", "CAG"], "prefix": "", "suffix": ""},
+                    "allele2": {"motifs": ["CAG", "CAG"], "prefix": "", "suffix": "CA"},
+                    "allele1_method": "basic-split",
+                    "allele2_method": "basic-split",
                 }
             }
     """
@@ -3349,22 +3460,33 @@ def compute_motif_composition(genotyped_loci, args):
     if args.add_motif_composition == "basic":
         if args.verbose:
             print("Parsing allele sequences into motifs using the basic chunking method...")
-        return {
-            locus.locus_id: {
-                "allele1": split_sequence_into_motifs(locus.allele1_sequence, locus.motif_size),
-                "allele2": split_sequence_into_motifs(locus.allele2_sequence, locus.motif_size),
+        result = {}
+        for locus in genotyped_loci:
+            allele1_entry = build_basic_split_motif_entry(locus.allele1_sequence, locus.motif_size)
+            allele2_entry = build_basic_split_motif_entry(locus.allele2_sequence, locus.motif_size)
+            result[locus.locus_id] = {
+                "allele1": allele1_entry,
+                "allele2": allele2_entry,
+                "allele1_method": MOTIF_DETECTION_METHOD_BASIC_SPLIT if allele1_entry else None,
+                "allele2_method": MOTIF_DETECTION_METHOD_BASIC_SPLIT if allele2_entry else None,
             }
-            for locus in genotyped_loci
-        }
+        return result
 
-    return compute_motif_lists_with_trf(genotyped_loci, args.trf_executable_path, verbose=args.verbose)
+    return compute_motif_lists_with_trf(
+        genotyped_loci, args.trf_executable_path,
+        min_allele_length_for_trf=getattr(args, "min_allele_length_for_trf_motif_splitting", 12),
+        verbose=args.verbose)
 
 
 def compute_motif_lists_with_trf(genotyped_loci, trf_executable_path, min_allele_length_for_trf=12, verbose=False):
     """Parse each allele's sequence into an ordered list of motifs using TandemRepeatsFinder.
 
-    This function runs TRF on allele sequences that are long enough to benefit
-    from TRF analysis. Shorter sequences fall back on the basic method.
+    This function runs TRF on allele sequences that are long enough to benefit from TRF analysis. A TRF
+    result is only used if it decomposes the allele using the annotated locus motif size and covers
+    essentially the entire sequence (it starts within one motif of the sequence start and ends within
+    one motif of the sequence end). Any bases before the first or after the last detected repeat are kept
+    as the entry's prefix/suffix. Sequences too short for TRF, and sequences where no TRF result qualifies,
+    fall back on the basic chunking method (build_basic_split_motif_entry).
 
     The threshold for using TRF is: sequence length >= max(12bp, 2 * motif_size).
     This ensures TRF has enough sequence to work with (at least 2 repeats).
@@ -3378,12 +3500,16 @@ def compute_motif_lists_with_trf(genotyped_loci, trf_executable_path, min_allele
         verbose (bool): If True, print progress information
 
     Returns:
-        dict: Dictionary mapping locus_id to a dict with keys 'allele1' and 'allele2',
-            each mapping to an ordered list of motifs (or None). Example:
+        dict: Dictionary mapping locus_id to a dict with keys 'allele1' and 'allele2' (each a parsed-motif
+            entry {"motifs": [...], "prefix": str, "suffix": str}, or None for missing/empty alleles) and
+            'allele1_method'/'allele2_method' (each naming the method that produced that allele's motifs:
+            "trf", "basic-split", or None). Example:
             {
                 "chr1-100-150-CAG": {
-                    "allele1": ["CAG", "CAG", "CCG", "CAG"],
-                    "allele2": ["CAG", "CAG", "CAG"],
+                    "allele1": {"motifs": ["GCA", "GCA", "GCC"], "prefix": "CA", "suffix": "G"},
+                    "allele2": {"motifs": ["CAG", "CAG"], "prefix": "", "suffix": "CA"},
+                    "allele1_method": "trf",
+                    "allele2_method": "basic-split",
                 }
             }
     """
@@ -3391,20 +3517,22 @@ def compute_motif_lists_with_trf(genotyped_loci, trf_executable_path, min_allele
 
     # Separate alleles into TRF vs basic based on sequence length
     # Use TRF if sequence length >= max(12bp, 2 * motif_size)
-    sequences_for_trf = []  # (seq_id, sequence)
+    sequences_for_trf = []  # (seq_id, sequence, motif_size)
     for locus in genotyped_loci:
         # Initialize both allele keys to None so loci with missing/empty allele sequences still appear in the
         # results (with None values), matching the basic method and ensuring the output writers emit the
         # motif fields (as null) rather than omitting them.
-        results[locus.locus_id] = {"allele1": None, "allele2": None}
+        results[locus.locus_id] = {
+            "allele1": None, "allele2": None, "allele1_method": None, "allele2_method": None}
         for allele_key, sequence in [("allele1", locus.allele1_sequence), ("allele2", locus.allele2_sequence)]:
             if not sequence:
                 continue
 
             if len(sequence) >= max(min_allele_length_for_trf, 2 * locus.motif_size):
-                sequences_for_trf.append((f"{locus.locus_id}${allele_key}", sequence))
+                sequences_for_trf.append((f"{locus.locus_id}${allele_key}", sequence, locus.motif_size))
             else:
-                results[locus.locus_id][allele_key] = split_sequence_into_motifs(sequence, locus.motif_size)
+                results[locus.locus_id][allele_key] = build_basic_split_motif_entry(sequence, locus.motif_size)
+                results[locus.locus_id][f"{allele_key}_method"] = MOTIF_DETECTION_METHOD_BASIC_SPLIT
 
     # If no sequences need TRF, return early
     if not sequences_for_trf:
@@ -3422,13 +3550,13 @@ def compute_motif_lists_with_trf(genotyped_loci, trf_executable_path, min_allele
     # Write all sequences to a temp FASTA file
     with tempfile.NamedTemporaryFile(mode="w", suffix=".fasta", delete=False) as temp_fasta:
         temp_fasta_path = temp_fasta.name
-        for seq_id, sequence in sequences_for_trf:
+        for seq_id, sequence, _ in sequences_for_trf:
             temp_fasta.write(f">{seq_id}\n")
             temp_fasta.write(f"{sequence}\n")
 
     try:
         # Determine max period based on longest sequence
-        max_seq_len = max(len(seq) for _, seq in sequences_for_trf)
+        max_seq_len = max(len(seq) for _, seq, _ in sequences_for_trf)
         max_period = max(1, min(max_seq_len // 2, 2000))
 
         # Run TRF once on the entire FASTA
@@ -3437,7 +3565,7 @@ def compute_motif_lists_with_trf(genotyped_loci, trf_executable_path, min_allele
         # Parse results for each sequence
         total_sequences = len(sequences_for_trf)
 
-        for seq_idx, (seq_id, _) in enumerate(sequences_for_trf, start=1):
+        for seq_idx, (seq_id, sequence, motif_size) in enumerate(sequences_for_trf, start=1):
             # Parse the locus_id and allele from the sequence ID
             parts = seq_id.rsplit("$", 1)
             locus_id = parts[0]
@@ -3451,23 +3579,39 @@ def compute_motif_lists_with_trf(genotyped_loci, trf_executable_path, min_allele
                 max_period=max_period,
             )
 
-            if trf_records:
-                # Use the best result (highest alignment score)
-                best_record = max(trf_records, key=lambda x: x.get("alignment_score", 0))
+            # Only accept a TRF result that decomposes the allele using the annotated locus motif size and
+            # covers essentially the entire sequence (starts within one motif of the start and ends within
+            # one motif of the end). Among accepted results, prefer the one with the highest alignment score.
+            accepted_records = [
+                record for record in (trf_records or [])
+                if record["repeat_unit_length"] == motif_size
+                and record["start_0based"] < motif_size
+                and record["end_1based"] > len(sequence) - motif_size
+            ]
 
-                # Keep the ordered list of motifs from the 'repeats' list
-                if "repeats" in best_record:
-                    motifs = []
-                    for motif in best_record["repeats"]:
-                        # Clean up motif (remove dashes and ellipsis from long motifs)
-                        clean_motif = motif.replace("-", "").replace("...", "")
-                        if clean_motif:
-                            motifs.append(clean_motif)
-                    results[locus_id][allele_key] = motifs
-                else:
-                    results[locus_id][allele_key] = None
+            entry = None
+            if accepted_records:
+                best_record = max(accepted_records, key=lambda x: x.get("alignment_score", 0))
+
+                # Keep the ordered list of motifs from the 'repeats' list, cleaning up dashes and ellipsis
+                # from long motifs
+                motifs = [m.replace("-", "").replace("...", "") for m in best_record.get("repeats", [])]
+                motifs = [m for m in motifs if m]
+                if motifs:
+                    # Keep any bases before the first or after the last detected repeat as prefix/suffix
+                    entry = {
+                        "motifs": motifs,
+                        "prefix": sequence[:best_record["start_0based"]],
+                        "suffix": sequence[best_record["end_1based"]:],
+                    }
+
+            if entry:
+                results[locus_id][allele_key] = entry
+                results[locus_id][f"{allele_key}_method"] = MOTIF_DETECTION_METHOD_TRF
             else:
-                results[locus_id][allele_key] = None
+                # No qualifying TRF result for this allele - fall back to basic chunking rather than emitting None
+                results[locus_id][allele_key] = build_basic_split_motif_entry(sequence, motif_size)
+                results[locus_id][f"{allele_key}_method"] = MOTIF_DETECTION_METHOD_BASIC_SPLIT
 
         return results
 
@@ -3696,6 +3840,9 @@ def write_genotypes_vcf(genotyped_loci, input_vcf_path, args):
                     new_record.samples[sample][key] = original_record.samples[sample][key]
                 except (KeyError, TypeError):
                     pass  # Skip if format field not defined in header
+            # Preserve genotype phasing (e.g. 0|1), which is stored separately from the
+            # GT value and would otherwise default to unphased (0/1) on the new record
+            new_record.samples[sample].phased = original_record.samples[sample].phased
 
         output_vcf.write(new_record)
         output_variant_count += 1

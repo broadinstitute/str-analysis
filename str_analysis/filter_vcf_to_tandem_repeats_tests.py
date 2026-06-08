@@ -29,7 +29,11 @@ from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele
     need_to_reprocess_allele_with_extended_flanking_sequence, \
     open_vcf_for_genotyping, get_overlapping_vcf_variants, \
     convert_variants_to_haplotype_sequence, extract_haplotype_sequences_from_vcf, \
-    compute_repeat_counts_from_sequence, genotype_single_locus, write_tsv
+    compute_repeat_counts_from_sequence, genotype_single_locus, write_tsv, \
+    compute_motif_composition, compute_motif_lists_with_trf, \
+    build_basic_split_motif_entry, format_motif_entry_as_sequence_string, \
+    MOTIF_DETECTION_METHOD_TRF, MOTIF_DETECTION_METHOD_BASIC_SPLIT
+from str_analysis.utils.find_motif_utils import format_motifs_as_sequence_string
 
 
 class TestAllele(unittest.TestCase):
@@ -776,6 +780,94 @@ class TestMergeFunctions(unittest.TestCase):
 
         self.assertFalse(result)  # Repeats don't cover entire flank
 
+    def test_merge_write_detailed_bed_for_plain_catalog(self):
+        """--write-detailed-bed must produce the detailed BED even for plain (motif-only) catalogs.
+
+        Previously the detailed BED was only written when the input catalog names already
+        contained detail tokens, so the flag was silently ignored for plain BED catalogs.
+        """
+        if shutil.which("bgzip") is None or shutil.which("tabix") is None:
+            self.skipTest("bgzip/tabix unavailable")
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            # Plain catalog: the name field is just the motif, with no detail tokens
+            input_bed_path = os.path.join(temp_dir, "plain_catalog.bed")
+            with open(input_bed_path, "w") as f:
+                f.write("chr22\t10515000\t10515020\tAT\n")
+
+            output_prefix = os.path.join(temp_dir, "merged")
+            args = argparse.Namespace(
+                reference_fasta_path=self._temp_fasta_path,
+                input_bed_paths=[input_bed_path],
+                output_prefix=output_prefix,
+                interval=None,
+                verbose=False,
+                show_progress_bar=False,
+                write_detailed_bed=True,
+                batch_size=1000,
+            )
+
+            from str_analysis.filter_vcf_to_tandem_repeats import do_merge_subcommand
+            do_merge_subcommand(args)
+
+            self.assertTrue(os.path.exists(f"{output_prefix}.tandem_repeats.bed.gz"))
+            self.assertTrue(os.path.exists(f"{output_prefix}.tandem_repeats.detailed.bed.gz"),
+                            "--write-detailed-bed was ignored for a plain input catalog")
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_write_vcf_declares_info_fields_and_avoids_reserved_end(self):
+        """The catalog/filter VCF output must declare its custom INFO fields and not misuse END.
+
+        END is a VCF-reserved INFO key (the record's end position), so the tandem-repeat end
+        coordinate is written as TR_END. All appended INFO fields must also have ##INFO header
+        declarations so the output is spec-compliant and parseable.
+        """
+        import pysam
+        from str_analysis.filter_vcf_to_tandem_repeats import write_vcf
+
+        if shutil.which("bgzip") is None or shutil.which("tabix") is None:
+            self.skipTest("bgzip/tabix unavailable")
+
+        allele = Allele("chr22", 10515040, "T", "TAAGA", self._fasta_obj, order=0)
+        tr_allele = TandemRepeatAllele(allele, "AAGA", False, 0, 4, 37, DETECTION_MODE_PURE_REPEATS)
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            # Build an input VCF whose single row matches the tandem-repeat allele
+            input_vcf_path = os.path.join(temp_dir, "in.vcf")
+            with open(input_vcf_path, "w") as f:
+                f.write("##fileformat=VCFv4.2\n")
+                f.write("##contig=<ID=chr22>\n")
+                f.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n")
+                f.write(f"{allele.chrom}\t{allele.pos}\t.\t{allele.ref}\t{allele.alt}\t.\tPASS\t.\tGT\t0/1\n")
+
+            output_prefix = os.path.join(temp_dir, "out")
+            args = argparse.Namespace(
+                input_vcf_path=input_vcf_path, interval=None, verbose=False,
+                output_prefix=output_prefix, offset=0, n=None,
+            )
+            write_vcf([tr_allele], args)
+
+            output_vcf_path = f"{output_prefix}.tandem_repeats.vcf.gz"
+            self.assertTrue(os.path.exists(output_vcf_path))
+
+            with pysam.VariantFile(output_vcf_path) as vcf:
+                # All appended INFO fields are declared in the header
+                for field in ("MOTIF", "MOTIF_SIZE", "START_0BASED", "TR_END", "DETECTED"):
+                    self.assertIn(field, vcf.header.info, f"{field} INFO field not declared in header")
+                # The reserved END key is not overloaded
+                self.assertNotIn("END", vcf.header.info)
+                records = list(vcf.fetch())
+            self.assertEqual(len(records), 1)
+            # Number=. INFO fields are returned as tuples by pysam
+            self.assertEqual(tuple(records[0].info["TR_END"]), (10515077,))
+            self.assertEqual(tuple(records[0].info["MOTIF"]), ("AAGA",))
+            self.assertNotIn("END", records[0].info)
+        finally:
+            shutil.rmtree(temp_dir)
+
     def tearDown(self):
         """Tear down test case."""
         self._fasta_obj.close()
@@ -880,6 +972,17 @@ class TestVCFFunctions(unittest.TestCase):
                 f.write(vcf_content)
             return f.name
 
+    def _create_temp_indexed_vcf(self, vcf_content):
+        """Helper to create a bgzip-compressed, tabix-indexed temp VCF, as required for genotyping.
+
+        Uses pysam's bundled bgzip/tabix (no external tools needed). Returns the path to the
+        .vcf.gz file; a sibling .vcf.gz.tbi index is created alongside it.
+        """
+        import pysam
+        vcf_path = self._create_temp_vcf(vcf_content)
+        pysam.tabix_index(vcf_path, preset="vcf", force=True)  # replaces vcf_path with vcf_path + ".gz"
+        return vcf_path + ".gz"
+
     def test_open_vcf_for_genotyping_valid_single_sample(self):
         """Test opening a valid single-sample VCF."""
         vcf_content = """##fileformat=VCFv4.2
@@ -887,7 +990,7 @@ class TestVCFFunctions(unittest.TestCase):
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1
 chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
 """
-        vcf_path = self._create_temp_vcf(vcf_content)
+        vcf_path = self._create_temp_indexed_vcf(vcf_content)
         try:
             vcf_file, sample_name, normalize_chrom = open_vcf_for_genotyping(vcf_path)
             self.assertEqual(sample_name, "SAMPLE1")
@@ -898,6 +1001,8 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
             vcf_file.close()
         finally:
             os.unlink(vcf_path)
+            if os.path.exists(vcf_path + ".tbi"):
+                os.unlink(vcf_path + ".tbi")
 
     def test_open_vcf_for_genotyping_no_chr_prefix(self):
         """Test detecting chromosome naming convention without chr prefix."""
@@ -907,7 +1012,7 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1
 1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
 """
-        vcf_path = self._create_temp_vcf(vcf_content)
+        vcf_path = self._create_temp_indexed_vcf(vcf_content)
         try:
             vcf_file, sample_name, normalize_chrom = open_vcf_for_genotyping(vcf_path)
             # Verify normalize_chrom is callable and normalizes correctly for no-chr VCF
@@ -917,6 +1022,8 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
             vcf_file.close()
         finally:
             os.unlink(vcf_path)
+            if os.path.exists(vcf_path + ".tbi"):
+                os.unlink(vcf_path + ".tbi")
 
     def test_open_vcf_for_genotyping_multi_sample_error(self):
         """Test that multi-sample VCF raises error."""
@@ -925,18 +1032,40 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1\tSAMPLE2
 chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1\t1/1
 """
-        vcf_path = self._create_temp_vcf(vcf_content)
+        vcf_path = self._create_temp_indexed_vcf(vcf_content)
         try:
             with self.assertRaises(ValueError) as context:
                 open_vcf_for_genotyping(vcf_path)
             self.assertIn("single-sample", str(context.exception))
         finally:
             os.unlink(vcf_path)
+            if os.path.exists(vcf_path + ".tbi"):
+                os.unlink(vcf_path + ".tbi")
 
     def test_open_vcf_for_genotyping_file_not_found(self):
         """Test that missing VCF raises FileNotFoundError."""
         with self.assertRaises(FileNotFoundError):
             open_vcf_for_genotyping("/nonexistent/path/to/file.vcf")
+
+    def test_open_vcf_for_genotyping_unindexed_error(self):
+        """A plain, un-indexed VCF must raise a clear error instead of silently genotyping hom-ref.
+
+        Genotyping fetches variants per-locus, which requires a tabix/csi index. Without this
+        guard, pysam raises 'fetch requires an index' on every fetch, which is swallowed and
+        reported as zero overlapping variants (hom-ref) at every locus.
+        """
+        vcf_content = """##fileformat=VCFv4.2
+##contig=<ID=chr1,length=1000000>
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1
+chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
+"""
+        vcf_path = self._create_temp_vcf(vcf_content)
+        try:
+            with self.assertRaises(ValueError) as context:
+                open_vcf_for_genotyping(vcf_path)
+            self.assertIn("index", str(context.exception))
+        finally:
+            os.unlink(vcf_path)
 
     def test_get_overlapping_vcf_variants_basic(self):
         """Test fetching overlapping variants from a VCF."""
@@ -1690,6 +1819,71 @@ class TestExtractHaplotypeSequencesFromVcf(unittest.TestCase):
         # After +1bp insertion, that 'C' is now at modified index 3
         # So we want modified[3:15] = "CAGCAGCAGCAG" (unchanged!)
         self.assertEqual(result[1], "CAGCAGCAGCAG")
+
+    def test_deletion_spanning_locus_start_boundary(self):
+        """A deletion straddling the locus start should drop only the locus base(s) it removes.
+
+        Reference (0-based): AAAA CAGCAGCAGCAG TTTT, locus = indices [4, 16) = "CAGCAGCAGCAG".
+        Deletion "AAC" -> "A" at 1-based pos 3 spans genomic [2, 5), overlapping the start
+        boundary and deleting the first locus base (index 4, 'C'). The replacement base is
+        anchored to the flank (it starts before the locus), so the locus haplotype is the
+        remaining "AGCAGCAGCAG" (11 bp), not a sequence padded with flanking bases.
+        """
+        mock_fasta = self._create_mock_fasta("AAAACAGCAGCAGCAGTTTT")
+
+        variant = self._create_mock_variant(
+            pos=3, ref="AAC", alt="A", gt=(0, 1), phased=True
+        )
+
+        result = extract_haplotype_sequences_from_vcf(
+            chrom="chr1", start_0based=4, end=16, fasta_obj=mock_fasta, vcf_variants=[variant]
+        )
+
+        self.assertEqual(result[0], "CAGCAGCAGCAG")  # reference haplotype
+        self.assertEqual(result[1], "AGCAGCAGCAG")   # leading locus base deleted
+
+    def test_deletion_spanning_locus_end_boundary(self):
+        """A deletion straddling the locus end should only remove flank, keeping locus content.
+
+        Reference (0-based): AAAA CAGCAGCAGCAG TTTT, locus = indices [4, 16) = "CAGCAGCAGCAG".
+        Deletion "GT" -> "G" at 1-based pos 16 spans genomic [15, 17): it keeps the last locus
+        base (index 15, 'G') and deletes only the flanking 'T' at index 16. The locus haplotype
+        is therefore unchanged ("CAGCAGCAGCAG"); the old offset logic incorrectly truncated the
+        final locus base by applying the full deletion length change to the end offset.
+        """
+        mock_fasta = self._create_mock_fasta("AAAACAGCAGCAGCAGTTTT")
+
+        variant = self._create_mock_variant(
+            pos=16, ref="GT", alt="G", gt=(0, 1), phased=True
+        )
+
+        result = extract_haplotype_sequences_from_vcf(
+            chrom="chr1", start_0based=4, end=16, fasta_obj=mock_fasta, vcf_variants=[variant]
+        )
+
+        self.assertEqual(result[0], "CAGCAGCAGCAG")  # reference haplotype
+        self.assertEqual(result[1], "CAGCAGCAGCAG")   # only flanking base deleted
+
+    def test_haploid_genotype_returns_hemizygous(self):
+        """A haploid genotype (e.g. chrX/chrY, GT == (1,)) must not crash; it yields one haplotype.
+
+        The haplotype loop iterates over (0, 1) and indexes gt[haplotype]; a length-1 genotype
+        tuple has no second haplotype, so the second haplotype is reported as missing (None)
+        rather than raising IndexError.
+        """
+        mock_fasta = self._create_mock_fasta()
+
+        variant = self._create_mock_variant(
+            pos=4, ref="C", alt="T", gt=(1,), phased=True  # haploid: single allele
+        )
+
+        result = extract_haplotype_sequences_from_vcf(
+            chrom="chr1", start_0based=0, end=12, fasta_obj=mock_fasta, vcf_variants=[variant]
+        )
+
+        # Haplotype 0 applies the alt allele; haplotype 1 does not exist for a haploid call
+        self.assertEqual(result[0], "CAGTAGCAGCAG")
+        self.assertIsNone(result[1])
 
     def test_chromosome_not_found_returns_none(self):
         """Test that chromosome not in fasta returns (None, None)."""
@@ -2587,6 +2781,92 @@ chr1\t4\t.\tC\tCCAG\t.\tPASS\t.\tGT\t0|1
             fasta_obj.close()
 
 
+class TestMotifCompositionSplittingMethod(unittest.TestCase):
+    """Test motif-splitting-method labeling and the TRF length threshold in motif composition."""
+
+    def _make_locus(self, repeat_unit, allele1_sequence, allele2_sequence):
+        return GenotypedTandemRepeat(
+            ReferenceTandemRepeat(chrom="chr1", start_0based=100, end_1based=100 + len(repeat_unit),
+                                  repeat_unit=repeat_unit),
+            allele1_sequence=allele1_sequence,
+            allele2_sequence=allele2_sequence,
+        )
+
+    def test_basic_method_labels_basic_split(self):
+        """compute_motif_composition basic path labels both alleles 'basic-split', None for missing allele."""
+        locus = self._make_locus("CAG", "CAGCAGCAG", None)
+        result = compute_motif_composition(
+            [locus], argparse.Namespace(add_motif_composition="basic", verbose=False, skip_hom_ref_loci=False))
+
+        entry = result[locus.locus_id]
+        self.assertEqual(entry["allele1"], {"motifs": ["CAG", "CAG", "CAG"], "prefix": "", "suffix": ""})
+        self.assertEqual(entry["allele1_method"], MOTIF_DETECTION_METHOD_BASIC_SPLIT)
+        self.assertIsNone(entry["allele2"])
+        self.assertIsNone(entry["allele2_method"])
+
+    def test_basic_split_keeps_trailing_suffix(self):
+        """basic-split retains the trailing partial chunk as a suffix (eg. "CAGCA" -> "[CAG]CA")."""
+        entry = build_basic_split_motif_entry("CAGCA", 3)
+        self.assertEqual(entry, {"motifs": ["CAG"], "prefix": "", "suffix": "CA"})
+        self.assertEqual(format_motif_entry_as_sequence_string(entry), "[CAG]CA")
+        self.assertIsNone(build_basic_split_motif_entry(None, 3))
+
+    def test_trf_path_short_sequences_fall_back_to_basic_split(self):
+        """Sequences below max(threshold, 2*motif_size) never reach TRF and are labeled 'basic-split'.
+
+        Both alleles are shorter than the 12bp default threshold, so compute_motif_lists_with_trf returns
+        before constructing a TRFRunner - trf_executable_path is intentionally invalid to prove TRF is not run.
+        """
+        locus = self._make_locus("CAG", "CAGCAGCAG", "CAGCAG")  # 9bp and 6bp, both < 12
+        result = compute_motif_lists_with_trf([locus], trf_executable_path="/nonexistent/trf", verbose=False)
+
+        entry = result[locus.locus_id]
+        self.assertEqual(entry["allele1"], {"motifs": ["CAG", "CAG", "CAG"], "prefix": "", "suffix": ""})
+        self.assertEqual(entry["allele1_method"], MOTIF_DETECTION_METHOD_BASIC_SPLIT)
+        self.assertEqual(entry["allele2"], {"motifs": ["CAG", "CAG"], "prefix": "", "suffix": ""})
+        self.assertEqual(entry["allele2_method"], MOTIF_DETECTION_METHOD_BASIC_SPLIT)
+
+    def test_threshold_arg_routes_longer_sequence_to_basic_split(self):
+        """Raising min_allele_length_for_trf keeps a longer sequence on the basic path (no TRF)."""
+        locus = self._make_locus("CAG", "CAG" * 6, None)  # 18bp >= default 12, but < 100
+        result = compute_motif_lists_with_trf(
+            [locus], trf_executable_path="/nonexistent/trf", min_allele_length_for_trf=100, verbose=False)
+
+        entry = result[locus.locus_id]
+        self.assertEqual(entry["allele1_method"], MOTIF_DETECTION_METHOD_BASIC_SPLIT)
+        self.assertEqual(entry["allele1"]["motifs"], ["CAG"] * 6)
+
+    def test_format_motifs_with_prefix_and_suffix(self):
+        """format_motifs_as_sequence_string includes unbracketed prefix/suffix bases."""
+        self.assertEqual(
+            format_motifs_as_sequence_string(["GCA", "GCA", "GCC"], prefix="CA", suffix="G"),
+            "CA[GCA][GCA][GCC]G")
+        self.assertEqual(format_motifs_as_sequence_string(["CAG"]), "[CAG]")
+        self.assertIsNone(format_motifs_as_sequence_string([], prefix="", suffix=""))
+
+    def test_method_and_sequence_fields_emitted_in_tsv_and_json(self):
+        """to_tsv_dict / to_json_dict emit the splitting method, motif sequence (with prefix/suffix), and counts."""
+        locus = self._make_locus("CAG", "CAGCAGCAG", None)
+        motif_lists = {
+            "allele1": {"motifs": ["GCA", "GCA", "GCC"], "prefix": "CA", "suffix": "G"}, "allele2": None,
+            "allele1_method": MOTIF_DETECTION_METHOD_TRF, "allele2_method": None,
+        }
+
+        tsv_dict = locus.to_tsv_dict(motif_lists=motif_lists)
+        self.assertEqual(tsv_dict["Allele1MotifSequence"], "CA[GCA][GCA][GCC]G")
+        self.assertEqual(tsv_dict["Allele1SequenceMotifSplittingMethod"], MOTIF_DETECTION_METHOD_TRF)
+        self.assertEqual(tsv_dict["Allele2MotifSequence"], "")  # None -> "" in TSV
+        self.assertEqual(tsv_dict["Allele2SequenceMotifSplittingMethod"], "")
+
+        json_dict = locus.to_json_dict(motif_lists=motif_lists)
+        self.assertEqual(json_dict["Allele1MotifSequence"], "CA[GCA][GCA][GCC]G")
+        self.assertEqual(json_dict["Allele1MotifCounts"], {"GCA": 2, "GCC": 1})  # prefix/suffix excluded
+        self.assertEqual(json_dict["Allele1SequenceMotifSplittingMethod"], MOTIF_DETECTION_METHOD_TRF)
+        self.assertIsNone(json_dict["Allele2MotifSequence"])
+        self.assertIsNone(json_dict["Allele2MotifCounts"])
+        self.assertIsNone(json_dict["Allele2SequenceMotifSplittingMethod"])
+
+
 class TestRepeatCounting(unittest.TestCase):
     """Test the compute_repeat_counts_from_sequence function."""
 
@@ -3038,6 +3318,66 @@ chr1\t619\t.\tC\tCAG\t.\tPASS\t.\tGT\t0|1
         self.assertEqual(locus6["Zygosity"], "HET")
         self.assertIn(int(locus6["NumRepeatsShortAllele"]), [12, 13])
         self.assertIn(int(locus6["NumRepeatsLongAllele"]), [14, 15])
+
+    def test_end_to_end_genotype_write_vcf_preserves_phasing(self):
+        """The contributing-variants VCF (--write-vcf) must preserve input genotype phasing.
+
+        A phased input genotype (0|1) should remain phased in the output, not be rewritten
+        as unphased (0/1). Phasing is stored separately from the GT value on a pysam sample
+        record, so it has to be copied explicitly when building the output record.
+        """
+        import pysam
+
+        reference_seq = "A" * 100 + "CAG" * 8 + "T" * 76
+        fasta_path = self._create_test_fasta({"chr1": reference_seq})
+        if fasta_path is None:
+            self.skipTest("pyfaidx unavailable")
+
+        bed_gz_path = self._create_test_bed_and_index("chr1\t100\t124\tCAG\n")
+        if bed_gz_path is None:
+            self.skipTest("bgzip/tabix unavailable")
+
+        # Heterozygous phased expansion at the CAG locus (insert CAGCAG after the C at 0-based 100)
+        vcf_content = """##fileformat=VCFv4.2
+##contig=<ID=chr1,length=300>
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1
+chr1\t101\t.\tC\tCCAGCAG\t.\tPASS\t.\tGT\t0|1
+"""
+        vcf_gz_path = self._create_test_vcf_and_index(vcf_content)
+        if vcf_gz_path is None:
+            self.skipTest("bgzip/tabix unavailable")
+
+        self._temp_dir = tempfile.mkdtemp()
+        output_prefix = os.path.join(self._temp_dir, "test_output")
+
+        args = argparse.Namespace(
+            reference_fasta_path=fasta_path,
+            catalog_bed=bed_gz_path,
+            input_vcf_path=vcf_gz_path,
+            input_vcf_prefix="test",
+            output_prefix=output_prefix,
+            interval=None,
+            verbose=False,
+            show_progress_bar=False,
+            write_vcf=True,
+            write_json=False,
+            skip_hom_ref_loci=False,
+            add_motif_composition=None,
+            trf_executable_path=None,
+        )
+
+        from str_analysis.filter_vcf_to_tandem_repeats import do_genotype_subcommand
+        do_genotype_subcommand(args)
+
+        output_vcf_path = f"{output_prefix}.tandem_repeat_contributing_variants.vcf.gz"
+        self.assertTrue(os.path.exists(output_vcf_path), "contributing-variants VCF was not written")
+
+        with pysam.VariantFile(output_vcf_path) as output_vcf:
+            records = list(output_vcf.fetch())
+        self.assertEqual(len(records), 1)
+        self.assertTrue(records[0].samples["SAMPLE1"].phased,
+                        "input phased genotype (0|1) was not preserved in the output VCF")
 
     def test_end_to_end_genotype_with_json_output(self):
         """Test end-to-end genotyping with JSON output enabled.
