@@ -69,6 +69,7 @@ from str_analysis.utils.file_utils import open_file, file_exists
 from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.trf_runner import TRFRunner
 from str_analysis.utils.find_motif_utils import compute_repeat_purity, compute_most_common_motif
+from str_analysis.utils.find_motif_utils import split_sequence_into_motifs, format_motifs_as_sequence_string
 
 DETECTION_MODE_PURE_REPEATS = "pure"
 DETECTION_MODE_ALLOW_INTERRUPTIONS = "interrupted"
@@ -131,6 +132,8 @@ GENOTYPE_TSV_OUTPUT_COLUMNS = [
     "RepeatPurity",
     "Allele1Sequence",
     "Allele2Sequence",
+    "Allele1MotifSequence",
+    "Allele2MotifSequence",
     "NumOverlappingVariants",
     "VariantPositions",
 ]
@@ -240,8 +243,10 @@ def parse_args():
     genotype_p.add_argument("--write-vcf", help="Output a VCF file with the subset of variants that contributed to TR genotyping.", action="store_true")
     genotype_p.add_argument("--write-json", help="Output a JSON file containing all genotyped TR loci.", action="store_true")
     genotype_p.add_argument("--add-motif-composition", choices=["basic", "trf"],
-                            help="Add motif composition to JSON output. 'basic' splits sequence into motif-sized chunks, "
-                            "'trf' uses TandemRepeatsFinder for accurate detection. Requires --write-json.")
+                            help="Add the parsed motif sequence for each allele to the output (eg. '[CAG][CAG][CCG][CAG]'). "
+                            "'basic' splits the allele sequence into motif-sized chunks, 'trf' uses TandemRepeatsFinder "
+                            "for more accurate detection. The motif sequence is added to both the TSV and JSON outputs, "
+                            "while per-allele motif counts are added to the JSON output only.")
     genotype_p.add_argument("--trf-executable-path", help="Path to the TandemRepeatsFinder (TRF) executable. "
                             "Required if --add-motif-composition trf is specified.")
     genotype_p.add_argument("--skip-hom-ref-loci", action="store_true",
@@ -261,8 +266,6 @@ def parse_args():
             args.copy_info_field_keys_to_tsv = {key: 0 for key in args.copy_info_field_keys_to_tsv}
         
     if args.subcommand == "genotype":
-        if args.add_motif_composition and not args.write_json:
-            p.error("--add-motif-composition requires --write-json to be specified")
         if args.add_motif_composition == "trf" and not args.trf_executable_path:
             p.error("--add-motif-composition trf requires --trf-executable-path to be specified")
 
@@ -545,6 +548,12 @@ class TandemRepeatAllele:
         self._num_repeat_bases_in_variant = num_repeat_bases_in_variant
         self._num_repeat_bases_in_right_flank = num_repeat_bases_in_right_flank
 
+        # Set start/end before _adjust_repeat_unit_to_maximize_purity() because its ValueError handler
+        # references self.start_0based/end_1based, which would otherwise raise a secondary AttributeError
+        # that masks the original error.
+        self._start_0based = self._allele.get_left_flank_end() - self._num_repeat_bases_in_left_flank
+        self._end_1based = self._allele.get_right_flank_start_0based() + self._num_repeat_bases_in_right_flank
+
         if adjust_repeat_unit:
             self._adjust_repeat_unit_to_maximize_purity()
 
@@ -554,9 +563,6 @@ class TandemRepeatAllele:
 
         self._canonical_repeat_unit = None
         self._repeat_purity = None
-
-        self._start_0based = self._allele.get_left_flank_end() - self._num_repeat_bases_in_left_flank
-        self._end_1based = self._allele.get_right_flank_start_0based() + self._num_repeat_bases_in_right_flank
 
         if self._start_0based > self._end_1based:
             raise ValueError(f"Logic error: start_0based ({self._start_0based}) > end_1based ({self._end_1based})")
@@ -1146,8 +1152,13 @@ class GenotypedTandemRepeat:
             return self._allele1_purity
         return min(self._allele1_purity, self._allele2_purity)
 
-    def to_tsv_dict(self):
+    def to_tsv_dict(self, motif_lists=None):
         """Convert this genotyped locus to a dictionary for TSV output.
+
+        Args:
+            motif_lists (dict): Optional dict with keys 'allele1' and 'allele2', each mapping to an ordered
+                list of motifs parsed from that allele's sequence. If provided, the parsed motif sequence is
+                added for each allele (eg. "[CAG][CAG][CCG][CAG]").
 
         Returns:
             dict: Dictionary with keys matching GENOTYPE_TSV_OUTPUT_COLUMNS.
@@ -1188,18 +1199,19 @@ class GenotypedTandemRepeat:
             "RepeatPurity": purity_str,
             "Allele1Sequence": self.allele1_sequence if self.allele1_sequence is not None else "",
             "Allele2Sequence": self.allele2_sequence if self.allele2_sequence is not None else "",
+            "Allele1MotifSequence": format_motifs_as_sequence_string(motif_lists.get("allele1")) or "" if motif_lists else "",
+            "Allele2MotifSequence": format_motifs_as_sequence_string(motif_lists.get("allele2")) or "" if motif_lists else "",
             "NumOverlappingVariants": self.num_overlapping_variants,
             "VariantPositions": variant_positions_str,
         }
 
-    def to_json_dict(self, include_motif_counts=False, motif_counts=None):
+    def to_json_dict(self, motif_lists=None):
         """Convert this genotyped locus to a dictionary for JSON output.
 
         Args:
-            include_motif_counts (bool): If True, include motif count fields in the output.
-                Requires motif_counts to be provided.
-            motif_counts (dict): Dictionary with keys 'allele1' and 'allele2', each mapping
-                to a dict of motif -> count. Only used if include_motif_counts is True.
+            motif_lists (dict): Optional dict with keys 'allele1' and 'allele2', each mapping to an ordered
+                list of motifs parsed from that allele's sequence. If provided, the parsed motif sequence
+                (eg. "[CAG][CAG][CCG][CAG]") and per-allele motif counts are added for each allele.
 
         Returns:
             dict: Dictionary with all fields for JSON serialization. Unlike to_tsv_dict(),
@@ -1229,9 +1241,13 @@ class GenotypedTandemRepeat:
             "VariantPositions": self.variant_positions,
         }
 
-        if include_motif_counts and motif_counts:
-            result["Allele1MotifCounts"] = motif_counts.get("allele1")
-            result["Allele2MotifCounts"] = motif_counts.get("allele2")
+        if motif_lists:
+            allele1_motifs = motif_lists.get("allele1")
+            allele2_motifs = motif_lists.get("allele2")
+            result["Allele1MotifCounts"] = dict(collections.Counter(allele1_motifs)) if allele1_motifs else None
+            result["Allele2MotifCounts"] = dict(collections.Counter(allele2_motifs)) if allele2_motifs else None
+            result["Allele1MotifSequence"] = format_motifs_as_sequence_string(allele1_motifs)
+            result["Allele2MotifSequence"] = format_motifs_as_sequence_string(allele2_motifs)
 
         return result
 
@@ -1704,8 +1720,10 @@ def extract_haplotype_sequences_from_vcf(chrom, start_0based, end, fasta_obj, vc
                 output_offset_at_locus_end += length_change
             # If variant spans the locus start boundary, special handling needed
             elif variant_start_0based < start_0based < variant_end_0based:
-                # Variant overlaps the locus boundary — include from where the variant starts
-                output_offset_at_locus_start = variant_start_0based - fetch_start
+                # Variant overlaps the locus boundary — include from where the variant starts.
+                # Adjust relative to the accumulated offset (which already includes prior indel shifts)
+                # rather than overwriting it, so earlier length changes are preserved.
+                output_offset_at_locus_start += variant_start_0based - start_0based
                 output_offset_at_locus_end += length_change
             # If variant is entirely within the locus, only adjust the end offset
             elif start_0based <= variant_start_0based < end:
@@ -2854,7 +2872,7 @@ def write_tsv(tandem_repeat_alleles, args):
                 ins_or_del = tandem_repeat_allele.ins_or_del
                 vcf_pos = tandem_repeat_allele.allele.pos
                 is_pure_repeat = tandem_repeat_allele.is_pure_repeat
-                info_field_dict = tandem_repeat_allele.info_field_dict
+                info_field_dict = tandem_repeat_allele.info_field_dict or {}
 
             output_row = [
                 tandem_repeat_allele.chrom,
@@ -2915,6 +2933,10 @@ def get_input_vcf_iterator(args, include_header=False):
 
         vcf_iterator = []
         tabix_file = pysam.TabixFile(args.input_vcf_path)
+        # Normalize interval chromosomes to match the input VCF's contig naming convention so that
+        # intervals work whether the VCF is indexed with 'chr'-prefixed contigs (e.g. chr1) or not (e.g. 1).
+        normalize_chrom = create_normalize_chrom_function(
+            has_chr_prefix=any(contig.startswith("chr") for contig in tabix_file.contigs))
         if include_header:
             vcf_iterator = (f"{line}\n" for line in tabix_file.header)
 
@@ -2932,8 +2954,7 @@ def get_input_vcf_iterator(args, include_header=False):
             interval_trees = collections.defaultdict(intervaltree.IntervalTree)
             for interval in intervals:
                 chrom, start_0based, end = parse_interval(interval)
-                chrom = chrom.replace("chr", "")
-                chrom = f"chr{chrom}"
+                chrom = normalize_chrom(chrom)
                 interval_trees[chrom].addi(start_0based, end)
             normalized_intervals = []
             for chrom, interval_tree in sorted(interval_trees.items()):
@@ -2983,8 +3004,10 @@ def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False
 
     tandem_repeat_alleles.sort(key=lambda x: x.order) # sort into their original order
 
+    # Key by (chrom, pos, ref, alt) so that multiple ALT alleles at the same multi-allelic site are
+    # tracked independently instead of collapsing to a single allele.
     vcf_alleles = {
-        (tr.chrom, tr.allele.pos, tr.allele.ref): tr for tr in tandem_repeat_alleles
+        (tr.chrom, tr.allele.pos, tr.allele.ref, tr.allele.alt): tr for tr in tandem_repeat_alleles
     }
 
     with open(output_vcf_path, "w") as f:
@@ -3011,39 +3034,47 @@ def write_vcf(tandem_repeat_alleles, args, only_write_filtered_out_alleles=False
             vcf_ref = vcf_fields[3].upper()
 
             key = (vcf_chrom, vcf_pos, vcf_ref)
-            is_tandem_repeat = key in vcf_alleles
-            if is_tandem_repeat:
-                # append TR info to the INFO field
-                tr = vcf_alleles[key]
-                if vcf_fields[7] == ".":
+            # Evaluate tandem-repeat status per ALT allele so that multi-allelic sites with a mix of
+            # tandem-repeat and non-tandem-repeat ALT alleles are handled correctly.
+            alt_alleles = [a for a in vcf_fields[4].upper().split(",") if a != "*"]
+            tr_alleles_at_site = [
+                vcf_alleles[(vcf_chrom, vcf_pos, vcf_ref, alt)]
+                for alt in alt_alleles
+                if (vcf_chrom, vcf_pos, vcf_ref, alt) in vcf_alleles
+            ]
+            has_tandem_repeat_alt = len(tr_alleles_at_site) > 0
+            has_non_tandem_repeat_alt = len(tr_alleles_at_site) < len(alt_alleles)
+
+            if has_tandem_repeat_alt:
+                # append TR info to the INFO field, aggregating across all tandem-repeat ALT alleles at this site
+                if vcf_fields[7] == "." or not vcf_fields[7]:
                     vcf_fields[7] = ""
                 else:
                     vcf_fields[7] += ";"
-                vcf_fields[7] += f"MOTIF={tr.repeat_unit}"
-                vcf_fields[7] += f";MOTIF_SIZE={tr.repeat_unit_length}"
-                vcf_fields[7] += f";START_0BASED={tr.start_0based}"
-                vcf_fields[7] += f";END={tr.end_1based}"
-                vcf_fields[7] += f";DETECTED={tr.detection_mode}"
+                vcf_fields[7] += "MOTIF=" + ",".join(tr.repeat_unit for tr in tr_alleles_at_site)
+                vcf_fields[7] += ";MOTIF_SIZE=" + ",".join(str(tr.repeat_unit_length) for tr in tr_alleles_at_site)
+                vcf_fields[7] += ";START_0BASED=" + ",".join(str(tr.start_0based) for tr in tr_alleles_at_site)
+                vcf_fields[7] += ";END=" + ",".join(str(tr.end_1based) for tr in tr_alleles_at_site)
+                vcf_fields[7] += ";DETECTED=" + ",".join(tr.detection_mode for tr in tr_alleles_at_site)
 
-                line = "\t".join(vcf_fields) + "\n"
-
-            if only_write_filtered_out_alleles and not is_tandem_repeat:
+            if only_write_filtered_out_alleles:
+                # Write the record if it has at least one non-tandem-repeat ALT allele (its filter reason
+                # would otherwise be lost). Records where every ALT is a tandem repeat are skipped here.
+                if not has_non_tandem_repeat_alt:
+                    continue
                 # set the FILTER column to the filter reason
                 if filtered_alleles and key in filtered_alleles:
                     vcf_fields[6] = filtered_alleles[key]
                 else:
                     # determine filter reason for non-indel variants
-                    vcf_alt = vcf_fields[4].upper()
-                    alt_alleles = [a for a in vcf_alt.split(",") if a != "*"]
                     if all(len(vcf_ref) == len(a) for a in alt_alleles):
                         vcf_fields[6] = "SNV" if all(len(a) == 1 for a in alt_alleles) else "MNV"
                     else:
                         vcf_fields[6] = "not_TR"
-                line = "\t".join(vcf_fields) + "\n"
-                f.write(line)
+                f.write("\t".join(vcf_fields) + "\n")
                 output_line_counter += 1
-            elif not only_write_filtered_out_alleles and is_tandem_repeat:
-                f.write(line)
+            elif has_tandem_repeat_alt:
+                f.write("\t".join(vcf_fields) + "\n")
                 output_line_counter += 1
 
     os.system(f"bgzip -f {output_vcf_path}")
@@ -3226,7 +3257,7 @@ def print_tr_stats(tandem_repeat_alleles, title=None):
     print(f"{counters['total']:10,d} total TRs")
 
 
-def write_genotypes_tsv(genotyped_loci, args):
+def write_genotypes_tsv(genotyped_loci, args, motif_lists_by_locus=None):
     """Write genotyped TR loci to a TSV file.
 
     This function writes the genotyped tandem repeat loci to a gzip-compressed
@@ -3238,6 +3269,9 @@ def write_genotypes_tsv(genotyped_loci, args):
             - output_prefix (str): Prefix for output file path
             - verbose (bool): If True, print detailed output
             - skip_hom_ref_loci (bool): If True, skip loci with no overlapping variants.
+        motif_lists_by_locus (dict): Optional dict mapping locus_id to {'allele1': [...], 'allele2': [...]}
+            ordered motif lists (as returned by compute_motif_composition). If provided, the parsed motif
+            sequence is written for each allele.
 
     Returns:
         str: Path to the output TSV file
@@ -3267,7 +3301,8 @@ def write_genotypes_tsv(genotyped_loci, args):
 
         # Write each genotyped locus
         for genotyped_locus in filtered_loci:
-            tsv_dict = genotyped_locus.to_tsv_dict()
+            tsv_dict = genotyped_locus.to_tsv_dict(
+                motif_lists=motif_lists_by_locus.get(genotyped_locus.locus_id) if motif_lists_by_locus else None)
             row_values = [str(tsv_dict.get(col, "")) for col in GENOTYPE_TSV_OUTPUT_COLUMNS]
             f.write("\t".join(row_values) + "\n")
 
@@ -3277,37 +3312,56 @@ def write_genotypes_tsv(genotyped_loci, args):
     return tsv_output_path
 
 
-def compute_motif_counts_basic(sequence, motif_size):
-    """Compute motif counts by splitting sequence into consecutive chunks.
+def compute_motif_composition(genotyped_loci, args):
+    """Compute the ordered list of motifs parsed from each allele's sequence, for each locus.
 
-    This is a simple approach that splits the sequence into non-overlapping
-    chunks of motif_size bp and counts occurrences of each unique chunk.
+    Uses the basic chunking method (str_analysis.utils.find_motif_utils.split_sequence_into_motifs) or
+    TandemRepeatsFinder (TRF), depending on args.add_motif_composition.
 
     Args:
-        sequence (str): The allele sequence to analyze
-        motif_size (int): The size of the motif in bp
+        genotyped_loci (list): List of GenotypedTandemRepeat objects
+        args: Argument namespace with attributes:
+            - add_motif_composition (str or None): "basic", "trf", or None (in which case nothing is computed)
+            - trf_executable_path (str): Path to the TRF executable (required if add_motif_composition == "trf")
+            - skip_hom_ref_loci (bool): If True, loci with no overlapping variants are skipped (matching the
+                output writers) so that no motif composition is computed for loci that won't be written.
+            - verbose (bool): If True, print progress information
 
     Returns:
-        dict: Dictionary mapping each observed motif to its count.
-            Returns None if sequence is None or empty.
-
-    Note:
-        This assumes the sequence starts at a motif boundary. Sequences that
-        don't align with motif boundaries may give unexpected results.
+        dict: Dictionary mapping locus_id to a dict with keys 'allele1' and 'allele2', each mapping to an
+            ordered list of motifs (or None). Returns an empty dict if args.add_motif_composition is not set.
+            Example:
+            {
+                "chr1-100-150-CAG": {
+                    "allele1": ["CAG", "CAG", "CCG", "CAG"],
+                    "allele2": ["CAG", "CAG", "CAG"],
+                }
+            }
     """
-    if not sequence:
-        return None
+    if not args.add_motif_composition:
+        return {}
 
-    counts = collections.Counter()
-    for i in range(0, len(sequence) - motif_size + 1, motif_size):
-        chunk = sequence[i:i + motif_size]
-        counts[chunk] += 1
+    # Skip loci with no overlapping variants if requested, so motif composition (including TRF, which is
+    # expensive) is not computed for loci that the output writers will omit.
+    if getattr(args, "skip_hom_ref_loci", False):
+        genotyped_loci = [locus for locus in genotyped_loci if locus.num_overlapping_variants > 0]
 
-    return dict(counts)
+    if args.add_motif_composition == "basic":
+        if args.verbose:
+            print("Parsing allele sequences into motifs using the basic chunking method...")
+        return {
+            locus.locus_id: {
+                "allele1": split_sequence_into_motifs(locus.allele1_sequence, locus.motif_size),
+                "allele2": split_sequence_into_motifs(locus.allele2_sequence, locus.motif_size),
+            }
+            for locus in genotyped_loci
+        }
+
+    return compute_motif_lists_with_trf(genotyped_loci, args.trf_executable_path, verbose=args.verbose)
 
 
-def compute_motif_counts_with_trf(genotyped_loci, trf_executable_path, min_allele_length_for_trf=12, verbose=False):
-    """Compute motif counts for all alleles using TandemRepeatsFinder.
+def compute_motif_lists_with_trf(genotyped_loci, trf_executable_path, min_allele_length_for_trf=12, verbose=False):
+    """Parse each allele's sequence into an ordered list of motifs using TandemRepeatsFinder.
 
     This function runs TRF on allele sequences that are long enough to benefit
     from TRF analysis. Shorter sequences fall back on the basic method.
@@ -3325,11 +3379,11 @@ def compute_motif_counts_with_trf(genotyped_loci, trf_executable_path, min_allel
 
     Returns:
         dict: Dictionary mapping locus_id to a dict with keys 'allele1' and 'allele2',
-            each mapping to a dict of motif -> count. Example:
+            each mapping to an ordered list of motifs (or None). Example:
             {
                 "chr1-100-150-CAG": {
-                    "allele1": {"CAG": 15, "CAA": 2},
-                    "allele2": {"CAG": 18}
+                    "allele1": ["CAG", "CAG", "CCG", "CAG"],
+                    "allele2": ["CAG", "CAG", "CAG"],
                 }
             }
     """
@@ -3339,6 +3393,10 @@ def compute_motif_counts_with_trf(genotyped_loci, trf_executable_path, min_allel
     # Use TRF if sequence length >= max(12bp, 2 * motif_size)
     sequences_for_trf = []  # (seq_id, sequence)
     for locus in genotyped_loci:
+        # Initialize both allele keys to None so loci with missing/empty allele sequences still appear in the
+        # results (with None values), matching the basic method and ensuring the output writers emit the
+        # motif fields (as null) rather than omitting them.
+        results[locus.locus_id] = {"allele1": None, "allele2": None}
         for allele_key, sequence in [("allele1", locus.allele1_sequence), ("allele2", locus.allele2_sequence)]:
             if not sequence:
                 continue
@@ -3346,7 +3404,7 @@ def compute_motif_counts_with_trf(genotyped_loci, trf_executable_path, min_allel
             if len(sequence) >= max(min_allele_length_for_trf, 2 * locus.motif_size):
                 sequences_for_trf.append((f"{locus.locus_id}${allele_key}", sequence))
             else:
-                results[locus.locus_id][allele_key] = compute_motif_counts_basic(sequence, locus.motif_size)
+                results[locus.locus_id][allele_key] = split_sequence_into_motifs(sequence, locus.motif_size)
 
     # If no sequences need TRF, return early
     if not sequences_for_trf:
@@ -3397,15 +3455,15 @@ def compute_motif_counts_with_trf(genotyped_loci, trf_executable_path, min_allel
                 # Use the best result (highest alignment score)
                 best_record = max(trf_records, key=lambda x: x.get("alignment_score", 0))
 
-                # Count motifs from the 'repeats' list
+                # Keep the ordered list of motifs from the 'repeats' list
                 if "repeats" in best_record:
-                    motif_counts = collections.Counter()
+                    motifs = []
                     for motif in best_record["repeats"]:
                         # Clean up motif (remove dashes and ellipsis from long motifs)
                         clean_motif = motif.replace("-", "").replace("...", "")
                         if clean_motif:
-                            motif_counts[clean_motif] += 1
-                    results[locus_id][allele_key] = dict(motif_counts)
+                            motifs.append(clean_motif)
+                    results[locus_id][allele_key] = motifs
                 else:
                     results[locus_id][allele_key] = None
             else:
@@ -3427,7 +3485,7 @@ def compute_motif_counts_with_trf(genotyped_loci, trf_executable_path, min_allel
                 pass
 
 
-def write_genotypes_json(genotyped_loci, args):
+def write_genotypes_json(genotyped_loci, args, motif_lists_by_locus=None):
     """Write genotyped TR loci to a JSON file.
 
     This function writes the genotyped tandem repeat loci to a gzip-compressed
@@ -3439,9 +3497,10 @@ def write_genotypes_json(genotyped_loci, args):
         args (argparse.Namespace): Command-line arguments. Must have:
             - output_prefix (str): Prefix for output file path
             - verbose (bool): If True, print detailed output
-            - add_motif_composition (str or None): If "basic" or "trf", compute and
-                include motif composition in the output
             - skip_hom_ref_loci (bool): If True, skip loci with no overlapping variants.
+        motif_lists_by_locus (dict): Optional dict mapping locus_id to {'allele1': [...], 'allele2': [...]}
+            ordered motif lists (as returned by compute_motif_composition). If provided, the parsed motif
+            sequence and per-allele motif counts are written for each allele.
 
     Returns:
         str: Path to the output JSON file
@@ -3461,36 +3520,14 @@ def write_genotypes_json(genotyped_loci, args):
     # Sort by genomic position and motif
     filtered_loci.sort(key=lambda x: (x.chrom, x.start_0based, x.end, x.motif))
 
-    # Compute motif counts if requested
-    motif_counts_by_locus = {}
-    include_motif_counts = bool(args.add_motif_composition)
-
-    if args.add_motif_composition == "basic":
-        if args.verbose:
-            print("Computing motif counts using basic chunking method...")
-        for locus in filtered_loci:
-            motif_counts_by_locus[locus.locus_id] = {
-                "allele1": compute_motif_counts_basic(locus.allele1_sequence, locus.motif_size),
-                "allele2": compute_motif_counts_basic(locus.allele2_sequence, locus.motif_size),
-            }
-
-    elif args.add_motif_composition == "trf":
-        motif_counts_by_locus = compute_motif_counts_with_trf(
-            filtered_loci,
-            args.trf_executable_path,
-            verbose=args.verbose,
-        )
-
     # Construct output filename
     json_output_path = f"{args.output_prefix}.tandem_repeat_genotypes.json.gz"
 
     # Build list of JSON records
     json_records = []
     for locus in filtered_loci:
-        motif_counts = motif_counts_by_locus.get(locus.locus_id)
         json_dict = locus.to_json_dict(
-            include_motif_counts=include_motif_counts,
-            motif_counts=motif_counts,
+            motif_lists=motif_lists_by_locus.get(locus.locus_id) if motif_lists_by_locus else None,
         )
         json_records.append(json_dict)
 
@@ -3734,12 +3771,16 @@ def do_genotype_subcommand(args):
         args,
     )
 
+    # Parse each allele sequence into an ordered list of motifs if requested. This is computed once and shared
+    # by both the TSV and JSON outputs.
+    motif_lists_by_locus = compute_motif_composition(genotyped_loci, args)
+
     # Write TSV output
-    write_genotypes_tsv(genotyped_loci, args)
+    write_genotypes_tsv(genotyped_loci, args, motif_lists_by_locus)
 
     # Write JSON output if requested
     if args.write_json:
-        write_genotypes_json(genotyped_loci, args)
+        write_genotypes_json(genotyped_loci, args, motif_lists_by_locus)
 
     # Write VCF output if requested
     if args.write_vcf:

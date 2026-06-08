@@ -304,6 +304,44 @@ def compute_most_common_motif(nucleotide_sequence, repeat_unit_length):
     return most_common_motif
 
 
+def split_sequence_into_motifs(nucleotide_sequence, motif_size):
+    """Split a nucleotide sequence into consecutive, non-overlapping motif-sized chunks, preserving their order.
+
+    This is a simple/naive approach that assumes the sequence starts at a motif boundary. For example, splitting
+    "CAGCAGCCGCAG" with motif_size=3 returns ["CAG", "CAG", "CCG", "CAG"]. Any trailing partial chunk shorter than
+    motif_size is dropped. Sequences that don't align with motif boundaries may give unexpected results.
+
+    Args:
+        nucleotide_sequence (str): The nucleotide sequence to split.
+        motif_size (int): The motif size in base pairs.
+
+    Returns:
+        list: Ordered list of motif-sized chunks, or None if nucleotide_sequence is None or empty.
+    """
+    if not nucleotide_sequence:
+        return None
+
+    return [nucleotide_sequence[i:i + motif_size]
+            for i in range(0, len(nucleotide_sequence) - motif_size + 1, motif_size)]
+
+
+def format_motifs_as_sequence_string(motif_list):
+    """Format an ordered list of motifs as a bracketed string.
+
+    For example, ["CAG", "CAG", "CCG", "CAG"] becomes "[CAG][CAG][CCG][CAG]".
+
+    Args:
+        motif_list (list): Ordered list of motif strings.
+
+    Returns:
+        str: Bracketed motif sequence string, or None if motif_list is None or empty.
+    """
+    if not motif_list:
+        return None
+
+    return "".join(f"[{motif}]" for motif in motif_list)
+
+
 def compute_motif_length_purity(nucleotide_sequence, motif_length, distance_metric=DEFAULT_DISTANCE_METRIC):
     """Find the most frequent motif of the given length in the given nucleotide sequence, then return the
     purity of the input nucleotide sequence with respect to that motif, along with the motif itself.
