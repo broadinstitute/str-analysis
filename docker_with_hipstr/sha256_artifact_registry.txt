@@ -1,1 +1,1 @@
-us-central1-docker.pkg.dev/cmg-analysis/docker-repo/str-analysis-with-hipstr@sha256:e17cb2d2f02ab11f02ca8455116c86247b294441ef5b5f361c20ac90137fc91f
+us-central1-docker.pkg.dev/cmg-analysis/docker-repo/str-analysis-with-hipstr@sha256:c81fa1a5adc7dd11ea168c2408731cdb485b0a4394daa3999f3c13b8865df2de

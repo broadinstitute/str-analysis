@@ -1,1 +1,1 @@
-us-central1-docker.pkg.dev/cmg-analysis/docker-repo/str-analysis-with-gangstr@sha256:3dc6b4b3cf7f53e5629cb72a6ea8dfa045e4fbebde6be1a4b9d5d7f73faa27cb
+us-central1-docker.pkg.dev/cmg-analysis/docker-repo/str-analysis-with-gangstr@sha256:c60482f1b363e17380fe87b42cdcd98e7fc283bd0b47ed460c78cb6a42515c9b
