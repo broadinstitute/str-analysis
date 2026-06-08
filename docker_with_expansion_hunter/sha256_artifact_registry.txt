@@ -1,1 +1,1 @@
-us-central1-docker.pkg.dev/cmg-analysis/docker-repo/str-analysis-with-expansion-hunter@sha256:e2e2fa412eebe318455b24c5502e0f996338454e11d3f78769b6daa033d000b6
+us-central1-docker.pkg.dev/cmg-analysis/docker-repo/str-analysis-with-expansion-hunter@sha256:f5b70a1cc8691053c9774711886721f021194987f7357a80d80d559797711882
