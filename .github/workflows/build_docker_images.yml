@@ -3,10 +3,15 @@ name: build docker images
 # Rebuilds all str-analysis docker images in parallel and pushes them to Docker Hub.
 # After the builds finish, the updated sha256_dockerhub.txt digest files are committed back to the repo.
 #
-# Runs on pushes to main that touch the docker images or installed source, and can also be triggered
-# manually (Actions tab -> "build docker images" -> "Run workflow"). It publishes images and commits
-# the updated sha256_dockerhub.txt files back to the default branch; that commit uses [skip ci] so it
-# does not re-trigger this workflow.
+# This workflow does NOT run directly on push. Instead it runs after the "unit tests" workflow
+# completes, and only proceeds when that run (a) succeeded, (b) was triggered by a push to main, and
+# (c) touched the docker images or installed source (checked by the guard job below). This guarantees
+# images are only built/published from a commit whose tests passed. It can also be triggered manually
+# (Actions tab -> "build docker images" -> "Run workflow"), which bypasses the test gate.
+#
+# It publishes images and commits the updated sha256_dockerhub.txt files back to the default branch;
+# that commit uses [skip ci] so it does not re-run the tests and therefore does not re-trigger this
+# workflow.
 #
 # Required repository secrets:
 #   DOCKERHUB_USERNAME - Docker Hub account name
@@ -14,23 +19,67 @@ name: build docker images
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'docker/**'
-      - 'docker_with_*/**'
-      - 'str_analysis/**'
-      - 'requirements.txt'
-      - 'setup.py'
-      - '.github/workflows/build_docker_images.yml'
+  workflow_run:
+    workflows: ["unit tests"]
+    types:
+      - completed
 
 permissions:
   contents: write
 
 jobs:
+  guard:
+    name: gate on tests + changed paths
+    runs-on: ubuntu-latest
+    # Run only for a manual dispatch, or a successful "unit tests" run that was triggered by a push to
+    # main. Test runs from pull requests or failed test runs do not match, so the build is skipped.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Decide whether to build
+        id: decide
+        run: |
+          set -euo pipefail
+          # A manual dispatch always builds (no path filtering).
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger: building."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Otherwise build only when docker-relevant files changed in the tested commit.
+          head='${{ github.event.workflow_run.head_sha }}'
+          if git rev-parse "${head}^" >/dev/null 2>&1; then
+            base="${head}^"
+          else
+            base=$(git rev-list --max-parents=0 "$head" | tail -n 1)
+          fi
+          echo "Comparing ${base}..${head}"
+          files=$(git diff --name-only "$base" "$head")
+          echo "Changed files:"
+          echo "$files"
+          if echo "$files" | grep -Eq '^(docker/|docker_with_[^/]+/|str_analysis/|requirements\.txt|setup\.py|\.github/workflows/build_docker_images\.yml)'; then
+            echo "Docker-relevant changes found: building."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No docker-relevant changes: skipping build."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: build ${{ matrix.image }}
+    needs: guard
+    if: needs.guard.outputs.run == 'true'
     runs-on: ubuntu-latest
 
     strategy:
@@ -46,6 +95,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
