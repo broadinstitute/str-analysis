@@ -258,6 +258,9 @@ def parse_args():
                             help="Only used with --add-motif-composition trf. Allele sequences shorter than "
                             "max(this value, 2 * motif_size) are split into motifs using the basic splitting method "
                             "rather than running TandemRepeatsFinder (TRF).")
+    genotype_p.add_argument("-t", "--trf-threads", default=max(1, multiprocessing.cpu_count() - 2), type=int,
+                            help="Only used with --add-motif-composition trf. Number of TandemRepeatsFinder (TRF) "
+                            "instances to run in parallel (one per thread) when splitting allele sequences into motifs.")
     genotype_p.add_argument("--skip-hom-ref-loci", action="store_true",
                             help="Skip loci that have no overlapping variants (i.e., homozygous reference loci) and "
                                  "don't include them in the output.")
@@ -2167,6 +2170,34 @@ def detect_perfect_and_almost_perfect_tandem_repeats(alleles, counters, args, fi
     return tandem_repeat_alleles, alleles_to_process_next_using_trf
 
 
+def run_trf_batches_in_parallel(items, num_threads, worker_fn):
+    """Distribute items round-robin across worker threads and run worker_fn on each batch in parallel.
+
+    TRF is an external subprocess that releases the GIL, so running one TRF instance per thread provides
+    real parallelism. This harness is shared by the 'catalog' and 'genotype' subcommands.
+
+    Args:
+        items (list): Items to distribute across threads (e.g. Allele objects or allele sequences).
+        num_threads (int): Maximum number of worker threads. Capped at len(items).
+        worker_fn (callable): Called as worker_fn(batch, thread_id), where batch is the sublist of items
+            assigned to thread thread_id. Must return an iterable of result records.
+
+    Yields:
+        The result records returned by each worker_fn call, in thread order.
+    """
+    n_threads = max(1, min(num_threads, len(items)))
+    with ThreadPoolExecutor(max_workers=n_threads) as executor:
+        futures = [
+            executor.submit(
+                worker_fn,
+                [item for item_i, item in enumerate(items) if item_i % n_threads == thread_i],
+                thread_i)
+            for thread_i in range(n_threads)
+        ]
+        for future in futures:
+            yield from future.result()
+
+
 def detect_tandem_repeats_using_trf(alleles, counters, args, filtered_alleles=None):
     """Runs TandemRepeatFinder (TRF) on a list of indel alleles to detect tandem repeats."""
 
@@ -2195,37 +2226,30 @@ def detect_tandem_repeats_using_trf(alleles, counters, args, filtered_alleles=No
             first_iteration = False
 
             alleles_to_reprocess = []
-            with ThreadPoolExecutor(max_workers=n_threads) as ex:
+            for tandem_repeat_allele, filter_reason, allele in run_trf_batches_in_parallel(
+                    alleles_to_process_next, n_threads,
+                    lambda batch, thread_i: run_trf(batch, args, thread_i, trf_working_dir)):
+                if filter_reason:
+                    counters[f"allele filter: TRF: {filter_reason}"] += 1
+                    if filtered_alleles is not None:
+                        filtered_alleles[(allele.chrom, allele.pos, allele.ref)] = filter_reason
+                    continue
 
-                futures = []
-                for thread_i in range(0, n_threads):
-                    thread_input_alleles = [allele for allele_i, allele in enumerate(alleles_to_process_next) if allele_i % n_threads == thread_i]
-                    futures.append(ex.submit(run_trf, thread_input_alleles, args, thread_i, trf_working_dir))
+                # reprocess the allele if the repeats were found to cover the entire left or right flanking sequence
+                if need_to_reprocess_allele_with_extended_flanking_sequence(tandem_repeat_allele):
+                    counters[f"allele op: increased flanking sequence size {tandem_repeat_allele.allele.number_of_times_flanking_sequence_size_was_increased}x for TRF"] += 1
+                    alleles_to_reprocess.append(allele)
+                    continue
 
-                # collect and process results from all threads
-                for thread_i in range(0, n_threads):
-                    for tandem_repeat_allele, filter_reason, allele in futures[thread_i].result():
-                        if filter_reason:
-                            counters[f"allele filter: TRF: {filter_reason}"] += 1
-                            if filtered_alleles is not None:
-                                filtered_alleles[(allele.chrom, allele.pos, allele.ref)] = filter_reason
-                            continue
-
-                        # reprocess the allele if the repeats were found to cover the entire left or right flanking sequence
-                        if need_to_reprocess_allele_with_extended_flanking_sequence(tandem_repeat_allele):
-                            counters[f"allele op: increased flanking sequence size {tandem_repeat_allele.allele.number_of_times_flanking_sequence_size_was_increased}x for TRF"] += 1
-                            alleles_to_reprocess.append(allele)
-                            continue
-
-                        # this allele was found to be a tandem repeat using TRF
-                        if tandem_repeat_allele.do_repeats_cover_entire_flanking_sequence() and not (
-                                tandem_repeat_allele.allele.get_left_flank_stops_at_N() or
-                                tandem_repeat_allele.allele.get_right_flank_stops_at_N()):
-                            print(f"WARNING: allele {allele} was found to be a tandem repeat using TRF, but the repeats "
-                                  f"cover the entire flanking sequence even though it is longer than "
-                                  f"{MAX_FLANKING_SEQUENCE_SIZE:,}bp. Skipping...")
-                        else:
-                            tandem_repeat_alleles.append(tandem_repeat_allele)
+                # this allele was found to be a tandem repeat using TRF
+                if tandem_repeat_allele.do_repeats_cover_entire_flanking_sequence() and not (
+                        tandem_repeat_allele.allele.get_left_flank_stops_at_N() or
+                        tandem_repeat_allele.allele.get_right_flank_stops_at_N()):
+                    print(f"WARNING: allele {allele} was found to be a tandem repeat using TRF, but the repeats "
+                          f"cover the entire flanking sequence even though it is longer than "
+                          f"{MAX_FLANKING_SEQUENCE_SIZE:,}bp. Skipping...")
+                else:
+                    tandem_repeat_alleles.append(tandem_repeat_allele)
 
             alleles_to_process_next = alleles_to_reprocess
 
@@ -3430,6 +3454,7 @@ def compute_motif_composition(genotyped_loci, args):
             - trf_executable_path (str): Path to the TRF executable (required if add_motif_composition == "trf")
             - min_allele_length_for_trf_motif_splitting (int): Optional. Allele sequences shorter than
                 max(this value, 2 * motif_size) are split using the basic method instead of TRF. Defaults to 12.
+            - trf_threads (int): Optional. Number of TRF instances to run in parallel. Defaults to 1.
             - skip_hom_ref_loci (bool): If True, loci with no overlapping variants are skipped (matching the
                 output writers) so that no motif composition is computed for loci that won't be written.
             - verbose (bool): If True, print progress information
@@ -3475,10 +3500,104 @@ def compute_motif_composition(genotyped_loci, args):
     return compute_motif_lists_with_trf(
         genotyped_loci, args.trf_executable_path,
         min_allele_length_for_trf=getattr(args, "min_allele_length_for_trf_motif_splitting", 12),
+        num_threads=getattr(args, "trf_threads", 1),
         verbose=args.verbose)
 
 
-def compute_motif_lists_with_trf(genotyped_loci, trf_executable_path, min_allele_length_for_trf=12, verbose=False):
+def run_trf_motif_splitting(sequences_for_trf, trf_executable_path, trf_working_dir, thread_id=0):
+    """Run TRF on a batch of allele sequences and split each into an ordered list of motifs.
+
+    This is the per-thread worker used by compute_motif_lists_with_trf(). It writes the batch to its own
+    FASTA file (named using thread_id so concurrent batches don't collide), runs TRF once on that file,
+    and parses the result for each sequence. A TRF result is only accepted if it decomposes the allele
+    using the annotated locus motif size and covers essentially the entire sequence (starts within one
+    motif of the start and ends within one motif of the end); among accepted results, the one with the
+    highest alignment score is used. Sequences with no qualifying TRF result fall back on the basic
+    chunking method (build_basic_split_motif_entry).
+
+    Args:
+        sequences_for_trf (list): List of (seq_id, sequence, motif_size) tuples, where seq_id is
+            "{locus_id}${allele_key}".
+        trf_executable_path (str): Path to the TRF executable.
+        trf_working_dir (str): Directory where this batch's TRF input/output files are written.
+        thread_id (int): ID of the thread processing this batch, used to give the input FASTA a unique
+            filename.
+
+    Returns:
+        list of 4-tuples: (locus_id, allele_key, entry, method), where entry is a parsed-motif dict
+            ({"motifs": [...], "prefix": str, "suffix": str}) and method is "trf" or "basic-split".
+    """
+    if not sequences_for_trf:
+        return []
+
+    # Create TRFRunner with html_mode=True to get individual motif copies
+    trf_runner = TRFRunner(trf_executable_path, html_mode=True)
+
+    # Write this batch's sequences to a FASTA file unique to this thread
+    trf_fasta_path = os.path.join(trf_working_dir, f"trf_motif_splitting_input__thread{thread_id}.fasta")
+    with open(trf_fasta_path, "wt") as f:
+        for seq_id, sequence, _ in sequences_for_trf:
+            f.write(f">{seq_id}\n{sequence}\n")
+
+    # Determine max period based on the longest sequence in this batch
+    max_period = max(1, min(max(len(seq) for _, seq, _ in sequences_for_trf) // 2, 2000))
+
+    # Run TRF once on this batch's FASTA
+    trf_runner.run_trf_on_fasta_file(trf_fasta_path, max_period=max_period)
+
+    total_sequences = len(sequences_for_trf)
+    batch_results = []
+    for seq_idx, (seq_id, sequence, motif_size) in enumerate(sequences_for_trf, start=1):
+        # Parse the locus_id and allele from the sequence ID
+        locus_id, allele_key = seq_id.rsplit("$", 1)
+
+        # Parse TRF HTML results for this sequence
+        trf_records = trf_runner.parse_html_results(
+            trf_fasta_path,
+            sequence_number=seq_idx,
+            total_sequences=total_sequences,
+            max_period=max_period,
+        )
+
+        # Only accept a TRF result that decomposes the allele using the annotated locus motif size and
+        # covers essentially the entire sequence (starts within one motif of the start and ends within
+        # one motif of the end). Among accepted results, prefer the one with the highest alignment score.
+        accepted_records = [
+            record for record in (trf_records or [])
+            if record["repeat_unit_length"] == motif_size
+            and record["start_0based"] < motif_size
+            and record["end_1based"] > len(sequence) - motif_size
+        ]
+
+        entry = None
+        if accepted_records:
+            best_record = max(accepted_records, key=lambda x: x.get("alignment_score", 0))
+
+            # Keep the ordered list of motifs from the 'repeats' list, cleaning up dashes and ellipsis
+            # from long motifs
+            motifs = [m.replace("-", "").replace("...", "") for m in best_record.get("repeats", [])]
+            motifs = [m for m in motifs if m]
+            if motifs:
+                # Keep any bases before the first or after the last detected repeat as prefix/suffix
+                entry = {
+                    "motifs": motifs,
+                    "prefix": sequence[:best_record["start_0based"]],
+                    "suffix": sequence[best_record["end_1based"]:],
+                }
+
+        if entry:
+            batch_results.append((locus_id, allele_key, entry, MOTIF_DETECTION_METHOD_TRF))
+        else:
+            # No qualifying TRF result for this allele - fall back to basic chunking rather than emitting None
+            batch_results.append(
+                (locus_id, allele_key, build_basic_split_motif_entry(sequence, motif_size),
+                 MOTIF_DETECTION_METHOD_BASIC_SPLIT))
+
+    return batch_results
+
+
+def compute_motif_lists_with_trf(genotyped_loci, trf_executable_path, min_allele_length_for_trf=12,
+                                 num_threads=1, verbose=False):
     """Parse each allele's sequence into an ordered list of motifs using TandemRepeatsFinder.
 
     This function runs TRF on allele sequences that are long enough to benefit from TRF analysis. A TRF
@@ -3497,6 +3616,7 @@ def compute_motif_lists_with_trf(genotyped_loci, trf_executable_path, min_allele
         min_allele_length_for_trf (int): Minimum allele sequence length to use TRF.
             Sequences shorter than max(min_allele_length_for_trf, 2 * motif_size)
             fall back to basic chunking. Default is 12.
+        num_threads (int): Number of TRF instances to run in parallel (one per thread). Default is 1.
         verbose (bool): If True, print progress information
 
     Returns:
@@ -3538,95 +3658,23 @@ def compute_motif_lists_with_trf(genotyped_loci, trf_executable_path, min_allele
     if not sequences_for_trf:
         return results
 
-    # Create TRFRunner with html_mode=True to get individual motif copies
-    trf_runner = TRFRunner(
-        trf_executable_path,
-        html_mode=True,
-    )
-
     if verbose:
-        print(f"Running TRF on {len(sequences_for_trf)} allele sequences...")
+        print(f"Running TRF on {len(sequences_for_trf)} allele sequences "
+              f"using {max(1, min(num_threads, len(sequences_for_trf)))} thread(s)...")
 
-    # Write all sequences to a temp FASTA file
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".fasta", delete=False) as temp_fasta:
-        temp_fasta_path = temp_fasta.name
-        for seq_id, sequence, _ in sequences_for_trf:
-            temp_fasta.write(f">{seq_id}\n")
-            temp_fasta.write(f"{sequence}\n")
-
+    # Distribute the sequences across threads, running one TRF instance per thread in its own FASTA file.
+    trf_working_dir = tempfile.mkdtemp(prefix="motif_composition_trf__")
     try:
-        # Determine max period based on longest sequence
-        max_seq_len = max(len(seq) for _, seq, _ in sequences_for_trf)
-        max_period = max(1, min(max_seq_len // 2, 2000))
-
-        # Run TRF once on the entire FASTA
-        trf_runner.run_trf_on_fasta_file(temp_fasta_path, max_period=max_period)
-
-        # Parse results for each sequence
-        total_sequences = len(sequences_for_trf)
-
-        for seq_idx, (seq_id, sequence, motif_size) in enumerate(sequences_for_trf, start=1):
-            # Parse the locus_id and allele from the sequence ID
-            parts = seq_id.rsplit("$", 1)
-            locus_id = parts[0]
-            allele_key = parts[1]  # "allele1" or "allele2"
-
-            # Parse TRF HTML results for this sequence
-            trf_records = trf_runner.parse_html_results(
-                temp_fasta_path,
-                sequence_number=seq_idx,
-                total_sequences=total_sequences,
-                max_period=max_period,
-            )
-
-            # Only accept a TRF result that decomposes the allele using the annotated locus motif size and
-            # covers essentially the entire sequence (starts within one motif of the start and ends within
-            # one motif of the end). Among accepted results, prefer the one with the highest alignment score.
-            accepted_records = [
-                record for record in (trf_records or [])
-                if record["repeat_unit_length"] == motif_size
-                and record["start_0based"] < motif_size
-                and record["end_1based"] > len(sequence) - motif_size
-            ]
-
-            entry = None
-            if accepted_records:
-                best_record = max(accepted_records, key=lambda x: x.get("alignment_score", 0))
-
-                # Keep the ordered list of motifs from the 'repeats' list, cleaning up dashes and ellipsis
-                # from long motifs
-                motifs = [m.replace("-", "").replace("...", "") for m in best_record.get("repeats", [])]
-                motifs = [m for m in motifs if m]
-                if motifs:
-                    # Keep any bases before the first or after the last detected repeat as prefix/suffix
-                    entry = {
-                        "motifs": motifs,
-                        "prefix": sequence[:best_record["start_0based"]],
-                        "suffix": sequence[best_record["end_1based"]:],
-                    }
-
-            if entry:
-                results[locus_id][allele_key] = entry
-                results[locus_id][f"{allele_key}_method"] = MOTIF_DETECTION_METHOD_TRF
-            else:
-                # No qualifying TRF result for this allele - fall back to basic chunking rather than emitting None
-                results[locus_id][allele_key] = build_basic_split_motif_entry(sequence, motif_size)
-                results[locus_id][f"{allele_key}_method"] = MOTIF_DETECTION_METHOD_BASIC_SPLIT
-
-        return results
-
+        for locus_id, allele_key, entry, method in run_trf_batches_in_parallel(
+                sequences_for_trf, num_threads,
+                lambda batch, thread_i: run_trf_motif_splitting(
+                    batch, trf_executable_path, trf_working_dir, thread_i)):
+            results[locus_id][allele_key] = entry
+            results[locus_id][f"{allele_key}_method"] = method
     finally:
-        # Clean up temp files
-        if os.path.exists(temp_fasta_path):
-            os.remove(temp_fasta_path)
-        # Clean up TRF output files
-        trf_output_pattern = temp_fasta_path + ".*"
-        import glob
-        for f in glob.glob(trf_output_pattern):
-            try:
-                os.remove(f)
-            except OSError:
-                pass
+        shutil.rmtree(trf_working_dir, ignore_errors=True)
+
+    return results
 
 
 def write_genotypes_json(genotyped_loci, args, motif_lists_by_locus=None):
