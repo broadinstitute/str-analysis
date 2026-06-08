@@ -1,11 +1,64 @@
+import hashlib
 import os
 import pkgutil
 import tempfile
 import unittest
 import subprocess
+import urllib.request
+from pathlib import Path
+
+import pysam
 
 from str_analysis.utils.cram_bam_utils import IntervalReader
 from str_analysis.utils.file_utils import set_requester_pays_project
+
+
+# The test CRAM/BAM files contain reads aligned to chr9 (the FXN locus). Decoding the CRAM requires a
+# chr9 reference whose md5 matches the M5 tag in the CRAM header (6c198acf68b5af7b9d676dfdd531b5de), which
+# is the standard GRCh38 chr9 distributed in the Broad public reference bucket. Rather than committing a
+# ~36Mb FASTA or relying on htslib's md5-registry fallback (which fails on GitHub Actions), download just
+# chr9 from the Broad reference via an HTTP range request on first use and cache it locally.
+_BROAD_HG38_FASTA_URL = (
+    "https://storage.googleapis.com/gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta")
+_CHR9_EXPECTED_MD5 = "6c198acf68b5af7b9d676dfdd531b5de"
+# chr9 entry from Homo_sapiens_assembly38.fasta.fai: length, byte offset, bases per line, bytes per line.
+_CHR9_LENGTH, _CHR9_OFFSET, _CHR9_LINEBASES, _CHR9_LINEWIDTH = 138394717, 1551854835, 100, 101
+_TEST_REFERENCE_CACHE_DIR = Path(
+    os.environ.get("STR_ANALYSIS_TEST_REF_DIR", "~/.cache/str_analysis_test_refs")).expanduser()
+
+
+def get_chr9_reference_fasta():
+    """Returns the path to a local bgzipped chr9 FASTA for decoding the test CRAM files.
+
+    On first use, downloads the chr9 sequence (only) from the Broad public hg38 reference via an HTTP range
+    request, bgzips and indexes it, then caches it under _TEST_REFERENCE_CACHE_DIR. Subsequent calls reuse
+    the cached file, so the reference is downloaded at most once per machine (or once per CI cache).
+
+    Returns:
+        str: Path to the bgzipped, faidx-indexed chr9 reference FASTA.
+    """
+    chr9_fasta_gz = _TEST_REFERENCE_CACHE_DIR / "chr9.fa.gz"
+    if chr9_fasta_gz.is_file() and (_TEST_REFERENCE_CACHE_DIR / "chr9.fa.gz.fai").is_file():
+        return str(chr9_fasta_gz)
+
+    _TEST_REFERENCE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    sequence_byte_length = ((_CHR9_LENGTH // _CHR9_LINEBASES) * _CHR9_LINEWIDTH
+                            + (_CHR9_LENGTH % _CHR9_LINEBASES)
+                            + (1 if _CHR9_LENGTH % _CHR9_LINEBASES else 0))
+    request = urllib.request.Request(_BROAD_HG38_FASTA_URL, headers={
+        "Range": f"bytes={_CHR9_OFFSET}-{_CHR9_OFFSET + sequence_byte_length - 1}"})
+    sequence_bytes = urllib.request.urlopen(request, timeout=300).read()
+    if hashlib.md5(sequence_bytes.replace(b"\n", b"").upper()).hexdigest() != _CHR9_EXPECTED_MD5:
+        raise ValueError(f"Downloaded chr9 sequence md5 doesn't match expected {_CHR9_EXPECTED_MD5}")
+
+    chr9_fasta = _TEST_REFERENCE_CACHE_DIR / "chr9.fa"
+    with open(chr9_fasta, "wb") as f:
+        f.write(b">chr9\n")
+        f.write(sequence_bytes if sequence_bytes.endswith(b"\n") else sequence_bytes + b"\n")
+    pysam.tabix_compress(str(chr9_fasta), str(chr9_fasta_gz), force=True)
+    pysam.faidx(str(chr9_fasta_gz))
+    chr9_fasta.unlink()
+    return str(chr9_fasta_gz)
 
 
 class TestCramBamUtils(unittest.TestCase):
@@ -63,6 +116,7 @@ class TestCramBamUtils(unittest.TestCase):
 
 
 	def test_cram_reader_on_local_files(self):
+		chr9_reference_fasta = get_chr9_reference_fasta()
 		with tempfile.NamedTemporaryFile(suffix=".cram") as input_cram_file, \
 			  tempfile.NamedTemporaryFile(suffix=".crai") as input_crai_file, \
 			  tempfile.NamedTemporaryFile(suffix=".bam") as input_bam_file, \
@@ -80,7 +134,7 @@ class TestCramBamUtils(unittest.TestCase):
 			input_bai_file.write(pkgutil.get_data("str_analysis", "data/tests/FXN.wgsim_HET_250xGAA.bam.bai"))
 			input_bai_file.flush()
 
-			cram_reader = IntervalReader(input_cram_file.name, input_crai_file.name)
+			cram_reader = IntervalReader(input_cram_file.name, input_crai_file.name, reference_fasta_path=chr9_reference_fasta)
 			for interval in self._FXN_intervals:
 				cram_reader.add_interval(*interval)
 			cram_reads_counter = cram_reader.save_to_file(output_cram_file.name)

@@ -9,7 +9,37 @@ on:
     branches: [ main ]
 
 jobs:
+  prepare-reference:
+    name: cache chr9 reference
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache chr9 reference
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/str_analysis_test_refs
+          key: str-analysis-test-chr9-reference-v1
+
+      - name: Set up Python
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Download chr9 (only) from the Broad public hg38 reference once and store it in the cache, so the
+      # matrix test jobs below restore it instead of each downloading it. Runs only on a cache miss.
+      - name: Download chr9 reference from the Broad public bucket
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install .
+          python -c "from str_analysis.utils.cram_bam_utils_tests import get_chr9_reference_fasta; print('cached', get_chr9_reference_fasta())"
+
   test:
+    needs: prepare-reference
     name: ${{ matrix.os }} py${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
 
@@ -31,6 +61,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
+      # Restore the chr9 reference cached by the prepare-reference job. If the restore misses for any
+      # reason, the cram_bam_utils test downloads it on demand as a fallback.
+      - name: Restore chr9 reference
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/str_analysis_test_refs
+          key: str-analysis-test-chr9-reference-v1
 
       - name: Install dependencies
         run: |
