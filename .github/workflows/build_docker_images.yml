@@ -3,8 +3,10 @@ name: build docker images
 # Rebuilds all str-analysis docker images in parallel and pushes them to Docker Hub.
 # After the builds finish, the updated sha256_dockerhub.txt digest files are committed back to the repo.
 #
-# Manual trigger only (Actions tab -> "build docker images" -> "Run workflow"), since it publishes
-# images and commits to the default branch.
+# Runs on pushes to main that touch the docker images or installed source, and can also be triggered
+# manually (Actions tab -> "build docker images" -> "Run workflow"). It publishes images and commits
+# the updated sha256_dockerhub.txt files back to the default branch; that commit uses [skip ci] so it
+# does not re-trigger this workflow.
 #
 # Required repository secrets:
 #   DOCKERHUB_USERNAME - Docker Hub account name
@@ -12,6 +14,16 @@ name: build docker images
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docker/**'
+      - 'docker_with_*/**'
+      - 'str_analysis/**'
+      - 'requirements.txt'
+      - 'setup.py'
+      - '.github/workflows/build_docker_images.yml'
 
 permissions:
   contents: write
