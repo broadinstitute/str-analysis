@@ -2,33 +2,40 @@ name: unit tests
 
 on:
   push:
-    branches: [ master ]
-    tags: 
+    branches: [ main ]
+    tags:
       - '*'
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
-jobs: 
+jobs:
   test:
     name: ${{ matrix.os }} py${{ matrix.python-version }}
-    runs-on: ${{ matrix.os }} 
+    runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.7','3.8','3.9','3.10','3.11']
+        os: [ubuntu-latest, macos-latest]
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+        # macos-latest is arm64; actions/setup-python has no darwin-arm64 build below 3.10.11,
+        # so the macos + 3.9 leg can't install Python. Keep 3.9 coverage on ubuntu only.
+        exclude:
+          - os: macos-latest
+            python-version: '3.9'
       fail-fast: false
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip setuptools wheel tox 
-          python -m pip install '.[test]'      
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install .
+
       - name: Run tests
-        run: pytest
+        run: python -m unittest discover -p "*tests.py"

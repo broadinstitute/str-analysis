@@ -1,5 +1,7 @@
 This repo contains scripts and utilities for analyzing tandem repeats (TRs).
 
+[![unit tests](https://github.com/broadinstitute/str-analysis/actions/workflows/test.yml/badge.svg)](https://github.com/broadinstitute/str-analysis/actions/workflows/test.yml)
+
 ## Installation
 
 To install the latest version using pip, run:
@@ -21,7 +23,7 @@ docker run -it weisburd/str-analysis:latest
 - [ExpansionHunter Results Processing](#expansionhunter-results-processing)
 - [TRGT and LPS Processing](#trgt-and-lps-processing)
 - [ExpansionHunterDenovo Post-Processing](#expansionhunterdenovo-post-processing)
-- [Read Extraction & Visualization](#read-extraction--visualization)
+- [Read Extraction](#read-extraction)
 - [Simulation](#simulation)
 - [gnomAD STR Data Generation](#gnomad-str-data-generation)
 - [Catalog Format Conversion](#catalog-format-conversion)
