@@ -37,7 +37,7 @@ class Tests(unittest.TestCase):
             if math.isnan(expected_purity):
                 self.assertTrue(math.isnan(purity), msg=f"Expected purity to be NaN but got {purity} for sequence {sequence} & motif {motif}")
             else:
-                self.assertAlmostEquals(expected_purity, purity, msg=f"Expected base purity {expected_purity} but got {purity} for sequence {sequence} & motif {motif}")
+                self.assertAlmostEqual(expected_purity, purity, msg=f"Expected base purity {expected_purity} but got {purity} for sequence {sequence} & motif {motif}")
 
 
     def test_compute_motif_length_quality(self):

@@ -62,6 +62,16 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # Several tools shell out to bgzip/tabix (htslib), which the tests exercise. Install them.
+      - name: Install htslib (bgzip, tabix)
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            sudo apt-get update && sudo apt-get install -y tabix
+          else
+            brew install htslib
+          fi
+
       # Restore the chr9 reference cached by the prepare-reference job. If the restore misses for any
       # reason, the cram_bam_utils test downloads it on demand as a fallback.
       - name: Restore chr9 reference
