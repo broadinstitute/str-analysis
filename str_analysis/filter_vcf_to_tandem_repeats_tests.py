@@ -818,6 +818,9 @@ class TestTRFIntegration(unittest.TestCase):
             min_indel_size_to_run_trf=7,
             trf_min_repeats_in_reference=2,
             trf_min_purity=0.2,
+            trf_mismatch_penalty=7,
+            trf_indel_penalty=7,
+            trf_min_score=20,
         )
 
     @mock.patch('str_analysis.filter_vcf_to_tandem_repeats.TRFRunner')
