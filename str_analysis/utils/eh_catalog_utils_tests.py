@@ -1,7 +1,7 @@
 import unittest
 
 from str_analysis.utils.eh_catalog_utils import convert_json_records_to_bed_format_tuples
-from utils.eh_catalog_utils import group_overlapping_loci
+from str_analysis.utils.eh_catalog_utils import group_overlapping_loci
 
 
 class Tests(unittest.TestCase):

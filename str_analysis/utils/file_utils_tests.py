@@ -5,6 +5,7 @@
 import gzip
 import io
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -17,7 +18,6 @@ from str_analysis.utils.file_utils import (
     get_file_size,
     download_local_copy,
     get_byte_range_from_google_storage,
-    tee_stdout_and_stderr_to_log_file,
 )
 
 
@@ -350,35 +350,31 @@ class TestTeeStdoutAndStderr(unittest.TestCase):
         self.log_file = os.path.join(self.temp_dir, "test.log")
 
     def test_tee_stdout_to_log(self):
-        """Test that stdout is written to both console and log file."""
-        # Save original stdout
-        original_stdout = sys.stdout
+        """Test that stdout is written to the log file."""
+        # tee_stdout_and_stderr_to_log_file irreversibly redirects this process's stdout/stderr file
+        # descriptors, so run it in a subprocess to avoid corrupting the test runner's streams.
+        script = (
+            "import time\n"
+            "from str_analysis.utils.file_utils import tee_stdout_and_stderr_to_log_file\n"
+            f"tee_stdout_and_stderr_to_log_file({self.log_file!r})\n"
+            "print('Test message', flush=True)\n"
+            "time.sleep(0.1)\n"
+        )
+        subprocess.run([sys.executable, "-c", script], check=True)
 
-        # Set up tee
-        tee_stdout_and_stderr_to_log_file(self.log_file)
-
-        # Write to stdout
-        print("Test message", flush=True)
-
-        # Give threads time to write
-        import time
-        time.sleep(0.1)
-
-        # Check log file
         with open(self.log_file, "r") as f:
-            log_content = f.read()
-            self.assertIn("Test message", log_content)
-
-        # Restore stdout (best effort)
-        sys.stdout = original_stdout
+            self.assertIn("Test message", f.read())
 
     def test_tee_creates_log_file(self):
-        """Test that log file is created."""
+        """Test that the log file is created."""
         self.assertFalse(os.path.exists(self.log_file))
 
-        tee_stdout_and_stderr_to_log_file(self.log_file)
+        script = (
+            "from str_analysis.utils.file_utils import tee_stdout_and_stderr_to_log_file\n"
+            f"tee_stdout_and_stderr_to_log_file({self.log_file!r})\n"
+        )
+        subprocess.run([sys.executable, "-c", script], check=True)
 
-        # Log file should be created
         self.assertTrue(os.path.exists(self.log_file))
 
     def tearDown(self):
