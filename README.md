@@ -1,6 +1,6 @@
-This repo contains scripts and utilities for analyzing tandem repeats (TRs).
+<a href="https://github.com/broadinstitute/str-analysis/actions/workflows/test.yml"><img src="https://github.com/broadinstitute/str-analysis/actions/workflows/test.yml/badge.svg" align="right" alt="unit tests"></a>
 
-[![unit tests](https://github.com/broadinstitute/str-analysis/actions/workflows/test.yml/badge.svg)](https://github.com/broadinstitute/str-analysis/actions/workflows/test.yml)
+This repo contains scripts and utilities for analyzing tandem repeats (TRs).
 
 ## Installation
 
