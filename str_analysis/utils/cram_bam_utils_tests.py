@@ -69,8 +69,19 @@ class TestCramBamUtils(unittest.TestCase):
 		]
 		set_requester_pays_project("cmg-analysis")
 
+		# Write a local copy of a small test CRAM so the interval-merging tests don't require GCS access.
+		self._temp_dir = tempfile.TemporaryDirectory()
+		self._local_cram_path = os.path.join(self._temp_dir.name, "FXN.wgsim_HET_250xGAA.cram")
+		with open(self._local_cram_path, "wb") as f:
+			f.write(pkgutil.get_data("str_analysis", "data/tests/FXN.wgsim_HET_250xGAA.cram"))
+		with open(self._local_cram_path + ".crai", "wb") as f:
+			f.write(pkgutil.get_data("str_analysis", "data/tests/FXN.wgsim_HET_250xGAA.cram.crai"))
+
+	def tearDown(self):
+		self._temp_dir.cleanup()
+
 	def test_interval_reader_non_overlapping_intervals(self):
-		reader = IntervalReader("gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram")
+		reader = IntervalReader(self._local_cram_path)
 
 		reader.add_interval("chr1", 1, 5)
 		reader.add_interval("chr1", 6, 15)
@@ -85,7 +96,7 @@ class TestCramBamUtils(unittest.TestCase):
 		])
 
 	def test_interval_reader_overlapping_intervals(self):
-		reader = IntervalReader("gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram")
+		reader = IntervalReader(self._local_cram_path)
 
 		reader.add_interval("chr1", 1, 10)
 		reader.add_interval("chr1", 5, 15)
@@ -102,7 +113,7 @@ class TestCramBamUtils(unittest.TestCase):
 		])
 
 	def test_interval_reader_adjacent_intervals(self):
-		reader = IntervalReader("gs://str-analysis/tests/FXN.wgsim_HET_250xGAA.cram")
+		reader = IntervalReader(self._local_cram_path)
 
 		reader.add_interval("chr1", 1, 5)
 		reader.add_interval("chr1", 5, 15)
