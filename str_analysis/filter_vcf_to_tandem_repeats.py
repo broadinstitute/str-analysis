@@ -1437,18 +1437,40 @@ def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, normalize_c
         list: List of pysam.VariantRecord objects sorted by position
 
     Note:
-        pysam's fetch() automatically returns all variants that overlap the interval,
-        including variants whose POS is before start_0based but whose REF allele
-        extends into the locus. This is handled by the tabix index.
+        The tabix index keys each record by its REF span [POS, POS+len(REF)), so a plain
+        fetch(start_0based, end) returns variants whose REF extends into the locus (e.g.
+        deletions anchored in the left flank) but NOT insertions. A normalized (left-aligned)
+        repeat-unit insertion anchors to the base immediately before the tract, i.e. its REF
+        span is [start_0based - 1, start_0based), which does not overlap [start_0based, end)
+        even though the inserted bases belong to the locus. To catch these, the fetch window
+        is widened one base to the left and the returned records are filtered back down to
+        those that actually affect the locus.
     """
     fetch_chrom = normalize_chrom(chrom) if normalize_chrom else chrom
 
     try:
-        # pysam fetch uses 0-based half-open coordinates
-        variants = list(vcf_file.fetch(fetch_chrom, start_0based, end))
+        # pysam fetch uses 0-based half-open coordinates. Widen the window one base to the
+        # left so left-anchored insertions (REF span ending exactly at start_0based) are seen.
+        candidates = list(vcf_file.fetch(fetch_chrom, max(0, start_0based - 1), end))
     except ValueError:
         # Chromosome not found in VCF - return empty list
         return []
+
+    # Keep only variants that actually affect the locus: those whose REF span overlaps
+    # [start_0based, end), plus left-anchored insertions whose REF span ends exactly at
+    # start_0based. A variant whose REF span ends at start_0based with no insertion (e.g. a
+    # SNV on the last flank base) is dropped so it cannot perturb the locus or spuriously
+    # trigger the multi-variant phasing-ambiguity check.
+    variants = []
+    for variant in candidates:
+        variant_start_0based = variant.pos - 1
+        variant_end_0based = variant_start_0based + len(variant.ref)
+        if variant_start_0based >= end:
+            continue
+        has_insertion = any(alt is not None and len(alt) > len(variant.ref)
+                            for alt in (variant.alts or []))
+        if variant_end_0based > start_0based or (variant_end_0based == start_0based and has_insertion):
+            variants.append(variant)
 
     # Sort by position
     variants.sort(key=lambda v: v.pos)
@@ -1756,11 +1778,13 @@ def extract_haplotype_sequences_from_vcf(chrom, start_0based, end, fasta_obj, vc
         # [start_0based, end) to offsets in the output sequence by walking the same
         # construction that convert_variants_to_haplotype_sequence performed.
         #
-        # Each variant's (suffix-trimmed) alt bases are anchored to the variant's
-        # start position, while reference bases keep their true genomic coordinate.
-        # This makes a variant that straddles a locus boundary fall on the side where
-        # it starts, which is correct for both the start and end boundaries (the old
-        # offset arithmetic mishandled boundary-spanning indels).
+        # Each variant's (suffix-trimmed) alt bases are anchored to genomic positions:
+        # alt base i aligns to variant_start + i for i < len(ref) (matched/substituted/
+        # deleted bases) and to variant_start + len(ref) for any extra inserted bases
+        # (i >= len(ref)). An alt base falls on the near side of a boundary iff its anchor
+        # is strictly before it. This places a left-anchored insertion's inserted bases
+        # (anchored at the variant's ref-span end, == the locus start) inside the locus,
+        # while keeping a boundary-spanning deletion's surviving bases on the correct side.
         def locus_offset_in_output(boundary_0based):
             output_pos = 0
             genomic_pos = fetch_start  # next reference position not yet consumed
@@ -1776,10 +1800,14 @@ def extract_haplotype_sequences_from_vcf(chrom, start_0based, end, fasta_obj, vc
                     output_pos += ref_run_end - genomic_pos
                 if boundary_0based <= variant_start_0based:
                     return output_pos
-                # The variant starts before the boundary, so its alt bases (anchored
-                # to the variant start) all fall on the near side of the boundary
-                output_pos += len(variant_alt)
-                genomic_pos = max(genomic_pos, variant_start_0based + len(variant_ref))
+                # The variant starts before the boundary: count only the alt bases whose
+                # genomic anchor lies before it (inserted bases beyond the ref span anchor
+                # at variant_start + len(ref)).
+                ref_len = len(variant_ref)
+                for i in range(len(variant_alt)):
+                    if variant_start_0based + (i if i < ref_len else ref_len) < boundary_0based:
+                        output_pos += 1
+                genomic_pos = max(genomic_pos, variant_start_0based + ref_len)
             # Trailing reference bases after the last variant
             if boundary_0based > genomic_pos:
                 output_pos += boundary_0based - genomic_pos

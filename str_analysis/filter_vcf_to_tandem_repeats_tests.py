@@ -1178,6 +1178,91 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
             if os.path.exists(vcf_path + ".gz.tbi"):
                 os.unlink(vcf_path + ".gz.tbi")
 
+    def test_get_overlapping_vcf_variants_left_anchored_insertion(self):
+        """A left-anchored insertion (REF span ending exactly at the locus start) must be returned.
+
+        A normalized repeat-unit insertion anchors to the base just before the tract, so its
+        REF span [start_0based - 1, start_0based) does not overlap [start_0based, end). A plain
+        tabix fetch(start_0based, end) misses it; get_overlapping_vcf_variants widens the window
+        and must include it.
+        """
+        import pysam
+        vcf_content = """##fileformat=VCFv4.2
+##contig=<ID=chr1,length=1000000>
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1
+chr1\t1001\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
+"""
+        vcf_path = self._create_temp_vcf(vcf_content)
+        try:
+            import subprocess
+            vcf_gz_path = vcf_path + ".gz"
+            with open(vcf_gz_path, 'wb') as gz_out:
+                subprocess.run(["bgzip", "-c", vcf_path], stdout=gz_out, check=True)
+            subprocess.run(["tabix", "-p", "vcf", vcf_gz_path], check=True)
+
+            vcf_file = pysam.VariantFile(vcf_gz_path)
+
+            # Locus [1001, 1011); the insertion at POS 1001 (0-based 1000) is anchored one base
+            # to the left of the locus start and would be dropped by a non-widened fetch.
+            variants = get_overlapping_vcf_variants(
+                vcf_file, "chr1", 1001, 1011, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True)
+            )
+
+            self.assertEqual(len(variants), 1)
+            self.assertEqual(variants[0].pos, 1001)
+
+            vcf_file.close()
+        except FileNotFoundError:
+            self.skipTest("bgzip/tabix not available")
+        finally:
+            os.unlink(vcf_path)
+            if os.path.exists(vcf_path + ".gz"):
+                os.unlink(vcf_path + ".gz")
+            if os.path.exists(vcf_path + ".gz.tbi"):
+                os.unlink(vcf_path + ".gz.tbi")
+
+    def test_get_overlapping_vcf_variants_excludes_left_flank_snv(self):
+        """A non-insertion whose REF span ends at the locus start (e.g. a flank SNV) must be dropped.
+
+        Widening the fetch window must not let a variant that only touches the last flank base
+        perturb the locus or spuriously trigger the multi-variant phasing-ambiguity check.
+        """
+        import pysam
+        vcf_content = """##fileformat=VCFv4.2
+##contig=<ID=chr1,length=1000000>
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1
+chr1\t1001\t.\tA\tT\t.\tPASS\t.\tGT\t0/1
+chr1\t1006\t.\tC\tCAT\t.\tPASS\t.\tGT\t0/1
+"""
+        vcf_path = self._create_temp_vcf(vcf_content)
+        try:
+            import subprocess
+            vcf_gz_path = vcf_path + ".gz"
+            with open(vcf_gz_path, 'wb') as gz_out:
+                subprocess.run(["bgzip", "-c", vcf_path], stdout=gz_out, check=True)
+            subprocess.run(["tabix", "-p", "vcf", vcf_gz_path], check=True)
+
+            vcf_file = pysam.VariantFile(vcf_gz_path)
+
+            # Locus [1001, 1011): the SNV at POS 1001 (0-based 1000) touches only the last flank
+            # base and must be excluded; the insertion at POS 1006 falls inside and is kept.
+            variants = get_overlapping_vcf_variants(
+                vcf_file, "chr1", 1001, 1011, normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True)
+            )
+
+            self.assertEqual(len(variants), 1)
+            self.assertEqual(variants[0].pos, 1006)
+
+            vcf_file.close()
+        except FileNotFoundError:
+            self.skipTest("bgzip/tabix not available")
+        finally:
+            os.unlink(vcf_path)
+            if os.path.exists(vcf_path + ".gz"):
+                os.unlink(vcf_path + ".gz")
+            if os.path.exists(vcf_path + ".gz.tbi"):
+                os.unlink(vcf_path + ".gz.tbi")
+
     def test_get_overlapping_vcf_variants_chromosome_not_in_vcf(self):
         """Test fetching from chromosome not in VCF returns empty list."""
         import pysam
@@ -1863,6 +1948,111 @@ class TestExtractHaplotypeSequencesFromVcf(unittest.TestCase):
 
         self.assertEqual(result[0], "CAGCAGCAGCAG")  # reference haplotype
         self.assertEqual(result[1], "CAGCAGCAGCAG")   # only flanking base deleted
+
+    def _create_mock_multiallelic_variant(self, pos, ref, alts, gt, phased=True):
+        """Helper to create a mock multi-allelic pysam variant record.
+
+        Args:
+            pos (int): 1-based position
+            ref (str): Reference allele
+            alts (tuple): Alternate alleles, e.g. ("A", "AT")
+            gt (tuple): Genotype tuple indexing into alleles, e.g. (1, 2)
+            phased (bool): Whether the genotype is phased
+
+        Returns:
+            mock.MagicMock: A mock variant record with alleles = (ref, *alts)
+        """
+        variant = mock.MagicMock()
+        variant.pos = pos
+        variant.ref = ref
+        variant.alleles = (ref,) + tuple(alts)
+        sample = mock.MagicMock()
+        sample.get = mock.MagicMock(return_value=gt)
+        sample.phased = phased
+        variant.samples = [sample]
+        return variant
+
+    def test_left_anchored_insertion_counts_into_locus(self):
+        """A repeat-unit insertion anchored just before the tract extends the locus.
+
+        Reference (0-based): AAAA CAGCAGCAGCAG TTTT, locus = indices [4, 16) = 4x"CAG".
+        The insertion "A" -> "ACAG" at 1-based pos 4 anchors to the last flank base (index 3),
+        inserting one "CAG" at the locus start boundary (junction at index 4). The inserted
+        copy belongs to the locus, so the alt haplotype is 5x"CAG", not the unchanged reference.
+        """
+        mock_fasta = self._create_mock_fasta("AAAACAGCAGCAGCAGTTTT")
+
+        variant = self._create_mock_variant(
+            pos=4, ref="A", alt="ACAG", gt=(0, 1), phased=True
+        )
+
+        result = extract_haplotype_sequences_from_vcf(
+            chrom="chr1", start_0based=4, end=16, fasta_obj=mock_fasta, vcf_variants=[variant]
+        )
+
+        self.assertEqual(result[0], "CAGCAGCAGCAG")       # reference haplotype (4 repeats)
+        self.assertEqual(result[1], "CAGCAGCAGCAGCAG")    # inserted CAG counted into locus (5 repeats)
+
+    def test_multiallelic_insertion_spanning_start_boundary(self):
+        """Both alleles of a left-anchored multi-allelic insertion extend the locus.
+
+        Reference: AAAA CAGCAGCAGCAG TTTT, locus [4, 16) = 4x"CAG". The record
+        "A" -> "ACAG","ACAGCAG" at 1-based pos 4 with GT 1|2 inserts one and two copies
+        respectively, so the haplotypes are 5x and 6x "CAG".
+        """
+        mock_fasta = self._create_mock_fasta("AAAACAGCAGCAGCAGTTTT")
+
+        variant = self._create_mock_multiallelic_variant(
+            pos=4, ref="A", alts=("ACAG", "ACAGCAG"), gt=(1, 2), phased=True
+        )
+
+        result = extract_haplotype_sequences_from_vcf(
+            chrom="chr1", start_0based=4, end=16, fasta_obj=mock_fasta, vcf_variants=[variant]
+        )
+
+        self.assertEqual(result[0], "CAGCAGCAGCAGCAG")       # 5 repeats
+        self.assertEqual(result[1], "CAGCAGCAGCAGCAGCAG")    # 6 repeats
+
+    def test_multiallelic_deletion_spanning_start_boundary(self):
+        """Two different left-anchored deletions remove different numbers of locus bases.
+
+        Reference: AAAA TTTTTTTTTTTT AAAA, locus [4, 16) = 12 "T". The record
+        "ATTTT" -> "A","AT" at 1-based pos 4 (anchored at flank index 3) deletes 4 and 3 "T"
+        respectively under GT 1|2, leaving 8 and 9 "T".
+        """
+        mock_fasta = self._create_mock_fasta("AAAATTTTTTTTTTTTAAAA")
+
+        variant = self._create_mock_multiallelic_variant(
+            pos=4, ref="ATTTT", alts=("A", "AT"), gt=(1, 2), phased=True
+        )
+
+        result = extract_haplotype_sequences_from_vcf(
+            chrom="chr1", start_0based=4, end=16, fasta_obj=mock_fasta, vcf_variants=[variant]
+        )
+
+        self.assertEqual(result[0], "TTTTTTTT")    # 4 of 12 deleted
+        self.assertEqual(result[1], "TTTTTTTTT")   # 3 of 12 deleted
+
+    def test_multiallelic_del_ins_spanning_start_boundary(self):
+        """A left-anchored record with one deletion allele and one insertion allele.
+
+        Reference: AAAA TTTTTTTTTTTT AAAA, locus [4, 16) = 12 "T". The record
+        "AT" -> "A","ATT" at 1-based pos 4 deletes one "T" on the first haplotype and inserts
+        one "T" on the second (GT 1|2), giving 11 and 13 "T". This is the case where the old
+        offset logic dropped the inserted base and collapsed the insertion allele.
+        """
+        mock_fasta = self._create_mock_fasta("AAAATTTTTTTTTTTTAAAA")
+
+        variant = self._create_mock_multiallelic_variant(
+            pos=4, ref="AT", alts=("A", "ATT"), gt=(1, 2), phased=True
+        )
+
+        result = extract_haplotype_sequences_from_vcf(
+            chrom="chr1", start_0based=4, end=16, fasta_obj=mock_fasta, vcf_variants=[variant]
+        )
+
+        self.assertEqual(result[0], "TTTTTTTTTTT")     # 11 (one deleted)
+        self.assertEqual(result[1], "TTTTTTTTTTTTT")   # 13 (one inserted)
 
     def test_haploid_genotype_returns_hemizygous(self):
         """A haploid genotype (e.g. chrX/chrY, GT == (1,)) must not crash; it yields one haplotype.
