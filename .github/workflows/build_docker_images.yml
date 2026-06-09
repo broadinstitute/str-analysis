@@ -155,7 +155,15 @@ jobs:
           git add */sha256_dockerhub.txt
           if git diff --cached --quiet; then
             echo "No sha256 changes to commit"
-          else
-            git commit -m "Update docker image sha256 digests [skip ci]"
-            git push
+            exit 0
           fi
+          git commit -m "Update docker image sha256 digests [skip ci]"
+          # Another commit may land on main during the multi-minute build, which would make a bare push
+          # a non-fast-forward. Rebase onto the latest main and retry a few times before giving up.
+          for attempt in 1 2 3 4 5; do
+            git pull --rebase origin main && git push && exit 0
+            echo "Push attempt ${attempt} failed; refetching and retrying."
+            sleep 5
+          done
+          echo "Failed to push sha256 digests after multiple attempts."
+          exit 1
