@@ -90,6 +90,7 @@ jobs:
           - docker_with_expansion_hunter
           - docker_with_gangstr
           - docker_with_hipstr
+          - docker_with_inquistr
           - docker_with_longtr
           - docker_with_trgt
 
@@ -141,7 +142,7 @@ jobs:
       - name: Place updated digest files
         run: |
           set -euo pipefail
-          for d in docker docker_with_expansion_hunter docker_with_gangstr docker_with_hipstr docker_with_longtr docker_with_trgt; do
+          for d in docker docker_with_expansion_hunter docker_with_gangstr docker_with_hipstr docker_with_inquistr docker_with_longtr docker_with_trgt; do
             if [ -f "artifacts/sha256-${d}/sha256_dockerhub.txt" ]; then
               cp "artifacts/sha256-${d}/sha256_dockerhub.txt" "${d}/sha256_dockerhub.txt"
             fi
