@@ -37,9 +37,10 @@ class Tests(unittest.TestCase):
         self.assertIsNone(parse_allele_size_in_repeats("nan", 18, 1))
         self.assertIsNone(parse_allele_size_in_repeats(".", 18, 1))
         self.assertIsNone(parse_allele_size_in_repeats(None, 18, 1))
-        # AC motif (size 2), reference is 40bp; non-integer median bp diff rounds before floor-dividing
-        self.assertEqual(parse_allele_size_in_repeats("4", 40, 2), 22)
-        self.assertEqual(parse_allele_size_in_repeats("2.5", 40, 2), 21)
+        # AC motif (size 2), reference is 40bp; the repeat count is rounded to the nearest whole repeat
+        self.assertEqual(parse_allele_size_in_repeats("4", 40, 2), 22)     # 44 / 2 = 22
+        self.assertEqual(parse_allele_size_in_repeats("2.5", 40, 2), 21)   # 42.5 / 2 = 21.25 -> 21
+        self.assertEqual(parse_allele_size_in_repeats("3.5", 40, 2), 22)   # 43.5 / 2 = 21.75 -> 22
 
     def test_discard_hom_ref(self):
         results = process_inquistr_calls(self.test_table1.name, discard_hom_ref=True)

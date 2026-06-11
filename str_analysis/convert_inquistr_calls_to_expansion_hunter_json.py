@@ -15,9 +15,11 @@ This converter expects the `info` column to contain the locus id in the format "
 from the end of the locus id, and the allele size in repeats is computed as:
 
     allele_size_bp = (end - begin) + H
-    num_repeats    = round(allele_size_bp) // len(motif)
+    num_repeats    = round(allele_size_bp / len(motif))
 
-which matches the floor-division convention used by convert_trgt_vcf_to_expansion_hunter_json.py.
+H1/H2 are medians of integer read length differences, so allele_size_bp can be fractional. The repeat count is rounded
+to the nearest whole repeat (rather than floored) so that inquiSTR's repeat counts are an unbiased estimate of the
+true allele, comparable to the integer base-pair allele lengths reported by tools like TRGT.
 """
 
 """
@@ -108,7 +110,7 @@ def parse_allele_size_in_repeats(median_bp_diff, reference_size_bp, motif_size):
     allele_size_bp = reference_size_bp + float(median_bp_diff)
     if math.isnan(allele_size_bp):
         return None
-    return max(0, int(round(allele_size_bp))) // motif_size
+    return max(0, int(round(allele_size_bp / motif_size)))
 
 
 def process_inquistr_calls(inquistr_calls_path, sample_id=None, discard_hom_ref=True, show_progress_bar=False,
