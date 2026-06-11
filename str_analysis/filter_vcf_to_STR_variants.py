@@ -61,10 +61,6 @@ ALLELE_TSV_OUTPUT_COLUMNS = COMMON_TSV_OUTPUT_COLUMNS + [
     "NumPureRepeats",
     "PureRepeatSize (bp)",
     "FractionPureRepeats",
-    # purity of the reference allele at this locus (the alt allele rows are per-variant, so the reference allele
-    # otherwise has no row; these columns let downstream consumers recover the reference allele's purity)
-    "NumPureRepeatsRef",
-    "FractionPureRepeatsRef",
 ]
 
 FILTER_MORE_THAN_TWO_ALT_ALLELES = "more than two alt alleles"
@@ -144,8 +140,7 @@ def parse_args():
     if not args.allow_interruptions != "no":
         # drop some output columns
         for header in VARIANT_TSV_OUTPUT_COLUMNS, ALLELE_TSV_OUTPUT_COLUMNS:
-            for column in ("NumPureRepeats", "PureRepeatSize (bp)", "FractionPureRepeats", "MotifInterruptionIndex",
-                           "NumPureRepeatsRef", "FractionPureRepeatsRef"):
+            for column in "NumPureRepeats", "PureRepeatSize (bp)", "FractionPureRepeats", "MotifInterruptionIndex":
                 if column in header:
                     header.remove(column)
 
@@ -949,9 +944,6 @@ def process_vcf_line(
             "PureRepeatSize (bp)": alt_STR_allele_spec["NumPureRepeatsAlt"] * len(repeat_unit),
             "FractionPureRepeats": ("%0.3f" % alt_STR_allele_spec["FractionPureRepeatsAlt"])
                                    if alt_STR_allele_spec["FractionPureRepeatsAlt"] is not None else "",
-            "NumPureRepeatsRef": alt_STR_allele_spec["NumPureRepeatsRef"],
-            "FractionPureRepeatsRef": ("%0.3f" % alt_STR_allele_spec["FractionPureRepeatsRef"])
-                                      if alt_STR_allele_spec["FractionPureRepeatsRef"] is not None else "",
         })
 
         alleles_tsv_writer.write("\t".join([str(allele_tsv_record.get(c, "")) for c in ALLELE_TSV_OUTPUT_COLUMNS]) + "\n")
