@@ -169,11 +169,17 @@ jobs:
             exit 0
           fi
           git commit -m "Update docker image sha256 digests [skip ci]"
-          # Another commit may land on main during the multi-minute build, which would make a bare push
-          # a non-fast-forward. Rebase onto the latest main and retry a few times before giving up.
+          # Another commit may land on main during the multi-minute build, making a bare push a
+          # non-fast-forward (or a digest conflict if a concurrent build updated the same digest file).
+          # Try to push; on failure, rebase our commit onto the latest main — taking our freshly-built
+          # digests on conflict (-X theirs) — and retry. Always abort any half-finished rebase first, so a
+          # prior conflict can't leave the tree with unmerged files and wedge every later attempt.
           for attempt in 1 2 3 4 5; do
-            git pull --rebase origin main && git push && exit 0
-            echo "Push attempt ${attempt} failed; refetching and retrying."
+            git push && exit 0
+            echo "Push attempt ${attempt} failed; rebasing onto latest main and retrying."
+            git rebase --abort 2>/dev/null || true
+            git fetch origin main
+            git rebase -X theirs origin/main || git rebase --abort 2>/dev/null || true
             sleep 5
           done
           echo "Failed to push sha256 digests after multiple attempts."
