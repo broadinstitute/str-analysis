@@ -93,9 +93,8 @@ RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1
 
 RUN python3 -m pip install --no-cache-dir git+https://github.com/bw2/trviz@9068d9abc50ec9b8ba478505d3d19496e1f431b9 pyarrow
 
-ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
-
 ENV HTSLIB_CONFIGURE_OPTIONS="--enable-s3 --enable-gcs --enable-libcurl --with-libdeflate"
-RUN python3 -m pip install --upgrade --no-cache-dir git+https://github.com/broadinstitute/str-analysis
+# pinned to a specific str-analysis commit for reproducible builds (previously tracked main HEAD via a randbyte cache-buster)
+RUN python3 -m pip install --upgrade --no-cache-dir git+https://github.com/broadinstitute/str-analysis@29d7e90969e83c9405de4bcb509f88932ed7f570
 
 ENV PYTHONPATH=/:.:$PYTHONPATH
