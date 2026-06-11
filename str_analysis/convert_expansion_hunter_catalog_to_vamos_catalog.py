@@ -4,6 +4,7 @@ import argparse
 import gzip
 import ijson
 import os
+import pandas as pd
 import re
 import tqdm
 
