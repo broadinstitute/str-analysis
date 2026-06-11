@@ -132,6 +132,8 @@ GENOTYPE_TSV_OUTPUT_COLUMNS = [
     "Zygosity",        # HOM, HET, or HEMI
     "IsPureRepeat",
     "RepeatPurity",
+    "RepeatPurityShortAllele",
+    "RepeatPurityLongAllele",
     "Allele1Sequence",
     "Allele2Sequence",
     "Allele1MotifSequence",
@@ -1057,6 +1059,30 @@ class GenotypedTandemRepeat:
     def allele2_purity(self):
         return self._allele2_purity
 
+    def _purity_ordered_by_num_repeats(self):
+        """Return (short_allele_purity, long_allele_purity) ordered by repeat count so that the values line up
+        with num_repeats_short_allele / num_repeats_long_allele. For HEMI loci (only one allele present), the
+        present allele's purity is used for both. Returns (None, None) if the genotype is missing."""
+        n1, n2 = self._num_repeats_allele1, self._num_repeats_allele2
+        p1, p2 = self._allele1_purity, self._allele2_purity
+        if n1 is None and n2 is None:
+            return None, None
+        if n1 is None:
+            return p2, p2
+        if n2 is None:
+            return p1, p1
+        return (p1, p2) if n1 <= n2 else (p2, p1)
+
+    @property
+    def repeat_purity_short_allele(self):
+        """Repeat purity of the allele with fewer repeats (matches num_repeats_short_allele ordering)."""
+        return self._purity_ordered_by_num_repeats()[0]
+
+    @property
+    def repeat_purity_long_allele(self):
+        """Repeat purity of the allele with more repeats (matches num_repeats_long_allele ordering)."""
+        return self._purity_ordered_by_num_repeats()[1]
+
     @property
     def num_repeats_short_allele(self):
         """Number of repeats in the shorter allele."""
@@ -1187,6 +1213,13 @@ class GenotypedTandemRepeat:
         if self.repeat_purity is not None:
             purity_str = f"{self.repeat_purity:.4f}"
 
+        short_allele_purity_str = ""
+        if self.repeat_purity_short_allele is not None:
+            short_allele_purity_str = f"{self.repeat_purity_short_allele:.4f}"
+        long_allele_purity_str = ""
+        if self.repeat_purity_long_allele is not None:
+            long_allele_purity_str = f"{self.repeat_purity_long_allele:.4f}"
+
         # Format is_pure_repeat: None -> empty, bool -> True/False
         is_pure_str = ""
         if self.is_pure_repeat is not None:
@@ -1212,6 +1245,8 @@ class GenotypedTandemRepeat:
             "Zygosity": self.zygosity if self.zygosity is not None else "",
             "IsPureRepeat": is_pure_str,
             "RepeatPurity": purity_str,
+            "RepeatPurityShortAllele": short_allele_purity_str,
+            "RepeatPurityLongAllele": long_allele_purity_str,
             "Allele1Sequence": self.allele1_sequence if self.allele1_sequence is not None else "",
             "Allele2Sequence": self.allele2_sequence if self.allele2_sequence is not None else "",
             "Allele1MotifSequence": (format_motif_entry_as_sequence_string(motif_lists.get("allele1")) or "") if motif_lists else "",
@@ -1254,6 +1289,8 @@ class GenotypedTandemRepeat:
             "Zygosity": self.zygosity,
             "IsPureRepeat": self.is_pure_repeat,
             "RepeatPurity": round(self.repeat_purity, 3) if self.repeat_purity is not None else None,
+            "RepeatPurityShortAllele": round(self.repeat_purity_short_allele, 3) if self.repeat_purity_short_allele is not None else None,
+            "RepeatPurityLongAllele": round(self.repeat_purity_long_allele, 3) if self.repeat_purity_long_allele is not None else None,
             "Allele1Sequence": self.allele1_sequence,
             "Allele2Sequence": self.allele2_sequence,
             "NumOverlappingVariants": self.num_overlapping_variants,

@@ -2970,6 +2970,51 @@ chr1\t4\t.\tC\tCCAG\t.\tPASS\t.\tGT\t0|1
             vcf_file.close()
             fasta_obj.close()
 
+    def test_genotype_per_allele_repeat_purity(self):
+        """Both alleles of a het ref/alt locus, including the reference allele, get a per-allele repeat purity."""
+        import pysam
+        import pyfaidx
+
+        fasta_path = self._create_test_fasta({"chr1": "AAACAGCAGCAGCAGAAA"})
+        if fasta_path is None:
+            self.skipTest("pyfaidx unavailable")
+
+        # 0|1: the reference allele has 4 CAG repeats and the alt (CCAG insertion) has 5, so the shorter allele
+        # is the reference allele -- the case that previously had no purity value in the comparison plots.
+        vcf_content = """##fileformat=VCFv4.2
+##contig=<ID=chr1,length=18>
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1
+chr1\t4\t.\tC\tCCAG\t.\tPASS\t.\tGT\t0|1
+"""
+        vcf_gz_path = self._create_test_vcf_and_index(vcf_content)
+        if vcf_gz_path is None:
+            self.skipTest("bgzip/tabix unavailable")
+
+        tr_locus = ReferenceTandemRepeat(chrom="chr1", start_0based=3, end_1based=15, repeat_unit="CAG")
+        fasta_obj = pyfaidx.Fasta(fasta_path, one_based_attributes=False, as_raw=True)
+        vcf_file = pysam.VariantFile(vcf_gz_path)
+        try:
+            result = genotype_single_locus(
+                tr_locus, vcf_file, fasta_obj,
+                normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
+
+            self.assertEqual(result.num_repeats_short_allele, 4)
+            self.assertEqual(result.num_repeats_long_allele, 5)
+            # both alleles, including the reference allele, get a real purity value (the X1 fix). The short allele is
+            # the reference allele here, and its pure CAG repeats give purity 1.0.
+            self.assertIsNotNone(result.repeat_purity_short_allele)
+            self.assertIsNotNone(result.repeat_purity_long_allele)
+            self.assertGreater(result.repeat_purity_short_allele, 0.99)
+            self.assertGreater(result.repeat_purity_long_allele, 0.0)
+            self.assertLessEqual(result.repeat_purity_long_allele, 1.0)
+
+            tsv_dict = result.to_tsv_dict()
+            self.assertNotEqual(tsv_dict["RepeatPurityShortAllele"], "")
+            self.assertNotEqual(tsv_dict["RepeatPurityLongAllele"], "")
+        finally:
+            vcf_file.close()
+            fasta_obj.close()
+
 
 class TestMotifCompositionSplittingMethod(unittest.TestCase):
     """Test motif-splitting-method labeling and the TRF length threshold in motif composition."""
