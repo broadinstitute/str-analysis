@@ -15,11 +15,11 @@ This converter expects the `info` column to contain the locus id in the format "
 from the end of the locus id, and the allele size in repeats is computed as:
 
     allele_size_bp = (end - begin) + H
-    num_repeats    = round(allele_size_bp / len(motif))
+    num_repeats    = allele_size_bp // len(motif)
 
-H1/H2 are medians of integer read length differences, so allele_size_bp can be fractional. The repeat count is rounded
-to the nearest whole repeat (rather than floored) so that inquiSTR's repeat counts are an unbiased estimate of the
-true allele, comparable to the integer base-pair allele lengths reported by tools like TRGT.
+H1/H2 are medians of integer read length differences, so allele_size_bp can be fractional. The repeat count is floored,
+matching how the reference repeat count is computed (reference_size_bp // len(motif)), so that a haplotype at exactly
+the reference length maps to the same repeat count used for hom-ref detection.
 """
 
 """
@@ -110,7 +110,7 @@ def parse_allele_size_in_repeats(median_bp_diff, reference_size_bp, motif_size):
     allele_size_bp = reference_size_bp + float(median_bp_diff)
     if math.isnan(allele_size_bp):
         return None
-    return max(0, int(round(allele_size_bp / motif_size)))
+    return max(0, int(allele_size_bp // motif_size))
 
 
 def process_inquistr_calls(inquistr_calls_path, sample_id=None, discard_hom_ref=True, show_progress_bar=False,
@@ -162,6 +162,11 @@ def process_inquistr_calls(inquistr_calls_path, sample_id=None, discard_hom_ref=
                     parse_allele_size_in_repeats(h1, reference_size_bp, motif_size),
                     parse_allele_size_in_repeats(h2, reference_size_bp, motif_size),
                 ]
+                # Drop only the no-call (NaN) haplotypes. A locus where exactly one haplotype is NaN is intentionally
+                # emitted as a single-allele (haploid) genotype: this is correct both for haploid chromosomes (chrX/chrY
+                # in males, where H2 is always NaN) and for autosomal loci that overlap a large deletion on one
+                # haplotype, where only the remaining haplotype can be genotyped. The locus is skipped only when both
+                # haplotypes are no-calls.
                 allele_sizes = [a for a in allele_sizes if a is not None]
                 if len(allele_sizes) == 0:
                     no_call_count += 1
