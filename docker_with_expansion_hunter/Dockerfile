@@ -81,6 +81,15 @@ RUN apt-get update && apt-get install --no-install-recommends --yes \
 
 RUN python3 -m pip install --upgrade cmake
 
+# install official Illumina ExpansionHunter v5.0.0 prebuilt binary as IlluminaExpansionHunter
+# (installed before the fork below so this pinned, stable layer stays cached when the fork's master.zip changes)
+ENV ILLUMINA_EXPANSION_HUNTER_VERSION="5.0.0"
+RUN wget -q https://github.com/Illumina/ExpansionHunter/releases/download/v${ILLUMINA_EXPANSION_HUNTER_VERSION}/ExpansionHunter-v${ILLUMINA_EXPANSION_HUNTER_VERSION}-linux_x86_64.tar.gz \
+	&& tar xzf ExpansionHunter-v${ILLUMINA_EXPANSION_HUNTER_VERSION}-linux_x86_64.tar.gz \
+	&& cp ExpansionHunter-v${ILLUMINA_EXPANSION_HUNTER_VERSION}-linux_x86_64/bin/ExpansionHunter /usr/local/bin/IlluminaExpansionHunter \
+	&& chmod 755 /usr/local/bin/IlluminaExpansionHunter \
+	&& rm -r ExpansionHunter-v${ILLUMINA_EXPANSION_HUNTER_VERSION}-linux_x86_64 ExpansionHunter-v${ILLUMINA_EXPANSION_HUNTER_VERSION}-linux_x86_64.tar.gz
+
 # install ExpansionHunter fork
 RUN wget -q https://github.com/bw2/ExpansionHunter/archive/refs/heads/master.zip \
 	&& unzip master.zip \
