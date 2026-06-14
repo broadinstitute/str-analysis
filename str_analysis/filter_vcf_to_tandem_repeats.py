@@ -2868,6 +2868,11 @@ def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, pyfaidx_fasta_ob
 
             if new_end_1based - new_start_0based >= tr_alleles_group[0].repeat_unit_length:
                 repeat_sequence = str(pyfaidx_fasta_obj[chrom][new_start_0based:new_end_1based]).upper()
+                # An assembly N-gap can make the merged reference span all Ns; compute_most_common_motif rejects an
+                # all-N motif, so drop the merged locus here instead of crashing (matches prior behavior where such
+                # loci were absent from the combined catalog).
+                if not repeat_sequence.strip("N"):
+                    continue
                 new_repeat_unit = compute_most_common_motif(repeat_sequence, tr_alleles_group[0].repeat_unit_length)
 
                 simplified_motif, _, _ = find_repeat_unit_without_allowing_interruptions(new_repeat_unit, allow_partial_repeats=False)
