@@ -1,1 +1,1 @@
-weisburd/str-analysis-with-expansion-hunter@sha256:55b39ef883c9915b4d67d285c30e66657f6dd5fc269a5c2ab3a9e21904987bde
+weisburd/str-analysis-with-expansion-hunter@sha256:7c20b36ae9ca3f0a304e77a4dc56310628416220fc1b34bd9e84f21824e9a890
