@@ -90,6 +90,22 @@ RUN wget -q https://github.com/Illumina/ExpansionHunter/releases/download/v${ILL
 	&& chmod 755 /usr/local/bin/IlluminaExpansionHunter \
 	&& rm -r ExpansionHunter-v${ILLUMINA_EXPANSION_HUNTER_VERSION}-linux_x86_64 ExpansionHunter-v${ILLUMINA_EXPANSION_HUNTER_VERSION}-linux_x86_64.tar.gz
 
+# install mimalloc (faster allocator; ~30% faster genotyping with lower peak RSS, byte-identical output).
+# Built from source so its CMake config is installed and the ExpansionHunter fork's find_package(mimalloc) links it.
+# (before the fork build below so this stable layer stays cached when the fork's master.zip changes)
+ENV MIMALLOC_VERSION="2.1.7"
+RUN wget -q https://github.com/microsoft/mimalloc/archive/refs/tags/v${MIMALLOC_VERSION}.tar.gz \
+	&& tar xzf v${MIMALLOC_VERSION}.tar.gz \
+	&& rm v${MIMALLOC_VERSION}.tar.gz \
+	&& cd mimalloc-${MIMALLOC_VERSION} \
+	&& mkdir build \
+	&& cd build \
+	&& cmake .. -DCMAKE_BUILD_TYPE=Release -DMI_BUILD_TESTS=OFF \
+	&& make -j$(nproc) \
+	&& make install \
+	&& cd / \
+	&& rm -r mimalloc-${MIMALLOC_VERSION}
+
 # install ExpansionHunter fork
 RUN wget -q https://github.com/bw2/ExpansionHunter/archive/refs/heads/master.zip \
 	&& unzip master.zip \
