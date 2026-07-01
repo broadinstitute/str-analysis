@@ -50,6 +50,9 @@ def parse_args(args_list=None):
     p.add_argument("--include-extra-longtr-fields", action="store_true",
         help="If specified, additional fields from LongTR will be added. The input json files are expected to be the "
              "result of running convert_hipstr_vcf_to_expansion_hunter_json.")
+    p.add_argument("--include-extra-ensembletr-fields", action="store_true",
+        help="If specified, additional fields from EnsembleTR will be added (the consensus SCORE, stored as Q). The "
+             "input json files are expected to be the result of running convert_ensembletr_vcf_to_expansion_hunter_json.")
     p.add_argument("--discard-hom-ref", action="store_true", help="Discard hom-ref calls")
     p.add_argument("--dont-output-allele-table", action="store_true")
     p.add_argument("--dont-output-variant-table", action="store_true")
@@ -208,6 +211,7 @@ def main():
                     include_extra_hipstr_fields=args.include_extra_hipstr_fields,
                     include_extra_trgt_fields=args.include_extra_trgt_fields,
                     include_extra_longtr_fields=args.include_extra_longtr_fields,
+                    include_extra_ensembletr_fields=args.include_extra_ensembletr_fields,
                     discard_hom_ref=args.discard_hom_ref,
                 ):
                     if just_get_header:
@@ -300,6 +304,7 @@ def main():
                     include_extra_hipstr_fields=args.include_extra_hipstr_fields,
                     include_extra_trgt_fields=args.include_extra_trgt_fields,
                     include_extra_longtr_fields=args.include_extra_longtr_fields,
+                    include_extra_ensembletr_fields=args.include_extra_ensembletr_fields,
                 ):
                     if just_get_header:
                         allele_table_columns.extend([k for k in allele_record.keys() if k not in allele_table_columns])
@@ -473,6 +478,7 @@ def convert_expansion_hunter_json_to_tsv_columns(
     include_extra_hipstr_fields=False,
     include_extra_trgt_fields=False,
     include_extra_longtr_fields=False,
+    include_extra_ensembletr_fields=False,
     discard_hom_ref=False,
 ):
     """Converts a dictionary that represents the contents of an ExpansionHunter v3 or v4 json output file to
@@ -493,6 +499,8 @@ def convert_expansion_hunter_json_to_tsv_columns(
         include_extra_hipstr_fields (bool): if True, include additional fields provided by HipSTR.
         include_extra_trgt_fields (bool): if True, include additional fields provided by TRGT.
         include_extra_longtr_fields (bool): if True, include additional fields provided by LongTR.
+        include_extra_ensembletr_fields (bool): if True, include additional fields provided by EnsembleTR (the
+            consensus SCORE, stored as Q).
         discard_hom_ref (bool): if True, discard hom-ref calls
     Yields:
         dict: dictionary representing the output tsv row
@@ -646,6 +654,9 @@ def convert_expansion_hunter_json_to_tsv_columns(
                 variant_record["Q"] = float(variant_json["Q"])
                 variant_record["DP"] = float(variant_json["DP"])
                 variant_record["DFLANKINDEL"] = float(variant_json["DFLANKINDEL"])
+
+            if include_extra_ensembletr_fields:
+                variant_record["Q"] = float(variant_json["Q"])
 
             variant_record["Genotype"] = variant_json["Genotype"]
 
