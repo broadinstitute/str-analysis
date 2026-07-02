@@ -82,11 +82,16 @@ RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cl
 
 ENV PATH=/google-cloud-sdk/bin:$PATH
 
-# install EnsembleTR from https://github.com/gymrek-lab/EnsembleTR (provides the `EnsembleTR` console script). Pinned to
-# a specific commit for reproducibility; pip also pulls its TRTools/cyvcf2/numpy/networkx dependencies.
-ENV ENSEMBLETR_COMMIT="dbda15bcf92c2416fb011d1337ddfead1b4d77b6"
+# install EnsembleTR from https://github.com/bw2/EnsembleTR (fork of gymrek-lab/EnsembleTR with a fix for a crash
+# on hemizygous male chrX/chrY genotype calls -- upstream https://github.com/gymrek-lab/EnsembleTR/commit/dbda15b
+# raises AttributeError: 'NoneType' object has no attribute 'allele_size' in recordcluster.py's
+# GetConnectedCompForSingleCall whenever a caller (e.g. GangSTR) emits a haploid GT for a male non-PAR chrX/chrY
+# locus, since cyvcf2 represents that as a 2-element [allele, phased] tuple instead of the diploid 3-element one
+# the rest of the code assumes). Pinned to a specific commit for reproducibility; pip also pulls its
+# TRTools/cyvcf2/numpy/networkx dependencies.
+ENV ENSEMBLETR_COMMIT="361f55fd35f33c23d1eebedf828d2767d78e1c59"
 RUN python3 -m pip install --no-cache-dir --upgrade pip crcmod \
-	&& python3 -m pip install --no-cache-dir git+https://github.com/gymrek-lab/EnsembleTR@${ENSEMBLETR_COMMIT}
+	&& python3 -m pip install --no-cache-dir git+https://github.com/bw2/EnsembleTR@${ENSEMBLETR_COMMIT}
 
 # install str-analysis (provides convert_expansion_hunter_json_to_vcf, convert_ensembletr_vcf_to_expansion_hunter_json,
 # and combine_str_json_to_tsv --include-extra-ensembletr-fields, all used by ensembletr_pipeline.py). Pinned to the
