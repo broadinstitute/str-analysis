@@ -90,7 +90,7 @@ RUN apt-get  update && apt-get install --no-install-recommends --yes  libdeflate
 RUN python3 -m pip install --no-cache-dir "cmake<3.29"
 
 # install LongTR
-RUN git clone https://github.com/gymrek-lab/LongTR.git \
+RUN git clone --depth 1 https://github.com/gymrek-lab/LongTR.git \
     && cd LongTR \
     && sed -i 's/git@github.com:/https:\/\/github.com\//' Makefile \
     && make \

@@ -95,7 +95,7 @@ RUN python3 -m pip install --no-cache-dir git+https://github.com/bw2/trviz@9068d
 # install Rust/cargo, build TRGT from source, then remove Rust/cargo
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
     && . "$HOME/.cargo/env" \
-    && git clone https://github.com/bw2/trgt.git \
+    && git clone --depth 1 https://github.com/bw2/trgt.git \
     && cd trgt \
     && cargo build --release \
     && mv target/release/trgt /usr/bin/trgt \

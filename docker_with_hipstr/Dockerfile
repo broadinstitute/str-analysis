@@ -82,7 +82,7 @@ RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1
     && mv trf409.linux64 /usr/bin/trf
 
 # install HipSTR
-RUN git clone https://github.com/HipSTR-Tool/HipSTR \
+RUN git clone --depth 1 https://github.com/HipSTR-Tool/HipSTR \
     && cd HipSTR \
     && make \
     && cp /HipSTR/HipSTR /bin/HipSTR \
