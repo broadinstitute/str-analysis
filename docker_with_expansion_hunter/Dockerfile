@@ -106,17 +106,19 @@ RUN wget -q https://github.com/microsoft/mimalloc/archive/refs/tags/v${MIMALLOC_
 	&& cd / \
 	&& rm -r mimalloc-${MIMALLOC_VERSION}
 
-# install ExpansionHunter fork
-RUN wget -q https://github.com/bw2/ExpansionHunter/archive/refs/heads/master.zip \
-	&& unzip master.zip \
-	&& cd ExpansionHunter-master \
+# install ExpansionHunter fork. Shallow-cloned (not a zip archive) so .git is present and
+# ehunter/CMakeLists.txt's `git rev-parse`/`git log` calls can embed the real commit SHA/date into the
+# "Version" field of the output JSON, instead of silently falling back to "unknown" (a zip archive has
+# no .git at all).
+RUN git clone --depth 1 https://github.com/bw2/ExpansionHunter.git \
+	&& cd ExpansionHunter \
 	&& mkdir build \
 	&& cd build \
 	&& cmake .. \
 	&& make \
 	&& cp install/bin/ExpansionHunter /usr/local/bin/ \
 	&& cd / \
-	&& rm -r ExpansionHunter-master master.zip
+	&& rm -r ExpansionHunter
 
 
 # install REViewer fork
