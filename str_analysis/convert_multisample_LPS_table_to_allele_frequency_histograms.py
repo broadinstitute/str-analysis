@@ -57,6 +57,8 @@ HEADER_FIELDS = [
     "Max",
     "ShortAllele99thPercentile",
     "ShortAlleleMax",
+    "HemiAllele99thPercentile",
+    "HemiAlleleMax",
     "UniqueAlleleLengths",
     "NumCalledAlleles",
 ]
@@ -148,7 +150,7 @@ def compute_histograms(allele_sizes, alleles_by_sample_id):
     )
 
 
-def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval="", vc=""):
+def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval="", vc="", sample_id_to_sex=None):
     """Compute statistics for a group of allele sizes.
 
     Args:
@@ -158,6 +160,7 @@ def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval=""
         alleles_by_sample_id (dict): the alleles for the current key by sample id
         interval (str): TRGT interval ``"{chrom}:{vcf_start_0based}-{vcf_end_1based}"`` or ``""``
         vc (str): inner ``<VC:...>`` span or ``""`` for an isolated TR
+        sample_id_to_sex (dict): sample_id -> "male"/"female", or None/empty if unavailable
 
     Returns:
         dict: a dictionary mapping HEADER_FIELDS keys to values, or None if allele_sizes is empty
@@ -180,6 +183,22 @@ def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval=""
 
     allele_histogram, biallelic_histogram = compute_histograms(allele_sizes, alleles_by_sample_id)
 
+    # Hemi* columns cover male-only allele sizes at chrX/chrY loci (hemizygous calls),
+    # so they aren't diluted by the female diploid calls that ShortAllele*/AlleleSize* mix in for chrX.
+    hemi_allele_99th_percentile = ""
+    hemi_allele_max = ""
+    chrom = locus_id.split("-", 1)[0]
+    if sample_id_to_sex and chrom in ("X", "Y"):
+        hemi_alleles = [
+            allele_size
+            for sample_id, allele_list in alleles_by_sample_id.items()
+            if sample_id_to_sex.get(sample_id) == "male"
+            for allele_size in allele_list
+        ]
+        if hemi_alleles:
+            hemi_allele_99th_percentile = _format_decimal(np.percentile(hemi_alleles, 99))
+            hemi_allele_max = int(max(hemi_alleles))
+
     return {
         "LocusId": locus_id,
         "Motif": motif,
@@ -196,6 +215,8 @@ def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval=""
         "Max": int(max(allele_sizes)),
         "ShortAllele99thPercentile": _format_decimal(np.percentile(short_alleles, 99)),
         "ShortAlleleMax": int(max(short_alleles)),
+        "HemiAllele99thPercentile": hemi_allele_99th_percentile,
+        "HemiAlleleMax": hemi_allele_max,
         "UniqueAlleleLengths": len(set(allele_sizes)),
         "NumCalledAlleles": len(allele_sizes),
     }
@@ -292,6 +313,7 @@ def main():
             sample_ids_to_include_list = sample_ids_to_include_list[:args.num_samples]
         sample_id_to_strata = {}
         strata_labels = []
+        sample_id_to_sex = {}
     else:
         import pandas as pd
         df_metadata = pd.read_table(args.sample_metadata_tsv, dtype={"SampleId": str})
@@ -313,6 +335,8 @@ def main():
         if args.num_samples is not None and len(sample_ids_to_include_list) > args.num_samples:
             sample_ids_to_include_list = sample_ids_to_include_list[:args.num_samples]
             df_metadata = df_metadata[df_metadata.SampleId.isin(set(sample_ids_to_include_list))]
+
+        sample_id_to_sex = dict(zip(df_metadata.SampleId, df_metadata.Sex))
 
         # Build sample_id -> list of stratum labels. When both stratify flags are
         # set, each sample contributes to its Pop_Sex cell plus the Pop row-marginal
@@ -475,7 +499,7 @@ def main():
                 stratified_columns[f"BiallelicHistogram__{label}"] = biallelic_histogram
 
             for locus_id in chunk_locus_ids:
-                row = compute_row(locus_id, motif, alleles, alleles_by_sample_id, interval=interval, vc=vc)
+                row = compute_row(locus_id, motif, alleles, alleles_by_sample_id, interval=interval, vc=vc, sample_id_to_sex=sample_id_to_sex)
                 if row is None:
                     continue
                 key = (row["LocusId"], row["Interval"], row["VC"])
