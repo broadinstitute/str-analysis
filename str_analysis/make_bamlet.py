@@ -80,7 +80,9 @@ def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=
     # compute a dictionary that maps (chrom, start, end) to a set of read names that need to be fetched from that region
     mate_regions = collections.defaultdict(set)
     for read_name, read_pair in read_pairs.items():
-        if len(read_pair) >= 2:
+        # a pair is complete only when both mates (read1 and read2) are present; testing len(read_pair) >= 2
+        # would wrongly treat two copies of the same end as complete and skip fetching the real mate
+        if any(a.is_read1 for a in read_pair) and any(a.is_read2 for a in read_pair):
             continue
 
         # see if mate is close to other mates that need to be fetched

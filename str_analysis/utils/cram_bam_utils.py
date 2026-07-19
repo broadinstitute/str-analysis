@@ -22,6 +22,8 @@ CRAI_FILE_HEADER = [
 ]
 
 CRAM_EOF_CONTAINER = binascii.unhexlify("0f000000ffffffff0fe0454f4600000000010005bdd94f0001000606010001000100ee63014b")
+# CRAM 2.x uses a shorter (30-byte) EOF marker than the 38-byte CRAM 3 one above
+CRAM_EOF_CONTAINER_V2 = binascii.unhexlify("0b000000ffffffff0fe0454f460000000001000001000606010001000100")
 
 
 class ByteRange:
@@ -34,11 +36,15 @@ class ByteRange:
 		return self.__repr__()
 
 
-def parse_crai_index(crai_path, cram_path):
+def parse_crai_index(crai_path, cram_path, eof_container_length=len(CRAM_EOF_CONTAINER)):
 	"""Takes a .crai and .cram file path (either local or on gs://) and returns a 2-tuple. The first
 	value in the tuple is the byte offset where the CRAM header ends in the input CRAM file.
 	The second value is a dictionary of interval trees that, for each reference sequence id in the CRAM file,
 	provides a way to quickly look up the CRAM file byte range for a given genomic interval.
+
+	Args:
+		eof_container_length: byte length of the input CRAM's EOF marker (38 for CRAM 3, 30 for CRAM 2.x),
+			subtracted when computing the size of the last container.
 	"""
 	container_byte_offsets = set()  # collect unique offsets
 	end_of_cram_header_byte_offset = None
@@ -55,7 +61,9 @@ def parse_crai_index(crai_path, cram_path):
 				continue
 
 			reference_sequence_id = crai_record["reference_sequence_id"]
-			start = crai_record["alignment_start"]
+			# CRAI alignment_start is 1-based; convert to 0-based so it matches the 0-based half-open
+			# genomic intervals used in the overlap queries (add_interval / _load_cram_containers)
+			start = crai_record["alignment_start"] - 1
 			end = start + crai_record["alignment_span"]
 			absolute_container_header_byte_offset = crai_record["absolute_container_header_byte_offset"]
 
@@ -82,7 +90,7 @@ def parse_crai_index(crai_path, cram_path):
 
 	if previous_offset is not None:
 		# add last container
-		container_sizes[previous_offset] = cram_file_size - previous_offset - len(CRAM_EOF_CONTAINER)
+		container_sizes[previous_offset] = cram_file_size - previous_offset - eof_container_length
 
 	for interval_tree in interval_trees.values():
 		for interval in interval_tree:
@@ -172,8 +180,11 @@ class IntervalReader:
 			self._total_byte_ranges_loaded_from_cram = 0
 			self._total_bytes_loaded_from_cram = 0
 
+			# detect the input CRAM's EOF marker (version-dependent length) so the last container is sized
+			# correctly and the reconstructed file gets a compatible footer
+			self._cram_eof_container = self._detect_cram_eof_container()
 			self._end_of_cram_header_byte_offset, self._crai_interval_trees = parse_crai_index(
-				self._crai_or_bai_path, self._cram_or_bam_path)
+				self._crai_or_bai_path, self._cram_or_bam_path, eof_container_length=len(self._cram_eof_container))
 
 			# load the CRAM header
 			self._cram_header_bytes = self._get_byte_range(0, self._end_of_cram_header_byte_offset)
@@ -270,6 +281,10 @@ class IntervalReader:
 												template=pysam_input_file, reference_filename=self._reference_fasta_path,
 												format_options=[b"no_ref=1"] if self._is_cram_file else None)
 		read_counter = 0
+		# a read overlapping two non-overlapping requested intervals is returned by fetch() once per interval;
+		# track written alignments so each is emitted at most once (duplicates would otherwise be interpreted
+		# as a complete read pair downstream and suppress real mate retrieval)
+		written_read_keys = set()
 		if self._verbose:
 			print("Writing reads to", local_path)
 		for chrom, start, end in sorted(self._get_merged_intervals(chrom_sort_order=lambda ch: chom_order.index(normalize_chromosome_name(ch)))):
@@ -277,11 +292,19 @@ class IntervalReader:
 				print(f"DEBUG: Fetching {chrom}:{start}-{end} from {pysam_input_filename}")
 
 			for read in pysam_input_file.fetch(chrom, start, end):
+				read_key = (read.query_name, read.flag, read.reference_start)
+				if read_key in written_read_keys:
+					continue
+				written_read_keys.add(read_key)
 				read_counter += 1
 				pysam_output_file.write(read)
 
 		if self._include_unmapped_read_pairs:
 			for read in pysam_input_file.fetch("*"):
+				read_key = (read.query_name, read.flag, read.reference_start)
+				if read_key in written_read_keys:
+					continue
+				written_read_keys.add(read_key)
 				read_counter += 1
 				pysam_output_file.write(read)
 
@@ -474,9 +497,9 @@ class IntervalReader:
 			if self._debug:
 				print(f"DEBUG: Wrote byte range [{bytes_start:,d}-{bytes_end:,d}] (hash: {hashlib.md5(cram_container_bytes).hexdigest()[:20]})")
 
-		cram_container_file.write(CRAM_EOF_CONTAINER)
+		cram_container_file.write(self._cram_eof_container)
 		if self._debug:
-			print(f"DEBUG: Wrote EOF container [0-{len(CRAM_EOF_CONTAINER):,d}] (hash: {hashlib.md5(CRAM_EOF_CONTAINER).hexdigest()[:20]})")
+			print(f"DEBUG: Wrote EOF container [0-{len(self._cram_eof_container):,d}] (hash: {hashlib.md5(self._cram_eof_container).hexdigest()[:20]})")
 
 		cram_container_file.flush()
 		if self._debug:
@@ -536,12 +559,28 @@ class IntervalReader:
 			for i in sorted(genomic_intervals)
 		]
 
+	def _detect_cram_eof_container(self):
+		"""Reads the input CRAM's magic bytes and returns the EOF marker matching its major version
+		(CRAM 2.x uses the 30-byte marker, CRAM 3 the 38-byte one). Defaults to the CRAM 3 marker for
+		anything that doesn't look like a CRAM 2 file."""
+		if self._is_file_in_google_storage:
+			magic_and_version = get_byte_range_from_google_storage(
+				self._cram_or_bam_path, 0, 6, client=self._storage_client)
+		else:
+			self._cram_or_bam_file.seek(0)
+			magic_and_version = self._cram_or_bam_file.read(6)
+
+		if magic_and_version[:4] == b"CRAM" and len(magic_and_version) >= 5 and magic_and_version[4] == 2:
+			return CRAM_EOF_CONTAINER_V2
+		return CRAM_EOF_CONTAINER
+
 	def _get_byte_range(self, start, end):
 		if self._byte_ranges_cache is not None and (start, end) in self._byte_ranges_cache:
 			return self._byte_ranges_cache[(start, end)]
 
 		if self._is_file_in_google_storage:
-			byte_range = get_byte_range_from_google_storage(self._cram_or_bam_path, start, end)
+			byte_range = get_byte_range_from_google_storage(
+				self._cram_or_bam_path, start, end, client=self._storage_client)
 		else:
 			self._cram_or_bam_file.seek(start)
 			byte_range = self._cram_or_bam_file.read(end - start)

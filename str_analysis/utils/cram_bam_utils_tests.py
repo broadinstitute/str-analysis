@@ -1,6 +1,8 @@
+import gzip
 import hashlib
 import os
 import pkgutil
+import sys
 import tempfile
 import unittest
 import subprocess
@@ -211,6 +213,87 @@ class TestCramBamUtils(unittest.TestCase):
 			reader.save_to_file(second_output.name)
 			self.assertEqual(reader.get_total_bytes_loaded_from_cram(), bytes_after_first)
 			self.assertEqual(reader.get_total_byte_ranges_loaded_from_cram(), ranges_after_first)
+
+	def test_crai_index_intervals_are_0based(self):
+		# Regression test: CRAI alignment_start is 1-based, so parse_crai_index must store it as 0-based
+		# (alignment_start - 1) to match the 0-based half-open overlap queries. Otherwise a request whose
+		# 0-based half-open end equals a container's 1-based start would miss that container by one base.
+		crai_bytes = pkgutil.get_data("str_analysis", "data/tests/FXN.wgsim_HET_250xGAA.cram.crai")
+		try:
+			crai_text = gzip.decompress(crai_bytes).decode()
+		except (OSError, gzip.BadGzipFile):
+			crai_text = crai_bytes.decode()
+		# first record with a non-negative alignment_span: ref_id, alignment_start(1-based), alignment_span, ...
+		ref_id, alignment_start_1based, alignment_span = next(
+			(r[0], r[1], r[2]) for r in (list(map(int, line.split("\t"))) for line in crai_text.strip().splitlines())
+			if r[2] >= 0)
+
+		reader = IntervalReader(self._local_cram_path, self._local_cram_path + ".crai")
+		crai_interval_tree = reader._crai_interval_trees[ref_id]
+
+		# a 0-based half-open request ending exactly at the container's 1-based alignment_start must overlap it
+		self.assertTrue(crai_interval_tree.overlap(alignment_start_1based - 2, alignment_start_1based))
+		# and the stored 0-based start is present in the tree
+		self.assertIn(alignment_start_1based - 1, {interval.begin for interval in crai_interval_tree})
+
+	def test_save_to_file_deduplicates_reads_across_intervals(self):
+		# Regression test: a read overlapping two non-overlapping requested intervals is returned once per
+		# interval by fetch(), and must be written to the output only once. Duplicate copies would otherwise
+		# be misread downstream as a complete read pair and suppress real mate retrieval.
+		chr9_reference_fasta = get_chr9_reference_fasta()
+		with tempfile.NamedTemporaryFile(suffix=".cram") as output_cram_file:
+			reader = IntervalReader(
+				self._local_cram_path, self._local_cram_path + ".crai", reference_fasta_path=chr9_reference_fasta)
+			# two non-overlapping 1bp intervals ~33bp apart; a single ~150bp read spans both (26 such reads exist)
+			reader.add_interval("chr9", 69037287, 69037288)
+			reader.add_interval("chr9", 69037320, 69037321)
+			written_read_count = reader.save_to_file(output_cram_file.name)
+
+			with pysam.AlignmentFile(output_cram_file.name, reference_filename=chr9_reference_fasta) as f:
+				read_keys = [(read.query_name, read.flag, read.reference_start) for read in f]
+
+			self.assertGreater(written_read_count, 0)
+			self.assertEqual(len(read_keys), len(set(read_keys)))  # no duplicate alignments in the output
+			self.assertEqual(written_read_count, len(read_keys))   # returned count matches unique reads written
+
+	def test_cram_reader_handles_cram_v21_input(self):
+		# Regression test: the CRAM EOF marker length is version-dependent (38 bytes for CRAM 3, 30 for CRAM 2.x).
+		# Sizing the last container with a hard-coded 38-byte EOF truncates a CRAM 2.1 file's last container by
+		# 8 bytes, corrupting the reconstructed subset. The FXN interval lands in the last container here.
+		chr9_reference_fasta = get_chr9_reference_fasta()
+		with tempfile.TemporaryDirectory() as temp_dir:
+			input_bam_path = os.path.join(temp_dir, "FXN.bam")
+			with open(input_bam_path, "wb") as f:
+				f.write(pkgutil.get_data("str_analysis", "data/tests/FXN.wgsim_HET_250xGAA.bam"))
+			cram_v21_path = os.path.join(temp_dir, "FXN.v2.1.cram")
+			pysam.view("-O", "cram,version=2.1,no_ref=1", "-o", cram_v21_path, input_bam_path, catch_stdout=False)
+			pysam.index(cram_v21_path)
+
+			output_cram_path = os.path.join(temp_dir, "out.cram")
+			reader = IntervalReader(cram_v21_path, cram_v21_path + ".crai", reference_fasta_path=chr9_reference_fasta)
+			for interval in self._FXN_intervals:
+				reader.add_interval(*interval)
+			written_read_count = reader.save_to_file(output_cram_path)
+
+			self.assertGreater(written_read_count, 0)
+			self.assertTrue(os.path.isfile(output_cram_path))
+
+	def test_cli_exits_cleanly_when_no_reads_in_region(self):
+		# Regression test (covers the negative-window clamp and the empty-first-pass guard): a region with no
+		# overlapping reads must produce a clear error + exit code 1, not a pysam ValueError. chr9:1-2 both
+		# exercises window_start = max(0, 1 - 1000) (no negative-coordinate fetch) and the no-reads exit path.
+		chr9_reference_fasta = get_chr9_reference_fasta()
+		with tempfile.TemporaryDirectory() as temp_dir:
+			output_cram_path = os.path.join(temp_dir, "out.cram")
+			result = subprocess.run(
+				[sys.executable, "-m", "str_analysis.make_minicram_for_expansion_hunter",
+				 "-R", chr9_reference_fasta, "-L", "chr9:1-2", "-o", output_cram_path,
+				 "-i", self._local_cram_path + ".crai", self._local_cram_path],
+				capture_output=True, text=True)
+
+			self.assertEqual(result.returncode, 1)
+			self.assertFalse(os.path.isfile(output_cram_path))
+			self.assertIn("No reads were found", result.stdout + result.stderr)
 
 	def test_cram_reader_on_google_storage_files(self):
 		try:

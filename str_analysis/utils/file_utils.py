@@ -53,11 +53,13 @@ def open_file(path, *, download_local_copy_before_opening=False, gunzip=False, i
 
 def file_exists(path):
     if path.startswith("gs://"):
-        try: import hailtop.fs as hfs
-        except ImportError:
-            print("ERROR: Hail is not installed. Please run: python3 -m pip install hail")
-            sys.exit(1)
-        return hfs.exists(path, requester_pays_config=gcloud_requester_pays_project)
+        google_storage_path_match = re.match("^gs://([^/]+)/(.+)", path)
+        if not google_storage_path_match:
+            raise ValueError(f"Path {path} must be of the form gs://bucket/path/to/file")
+        bucket_name, object_name = google_storage_path_match.groups()
+        client = storage.Client(project=gcloud_requester_pays_project)
+        bucket = client.bucket(bucket_name, user_project=gcloud_requester_pays_project)
+        return storage.Blob(object_name, bucket).exists()
 
     path = os.path.expanduser(path)
     return os.path.isfile(path)
@@ -121,8 +123,9 @@ def download_local_copy(url_or_google_storage_path, verbose=False):
     return path
 
 
-def get_byte_range_from_google_storage(google_storage_path, start_bytes, end_bytes):
-    """Downloads a byte range from a google storage path. To set a requester-pays project, call set_requester_pays_project(..)"""
+def get_byte_range_from_google_storage(google_storage_path, start_bytes, end_bytes, client=None):
+    """Downloads a byte range from a google storage path. To set a requester-pays project, call set_requester_pays_project(..).
+    Pass a reusable storage.Client via `client` to avoid constructing a new one (and re-resolving credentials) on every call."""
     if not google_storage_path.startswith("gs://"):
         raise ValueError(f"Path {google_storage_path} must start with gs://")
 
@@ -132,11 +135,10 @@ def get_byte_range_from_google_storage(google_storage_path, start_bytes, end_byt
 
     bucket_name, object_name = google_storage_path_match.groups()
 
-    client = storage.Client(project=gcloud_requester_pays_project)
+    if client is None:
+        client = storage.Client(project=gcloud_requester_pays_project)
     bucket = client.bucket(bucket_name, user_project=gcloud_requester_pays_project)
     blob = storage.Blob(object_name, bucket)
-    if not blob.exists():
-        raise ValueError(f"{google_storage_path} not found")
 
     #print(f"Downloading {google_storage_path} [{start_bytes}-{end_bytes-1}]")
     return blob.download_as_bytes(start=start_bytes, end=end_bytes-1, raw_download=True)

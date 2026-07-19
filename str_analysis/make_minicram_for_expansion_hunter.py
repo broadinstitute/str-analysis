@@ -99,7 +99,7 @@ def main():
         except ValueError as e:
             parser.error(f"Unable to parse region {region}: {e}")
 
-        window_start = start - args.window_size
+        window_start = max(0, start - args.window_size)
         window_end = end + args.window_size
         intervals.append((chrom, window_start, window_end))
 
@@ -123,7 +123,12 @@ def main():
 
     temporary_cram_file = tempfile.NamedTemporaryFile(suffix=".cram", delete=False)
     try:
-        cram_reader.save_to_file(temporary_cram_file.name)
+        # if no reads overlap the requested region(s), save_to_file returns 0 without writing the temp file,
+        # so exit with a clear message instead of crashing on the empty file when pysam opens it below
+        if cram_reader.save_to_file(temporary_cram_file.name) == 0:
+            print(f"ERROR: No reads were found within {args.window_size:,d}bp of any of the requested "
+                  f"regions in {args.input_cram}")
+            sys.exit(1)
         temporary_cram_file.seek(0)
 
         # parse the temp CRAM file and get byte ranges for mates
