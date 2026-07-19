@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pysam
 
+from str_analysis.make_bamlet import extract_region
 from str_analysis.utils.cram_bam_utils import IntervalReader
 from str_analysis.utils.file_utils import set_requester_pays_project
 
@@ -294,6 +295,85 @@ class TestCramBamUtils(unittest.TestCase):
 			self.assertEqual(result.returncode, 1)
 			self.assertFalse(os.path.isfile(output_cram_path))
 			self.assertIn("No reads were found", result.stdout + result.stderr)
+
+	def test_save_to_file_resolves_chromosome_naming_convention(self):
+		# Regression test: a requested region whose chromosome naming convention differs from the CRAM header's
+		# (e.g. "9" vs a header listing "chr9") must resolve to the header's actual reference name for fetch(),
+		# rather than being passed through raw and crashing with "invalid contig".
+		chr9_reference_fasta = get_chr9_reference_fasta()
+		_, fxn_start, fxn_end = self._FXN_intervals[0]
+		with tempfile.NamedTemporaryFile(suffix=".cram") as chr_prefixed_output, \
+			  tempfile.NamedTemporaryFile(suffix=".cram") as unprefixed_output:
+			chr_prefixed_reader = IntervalReader(
+				self._local_cram_path, self._local_cram_path + ".crai", reference_fasta_path=chr9_reference_fasta)
+			chr_prefixed_reader.add_interval("chr9", fxn_start, fxn_end)
+			chr_prefixed_read_count = chr_prefixed_reader.save_to_file(chr_prefixed_output.name)
+
+			unprefixed_reader = IntervalReader(
+				self._local_cram_path, self._local_cram_path + ".crai", reference_fasta_path=chr9_reference_fasta)
+			unprefixed_reader.add_interval("9", fxn_start, fxn_end)  # header uses "chr9"
+			unprefixed_read_count = unprefixed_reader.save_to_file(unprefixed_output.name)
+
+			self.assertGreater(unprefixed_read_count, 0)
+			self.assertEqual(unprefixed_read_count, chr_prefixed_read_count)
+
+	def test_load_cram_containers_skips_contig_absent_from_header(self):
+		# Regression test: an interval on a contig that is not present in the CRAM header must be skipped with a
+		# warning (like the CRAI-less case), not raise an uncaught KeyError that aborts the whole export.
+		chr9_reference_fasta = get_chr9_reference_fasta()
+		with tempfile.NamedTemporaryFile(suffix=".cram") as output_cram_file:
+			reader = IntervalReader(
+				self._local_cram_path, self._local_cram_path + ".crai", reference_fasta_path=chr9_reference_fasta)
+			reader.add_interval(*self._FXN_intervals[0])          # valid chr9 interval
+			reader.add_interval("chrNonexistentContig", 1, 100)   # contig absent from the CRAM header
+			written_read_count = reader.save_to_file(output_cram_file.name)  # must not raise KeyError
+
+			self.assertGreater(written_read_count, 0)
+			self.assertTrue(os.path.isfile(output_cram_file.name))
+
+	def test_cram_reader_handles_empty_cram(self):
+		# Regression test: a CRAM with zero mapped reads has an empty CRAI (no data-container records), which
+		# leaves the end-of-header offset unset; the reader must still construct and return a clean zero-read
+		# result instead of crashing with a TypeError in the constructor.
+		chr9_reference_fasta = get_chr9_reference_fasta()
+		with tempfile.TemporaryDirectory() as temp_dir:
+			with pysam.AlignmentFile(self._local_cram_path, check_sq=False) as source:
+				header = source.header.to_dict()
+			empty_cram_path = os.path.join(temp_dir, "empty.cram")
+			with pysam.AlignmentFile(empty_cram_path, "wc", header=header, format_options=[b"no_ref=1"]):
+				pass  # write a header-only CRAM with no reads
+			pysam.index(empty_cram_path)
+
+			reader = IntervalReader(  # must not raise despite the empty CRAI
+				empty_cram_path, empty_cram_path + ".crai", reference_fasta_path=chr9_reference_fasta)
+			for interval in self._FXN_intervals:
+				reader.add_interval(*interval)
+			output_cram_path = os.path.join(temp_dir, "out.cram")
+			self.assertEqual(reader.save_to_file(output_cram_path), 0)
+
+	def test_extract_region_skips_unpaired_reads(self):
+		# Regression test: an unpaired (single-end / long-read) alignment has no mate and its next_reference_name
+		# is None; extract_region must not emit a (None, ...) mate region, which would crash add_interval.
+		with tempfile.TemporaryDirectory() as temp_dir:
+			unpaired_bam_path = os.path.join(temp_dir, "unpaired.bam")
+			header = {"HD": {"VN": "1.6", "SO": "coordinate"}, "SQ": [{"SN": "chr1", "LN": 1000}]}
+			with pysam.AlignmentFile(unpaired_bam_path, "wb", header=header) as out:
+				read = pysam.AlignedSegment()
+				read.query_name = "unpaired_read"
+				read.flag = 0  # unpaired
+				read.reference_id = 0
+				read.reference_start = 100
+				read.mapping_quality = 60
+				read.cigartuples = [(0, 50)]
+				read.query_sequence = "A" * 50
+				read.query_qualities = pysam.qualitystring_to_array("I" * 50)
+				out.write(read)
+			pysam.index(unpaired_bam_path)
+
+			with pysam.AlignmentFile(unpaired_bam_path) as input_bam:
+				genomic_regions = extract_region("chr1", 90, 160, input_bam=input_bam, bamlet=None)
+
+			self.assertFalse(any(region[0] is None for region in genomic_regions))
 
 	def test_cram_reader_on_google_storage_files(self):
 		try:

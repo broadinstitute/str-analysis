@@ -2,6 +2,7 @@ import logging
 logging.getLogger('asyncio').setLevel(logging.CRITICAL)
 
 import gzip
+import hashlib
 import io
 import os
 import re
@@ -11,6 +12,7 @@ import tempfile
 import threading
 
 from google.cloud import storage
+from google.cloud.exceptions import NotFound
 
 gcloud_requester_pays_project = None
 
@@ -91,8 +93,12 @@ def download_local_copy(url_or_google_storage_path, verbose=False):
         return os.path.expanduser(url_or_google_storage_path)
 
     temp_dir = tempfile.gettempdir()
+    # include a hash of the full source URI in the cache filename so that two different remote paths that
+    # merely share a basename don't collide and silently reuse each other's cached content
+    path = os.path.join(
+        temp_dir,
+        f"{hashlib.sha256(url_or_google_storage_path.encode()).hexdigest()[:16]}_{os.path.basename(url_or_google_storage_path)}")
     if url_or_google_storage_path.startswith("gs://"):
-        path = os.path.join(temp_dir, os.path.basename(url_or_google_storage_path))
         if not os.path.isfile(path):
             if verbose:
                 print(f"Downloading {url_or_google_storage_path} to {path}")
@@ -111,7 +117,6 @@ def download_local_copy(url_or_google_storage_path, verbose=False):
 
             os.rename(f"{path}.temp", path)
     else:
-        path = os.path.join(temp_dir, os.path.basename(url_or_google_storage_path))
         if not os.path.isfile(path):
             if verbose:
                 print(f"Downloading {url_or_google_storage_path} to {path}")
@@ -141,7 +146,12 @@ def get_byte_range_from_google_storage(google_storage_path, start_bytes, end_byt
     blob = storage.Blob(object_name, bucket)
 
     #print(f"Downloading {google_storage_path} [{start_bytes}-{end_bytes-1}]")
-    return blob.download_as_bytes(start=start_bytes, end=end_bytes-1, raw_download=True)
+    # download_as_bytes raises NotFound for a missing object (no separate exists() HEAD needed); translate it
+    # to the ValueError this function has always raised for missing objects
+    try:
+        return blob.download_as_bytes(start=start_bytes, end=end_bytes-1, raw_download=True)
+    except NotFound:
+        raise ValueError(f"{google_storage_path} not found")
 
 
 def tee_stdout_and_stderr_to_log_file(log_path):

@@ -80,6 +80,11 @@ def parse_crai_index(crai_path, cram_path, eof_container_length=len(CRAM_EOF_CON
 
 	cram_file_size = get_file_size(cram_path)
 
+	if end_of_cram_header_byte_offset is None:
+		# the CRAI has no data-container records (e.g. a CRAM with zero mapped reads); the header container
+		# then spans everything up to the EOF marker, so use that as the end-of-header offset
+		end_of_cram_header_byte_offset = cram_file_size - eof_container_length
+
 	# compute the container_sizes map which maps container byte offset to container size in bytes
 	container_sizes = {}
 	previous_offset = None
@@ -273,6 +278,11 @@ class IntervalReader:
 			raise ValueError(f"Output path {local_path} must end with .cram or .bam")
 
 		chom_order = [normalize_chromosome_name(c) for c in pysam_input_file.references]
+		# map normalized chrom name -> the exact reference name in this file's header, so fetch() always uses a
+		# name valid for the header even when the requested region used a different naming convention (e.g. "9" vs "chr9")
+		normalized_to_reference_name = {
+			normalize_chromosome_name(name): name for name in pysam_input_file.references
+		}
 		# Write CRAMs with no_ref=1 so reads are stored verbatim (like BAM) instead of reference-compressed.
 		# This avoids htslib validating each contig's reference md5 against the header @SQ M5 tag, which fails
 		# (sam_write1 error -1) when the reference build differs from the one the input CRAM was aligned to, or
@@ -287,11 +297,19 @@ class IntervalReader:
 		written_read_keys = set()
 		if self._verbose:
 			print("Writing reads to", local_path)
-		for chrom, start, end in sorted(self._get_merged_intervals(chrom_sort_order=lambda ch: chom_order.index(normalize_chromosome_name(ch)))):
+		for chrom, start, end in sorted(self._get_merged_intervals(
+				chrom_sort_order=lambda ch: chom_order.index(normalize_chromosome_name(ch))
+					if normalize_chromosome_name(ch) in chom_order else len(chom_order))):
+			normalized_chrom = normalize_chromosome_name(chrom)
+			if normalized_chrom not in normalized_to_reference_name:
+				# contig absent from this file's header (e.g. an off-header interval that _load_cram_containers
+				# already skipped) — there is nothing to fetch for it
+				continue
+			fetch_chrom = normalized_to_reference_name[normalized_chrom]
 			if self._debug:
-				print(f"DEBUG: Fetching {chrom}:{start}-{end} from {pysam_input_filename}")
+				print(f"DEBUG: Fetching {fetch_chrom}:{start}-{end} from {pysam_input_filename}")
 
-			for read in pysam_input_file.fetch(chrom, start, end):
+			for read in pysam_input_file.fetch(fetch_chrom, start, end):
 				read_key = (read.query_name, read.flag, read.reference_start)
 				if read_key in written_read_keys:
 					continue
@@ -445,10 +463,11 @@ class IntervalReader:
 		# use the CRAI index to compute which byte ranges to load from the CRAM file
 		byte_ranges_to_load = []
 		for chrom, start_0based, end in self._get_merged_intervals():
-			reference_sequence_id = self._chrom_index_lookup[normalize_chromosome_name(chrom)]
-			if reference_sequence_id not in self._crai_interval_trees:
-				# skip this interval (e.g. a mate on a decoy contig with no CRAI entries) rather than
-				# aborting the whole export, which would discard all other valid intervals' containers
+			reference_sequence_id = self._chrom_index_lookup.get(normalize_chromosome_name(chrom))
+			if reference_sequence_id is None or reference_sequence_id not in self._crai_interval_trees:
+				# skip this interval (a contig absent from the CRAM header, or a mate on a decoy contig with
+				# no CRAI entries) rather than aborting the whole export, which would discard all other
+				# valid intervals' containers
 				print(f"WARNING: No CRAI entries found for {chrom} (reference_sequence_id={reference_sequence_id}); skipping {chrom}:{start_0based}-{end}")
 				continue
 

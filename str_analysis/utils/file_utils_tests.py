@@ -3,6 +3,7 @@
 """Comprehensive tests for file_utils.py"""
 
 import gzip
+import hashlib
 import io
 import os
 import subprocess
@@ -10,6 +11,8 @@ import sys
 import tempfile
 import unittest
 from unittest import mock
+
+from google.cloud.exceptions import NotFound
 
 from str_analysis.utils.file_utils import (
     set_requester_pays_project,
@@ -272,6 +275,32 @@ class TestDownloadLocalCopy(unittest.TestCase):
         os.unlink(local_path1)
 
     @mock.patch('requests.get')
+    def test_download_cache_keyed_by_full_uri_not_basename(self, mock_get):
+        """Two different source URLs sharing a basename must not collide in the cache (serving stale content)."""
+        url_a = "http://host-a.example.com/data/reads.crai"
+        url_b = "http://host-b.example.com/other/reads.crai"  # same basename, different source
+        for url in (url_a, url_b):
+            cache_path = os.path.join(
+                tempfile.gettempdir(),
+                f"{hashlib.sha256(url.encode()).hexdigest()[:16]}_{os.path.basename(url)}")
+            if os.path.isfile(cache_path):
+                os.unlink(cache_path)
+
+        mock_get.side_effect = [mock.Mock(content=b"SOURCE_A"), mock.Mock(content=b"SOURCE_B")]
+        path_a = download_local_copy(url_a)
+        path_b = download_local_copy(url_b)
+
+        self.assertNotEqual(path_a, path_b)                 # distinct sources → distinct cache paths
+        self.assertEqual(mock_get.call_count, 2)            # both actually downloaded, no false cache hit
+        with open(path_a, "rb") as f:
+            self.assertEqual(f.read(), b"SOURCE_A")
+        with open(path_b, "rb") as f:
+            self.assertEqual(f.read(), b"SOURCE_B")         # not stale SOURCE_A
+
+        os.unlink(path_a)
+        os.unlink(path_b)
+
+    @mock.patch('requests.get')
     def test_download_with_verbose(self, mock_get):
         """Test download with verbose=True prints message."""
         mock_response = mock.Mock()
@@ -326,7 +355,7 @@ class TestGetByteRangeFromGoogleStorage(unittest.TestCase):
 
     @mock.patch('str_analysis.utils.file_utils.storage')
     def test_nonexistent_blob_raises_error(self, mock_storage):
-        """Test that non-existent blob raises ValueError."""
+        """Test that a missing object (download raises NotFound) is surfaced as a ValueError."""
         mock_client = mock.Mock()
         mock_bucket = mock.Mock()
         mock_blob = mock.Mock()
@@ -334,7 +363,7 @@ class TestGetByteRangeFromGoogleStorage(unittest.TestCase):
         mock_storage.Client.return_value = mock_client
         mock_client.bucket.return_value = mock_bucket
         mock_storage.Blob.return_value = mock_blob
-        mock_blob.exists.return_value = False
+        mock_blob.download_as_bytes.side_effect = NotFound("missing")
 
         with self.assertRaises(ValueError) as cm:
             get_byte_range_from_google_storage("gs://my-bucket/missing.txt", 0, 100)
