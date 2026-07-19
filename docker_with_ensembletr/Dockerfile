@@ -97,6 +97,10 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip crcmod \
 # and combine_str_json_to_tsv --include-extra-ensembletr-fields, all used by ensembletr_pipeline.py). Pinned to the
 # commit that adds those EnsembleTR converters + combine flag, for reproducibility (like the sibling images).
 ENV HTSLIB_CONFIGURE_OPTIONS="--enable-s3 --enable-gcs --enable-libcurl --with-libdeflate"
-RUN python3 -m pip install --upgrade --no-cache-dir git+https://github.com/broadinstitute/str-analysis@8c59663
+# str-analysis version is injected at build time (CI passes the tested commit sha; defaults to main
+# for a plain `docker build`). Changing the arg value busts the pip-install layer cache.
+ARG STR_ANALYSIS_COMMIT=main
+RUN python3 -m pip install --upgrade --no-cache-dir git+https://github.com/broadinstitute/str-analysis@${STR_ANALYSIS_COMMIT}
+LABEL org.opencontainers.image.revision="${STR_ANALYSIS_COMMIT}"
 
 ENV PYTHONPATH=/:.:$PYTHONPATH

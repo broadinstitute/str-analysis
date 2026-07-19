@@ -140,6 +140,10 @@ RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1
 
 
 ENV HTSLIB_CONFIGURE_OPTIONS="--enable-s3 --enable-gcs --enable-libcurl --with-libdeflate"
-RUN python3 -m pip install --upgrade --no-cache-dir git+https://github.com/broadinstitute/str-analysis@29d7e90969e83c9405de4bcb509f88932ed7f570
+# str-analysis version is injected at build time (CI passes the tested commit sha; defaults to main
+# for a plain `docker build`). Changing the arg value busts the pip-install layer cache.
+ARG STR_ANALYSIS_COMMIT=main
+RUN python3 -m pip install --upgrade --no-cache-dir git+https://github.com/broadinstitute/str-analysis@${STR_ANALYSIS_COMMIT}
+LABEL org.opencontainers.image.revision="${STR_ANALYSIS_COMMIT}"
 
 ENV PYTHONPATH=/:.:$PYTHONPATH

@@ -5,8 +5,10 @@ ARTIFACT_REGISTRY_BASE = $(subst :latest,,$(ARTIFACT_REGISTRY_TAG))
 
 all: build push
 
+STR_ANALYSIS_COMMIT ?= main
+
 build:
-	docker build -t $(DOCKERHUB_TAG) -t $(ARTIFACT_REGISTRY_TAG) .
+	docker build --build-arg STR_ANALYSIS_COMMIT=$(STR_ANALYSIS_COMMIT) -t $(DOCKERHUB_TAG) -t $(ARTIFACT_REGISTRY_TAG) .
 
 push:
 	docker push $(DOCKERHUB_TAG) | tee /dev/tty | grep sha256 | grep latest | cut -d ' ' -f 3 | sed 's|^|$(DOCKERHUB_BASE)@|' > sha256_dockerhub.txt

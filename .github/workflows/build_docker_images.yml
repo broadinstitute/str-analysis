@@ -120,7 +120,9 @@ jobs:
         run: |
           set -euo pipefail
           # Reuse the Dockerfile/tag defined in the per-image Makefile, but push only the Docker Hub tag.
-          make build
+          # Install str-analysis from the exact commit this build was triggered by (the tested head_sha), so
+          # every image contains the latest tested code. Falls back to github.sha for manual dispatch runs.
+          make build STR_ANALYSIS_COMMIT="${{ github.event.workflow_run.head_sha || github.sha }}"
           TAG=$(grep -E '^DOCKERHUB_TAG' Makefile | cut -d'=' -f2 | xargs)
           BASE=${TAG%:latest}
           docker push "$TAG" | tee push.log
