@@ -283,6 +283,15 @@ class IntervalReader:
 		pysam_input_file.close()
 		pysam_output_file.close()
 
+		if self._is_cram_file:
+			# temp_cram_container_file is auto-deleted when its handle closes, but the .crai index that
+			# pysam.index created next to it is a separate path NamedTemporaryFile does not track, so
+			# remove it explicitly to avoid leaking one orphan .crai per save_to_file call
+			temp_crai_path = f"{temp_cram_container_file.name}.crai"
+			if os.path.isfile(temp_crai_path):
+				os.remove(temp_crai_path)
+			temp_cram_container_file.close()
+
 		if create_index:
 			if self._debug:
 				print(f"DEBUG: Using pysam to generate a CRAM index for {local_path}")
@@ -405,14 +414,16 @@ class IntervalReader:
 		for chrom, start_0based, end in self._get_merged_intervals():
 			reference_sequence_id = self._chrom_index_lookup[normalize_chromosome_name(chrom)]
 			if reference_sequence_id not in self._crai_interval_trees:
-				print(f"WARNING: No CRAI entries found for {chrom} (reference_sequence_id={reference_sequence_id})")
-				return 0
+				# skip this interval (e.g. a mate on a decoy contig with no CRAI entries) rather than
+				# aborting the whole export, which would discard all other valid intervals' containers
+				print(f"WARNING: No CRAI entries found for {chrom} (reference_sequence_id={reference_sequence_id}); skipping {chrom}:{start_0based}-{end}")
+				continue
 
 			crai_interval_tree = self._crai_interval_trees[reference_sequence_id]
 			overlapping_crai_intervals = list(crai_interval_tree.overlap(start_0based, end))
 			if not overlapping_crai_intervals:
-				print(f"WARNING: None of the {len(crai_interval_tree)} CRAI entries on {chrom} overlap {chrom}:{start_0based}-{end}")
-				return 0
+				print(f"WARNING: None of the {len(crai_interval_tree)} CRAI entries on {chrom} overlap {chrom}:{start_0based}-{end}; skipping this interval")
+				continue
 
 			if self._verbose:
 				print(f"Found {len(overlapping_crai_intervals):4,d} CRAI entries that overlapped {chrom}:{start_0based}-{end}")
@@ -516,8 +527,6 @@ class IntervalReader:
 		]
 
 	def _get_byte_range(self, start, end):
-		self._total_bytes_loaded_from_cram += end - start
-
 		if self._byte_ranges_cache is not None and (start, end) in self._byte_ranges_cache:
 			return self._byte_ranges_cache[(start, end)]
 

@@ -158,6 +158,60 @@ class TestCramBamUtils(unittest.TestCase):
 			#print(f"Retrieved {cram_reads_counter} reads from CRAM and {bam_reads_counter} reads from BAM")
 			self.assertEqual(cram_reads_counter, bam_reads_counter)
 
+	def test_cram_reader_skips_interval_with_no_crai_entry(self):
+		# Regression test: an interval on a contig that is present in the CRAM header but has no CRAI entries
+		# (e.g. a mate landing on a decoy contig) must be skipped, not treated as fatal. Previously
+		# _load_cram_containers did `return 0` on the first such interval, so save_to_file wrote no output at
+		# all and every other valid interval's reads were silently dropped.
+		chr9_reference_fasta = get_chr9_reference_fasta()
+		with tempfile.NamedTemporaryFile(suffix=".cram") as baseline_output, \
+			  tempfile.NamedTemporaryFile(suffix=".cram") as combined_output:
+
+			baseline_reader = IntervalReader(
+				self._local_cram_path, self._local_cram_path + ".crai", reference_fasta_path=chr9_reference_fasta)
+			for interval in self._FXN_intervals:
+				baseline_reader.add_interval(*interval)
+			baseline_read_count = baseline_reader.save_to_file(baseline_output.name)
+
+			combined_reader = IntervalReader(
+				self._local_cram_path, self._local_cram_path + ".crai", reference_fasta_path=chr9_reference_fasta)
+			for interval in self._FXN_intervals:
+				combined_reader.add_interval(*interval)
+			# a decoy contig present in the CRAM header but absent from the CRAI index
+			combined_reader.add_interval("chrUn_JTFH01000963v1_decoy", 1, 2)
+			combined_read_count = combined_reader.save_to_file(combined_output.name)
+
+			# the CRAI-less decoy interval is skipped, not fatal: the output is still written with the same reads
+			self.assertTrue(os.path.isfile(combined_output.name))
+			self.assertGreater(combined_read_count, 0)
+			self.assertEqual(combined_read_count, baseline_read_count)
+
+	def test_cram_reader_does_not_double_count_cached_bytes(self):
+		# Regression test: _get_byte_range must count each downloaded byte range exactly once. Previously it
+		# incremented the byte counter before the cache check AND again after each read, so cache-miss ranges
+		# were counted twice and cache hits (which perform no I/O) were counted too. Re-saving the same
+		# intervals from the in-memory cache must therefore not change the reported total_bytes.
+		chr9_reference_fasta = get_chr9_reference_fasta()
+		with tempfile.NamedTemporaryFile(suffix=".cram") as first_output, \
+			  tempfile.NamedTemporaryFile(suffix=".cram") as second_output:
+
+			reader = IntervalReader(
+				self._local_cram_path, self._local_cram_path + ".crai",
+				reference_fasta_path=chr9_reference_fasta, cache_byte_ranges=True)
+			for interval in self._FXN_intervals:
+				reader.add_interval(*interval)
+
+			reader.save_to_file(first_output.name)
+			bytes_after_first = reader.get_total_bytes_loaded_from_cram()
+			ranges_after_first = reader.get_total_byte_ranges_loaded_from_cram()
+			self.assertGreater(bytes_after_first, 0)
+
+			# the second save over identical intervals is served entirely from the byte-range cache, so it
+			# must not increase either the byte total or the byte-range (container) count
+			reader.save_to_file(second_output.name)
+			self.assertEqual(reader.get_total_bytes_loaded_from_cram(), bytes_after_first)
+			self.assertEqual(reader.get_total_byte_ranges_loaded_from_cram(), ranges_after_first)
+
 	def test_cram_reader_on_google_storage_files(self):
 		try:
 			os.environ["GCS_OAUTH_TOKEN"] = subprocess.check_output("gcloud auth application-default print-access-token", shell=True).decode("utf-8").strip()

@@ -103,9 +103,6 @@ def main():
         window_end = end + args.window_size
         intervals.append((chrom, window_start, window_end))
 
-    if not args.input_cram.endswith(".cram"):
-        parser.error(f"Input {args.input_cram} must be a .cram file")
-
     set_requester_pays_project(args.gcloud_project)
 
     input_crai_path = args.crai_index_path if args.crai_index_path else f"{args.input_cram}.crai"
@@ -125,29 +122,44 @@ def main():
         cram_reader.add_interval(chrom, start, end)
 
     temporary_cram_file = tempfile.NamedTemporaryFile(suffix=".cram", delete=False)
-    cram_reader.save_to_file(temporary_cram_file.name)
-    temporary_cram_file.seek(0)
+    try:
+        cram_reader.save_to_file(temporary_cram_file.name)
+        temporary_cram_file.seek(0)
 
-    # parse the temp CRAM file and get byte ranges for mates
-    input_bam_file = pysam.AlignmentFile(
-        temporary_cram_file.name, reference_filename=args.reference_fasta)
+        # parse the temp CRAM file and get byte ranges for mates
+        input_bam_file = pysam.AlignmentFile(
+            temporary_cram_file.name, reference_filename=args.reference_fasta)
 
-    for chrom, start, end in intervals:
-        if args.verbose and len(intervals) > 1:
-            print("-"*100)
+        for chrom, start, end in intervals:
+            if args.verbose and len(intervals) > 1:
+                print("-"*100)
 
-        genomic_regions = extract_region(
-            chrom, start, end,
-            input_bam=input_bam_file,
-            bamlet=None,
-            merge_regions_distance=args.merge_regions_distance,
-            verbose=args.verbose)
+            genomic_regions = extract_region(
+                chrom, start, end,
+                input_bam=input_bam_file,
+                bamlet=None,
+                merge_regions_distance=args.merge_regions_distance,
+                verbose=args.verbose)
 
-        for genomic_region in genomic_regions:
-            cram_reader.add_interval(*genomic_region)
+            for genomic_region in genomic_regions:
+                cram_reader.add_interval(*genomic_region)
 
-    print(f"Exporting data for {len(intervals)} intervals to {args.output_cram}")
-    cram_reader.save_to_file(args.output_cram)
+        print(f"Exporting data for {len(intervals)} intervals to {args.output_cram}")
+        cram_reader.save_to_file(args.output_cram)
+
+        input_bam_file.close()
+    finally:
+        # temporary_cram_file was created with delete=False so it persists after its handle is closed;
+        # remove it and the .crai index that save_to_file generated next to it
+        temporary_cram_file.close()
+        for temp_path in (temporary_cram_file.name, f"{temporary_cram_file.name}.crai"):
+            if os.path.isfile(temp_path):
+                os.remove(temp_path)
+
+    if not os.path.isfile(args.output_cram):
+        print(f"ERROR: No output CRAM was written to {args.output_cram} because none of the requested "
+              f"regions had overlapping CRAM containers in {args.input_cram}")
+        sys.exit(1)
 
     total_bytes = cram_reader.get_total_bytes_loaded_from_cram()
     total_containers = cram_reader.get_total_byte_ranges_loaded_from_cram()
@@ -155,8 +167,6 @@ def main():
     print(f"Downloaded {total_containers:,d} containers, {total_bytes/10**6:0,.1f}Mb in {round(total_duration_seconds, 2)} seconds")
     if args.output_data_transfer_stats:
         cram_reader.save_data_transfer_stats()
-
-    input_bam_file.close()
 
 if __name__ == "__main__":
     main()
