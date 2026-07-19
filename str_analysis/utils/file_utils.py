@@ -65,11 +65,16 @@ def file_exists(path):
 
 def get_file_size(path):
     if path.startswith("gs://"):
-        try: import hailtop.fs as hfs
-        except ImportError:
-            print("ERROR: Hail is not installed. Please run: python3 -m pip install hail")
-            sys.exit(1)
-        return hfs.stat(path, requester_pays_config=gcloud_requester_pays_project).size
+        google_storage_path_match = re.match("^gs://([^/]+)/(.+)", path)
+        if not google_storage_path_match:
+            raise ValueError(f"Path {path} must be of the form gs://bucket/path/to/file")
+        bucket_name, object_name = google_storage_path_match.groups()
+        client = storage.Client(project=gcloud_requester_pays_project)
+        bucket = client.bucket(bucket_name, user_project=gcloud_requester_pays_project)
+        blob = bucket.get_blob(object_name)
+        if blob is None:
+            raise ValueError(f"{path} not found")
+        return blob.size
     else:
         return os.path.getsize(os.path.expanduser(path))
 

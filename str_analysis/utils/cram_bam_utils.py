@@ -262,8 +262,13 @@ class IntervalReader:
 			raise ValueError(f"Output path {local_path} must end with .cram or .bam")
 
 		chom_order = [normalize_chromosome_name(c) for c in pysam_input_file.references]
+		# Write CRAMs with no_ref=1 so reads are stored verbatim (like BAM) instead of reference-compressed.
+		# This avoids htslib validating each contig's reference md5 against the header @SQ M5 tag, which fails
+		# (sam_write1 error -1) when the reference build differs from the one the input CRAM was aligned to, or
+		# when a read's contig (e.g. a decoy-contig mate) can't be populated from the reference.
 		pysam_output_file = pysam.AlignmentFile(local_path, mode="wc" if self._is_cram_file else "wb",
-												template=pysam_input_file, reference_filename=self._reference_fasta_path)
+												template=pysam_input_file, reference_filename=self._reference_fasta_path,
+												format_options=[b"no_ref=1"] if self._is_cram_file else None)
 		read_counter = 0
 		if self._verbose:
 			print("Writing reads to", local_path)
@@ -297,7 +302,12 @@ class IntervalReader:
 				print(f"DEBUG: Using pysam to generate a CRAM index for {local_path}")
 
 			try:
-				pysam.sort("-o", f"{local_path}.sorted.{local_path_suffix}", local_path)
+				# pysam.sort would re-encode a CRAM to a reference-CRAM by default, re-triggering the md5
+				# validation avoided above, so keep the sorted output no_ref as well
+				if self._is_cram_file:
+					pysam.sort("--output-fmt-option", "no_ref=1", "-o", f"{local_path}.sorted.{local_path_suffix}", local_path)
+				else:
+					pysam.sort("-o", f"{local_path}.sorted.{local_path_suffix}", local_path)
 				os.rename(f"{local_path}.sorted.{local_path_suffix}", local_path)
 				pysam.index(local_path)
 				if self._debug:
