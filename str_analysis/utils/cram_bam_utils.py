@@ -247,8 +247,7 @@ class IntervalReader:
 		write them into the given fileobj, which must be a file object already open for writing.
 		"""
 		if self._is_cram_file:
-			local_path_suffix = ".cram"
-			temp_cram_container_file = tempfile.NamedTemporaryFile(suffix=local_path_suffix)
+			temp_cram_container_file = tempfile.NamedTemporaryFile(suffix=".cram")
 			if self._debug:
 				print(f"DEBUG: Writing containers to {temp_cram_container_file.name}")
 			bytes_written = self._load_cram_containers(temp_cram_container_file)
@@ -268,7 +267,6 @@ class IntervalReader:
 				temp_cram_container_file, require_index=True, reference_filename=self._reference_fasta_path)
 			pysam_input_filename = temp_cram_container_file.name
 		elif self._is_bam_file:
-			local_path_suffix = ".bam"
 			pysam_input_file = pysam.AlignmentFile(
 				self._cram_or_bam_path, index_filename=self._crai_or_bai_path,
 				reference_filename=self._reference_fasta_path, require_index=True,
@@ -297,9 +295,11 @@ class IntervalReader:
 		written_read_keys = set()
 		if self._verbose:
 			print("Writing reads to", local_path)
-		for chrom, start, end in sorted(self._get_merged_intervals(
+		# _get_merged_intervals already sorts chromosomes by the supplied header order and intervals by position.
+		# Wrapping its result in sorted() would incorrectly restore lexicographic chromosome order (chr10 before chr2).
+		for chrom, start, end in self._get_merged_intervals(
 				chrom_sort_order=lambda ch: chom_order.index(normalize_chromosome_name(ch))
-					if normalize_chromosome_name(ch) in chom_order else len(chom_order))):
+					if normalize_chromosome_name(ch) in chom_order else len(chom_order)):
 			normalized_chrom = normalize_chromosome_name(chrom)
 			if normalized_chrom not in normalized_to_reference_name:
 				# contig absent from this file's header (e.g. an off-header interval that _load_cram_containers
@@ -343,18 +343,25 @@ class IntervalReader:
 				print(f"DEBUG: Using pysam to generate a CRAM index for {local_path}")
 
 			try:
-				# pysam.sort would re-encode a CRAM to a reference-CRAM by default, re-triggering the md5
-				# validation avoided above, so keep the sorted output no_ref as well
+				# The output is already coordinate-sorted: this code assumes the input is coordinate-sorted (the
+				# byte-range CRAM algorithm and require_index=True both rely on that), intervals are traversed in
+				# header reference order and then coordinate order, and written_read_keys keeps a read spanning two
+				# intervals at its first (earlier) occurrence. A regression test exercises this invariant with
+				# non-adjacent intervals, an earlier mate, a duplicated boundary read, and unmapped reads.
 				if self._is_cram_file:
-					pysam.sort("--output-fmt-option", "no_ref=1", "-o", f"{local_path}.sorted.{local_path_suffix}", local_path)
+					# A CRAI is a flat per-container record list, so pysam.index does not require a sort here;
+					# re-sorting would only write another full-size CRAM.
+					pysam.index(local_path)
 				else:
-					pysam.sort("-o", f"{local_path}.sorted.{local_path_suffix}", local_path)
-				os.rename(f"{local_path}.sorted.{local_path_suffix}", local_path)
-				pysam.index(local_path)
+					# BAI construction (unlike CRAI) hard-fails on out-of-order positions, so keep an explicit
+					# sort here as insurance even though the stream above is already coordinate-sorted.
+					pysam.sort("-o", f"{local_path}.sorted.bam", local_path)
+					os.rename(f"{local_path}.sorted.bam", local_path)
+					pysam.index(local_path)
 				if self._debug:
 					print(f"DEBUG: Generated CRAM index {local_path}.crai (size: {os.path.getsize(local_path + '.crai'):,d} bytes)")
 			except Exception as e:
-				print(f"WARNING: Failed to sort and index {local_path}: {e}")
+				print(f"WARNING: Failed to prepare and index {local_path}: {e}")
 
 
 		if self._verbose:
@@ -638,4 +645,3 @@ def get_average_read_depth(input_bam_or_cram_path):
             total_genome_bases += contig.length
 
     return total_bases / total_genome_bases if total_genome_bases else 0    
-

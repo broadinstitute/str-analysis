@@ -257,6 +257,88 @@ class TestCramBamUtils(unittest.TestCase):
 			self.assertEqual(len(read_keys), len(set(read_keys)))  # no duplicate alignments in the output
 			self.assertEqual(written_read_count, len(read_keys))   # returned count matches unique reads written
 
+	def test_save_to_file_emits_coordinate_order_without_sorting(self):
+		# Guard the assumption that lets callers index save_to_file's stream directly without sorting: source
+		# CRAM is coordinate-sorted, intervals are traversed in coordinate order, and a read spanning two
+		# intervals is emitted by the earlier interval before de-duplication suppresses its later copy.
+		with tempfile.TemporaryDirectory() as temp_dir:
+			input_cram_path = os.path.join(temp_dir, "coordinate_sorted.cram")
+			with pysam.AlignmentFile(
+					input_cram_path, "wc",
+					header={
+						"HD": {"VN": "1.6", "SO": "coordinate"},
+						"SQ": [
+							{"SN": "chr1", "LN": 2000},
+							{"SN": "chr2", "LN": 2000},
+							{"SN": "chr10", "LN": 2000},
+						],
+					},
+					format_options=[b"no_ref=1"]) as input_cram:
+				for query_name, reference_id, reference_start, flag, mate_reference_id, mate_start, read_length in (
+						# read2 precedes read1, so read1's mate lies at an earlier coordinate
+						("split_pair", 0, 100, 1 | 2 | 128, 0, 900, 50),
+						# spans two non-adjacent requested intervals and must be written only by the earlier one
+						("boundary", 0, 195, 0, -1, -1, 120),
+						("split_pair", 0, 900, 1 | 2 | 64, 0, 100, 50),
+						("chr2_read", 1, 400, 0, -1, -1, 50),
+						# chr10 follows chr2 by reference id despite preceding it lexicographically
+						("chr10_read", 2, 300, 0, -1, -1, 50),
+						("unmapped", -1, -1, 4, -1, -1, 50),
+				):
+					read = pysam.AlignedSegment()
+					read.query_name = query_name
+					read.flag = flag
+					read.reference_id = reference_id
+					read.reference_start = reference_start
+					read.mapping_quality = 60 if reference_id >= 0 else 0
+					if reference_id >= 0:
+						read.cigarstring = f"{read_length}M"
+					read.next_reference_id = mate_reference_id
+					read.next_reference_start = mate_start
+					read.query_sequence = "A" * read_length
+					read.query_qualities = pysam.qualitystring_to_array("I" * read_length)
+					input_cram.write(read)
+			pysam.index(input_cram_path)
+
+			reader = IntervalReader(
+				input_cram_path, input_cram_path + ".crai", include_unmapped_read_pairs=True)
+			# Add at least three non-adjacent intervals in deliberately non-coordinate order. The 200 and 300
+			# intervals both return "boundary"; the 900 interval contains a read whose mate is at position 100.
+			for interval in (
+					("chr10", 300, 310),
+					("chr1", 900, 910),
+					("chr2", 400, 410),
+					("chr1", 300, 301),
+					("chr1", 200, 201),
+					("chr1", 100, 110),
+			):
+				reader.add_interval(*interval)
+
+			output_cram_path = os.path.join(temp_dir, "output.cram")
+			try:
+				# create_index=True exercises the changed branch that indexes the output directly with
+				# pysam.index instead of re-sorting it first. pysam.index accepts an out-of-order CRAM without
+				# error, so the coordinate order itself is verified by the assertions below, not by this call.
+				self.assertEqual(reader.save_to_file(output_cram_path, create_index=True), 6)
+			finally:
+				reader.close()
+			with pysam.AlignmentFile(output_cram_path) as output_cram:
+				output_reads = list(output_cram)
+				# SAM coordinate order places unmapped reads after all reference ids.
+				coordinate_keys = [
+					(read.reference_id if read.reference_id >= 0 else len(output_cram.references),
+					 read.reference_start if read.reference_start >= 0 else sys.maxsize)
+					for read in output_reads
+				]
+
+			self.assertEqual(coordinate_keys, sorted(coordinate_keys))
+			self.assertEqual(sum(read.query_name == "boundary" for read in output_reads), 1)
+			self.assertEqual(
+				[(read.reference_start, read.next_reference_start)
+				 for read in output_reads if read.query_name == "split_pair"],
+				[(100, 900), (900, 100)])
+			self.assertTrue(output_reads[-1].is_unmapped)
+
 	def test_cram_reader_handles_cram_v21_input(self):
 		# Regression test: the CRAM EOF marker length is version-dependent (38 bytes for CRAM 3, 30 for CRAM 2.x).
 		# Sizing the last container with a hard-coded 38-byte EOF truncates a CRAM 2.1 file's last container by
