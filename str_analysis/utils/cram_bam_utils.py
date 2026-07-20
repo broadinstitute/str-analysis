@@ -199,6 +199,12 @@ class IntervalReader:
 		self._verbose = verbose
 
 	def add_interval(self, chrom, start_0based, end):
+		if not isinstance(chrom, str) or not chrom:
+			raise ValueError(f"Interval chromosome must be a non-empty string: {chrom}")
+		start_0based = max(0, start_0based)
+		if end <= start_0based:
+			raise ValueError(f"Interval end must be greater than start: {chrom}:{start_0based}-{end}")
+
 		interval_tree = self._genomic_intervals[normalize_chromosome_name(chrom)]
 		new_interval = intervaltree.Interval(start_0based, end + 0.1, data=(chrom, start_0based, end))
 
@@ -242,9 +248,14 @@ class IntervalReader:
 		"""
 		self._total_bytes_loaded_from_cram = 0
 
-	def save_to_file(self, local_path, create_index=True):
-		"""Load and save the added genomic intervals to a local CRAM file at the given local_path, or alternatively,
-		write them into the given fileobj, which must be a file object already open for writing.
+	def save_to_file(self, local_path, create_index=True, disable_reference_compression=True):
+		"""Load and save the added genomic intervals to a local CRAM or BAM file at the given local_path.
+
+		Args:
+			local_path: Output CRAM or BAM path.
+			create_index: Whether to create an index for the output.
+			disable_reference_compression: For CRAM output, use htslib no_ref=1 to avoid external-reference-based
+				compression. This increases output size but avoids reference MD5 validation. Ignored for BAM output.
 		"""
 		if self._is_cram_file:
 			temp_cram_container_file = tempfile.NamedTemporaryFile(suffix=".cram")
@@ -281,13 +292,13 @@ class IntervalReader:
 		normalized_to_reference_name = {
 			normalize_chromosome_name(name): name for name in pysam_input_file.references
 		}
-		# Write CRAMs with no_ref=1 so reads are stored verbatim (like BAM) instead of reference-compressed.
-		# This avoids htslib validating each contig's reference md5 against the header @SQ M5 tag, which fails
-		# (sam_write1 error -1) when the reference build differs from the one the input CRAM was aligned to, or
-		# when a read's contig (e.g. a decoy-contig mate) can't be populated from the reference.
+		# no_ref=1 stores reference bases in the CRAM instead of reference-compressing them. This avoids htslib
+		# validating each contig's reference md5 against the header @SQ M5 tag, which fails when the reference build
+		# differs from the input alignment or a read's contig cannot be populated from the supplied reference.
 		pysam_output_file = pysam.AlignmentFile(local_path, mode="wc" if self._is_cram_file else "wb",
-												template=pysam_input_file, reference_filename=self._reference_fasta_path,
-												format_options=[b"no_ref=1"] if self._is_cram_file else None)
+											template=pysam_input_file, reference_filename=self._reference_fasta_path,
+											format_options=[b"no_ref=1"]
+											if self._is_cram_file and disable_reference_compression else None)
 		read_counter = 0
 		# a read overlapping two non-overlapping requested intervals is returned by fetch() once per interval;
 		# track written alignments so each is emitted at most once (duplicates would otherwise be interpreted

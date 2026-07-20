@@ -80,9 +80,10 @@ def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=
     # compute a dictionary that maps (chrom, start, end) to a set of read names that need to be fetched from that region
     mate_regions = collections.defaultdict(set)
     for read_name, read_pair in read_pairs.items():
+        alignment = read_pair[0]
         # skip unpaired reads (single-end / long-read alignments): they have no mate to fetch, and their
         # next_reference_name is None, which would crash add_interval downstream
-        if not read_pair[0].is_paired:
+        if not alignment.is_paired:
             continue
 
         # a pair is complete only when both mates (read1 and read2) are present; testing len(read_pair) >= 2
@@ -90,9 +91,16 @@ def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=
         if any(a.is_read1 for a in read_pair) and any(a.is_read2 for a in read_pair):
             continue
 
+        # An unmapped mate has no genomic interval to retrieve. htslib represents its reference id and start as -1;
+        # letting either value reach add_interval would produce an invalid chromosome or negative fetch coordinate.
+        if alignment.mate_is_unmapped or alignment.next_reference_id < 0 or alignment.next_reference_start < 0:
+            continue
+
         # see if mate is close to other mates that need to be fetched
-        mate_chrom = read_pair[0].next_reference_name
-        mate_pos = int(read_pair[0].next_reference_start)
+        mate_chrom = alignment.next_reference_name
+        mate_pos = int(alignment.next_reference_start)
+        mate_start = max(0, mate_pos - 1)
+        mate_end = mate_pos + 1
 
         #if mate_chrom == chrom and min(abs(mate_pos - start), abs(mate_pos - end)) <= 1000:
         #    # skip mates that are close to the ends of the region
@@ -102,11 +110,11 @@ def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=
             if is_close(mate_chrom, mate_pos, mate_region, max_dist=merge_regions_distance):
                 previous_read_names_set = mate_regions.pop(mate_region)
                 previous_read_names_set.add(read_name)
-                key = (mate_chrom, min(mate_pos - 1, mate_region[1]), max(mate_pos + 1, mate_region[2]))
+                key = (mate_chrom, min(mate_start, mate_region[1]), max(mate_end, mate_region[2]))
                 mate_regions[key] = previous_read_names_set
                 break
         else:
-            key = mate_chrom, mate_pos - 1, mate_pos + 1
+            key = mate_chrom, mate_start, mate_end
             mate_regions[key].add(read_name)
 
     genomic_regions_to_fetch.extend(mate_regions.keys())

@@ -8,6 +8,7 @@ import unittest
 import subprocess
 import urllib.request
 from pathlib import Path
+from unittest import mock
 
 import pysam
 
@@ -128,6 +129,18 @@ class TestCramBamUtils(unittest.TestCase):
 			("chr2", 1, 30),
 		])
 
+	def test_interval_reader_normalizes_and_validates_intervals(self):
+		reader = IntervalReader(self._local_cram_path)
+		try:
+			reader.add_interval("chr9", -1, 1)
+			self.assertEqual(reader._get_merged_intervals(), [("chr9", 0, 1)])
+			with self.assertRaisesRegex(ValueError, "chromosome must be a non-empty string"):
+				reader.add_interval(None, 0, 1)
+			with self.assertRaisesRegex(ValueError, "end must be greater than start"):
+				reader.add_interval("chr9", -1, 0)
+		finally:
+			reader.close()
+
 
 	def test_cram_reader_on_local_files(self):
 		chr9_reference_fasta = get_chr9_reference_fasta()
@@ -160,6 +173,42 @@ class TestCramBamUtils(unittest.TestCase):
 
 			#print(f"Retrieved {cram_reads_counter} reads from CRAM and {bam_reads_counter} reads from BAM")
 			self.assertEqual(cram_reads_counter, bam_reads_counter)
+
+	def test_save_to_file_reference_compression_option(self):
+		chr9_reference_fasta = get_chr9_reference_fasta()
+		with tempfile.NamedTemporaryFile(suffix=".cram") as reference_compressed_output, \
+			  tempfile.NamedTemporaryFile(suffix=".cram") as self_contained_output:
+			reader = IntervalReader(
+				self._local_cram_path, self._local_cram_path + ".crai", reference_fasta_path=chr9_reference_fasta)
+			for interval in self._FXN_intervals:
+				reader.add_interval(*interval)
+
+			observed_format_options = {}
+			real_alignment_file = pysam.AlignmentFile
+
+			def record_output_format_options(*args, **kwargs):
+				"""Records output format options while delegating to pysam.AlignmentFile."""
+				if args[0] in (reference_compressed_output.name, self_contained_output.name):
+					observed_format_options[args[0]] = kwargs.get("format_options")
+				return real_alignment_file(*args, **kwargs)
+
+			try:
+				with mock.patch(
+						"str_analysis.utils.cram_bam_utils.pysam.AlignmentFile",
+						side_effect=record_output_format_options):
+					reader.save_to_file(
+						reference_compressed_output.name,
+						create_index=False,
+						disable_reference_compression=False)
+					reader.save_to_file(
+						self_contained_output.name,
+						create_index=False,
+						disable_reference_compression=True)
+			finally:
+				reader.close()
+
+			self.assertIsNone(observed_format_options[reference_compressed_output.name])
+			self.assertEqual(observed_format_options[self_contained_output.name], [b"no_ref=1"])
 
 	def test_cram_reader_skips_interval_with_no_crai_entry(self):
 		# Regression test: an interval on a contig that is present in the CRAM header but has no CRAI entries
@@ -456,6 +505,76 @@ class TestCramBamUtils(unittest.TestCase):
 				genomic_regions = extract_region("chr1", 90, 160, input_bam=input_bam, bamlet=None)
 
 			self.assertFalse(any(region[0] is None for region in genomic_regions))
+
+	def test_extract_region_clamps_mate_interval_at_contig_start(self):
+		# A mate aligned at 0 previously produced (-1, 1), which survived interval-tree lookup and crashed only
+		# after all final-pass containers had been downloaded and indexed.
+		with tempfile.TemporaryDirectory() as temp_dir:
+			input_cram_path = os.path.join(temp_dir, "mate_at_contig_start.cram")
+			with pysam.AlignmentFile(
+					input_cram_path, "wc",
+					header={"HD": {"VN": "1.6", "SO": "coordinate"},
+							"SQ": [{"SN": "chr1", "LN": 5000}]},
+					format_options=[b"no_ref=1"]) as input_cram:
+				for reference_start, flag, mate_start in (
+						(0, 1 | 2 | 128, 2000),
+						(2000, 1 | 2 | 64, 0),
+				):
+					read = pysam.AlignedSegment()
+					read.query_name = "mate_at_contig_start"
+					read.flag = flag
+					read.reference_id = 0
+					read.reference_start = reference_start
+					read.mapping_quality = 60
+					read.cigarstring = "50M"
+					read.next_reference_id = 0
+					read.next_reference_start = mate_start
+					read.query_sequence = "A" * 50
+					read.query_qualities = pysam.qualitystring_to_array("I" * 50)
+					input_cram.write(read)
+			pysam.index(input_cram_path)
+
+			with pysam.AlignmentFile(input_cram_path) as input_cram:
+				genomic_regions = extract_region("chr1", 1000, 3000, input_bam=input_cram, bamlet=None)
+			self.assertEqual(genomic_regions, [("chr1", 1000, 3000), ("chr1", 0, 1)])
+
+			reader = IntervalReader(input_cram_path, input_cram_path + ".crai")
+			try:
+				for genomic_region in genomic_regions:
+					reader.add_interval(*genomic_region)
+				output_cram_path = os.path.join(temp_dir, "output.cram")
+				self.assertEqual(reader.save_to_file(output_cram_path), 2)
+			finally:
+				reader.close()
+
+			with pysam.AlignmentFile(output_cram_path) as output_cram:
+				self.assertEqual([read.reference_start for read in output_cram], [0, 2000])
+
+	def test_extract_region_skips_unmapped_mates(self):
+		with tempfile.TemporaryDirectory() as temp_dir:
+			input_bam_path = os.path.join(temp_dir, "unmapped_mate.bam")
+			with pysam.AlignmentFile(
+					input_bam_path, "wb",
+					header={"HD": {"VN": "1.6", "SO": "coordinate"},
+							"SQ": [{"SN": "chr1", "LN": 1000}]}) as input_bam:
+				read = pysam.AlignedSegment()
+				read.query_name = "mapped_read_with_unmapped_mate"
+				read.flag = 1 | 8 | 64
+				read.reference_id = 0
+				read.reference_start = 100
+				read.mapping_quality = 60
+				read.cigarstring = "50M"
+				read.next_reference_id = -1
+				read.next_reference_start = -1
+				read.query_sequence = "A" * 50
+				read.query_qualities = pysam.qualitystring_to_array("I" * 50)
+				input_bam.write(read)
+			pysam.index(input_bam_path)
+
+			with pysam.AlignmentFile(input_bam_path) as input_bam:
+				self.assertEqual(
+					extract_region("chr1", 90, 160, input_bam=input_bam, bamlet=None),
+					[("chr1", 90, 160)])
 
 	def test_cram_reader_on_google_storage_files(self):
 		try:

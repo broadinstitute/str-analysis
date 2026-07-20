@@ -55,6 +55,10 @@ def main():
                         "local or a gs:// path")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--enable-reference-compression-in-output-cram", action="store_true", help="Enable "
+                        "reference-based output CRAM compression. This produces a smaller output CRAM but can fail "
+                        "with reference MD5 errors when the supplied FASTA differs from the input CRAM header. By "
+                        "default the output CRAM is written self-contained (htslib no_ref=1) to avoid those failures.")
     parser.add_argument("--output-data-transfer-stats", action="store_true", help="Write out a TSV file with stats "
                         "about the total number of bytes and containers downloaded from the CRAM")
     parser.add_argument("input_cram", help="Input CRAM file path. This can a local or a gs:// path")
@@ -122,6 +126,9 @@ def main():
         cram_reader.add_interval(chrom, start, end)
 
     temporary_cram_file = tempfile.NamedTemporaryFile(suffix=".cram", delete=False)
+    input_bam_file = None
+    phase_name = "initial interval export"
+    phase_start_time = time.time()
     try:
         # if no reads overlap the requested region(s), save_to_file returns 0 without writing the temp file,
         # so exit with a clear message instead of crashing on the empty file when pysam opens it below
@@ -129,9 +136,12 @@ def main():
             print(f"ERROR: No reads were found within {args.window_size:,d}bp of any of the requested "
                   f"regions in {args.input_cram}")
             sys.exit(1)
+        print(f"Completed {phase_name} in {time.time() - phase_start_time:0.2f} seconds")
         temporary_cram_file.seek(0)
 
         # parse the temp CRAM file and get byte ranges for mates
+        phase_name = "mate discovery"
+        phase_start_time = time.time()
         input_bam_file = pysam.AlignmentFile(
             temporary_cram_file.name, reference_filename=args.reference_fasta)
 
@@ -148,18 +158,31 @@ def main():
 
             for genomic_region in genomic_regions:
                 cram_reader.add_interval(*genomic_region)
+        print(f"Completed {phase_name} in {time.time() - phase_start_time:0.2f} seconds")
 
+        phase_name = "final primary-and-mate export"
+        phase_start_time = time.time()
         print(f"Exporting data for {len(intervals)} intervals to {args.output_cram}")
-        cram_reader.save_to_file(args.output_cram)
-
-        input_bam_file.close()
+        cram_reader.save_to_file(
+            args.output_cram,
+            disable_reference_compression=not args.enable_reference_compression_in_output_cram)
+        print(f"Completed {phase_name} in {time.time() - phase_start_time:0.2f} seconds")
+    except Exception:
+        print(f"ERROR: Failed during {phase_name} after {time.time() - phase_start_time:0.2f} seconds "
+              f"({time.time() - start_time:0.2f} seconds total). Loaded "
+              f"{cram_reader.get_total_byte_ranges_loaded_from_cram():,d} CRAM byte ranges totaling "
+              f"{cram_reader.get_total_bytes_loaded_from_cram()/10**6:0,.1f}Mb")
+        raise
     finally:
+        if input_bam_file is not None:
+            input_bam_file.close()
         # temporary_cram_file was created with delete=False so it persists after its handle is closed;
         # remove it and the .crai index that save_to_file generated next to it
         temporary_cram_file.close()
         for temp_path in (temporary_cram_file.name, f"{temporary_cram_file.name}.crai"):
             if os.path.isfile(temp_path):
                 os.remove(temp_path)
+        cram_reader.close()
 
     if not os.path.isfile(args.output_cram):
         print(f"ERROR: No output CRAM was written to {args.output_cram} because none of the requested "
