@@ -249,13 +249,17 @@ class IntervalReader:
 		self._total_bytes_loaded_from_cram = 0
 
 	def save_to_file(self, local_path, create_index=True, disable_reference_compression=True):
-		"""Load and save the added genomic intervals to a local CRAM or BAM file at the given local_path.
+		"""Load and save the added genomic intervals to a local file at the given local_path.
+
+		The output format follows the input file type (a CRAM-backed reader writes CRAM, a BAM-backed reader
+		writes BAM), regardless of local_path's extension, so local_path should be given a matching extension.
 
 		Args:
-			local_path: Output CRAM or BAM path.
+			local_path: Output file path (written as CRAM when the input is a CRAM, as BAM when the input is a BAM).
 			create_index: Whether to create an index for the output.
 			disable_reference_compression: For CRAM output, use htslib no_ref=1 to avoid external-reference-based
-				compression. This increases output size but avoids reference MD5 validation. Ignored for BAM output.
+				compression. This increases output size but avoids reference MD5 validation. Ignored when the input
+				is a BAM.
 		"""
 		if self._is_cram_file:
 			temp_cram_container_file = tempfile.NamedTemporaryFile(suffix=".cram")
@@ -292,7 +296,7 @@ class IntervalReader:
 		normalized_to_reference_name = {
 			normalize_chromosome_name(name): name for name in pysam_input_file.references
 		}
-		# no_ref=1 stores reference bases in the CRAM instead of reference-compressing them. This avoids htslib
+		# no_ref=1 stores read sequences verbatim (like BAM) instead of reference-compressing them. This avoids htslib
 		# validating each contig's reference md5 against the header @SQ M5 tag, which fails when the reference build
 		# differs from the input alignment or a read's contig cannot be populated from the supplied reference.
 		pysam_output_file = pysam.AlignmentFile(local_path, mode="wc" if self._is_cram_file else "wb",

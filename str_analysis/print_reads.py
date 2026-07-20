@@ -91,7 +91,10 @@ def main():
 					end = int(end)
 					if start > end:
 						parser.error(f"start coordinate {start} is greater than the end coordinate {end}")
-					reader.add_interval(chrom, start - args.padding, end + args.padding)
+					try:
+						reader.add_interval(chrom, start - args.padding, end + args.padding)
+					except ValueError as e:
+						parser.error(f"Invalid interval in {interval}: {chrom}:{start}-{end}  {e}")
 		else:
 			try:
 				if ":" in interval:
