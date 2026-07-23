@@ -34,7 +34,7 @@ Canonical motifs for HOXD13 differ between gnomAD (CCG) and TRGT (CNG)
 ------
 AFF3 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
     chr2:100104798-100104822  ( 8.0 x GCC     24bp) gnomAD    300 = pathogenic.min.  hg38 seq:          GCCGCCGCCGCCGCCGCCGCCGCC
-    chr2:100104798-100104824  ( 8.7 x GCC     26bp) STRchive  300 = pathogenic.min.  hg38 seq:          GCCGCCGCCGCCGCCGCCGCCGCCGC
+    chr2:100104798-100104824  ( 8.7 x CCG     26bp) STRchive  300 = pathogenic.min.  hg38 seq:          GCCGCCGCCGCCGCCGCCGCCGCCGC
     chr2:100104799-100104824  ( 8.3 x CCG     25bp) TRGT                        hg38 seq:                CCGCCGCCGCCGCCGCCGCCGCCGC
 ------
 ATXN3 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
@@ -80,7 +80,7 @@ DAB1 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
 ------
 FOXL2 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
     chr3:138946020-138946062  (14.0 x NGC     42bp) gnomAD    15 = pathogenic.min.  hg38 seq:            CGCGGCTGCAGCCGCAGCTGCTGCAGCCGCTGCGGCTGCCGC
-    chr3:138946019-138946062  (14.3 x NGC     43bp) STRchive  15 = pathogenic.min.  hg38 seq:           CCGCGGCTGCAGCCGCAGCTGCTGCAGCCGCTGCGGCTGCCGC
+    chr3:138946019-138946062  (14.3 x GCN     43bp) STRchive  15 = pathogenic.min.  hg38 seq:           CCGCGGCTGCAGCCGCAGCTGCTGCAGCCGCTGCGGCTGCCGC
     chr3:138946020-138946062  (14.0 x GCN     42bp) STRipy    19 = pathogenic.min.  hg38 seq:            CGCGGCTGCAGCCGCAGCTGCTGCAGCCGCTGCGGCTGCCGC
     chr3:138946020-138946063  (14.3 x CNG     43bp) TRGT                        hg38 seq:                CGCGGCTGCAGCCGCAGCTGCTGCAGCCGCTGCGGCTGCCGCC
 ------
@@ -108,7 +108,7 @@ HTT hg38 ReferenceRegion isn't the same between gnomAD and TRGT
 ------
 LRP12 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
     chr8:104588970-104588997  ( 9.0 x CGC     27bp) gnomAD    85 = pathogenic.min.  hg38 seq:           CGCCGCCGCCGCCGCCGCCGCCGCCGC
-    chr8:104588970-104588999  ( 9.7 x CGC     29bp) STRchive  85 = pathogenic.min.  hg38 seq:           CGCCGCCGCCGCCGCCGCCGCCGCCGCCG
+    chr8:104588970-104588999  ( 9.7 x CCG     29bp) STRchive  85 = pathogenic.min.  hg38 seq:           CGCCGCCGCCGCCGCCGCCGCCGCCGCCG
     chr8:104588972-104588999  ( 9.0 x CGG     27bp) STRipy    93 = pathogenic.min.  hg38 seq:             CCGCCGCCGCCGCCGCCGCCGCCGCCG
     chr8:104588972-104589000  ( 9.3 x CCG     28bp) TRGT                        hg38 seq:                 CCGCCGCCGCCGCCGCCGCCGCCGCCGA
 ------
@@ -144,7 +144,7 @@ SAMD12 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
 ------
 SOX3 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
     chrX:140504316-140504361  (15.0 x NGC     45bp) gnomAD    26, 22 = pathogenic.min.  hg38 seq:       GGCGGCAGCGGCTGCGGCCGCGGCAGCGGCGGCGGCGGCCGCGGC
-    chrX:140504316-140504361  (15.0 x NGC     45bp) STRchive  22 = pathogenic.min.  hg38 seq:           GGCGGCAGCGGCTGCGGCCGCGGCAGCGGCGGCGGCGGCCGCGGC
+    chrX:140504316-140504361  (15.0 x GCN     45bp) STRchive  22 = pathogenic.min.  hg38 seq:           GGCGGCAGCGGCTGCGGCCGCGGCAGCGGCGGCGGCGGCCGCGGC
     chrX:140504316-140504361  (15.0 x GCN     45bp) STRipy    26, 22 = pathogenic.min.  hg38 seq:       GGCGGCAGCGGCTGCGGCCGCGGCAGCGGCGGCGGCGGCCGCGGC
     chrX:140504316-140504362  (15.3 x CNG     46bp) TRGT                        hg38 seq:               GGCGGCAGCGGCTGCGGCCGCGGCAGCGGCGGCGGCGGCCGCGGCA
 ------
@@ -166,7 +166,7 @@ TNRC6A hg38 ReferenceRegion isn't the same between gnomAD and TRGT
 ------
 XYLT1 hg38 ReferenceRegion isn't the same between gnomAD and TRGT
     chr16:17470907-17470922  ( 5.0 x GCC     15bp) gnomAD    72 = pathogenic.min.  hg38 seq:            GCCGCCGCCGCCGCC
-    chr16:17470907-17470922  ( 5.0 x GCC     15bp) STRchive  72 = pathogenic.min.  hg38 seq:            GCCGCCGCCGCCGCC
+    chr16:17470907-17470922  ( 5.0 x CCG     15bp) STRchive  72 = pathogenic.min.  hg38 seq:            GCCGCCGCCGCCGCC
     chr16:17470907-17470922  ( 5.0 x GGC     15bp) STRipy    110 = pathogenic.min.  hg38 seq:           GCCGCCGCCGCCGCC
     chr16:17470907-17470923  ( 5.3 x CCG     16bp) TRGT                        hg38 seq:                GCCGCCGCCGCCGCCC
 ------

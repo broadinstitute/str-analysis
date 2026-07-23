@@ -151,17 +151,3 @@ for json_path_without_offtargets, json_path_with_offtargets in json_path_pairs:
     #    json.dump(catalog_with_offtargets, f, indent=4)
 #%%
 
-os.chdir("../gnomad_notes")
-
-# generate gnomad notes files if they don't exist already
-for record in data[json_path_without_offtargets_GRCh38]:
-    locus_id = record["LocusId"]
-    filename = f"{locus_id}.md"
-    if os.path.isfile(filename):
-        continue
-    print(f"Creating {filename}")
-    with open(filename, "wt") as f:
-        f.write("\n")
-
-
-#%%

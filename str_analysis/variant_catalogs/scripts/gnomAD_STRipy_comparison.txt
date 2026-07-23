@@ -32,7 +32,7 @@ Age of Onset:
                ATXN2                    Paediatric/Adult       Typical: 30-39 [@genereviews:NBK1275]; Range: 2-86 [@omim:183090].                                  
                ATXN3                    Paediatric/Adult       Typical: 10-49 [@genereviews:NBK1196]; 3 [@pmid:40004498] - 73 [@genereviews:NBK1196; @pmid:30414314].
                ATXN7                               Adult       Typical: 4-48 [@pmid:20739808]; Range: 0-90 [@genereviews:NBK1256; @pmid:14571264].                 
-             ATXN8OS                               Adult       Typical: third to fifth decade (20-49); Range: 0 [@genereviews:NBK1268] - 76 [@doi:10.1101/gr.279634.124].
+             ATXN8OS                               Adult       Typical: third to fifth decade (20-49); Range: 0 [@genereviews:NBK1268] - 76 [@pmid:40015980].      
                BEAN1                               Adult       Typical: 56-62 [@pmid:36563608]; Range: 8-83 [@pmid:23331413].                                      
              C9ORF72                               Adult       Typical: 50-64; Range: 20-91 [@genereviews:NBK268647].                                              
              CACNA1A                               Adult       Typical: 43-52 [@genereviews:NBK1140]; Range: 16 [@pmid:23331413] - 73 [@genereviews:NBK1140].      
@@ -46,7 +46,7 @@ Age of Onset:
                 DMPK                    Paediatric/Adult       Typical: 10-30 [@genereviews:NBK1165]; Range: 0-74 [@pmid:38454488].                                
               EIF4A3                          Paediatric       0 (birth)                                                                                           
                FGF14                               Adult       Typical: 42-70; Range: 21-87 [@genereviews:NBK599589; @pmid:39263992].                              
-                FMR1                   Paediatric, Adult       Typical: FXS 1 to 'first several years of life', FXTAS 60-65 [@genereviews:NBK1384]; Range: 0 [@url:https://www.uptodate.com/contents/fragile-x-syndrome-clinical-features-and-diagnosis-in-children-and-adolescents] - 78 [@pmid:17427188]; detailed description of typical symptom onset and diagnosis available from Arnold et al [@isbn:978-3-031-66932-3].
+                FMR1                   Adult, Paediatric       Typical: FXS 1 to 'first several years of life', FXTAS 60-65 [@genereviews:NBK1384]; Range: 0 [@url:https://www.uptodate.com/contents/fragile-x-syndrome-clinical-features-and-diagnosis-in-children-and-adolescents] - 78 [@pmid:17427188]; detailed description of typical symptom onset and diagnosis available from Arnold et al [@isbn:978-3-031-66932-3].
                FOXL2                          Paediatric       0 (birth)                                                                                           
                  FXN                          Paediatric       Typical: 10-15; Range: 2-80 [@genereviews:NBK1281].                                                 
                GIPC1                               Adult       Typical: 20-34 [@pmid:32413282]; Range: 2 [@pmid:41975469] - 70 [@pmid:33374016].                   
@@ -65,7 +65,7 @@ Age of Onset:
            NOTCH2NLC                               Adult       Typical: 30-70 [@omim:603472]; Range: 10 [@pmid:37090934] - 78 [@pmid:37305750].                    
               PABPN1                               Adult       Typical: 40-59 [@pmid:37519616]; Range: 20-79 [@pmid:35112761].                                     
               PHOX2B                          Paediatric       Typical: 0-2 [@genereviews:NBK1427; @pmid:15121777]; Range: 0-36 [@pmid:16873766].                  
-             PPP2R2B                    Paediatric/Adult       Typical: 26-50; Range: 8-56 [@omim:604326].                                                         
+             PPP2R2B                    Paediatric/Adult       Typical: 26-50; Range: 8-62 [@omim:604326; @pmid:42105155].                                         
               PRDM12                          Paediatric       0 (birth)                                                                                           
                 PRNP                               Adult       Typical: 50-60 [@genereviews:NBK1229]; Range: 31-63 [@pmid:37379724].                               
              RAPGEF2                               Adult       Typical: 20-33 [@pmid:30351492]; Range: 18 [@pmid:29507423] - 37 [@pmid:30351492].                  
@@ -147,7 +147,7 @@ NormalMax for ZFHX3  differs between gnomAD (26) and STRipy (31)
 AFF2 hg38 ReferenceRegion isn't the same between gnomAD and STRipy
     chrX:148500631-148500691  (20.0 x GCC     60bp) official catalog from EH repo
     chrX:148500631-148500691  (20.0 x GCC     60bp) gnomAD    200 = pathogenic.min.  hg38 seq:                                     GCCGCTGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCTGCCGCC
-    chrX:148500604-148500753  (49.7 x GCC    149bp) STRchive  201 = pathogenic.min.  hg38 seq:          GCCGCGGCCGCCGCCGCCGCCTGTGCAGCCGCTGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCTGCCGCCCCGGCTGCCGCGCCGCGCCGCTGCCTCTGCCCCGGCCGCCCCCGCCGCCGCTGCCGCCGCCG
+    chrX:148500604-148500753  (49.7 x CCG    149bp) STRchive  201 = pathogenic.min.  hg38 seq:          GCCGCGGCCGCCGCCGCCGCCTGTGCAGCCGCTGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCTGCCGCCCCGGCTGCCGCGCCGCGCCGCTGCCTCTGCCCCGGCCGCCCCCGCCGCCGCTGCCGCCGCCG
     chrX:148500638-148500683  (15.0 x CCG     45bp) STRipy    200 = pathogenic.min.  hg38 seq:                                            CCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCG
     chrX:148500631-148500691  (20.0 x CCG     60bp) TRGT                        hg38 seq:                                          GCCGCTGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCTGCCGCC
 ------
@@ -184,7 +184,7 @@ HOXD13 hg38 motif isn't the same between gnomAD and STRipy
 ------
 NUTM2B-AS1 hg38 ReferenceRegion isn't the same between gnomAD and STRipy
     chr10:79826383-79826404  ( 7.0 x GGC     21bp) gnomAD    161 = pathogenic.min.  hg38 seq:                 GGCGGCGGCGGCGGCGGCGGC
-    chr10:79826383-79826404  ( 7.0 x GGC     21bp) STRchive  161 = pathogenic.min.  hg38 seq:                 GGCGGCGGCGGCGGCGGCGGC
+    chr10:79826383-79826404  ( 7.0 x CGG     21bp) STRchive  161 = pathogenic.min.  hg38 seq:                 GGCGGCGGCGGCGGCGGCGGC
     chr10:79826377-79826403  ( 8.7 x CGG     26bp) STRipy    700 = pathogenic.min.  hg38 seq:           CGGCGGGGCGGCGGCGGCGGCGGCGG
     chr10:79826383-79826404  ( 7.0 x CCG     21bp) TRGT                        hg38 seq:                      GGCGGCGGCGGCGGCGGCGGC
 ------
@@ -196,7 +196,7 @@ MARCHF6 hg38 ReferenceRegion isn't the same between gnomAD and STRipy
 ------
 NOTCH2NLC hg38 ReferenceRegion isn't the same between gnomAD and STRipy
     chr1:149390802-149390841  (13.0 x GGC     39bp) gnomAD    66, 60 = pathogenic.min.  hg38 seq:       GGCGGCGGCGGCGGCGGCGGCGGCGGCGGAGGAGGCGGC
-    chr1:149390802-149390842  (13.3 x GGC     40bp) STRchive  66 = pathogenic.min.  hg38 seq:           GGCGGCGGCGGCGGCGGCGGCGGCGGCGGAGGAGGCGGCG
+    chr1:149390802-149390842  (13.3 x CGG     40bp) STRchive  66 = pathogenic.min.  hg38 seq:           GGCGGCGGCGGCGGCGGCGGCGGCGGCGGAGGAGGCGGCG
     chr1:149390802-149390829  ( 9.0 x GGC     27bp) STRipy    90, 60 = pathogenic.min.  hg38 seq:       GGCGGCGGCGGCGGCGGCGGCGGCGGC
     chr1:149390802-149390841  (13.0 x CCG     39bp) TRGT                        hg38 seq:               GGCGGCGGCGGCGGCGGCGGCGGCGGCGGAGGAGGCGGC
 ------
