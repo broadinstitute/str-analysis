@@ -16,9 +16,9 @@ FGF14 is in gnomAD but not in TRGT
 HOXA13_1 is in gnomAD but not in TRGT
 HOXA13_2 is in gnomAD but not in TRGT
 HOXA13_3 is in gnomAD but not in TRGT
-MIR7-2 is in gnomAD but not in TRGT
 NAXE is in gnomAD but not in TRGT
 PRDM12 is in gnomAD but not in TRGT
+PRE-MIR7-2 is in gnomAD but not in TRGT
 PRNP is in gnomAD but not in TRGT
 RAI1 is in gnomAD but not in TRGT
 RILPL1 is in gnomAD but not in TRGT

@@ -6,9 +6,9 @@ CSNK1E is in gnomAD but not in STRipy
 EP400 is in gnomAD but not in STRipy
 FAM193B is in gnomAD but not in STRipy
 FRA10AC1 is in gnomAD but not in STRipy
-MIR7-2 is in gnomAD but not in STRipy
 NAXE is in gnomAD but not in STRipy
 NOTCH2NLA is in gnomAD but not in STRipy
+PRE-MIR7-2 is in gnomAD but not in STRipy
 RAI1 is in gnomAD but not in STRipy
 TMEM185A is in gnomAD but not in STRipy
 ZNF713 is in gnomAD but not in STRipy
@@ -31,7 +31,7 @@ Age of Onset:
               ATXN10                               Adult       Typical: 12-48; Range: 11-83 [@genereviews:NBK1175].                                                
                ATXN2                    Paediatric/Adult       Typical: 30-39 [@genereviews:NBK1275]; Range: 2-86 [@omim:183090].                                  
                ATXN3                    Paediatric/Adult       Typical: 10-49 [@genereviews:NBK1196]; 3 [@pmid:40004498] - 73 [@genereviews:NBK1196; @pmid:30414314].
-               ATXN7                               Adult       Typical: 4-48 [@pmid:20739808]; Range: 0-90 [@genereviews:NBK1256; @pmid:14571264].                 
+               ATXN7                               Adult       Typical: 4-48 [@pmid:20739808]; Range: 0-92 [@genereviews:NBK1256; @pmid:14571264].                 
              ATXN8OS                               Adult       Typical: third to fifth decade (20-49); Range: 0 [@genereviews:NBK1268] - 76 [@pmid:40015980].      
                BEAN1                               Adult       Typical: 56-62 [@pmid:36563608]; Range: 8-83 [@pmid:23331413].                                      
              C9ORF72                               Adult       Typical: 50-64; Range: 20-91 [@genereviews:NBK268647].                                              

@@ -28,7 +28,7 @@ Age of Onset:
               ATXN10                               Adult       Typical: 12-48; Range: 11-83 [@genereviews:NBK1175].                                                
                ATXN2                    Paediatric/Adult       Typical: 30-39 [@genereviews:NBK1275]; Range: 2-86 [@omim:183090].                                  
                ATXN3                    Paediatric/Adult       Typical: 10-49 [@genereviews:NBK1196]; 3 [@pmid:40004498] - 73 [@genereviews:NBK1196; @pmid:30414314].
-               ATXN7                               Adult       Typical: 4-48 [@pmid:20739808]; Range: 0-90 [@genereviews:NBK1256; @pmid:14571264].                 
+               ATXN7                               Adult       Typical: 4-48 [@pmid:20739808]; Range: 0-92 [@genereviews:NBK1256; @pmid:14571264].                 
              ATXN8OS                               Adult       Typical: third to fifth decade (20-49); Range: 0 [@genereviews:NBK1268] - 76 [@pmid:40015980].      
                BEAN1                               Adult       Typical: 56-62 [@pmid:36563608]; Range: 8-83 [@pmid:23331413].                                      
              C9ORF72                               Adult       Typical: 50-64; Range: 20-91 [@genereviews:NBK268647].                                              
@@ -101,7 +101,7 @@ NormalMax for DMD    is set to 33 in STRchive but not in gnomAD
 NormalMax for FAM193B is set to 50 in STRchive but not in gnomAD
 NormalMax for NOTCH2NLC differs between gnomAD (41) and STRchive (37)
 NormalMax for PABPN1 differs between gnomAD (6) and STRchive (10)
-NormalMax for MIR7-2 is set to 4 in STRchive but not in gnomAD
+NormalMax for PRE-MIR7-2 is set to 4 in STRchive but not in gnomAD
 NormalMax for ZNF713 is set to 22 in STRchive but not in gnomAD
 ------
 ABCD3 hg38 ReferenceRegion isn't the same between gnomAD and STRchive
@@ -328,7 +328,7 @@ PRDM12 hg38 ReferenceRegion isn't the same between gnomAD and STRchive
     chr9:130681605-130681641  (12.0 x CCG     36bp) STRchive  18 = pathogenic.min.  hg38 seq:           CGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGC
     chr9:130681606-130681639  (11.0 x GCC     33bp) STRipy    18 = pathogenic.min.  hg38 seq:            GCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCC
 ------
-MIR7-2 hg38 ReferenceRegion isn't the same between gnomAD and STRchive
+PRE-MIR7-2 hg38 ReferenceRegion isn't the same between gnomAD and STRchive
     chr15:88569433-88569449  ( 4.0 x TTTG     16bp) gnomAD    3 = pathogenic.min.  hg38 seq:            TTTGTTTGTTTGTTTG
     chr15:88569433-88569452  ( 4.8 x TTTG     19bp) STRchive  3 = pathogenic.min.  hg38 seq:            TTTGTTTGTTTGTTTGTTT
 ------
