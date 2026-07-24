@@ -265,13 +265,18 @@ def get_trgt_catalog():
 	return trgt_lookup
 
 
-def get_gnomad_catalog():
-	"""Download the gnomAD catalog from the str-analysis github repo"""
+def get_gnomad_catalog(catalog_path=None):
+	"""Load the gnomAD catalog, either from a local path or from the str-analysis github repo"""
 
-	print("Downloading the gnomAD catalog from the str-analysis github repo")
-	gnomad_catalog = get_json_from_url(
-		"https://raw.githubusercontent.com/broadinstitute/str-analysis/main/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json"
-	)
+	if catalog_path:
+		print(f"Loading the gnomAD catalog from {catalog_path}")
+		with open(os.path.expanduser(catalog_path)) as f:
+			gnomad_catalog = json.load(f)
+	else:
+		print("Downloading the gnomAD catalog from the str-analysis github repo")
+		gnomad_catalog = get_json_from_url(
+			"https://raw.githubusercontent.com/broadinstitute/str-analysis/main/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json"
+		)
 
 	# check internal consistency
 	for d in gnomad_catalog:
@@ -286,6 +291,32 @@ def get_gnomad_catalog():
 			assert d["ReferenceRegion"] == d["MainReferenceRegion"], pformat(d)
 
 	return gnomad_catalog
+
+
+def base_locus_id(locus_id):
+	"""Return the base gene id for a LocusId, stripping any coordinate-encoded suffix.
+
+	gnomAD may hold several overlapping definitions of the same locus, disambiguated by a
+	coordinate-encoded LocusId such as "RUNX2__6-45422750-45422801-GCN". The other reference
+	catalogs (STRchive, STRipy, TRGT, official EH) key each locus by its plain gene name, so the
+	base id ("RUNX2") is what should be used to look them up.
+	"""
+	return locus_id.split("__", 1)[0]
+
+
+def add_coordinate_encoded_aliases(other_catalog_lookup, gnomad_catalog):
+	"""Alias each coordinate-encoded gnomAD LocusId to its base gene's entry in the given catalog.
+
+	This lets every gnomAD definition (including the extra overlapping ones) be compared against
+	the corresponding locus in the other catalog, instead of being dropped because its exact
+	LocusId has no match. The overlapping definitions stay distinct - they are only aliased for
+	lookups, never merged.
+	"""
+	for d in gnomad_catalog:
+		locus_id = d["LocusId"]
+		base = base_locus_id(locus_id)
+		if base != locus_id and base in other_catalog_lookup and locus_id not in other_catalog_lookup:
+			other_catalog_lookup[locus_id] = other_catalog_lookup[base]
 
 
 def output(file, line):
@@ -339,7 +370,7 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 	output_strchive_variant_catalog = []
 	output_trgt_variant_catalog = []
 
-	gnomad_locus_ids = {d["LocusId"] for d in gnomad_catalog}
+	gnomad_base_locus_ids = {base_locus_id(d["LocusId"]) for d in gnomad_catalog}
 	other_catalog_name = compare_with
 	if compare_with == OTHER_CATALOG_NAME_STRCHIVE:
 		other_catalog_locus_ids = set(strchive_lookup.keys())
@@ -359,12 +390,14 @@ def compare_catalogs(args, official_EH_catalog_loci, gnomad_catalog, stripy_look
 	else:
 		raise ValueError(f"Unknown catalog name: {compare_with}")
 
-	# check which loci are only in one of the catalogs
+	# check which loci are only in one of the catalogs (comparing by base gene id so the extra
+	# coordinate-encoded gnomAD definitions aren't spuriously reported as gnomAD-only)
 	gnomad_records = [d for d in gnomad_catalog if d["LocusId"] in other_catalog_lookup]
-	for locus_id in sorted(other_catalog_locus_ids - gnomad_locus_ids):
+	other_catalog_base_locus_ids = {base_locus_id(x) for x in other_catalog_locus_ids}
+	for locus_id in sorted(other_catalog_base_locus_ids - gnomad_base_locus_ids):
 		output(output_file, f"{locus_id} is in {other_catalog_name} but not in gnomAD")
 	output(output_file, "------")
-	for locus_id in sorted(gnomad_locus_ids - other_catalog_locus_ids):
+	for locus_id in sorted(gnomad_base_locus_ids - other_catalog_base_locus_ids):
 		output(output_file, f"{locus_id} is in gnomAD but not in {other_catalog_name}")
 	output(output_file, "------")
 
@@ -573,6 +606,10 @@ def main():
 	parser.add_argument("-R", "--reference-fasta", help="hg38 reference fasta file path", default="~/hg38.fa")
 	parser.add_argument("--only-compare-with-strchive", action="store_true",
 						help="Only compare gnomAD with STRchive, skipping STRipy and TRGT comparisons.")
+	parser.add_argument("--gnomad-catalog-path",
+						help="Optional local path to the gnomAD variant catalog JSON to compare "
+							 "(defaults to downloading variant_catalog_without_offtargets.GRCh38.json "
+							 "from the repo's main branch).")
 	args = parser.parse_args()
 
 	args.reference_fasta = os.path.expanduser(args.reference_fasta)
@@ -586,10 +623,16 @@ def main():
 		catalogs_to_compare = [OTHER_CATALOG_NAME_STRCHIVE, OTHER_CATALOG_NAME_STRIPY, OTHER_CATALOG_NAME_TRGT]
 
 	official_EH_catalog_loci = get_official_expansion_hunter_catalog_dict()
-	gnomad_catalog = get_gnomad_catalog()
+	gnomad_catalog = get_gnomad_catalog(args.gnomad_catalog_path)
 	strchive_lookup = get_strchive_dict(gnomad_catalog)
 	stripy_lookup = get_stripy_dict() if OTHER_CATALOG_NAME_STRIPY in catalogs_to_compare else {}
 	trgt_lookup = get_trgt_catalog() if OTHER_CATALOG_NAME_TRGT in catalogs_to_compare else {}
+
+	# gnomAD may define several overlapping definitions of a locus, disambiguated by a
+	# coordinate-encoded LocusId (e.g. RUNX2__6-45422750-45422801-GCN). Alias each of those to the
+	# base gene's entry in every other catalog so all definitions get compared and none are dropped.
+	for lookup in (official_EH_catalog_loci, strchive_lookup, stripy_lookup, trgt_lookup):
+		add_coordinate_encoded_aliases(lookup, gnomad_catalog)
 
 	for compare_with in catalogs_to_compare:
 		print("="*100)

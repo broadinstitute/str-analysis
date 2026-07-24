@@ -446,7 +446,7 @@ def parse_expansion_hunter_tsv_and_non_ref_motif_tsv(expansion_hunter_tsv, non_r
         non_ref_motifs_df.loc[:, "ReadvizFilename"] = None if no_readviz_images else non_ref_motifs_df["expansion_hunter_call_reviewer_svg"]
         non_ref_motifs_df = non_ref_motifs_df[expansion_hunter_table_columns]
 
-        df = df[~df["LocusId"].isin(set(non_ref_motifs_df["LocusId"]) | {"RAI1",})]
+        df = df[~df["LocusId"].isin(set(non_ref_motifs_df["LocusId"]))]
         df = pd.concat([df, non_ref_motifs_df])
 
     df["Q"] = df.apply(compute_genotype_Q, axis=1)
@@ -640,7 +640,9 @@ def add_known_pathogenic_STR_annotations(args, gnomad_json):
 
     with open(args.known_pathogenic_strs_catalog) as f:
         known_pathogenic_strs_info = json.load(f)
-    known_pathogenic_strs_info = {r["LocusId"]: r for r in known_pathogenic_strs_info}
+    # ignore coordinate-encoded alternate definitions (e.g. RUNX2__6-45422750-45422801-GCN); the
+    # gnomAD data uses only the primary definition per locus
+    known_pathogenic_strs_info = {r["LocusId"]: r for r in known_pathogenic_strs_info if "__" not in r["LocusId"]}
 
     if len(known_pathogenic_strs_info) != EXPECTED_N_KNOWN_PATHOGENIC_REPEATS:
         raise ValueError(f"{args.known_pathogenic_strs_catalog} contains {len(known_pathogenic_strs_info)} pathogenic loci."

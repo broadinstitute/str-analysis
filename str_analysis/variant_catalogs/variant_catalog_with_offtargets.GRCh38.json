@@ -1177,6 +1177,45 @@
         "Inheritance": "AD"
     },
     {
+        "LocusId": "EP400__12-132062524-132062611-CAG",
+        "LocusStructure": "(CAG)*",
+        "VariantType": "RareRepeat",
+        "ReferenceRegion": "chr12:132062524-132062611",
+        "RepeatUnit": "CAG",
+        "Gene": "EP400",
+        "GeneRegion": "coding: polyglutamine",
+        "GeneId": "ENST00000389561",
+        "Diseases": [
+            {
+                "Symbol": "EP400",
+                "Name": "Cerebellar Ataxia",
+                "Inheritance": "AD",
+                "PathogenicMin": 70
+            }
+        ],
+        "OfftargetRegions": [
+            "chr12:65563559-65563902",
+            "chr16:24776892-24777296",
+            "chr16:56815697-56816082",
+            "chr16:73546509-73546894",
+            "chr17:10995550-10995927",
+            "chr17:51831513-51831885",
+            "chr18:55585990-55586383",
+            "chr19:13207704-13208051",
+            "chr5:166979020-166979397",
+            "chr6:104019162-104019520",
+            "chr6:16327473-16327876",
+            "chr6:170561754-170562172",
+            "chr7:122288035-122288404",
+            "chr9:20414125-20414554",
+            "chrX:21367060-21367421",
+            "chrX:24364087-24364601",
+            "chrX:67545156-67545569"
+        ],
+        "MainReferenceRegion": "chr12:132062524-132062611",
+        "Inheritance": "AD"
+    },
+    {
         "LocusId": "FAM193B",
         "LocusStructure": "(CGC)*",
         "VariantType": "RareRepeat",
@@ -2152,6 +2191,44 @@
         "Inheritance": "AD"
     },
     {
+        "LocusId": "PABPN1__14-23321472-23321503-GCG",
+        "LocusStructure": "(GCG)*",
+        "ReferenceRegion": "chr14:23321472-23321503",
+        "RepeatUnit": "GCG",
+        "VariantType": "RareRepeat",
+        "Gene": "PABPN1",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000100836",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 1998,
+        "Diseases": [
+            {
+                "Symbol": "OPMD",
+                "Name": "Oculopharyngeal muscular dystrophy",
+                "Inheritance": "AD",
+                "OMIM": "164300",
+                "NormalMax": 10,
+                "PathogenicMin": 11
+            }
+        ],
+        "OfftargetRegions": [
+            "chr16:24729510-24729868",
+            "chr1:21176412-21176763",
+            "chr2:224585004-224585351",
+            "chr2:86914126-86914735",
+            "chr5:443060-443432",
+            "chr6:117907024-117907372",
+            "chr6:45422595-45422950",
+            "chr7:100694148-100694545",
+            "chr7:105013999-105014347",
+            "chrX:147911890-147912265",
+            "chrX:150983240-150983612",
+            "chrX:19990766-19991128"
+        ],
+        "MainReferenceRegion": "chr14:23321472-23321503",
+        "Inheritance": "AD"
+    },
+    {
         "LocusId": "PHOX2B",
         "LocusStructure": "(GCN)*",
         "ReferenceRegion": "chr4:41745972-41746032",
@@ -2343,6 +2420,52 @@
     {
         "LocusId": "RAI1",
         "LocusStructure": "(TTTTA)*",
+        "ReferenceRegion": "chr17:17808358-17808460",
+        "RepeatUnit": "TTTTA",
+        "VariantType": "RareRepeat",
+        "Gene": "RAI1",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000108557",
+        "DiscoveryYear": 2024,
+        "Diseases": [
+            {
+                "Symbol": "FAME8",
+                "Name": "Familial adult myoclonic epilepsy type 8",
+                "Inheritance": "AD",
+                "OMIM": "601068",
+                "PathogenicMin": 9
+            }
+        ],
+        "OfftargetRegions": [
+            "chr10:94531487-94532013",
+            "chr13:71654237-71654677",
+            "chr17:46999846-47000288",
+            "chr20:17081089-17081531",
+            "chr21:23710971-23711386",
+            "chr22:21395520-21395928",
+            "chr2:44013201-44013638",
+            "chr4:21714633-21715248",
+            "chr4_KI270790v1_alt:200469-201085",
+            "chr5:116726213-116726658",
+            "chr5:55105820-55106484",
+            "chr7:151316374-151316835",
+            "chr7:75175257-75175679",
+            "chr9:110701505-110702081",
+            "chr9:25543141-25543554",
+            "chrX:6802782-6803290"
+        ],
+        "MainReferenceRegion": "chr17:17808358-17808460",
+        "PathogenicMotifs": [
+            "ATTTC"
+        ],
+        "BenignMotifs": [
+            "ATTTT"
+        ],
+        "Inheritance": "AD"
+    },
+    {
+        "LocusId": "RAI1__17-17808416-17808460-TTTTA",
+        "LocusStructure": "(TTTTA)*",
         "ReferenceRegion": "chr17:17808416-17808460",
         "RepeatUnit": "TTTTA",
         "VariantType": "RareRepeat",
@@ -2528,6 +2651,60 @@
         "LocusId": "RUNX2",
         "LocusStructure": "(GCN)*",
         "VariantType": "RareRepeat",
+        "ReferenceRegion": "chr6:45422750-45422792",
+        "RepeatUnit": "GCN",
+        "Gene": "RUNX2",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000124813",
+        "DiscoveryMethod": "L, CGA",
+        "DiscoveryYear": 1997,
+        "Diseases": [
+            {
+                "Symbol": "CCD",
+                "Name": "Cleidocranial dysplasia",
+                "Inheritance": "AD",
+                "OMIM": "119600",
+                "NormalMax": 14,
+                "PathogenicMin": 17
+            }
+        ],
+        "OfftargetRegions": [
+            "chr12:65563559-65563902",
+            "chr16:24729510-24729868",
+            "chr16:24776892-24777296",
+            "chr16:56815697-56816082",
+            "chr16:73546509-73546894",
+            "chr17:10995550-10995927",
+            "chr17:51831513-51831885",
+            "chr18:55585990-55586383",
+            "chr19:13207704-13208051",
+            "chr1:21176412-21176763",
+            "chr2:224585004-224585351",
+            "chr2:86914126-86914735",
+            "chr5:166979020-166979397",
+            "chr5:443060-443432",
+            "chr6:104019162-104019520",
+            "chr6:117907024-117907372",
+            "chr6:16327473-16327876",
+            "chr6:170561754-170562172",
+            "chr7:100694148-100694545",
+            "chr7:105013999-105014347",
+            "chr7:122288035-122288404",
+            "chr9:20414125-20414554",
+            "chrX:147911890-147912265",
+            "chrX:150983240-150983612",
+            "chrX:19990766-19991128",
+            "chrX:21367060-21367421",
+            "chrX:24364087-24364601",
+            "chrX:67545156-67545569"
+        ],
+        "MainReferenceRegion": "chr6:45422750-45422792",
+        "Inheritance": "AD"
+    },
+    {
+        "LocusId": "RUNX2__6-45422750-45422801-GCN",
+        "LocusStructure": "(GCN)*",
+        "VariantType": "RareRepeat",
         "ReferenceRegion": "chr6:45422750-45422801",
         "RepeatUnit": "GCN",
         "Gene": "RUNX2",
@@ -2580,6 +2757,54 @@
     },
     {
         "LocusId": "SAMD12",
+        "LocusStructure": "(AAAAT)*",
+        "VariantType": "RareRepeat",
+        "ReferenceRegion": "chr8:118366815-118366880",
+        "RepeatUnit": "AAAAT",
+        "Gene": "SAMD12",
+        "GeneRegion": "intron",
+        "GeneId": "ENSG00000177570",
+        "DiscoveryMethod": "L, ExScr",
+        "DiscoveryYear": 2018,
+        "Diseases": [
+            {
+                "Symbol": "FAME1",
+                "Name": "Familial adult myoclonic epilepsy 1",
+                "Inheritance": "AD",
+                "OMIM": "601068",
+                "PathogenicMin": 97
+            }
+        ],
+        "OfftargetRegions": [
+            "chr10:94531487-94532013",
+            "chr13:71654237-71654677",
+            "chr17:46999846-47000288",
+            "chr20:17081089-17081531",
+            "chr21:23710971-23711386",
+            "chr22:21395520-21395928",
+            "chr2:44013201-44013638",
+            "chr4:21714633-21715248",
+            "chr4_KI270790v1_alt:200469-201085",
+            "chr5:116726213-116726658",
+            "chr5:55105820-55106484",
+            "chr7:151316374-151316835",
+            "chr7:75175257-75175679",
+            "chr9:110701505-110702081",
+            "chr9:25543141-25543554",
+            "chrX:6802782-6803290"
+        ],
+        "MainReferenceRegion": "chr8:118366815-118366880",
+        "PathogenicMotifs": [
+            "TCAAA",
+            "TGAAA"
+        ],
+        "BenignMotifs": [
+            "TAAAA"
+        ],
+        "Inheritance": "AD"
+    },
+    {
+        "LocusId": "SAMD12__8-118366812-118366918-AAAAT",
         "LocusStructure": "(AAAAT)*",
         "VariantType": "RareRepeat",
         "ReferenceRegion": "chr8:118366812-118366918",
