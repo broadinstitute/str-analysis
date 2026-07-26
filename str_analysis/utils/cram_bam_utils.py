@@ -36,6 +36,30 @@ class ByteRange:
 		return self.__repr__()
 
 
+class _DiskBackedByteRangesCache:
+	"""Stores CRAM byte-range contents in a temporary file instead of memory."""
+
+	def __init__(self):
+		self._file = tempfile.TemporaryFile(buffering=0)
+		self._index = {}
+
+	def __contains__(self, byte_range):
+		return byte_range in self._index
+
+	def __getitem__(self, byte_range):
+		cache_location = self._index[byte_range]
+		self._file.seek(cache_location[0])
+		return self._file.read(cache_location[1])
+
+	def __setitem__(self, byte_range, value):
+		self._file.seek(0, os.SEEK_END)
+		self._index[byte_range] = (self._file.tell(), len(value))
+		self._file.write(value)
+
+	def close(self):
+		self._file.close()
+
+
 def parse_crai_index(crai_path, cram_path, eof_container_length=len(CRAM_EOF_CONTAINER)):
 	"""Takes a .crai and .cram file path (either local or on gs://) and returns a 2-tuple. The first
 	value in the tuple is the byte offset where the CRAM header ends in the input CRAM file.
@@ -142,7 +166,7 @@ class IntervalReader:
 			reference_fasta_path: Optional reference genome FASTA path to use when reading CRAM files using pysam.
 			include_unmapped_read_pairs: If True, also output any umapped read pairs stored at the end of the cram file.
 			cache_byte_ranges: This option is only relevant for CRAM files, and is ignored for BAMs.
-				Cache the byte ranges that are read from the CRAM file in memory. This can be useful when loading a
+				Cache byte ranges read from the CRAM file in a temporary disk file. This can be useful when loading a
 				relatively small number of intervals and then reusing the same IntervalReader instance across multiple
 				rounds of CRAM access.
 			verbose: If True, will print more detailed information.
@@ -168,7 +192,7 @@ class IntervalReader:
 		self._verbose = verbose or debug
 		self._debug = debug
 
-		self._byte_ranges_cache = {} if cache_byte_ranges else None
+		self._byte_ranges_cache = _DiskBackedByteRangesCache() if cache_byte_ranges and self._is_cram_file else None
 		self._genomic_intervals = collections.defaultdict(intervaltree.IntervalTree)
 
 
@@ -465,6 +489,9 @@ class IntervalReader:
 
 	def close(self):
 		"""Release any system resources opened by IntervalReader"""
+		if self._byte_ranges_cache is not None:
+			self._byte_ranges_cache.close()
+			self._byte_ranges_cache = None
 		if self._is_file_in_google_storage:
 			self._storage_client.close()
 		else:
