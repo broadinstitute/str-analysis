@@ -118,7 +118,8 @@ def main():
 
     # create a CramIntervalRreader and use it to generate a temp CRAM file containing the CRAM header and any reads
     # overlapping the user-specified region interval(s)
-    print(f"Retrieving reads within {args.window_size:,d}bp of", ", ".join(args.region))
+    print(f"Processing {len(args.region):,d} loci")
+    print(f"Retrieving reads within {args.window_size:,d}bp of each locus")
     cram_reader = IntervalReader(args.input_cram, input_crai_path, verbose=args.verbose, debug=args.debug,
                                  reference_fasta_path=args.reference_fasta, cache_byte_ranges=True)
 

@@ -119,7 +119,8 @@ def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=
 
     genomic_regions_to_fetch.extend(mate_regions.keys())
 
-    print(f"{chrom}:{start}-{end}: Need to fetch {len(read_pairs)} mates from {len(mate_regions)} regions")
+    if verbose:
+        print(f"{chrom}:{start}-{end}: Need to fetch {len(read_pairs)} mates from {len(mate_regions)} regions")
 
     if bamlet is not None:
         for (mate_chrom, mate_start, mate_end), read_names_set in mate_regions.items():
