@@ -1,1 +1,1 @@
-weisburd/str-analysis-with-trgt@sha256:94dbf60d8ce7f6c6b3cb9476e43d09b756f6ffe9e921d86a56de1d715b08cebc
+weisburd/str-analysis-with-trgt@sha256:c77f3074c4f53302de22f1f2f7a127a161904c62a2cb83d4b7e802a4da78c9d7
