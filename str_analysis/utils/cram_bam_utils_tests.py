@@ -13,7 +13,7 @@ from unittest import mock
 import pysam
 
 from str_analysis.make_bamlet import extract_region
-from str_analysis.utils.cram_bam_utils import IntervalReader
+from str_analysis.utils.cram_bam_utils import IntervalReader, merge_adjacent_byte_ranges
 from str_analysis.utils.file_utils import set_requester_pays_project
 
 
@@ -271,6 +271,93 @@ class TestCramBamUtils(unittest.TestCase):
 			finally:
 				reader.close()
 			self.assertTrue(cache_file.closed)
+
+	def test_cram_reader_does_not_refetch_containers_when_intervals_grow(self):
+		# Regression test: the byte-range cache must be keyed on canonical per-container ranges, not on the merged
+		# runs those containers get coalesced into. make_minicram calls save_to_file twice -- once for the primary
+		# intervals, then again after mate intervals have been added -- and the second call's larger interval set
+		# produces runs with different (start, end) boundaries. When the cache was keyed on those run boundaries,
+		# every run missed on the second call and re-downloaded bytes already fetched: on the 50000-locus benchmark
+		# total network reads reached 133% of the full CRAM size. Growing the interval set must only ever fetch
+		# containers that are genuinely new.
+		chr9_reference_fasta = get_chr9_reference_fasta()
+		with tempfile.NamedTemporaryFile(suffix=".cram") as first_output, \
+			  tempfile.NamedTemporaryFile(suffix=".cram") as second_output:
+
+			reader = IntervalReader(
+				self._local_cram_path, self._local_cram_path + ".crai",
+				reference_fasta_path=chr9_reference_fasta, cache_byte_ranges=True)
+			# record every range that actually comes off the wire/disk, so overlap between reads is detectable.
+			# Asserting on the byte COUNTER alone is not enough: it stays self-consistent under either cache keying,
+			# because whatever gets fetched is also what gets stored.
+			physical_reads = []
+			original_read_bytes = reader._read_bytes
+
+			def recording_read_bytes(start, end):
+				physical_reads.append((start, end))
+				return original_read_bytes(start, end)
+
+			reader._read_bytes = recording_read_bytes
+			try:
+				# The two intervals below sit in ADJACENT containers of the test CRAM -- chr5 in the container at
+				# byte offset 99943 and chr9 in the one at 101430 -- so adding the second one makes those containers
+				# merge into a single larger run. That shifting run boundary is precisely what used to invalidate the
+				# cache key and re-download the first container. Intervals inside one container would not exercise it.
+				reader.add_interval("chr5", 127247318, 127247487)
+				reader.save_to_file(first_output.name)
+				self.assertGreater(reader.get_total_bytes_loaded_from_cram(), 0)
+				self.assertGreater(len(physical_reads), 0)
+
+				# second pass: the added interval extends the run, then re-export
+				reader.add_interval(*self._FXN_intervals[0])
+				reader.save_to_file(second_output.name)
+
+				# no byte may be read twice: the total read equals the size of the union of the ranges read
+				bytes_read = sum(end - start for start, end in physical_reads)
+				bytes_covered = sum(end - start for start, end in merge_adjacent_byte_ranges(physical_reads))
+				self.assertEqual(bytes_read, bytes_covered)
+			finally:
+				reader.close()
+
+	def test_save_to_file_dedup_window_does_not_grow_with_output_size(self):
+		# Regression test: save_to_file used to keep one (query_name, flag, reference_start) key for EVERY read it
+		# wrote, for the whole call. At ~219 bytes per entry that made it the dominant memory consumer -- an
+		# estimated ~8GB of the 13.7GB peak on the 50000-locus benchmark, and the reason the 6.5GB and 13GB VM tiers
+		# were OOM-killed. Reads are traversed in coordinate order, so only reads overlapping the current position
+		# need to be remembered; the window must therefore track local depth, NOT the number of reads written.
+		chr9_reference_fasta = get_chr9_reference_fasta()
+
+		def peak_window_and_reads_written(region_end):
+			with tempfile.NamedTemporaryFile(suffix=".cram") as output_cram_file:
+				reader = IntervalReader(
+					self._local_cram_path, self._local_cram_path + ".crai",
+					reference_fasta_path=chr9_reference_fasta)
+				try:
+					for interval_start in range(69035900, region_end, 25):
+						reader.add_interval("chr9", interval_start, interval_start + 10)
+					reads_written = reader.save_to_file(output_cram_file.name)
+					return reader.get_peak_dedup_window_size(), reads_written
+				finally:
+					reader.close()
+
+		narrow_window, narrow_reads = peak_window_and_reads_written(69037300)
+		wide_window, wide_reads = peak_window_and_reads_written(69038700)
+
+		# the wider region really does write substantially more reads ...
+		self.assertGreater(wide_reads, narrow_reads * 1.5)
+		# ... but the dedup window tracks read depth, so it must not grow in proportion
+		self.assertLess(wide_window, narrow_window * 1.5)
+		# and it stays far below the total number of reads written, which is what used to be retained
+		self.assertLess(wide_window, wide_reads / 2)
+
+	def test_merge_adjacent_byte_ranges(self):
+		self.assertEqual(merge_adjacent_byte_ranges([]), [])
+		# overlapping and exactly-adjacent ranges collapse; disjoint ones stay separate
+		self.assertEqual(merge_adjacent_byte_ranges([(0, 10), (10, 20)]), [(0, 20)])
+		self.assertEqual(merge_adjacent_byte_ranges([(0, 15), (10, 20)]), [(0, 20)])
+		self.assertEqual(merge_adjacent_byte_ranges([(30, 40), (0, 10)]), [(0, 10), (30, 40)])
+		# a range fully contained in an earlier one must not shrink the merged run
+		self.assertEqual(merge_adjacent_byte_ranges([(0, 100), (10, 20)]), [(0, 100)])
 
 	def test_crai_index_intervals_are_0based(self):
 		# Regression test: CRAI alignment_start is 1-based, so parse_crai_index must store it as 0-based

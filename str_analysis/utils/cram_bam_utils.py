@@ -1,6 +1,7 @@
 import binascii
 import collections
 import hashlib
+import heapq
 import intervaltree
 import os
 import pysam
@@ -58,6 +59,24 @@ class _DiskBackedByteRangesCache:
 
 	def close(self):
 		self._file.close()
+
+
+def merge_adjacent_byte_ranges(byte_ranges):
+	"""Merges overlapping or exactly-adjacent (start, end) byte ranges into the smallest set of covering runs.
+
+	Args:
+		byte_ranges: iterable of (start, end) tuples.
+
+	Returns:
+		list: sorted, non-overlapping (start, end) tuples covering the same bytes.
+	"""
+	merged = []
+	for start, end in sorted(byte_ranges):
+		if merged and merged[-1][1] >= start:
+			merged[-1] = (min(merged[-1][0], start), max(merged[-1][1], end))
+		else:
+			merged.append((start, end))
+	return merged
 
 
 def parse_crai_index(crai_path, cram_path, eof_container_length=len(CRAM_EOF_CONTAINER)):
@@ -194,6 +213,7 @@ class IntervalReader:
 
 		self._byte_ranges_cache = _DiskBackedByteRangesCache() if cache_byte_ranges and self._is_cram_file else None
 		self._genomic_intervals = collections.defaultdict(intervaltree.IntervalTree)
+		self._peak_dedup_window_size = 0
 
 
 		if self._is_file_in_google_storage:
@@ -257,6 +277,14 @@ class IntervalReader:
 		This is only works for CRAM and not for BAM files.
 		"""
 		return self._total_bytes_loaded_from_cram
+
+	def get_peak_dedup_window_size(self):
+		"""Returns the largest number of read keys save_to_file held at once while deduplicating its output.
+
+		This is bounded by the local read depth rather than by the total number of reads written, and is the
+		high-water mark of what was previously this class's dominant memory consumer.
+		"""
+		return self._peak_dedup_window_size
 
 	def clear_intervals(self):
 		"""Clears all the genomic intervals that were added so far."""
@@ -328,10 +356,21 @@ class IntervalReader:
 											format_options=[b"no_ref=1"]
 											if self._is_cram_file and disable_reference_compression else None)
 		read_counter = 0
-		# a read overlapping two non-overlapping requested intervals is returned by fetch() once per interval;
+		# A read overlapping two non-overlapping requested intervals is returned by fetch() once per interval;
 		# track written alignments so each is emitted at most once (duplicates would otherwise be interpreted
-		# as a complete read pair downstream and suppress real mate retrieval)
+		# as a complete read pair downstream and suppress real mate retrieval).
+		#
+		# Only a SLIDING WINDOW of keys is retained, not every read written. Intervals are traversed in header
+		# reference order then ascending position, and fetch() returns reads in coordinate order, so once the scan
+		# passes a read's reference_end that read cannot be returned again -- not by the rest of this interval, nor
+		# by any later interval, which starts at an even higher position. Keeping the full history instead made this
+		# set the single largest memory consumer: at ~219 bytes per entry it reached an estimated ~8GB of the 13.7GB
+		# peak on the 50000-locus benchmark, and OOM-killed the 6.5GB and 13GB VM tiers outright. The window holds
+		# only reads overlapping the current position, i.e. on the order of the local coverage depth.
 		written_read_keys = set()
+		# min-heap of (reference_end, read_key), used to drop keys once the scan has moved past them
+		eviction_heap = []
+		current_fetch_chrom = None
 		if self._verbose:
 			print("Writing reads to", local_path)
 		# _get_merged_intervals already sorts chromosomes by the supplied header order and intervals by position.
@@ -348,20 +387,43 @@ class IntervalReader:
 			if self._debug:
 				print(f"DEBUG: Fetching {fetch_chrom}:{start}-{end} from {pysam_input_filename}")
 
+			if fetch_chrom != current_fetch_chrom:
+				# positions restart on a new contig, so nothing already seen can recur -- reset the whole window
+				current_fetch_chrom = fetch_chrom
+				written_read_keys.clear()
+				eviction_heap.clear()
+
 			for read in pysam_input_file.fetch(fetch_chrom, start, end):
+				# drop keys for reads that end before this one starts; coordinate-ordered traversal guarantees
+				# they cannot be returned again
+				while eviction_heap and eviction_heap[0][0] < read.reference_start:
+					written_read_keys.discard(heapq.heappop(eviction_heap)[1])
+
 				read_key = (read.query_name, read.flag, read.reference_start)
 				if read_key in written_read_keys:
 					continue
 				written_read_keys.add(read_key)
+				# reference_end is None for an unmapped read placed at its mate's position; such a read spans no
+				# reference bases, so key it off reference_start to keep the heap ordering consistent
+				heapq.heappush(
+					eviction_heap,
+					(read.reference_end if read.reference_end is not None else read.reference_start, read_key))
+				# high-water mark of the dedup window, exposed via get_peak_dedup_window_size() so the bound can be
+				# asserted in tests and eyeballed in production -- this set is what used to grow to multiple GB
+				self._peak_dedup_window_size = max(self._peak_dedup_window_size, len(written_read_keys))
 				read_counter += 1
 				pysam_output_file.write(read)
 
 		if self._include_unmapped_read_pairs:
+			# unmapped reads carry no reference position, so the coordinate-based window above does not apply to
+			# them; dedup them against each other with their own set. They cannot collide with the mapped reads
+			# written above, whose keys all carry a real reference_start.
+			written_unmapped_read_keys = set()
 			for read in pysam_input_file.fetch("*"):
 				read_key = (read.query_name, read.flag, read.reference_start)
-				if read_key in written_read_keys:
+				if read_key in written_unmapped_read_keys:
 					continue
-				written_read_keys.add(read_key)
+				written_unmapped_read_keys.add(read_key)
 				read_counter += 1
 				pysam_output_file.write(read)
 
@@ -541,24 +603,30 @@ class IntervalReader:
 			for crai_interval in crai_intervals:
 				byte_ranges_to_load.append((crai_interval.data.start, crai_interval.data.end))
 
-		# compute merged byte-range intervals
-		merged_byte_ranges = []
-		for bytes_start, bytes_end in sorted(byte_ranges_to_load):
-			if not merged_byte_ranges:
-				merged_byte_ranges.append((bytes_start, bytes_end))
-			else:
-				previous_interval = merged_byte_ranges[-1]
-				if previous_interval[1] >= bytes_start:
-					merged_byte_ranges[-1] = (min(previous_interval[0], bytes_start), max(previous_interval[1], bytes_end))
-				else:
-					merged_byte_ranges.append((bytes_start, bytes_end))
+		# Deduplicate to canonical per-container byte ranges. These come straight from the CRAI, so a given container
+		# always has the SAME (start, end) key no matter which intervals selected it -- which is what makes the cache
+		# reusable across save_to_file calls. Merging containers into larger runs BEFORE caching (as this used to do)
+		# keyed the cache on run boundaries instead, and those boundaries shift when the interval set changes between
+		# calls, so the second call missed on every run and re-downloaded bytes it already had. On the 50000-locus
+		# benchmark that pushed total network reads to 133% of the full CRAM size -- worse than downloading it once,
+		# which defeats the entire point of building a minicram.
+		containers_to_load = sorted(set(byte_ranges_to_load))
+		if self._byte_ranges_cache is not None:
+			# pre-fetch the containers this call needs but does not already have, coalescing contiguous misses so the
+			# request count stays close to what merging used to give, then serve every container from the cache below
+			self._fetch_uncached_containers(containers_to_load)
+			byte_ranges_to_write = containers_to_load
+		else:
+			# no cache to reuse across calls, so there is nothing to keep canonical -- merge into runs to keep the
+			# number of network requests down, exactly as before
+			byte_ranges_to_write = merge_adjacent_byte_ranges(containers_to_load)
 
 		# write all CRAM containers that overlap the requested intervals to the given CRAM file
 		if self._debug:
 			print(f"DEBUG: Wrote CRAM header [0-{len(self._cram_header_bytes):,d}] (hash: {hashlib.md5(self._cram_header_bytes).hexdigest()[:20]})")
 		cram_container_file.write(self._cram_header_bytes)
 		bytes_counter = 0
-		for bytes_start, bytes_end in merged_byte_ranges:
+		for bytes_start, bytes_end in byte_ranges_to_write:
 			cram_container_bytes = self._get_byte_range(bytes_start, bytes_end)
 			cram_container_file.write(cram_container_bytes)
 			bytes_counter += len(cram_container_bytes)
@@ -642,10 +710,43 @@ class IntervalReader:
 			return CRAM_EOF_CONTAINER_V2
 		return CRAM_EOF_CONTAINER
 
-	def _get_byte_range(self, start, end):
-		if self._byte_ranges_cache is not None and (start, end) in self._byte_ranges_cache:
-			return self._byte_ranges_cache[(start, end)]
+	def _fetch_uncached_containers(self, containers):
+		"""Fetches every container not already in the byte-range cache, and stores each one under its own key.
 
+		Contiguous runs of missing containers are fetched in a single request, so this keeps the request count close
+		to what fetching merged runs gave, while still caching at the per-container granularity that lets a later
+		save_to_file call reuse them regardless of how its intervals merge.
+
+		Args:
+			containers: sorted list of canonical per-container (start, end) byte ranges needed by this call.
+		"""
+		missing = [byte_range for byte_range in containers if byte_range not in self._byte_ranges_cache]
+		if not missing:
+			return
+
+		# group the missing containers into runs of exactly-adjacent containers (end of one == start of the next),
+		# keeping each run's member containers so the fetched bytes can be split back up and cached individually
+		runs = []
+		for start, end in missing:
+			if runs and runs[-1][-1][1] == start:
+				runs[-1].append((start, end))
+			else:
+				runs.append([(start, end)])
+
+		for run in runs:
+			run_start, run_end = run[0][0], run[-1][1]
+			# read the run directly rather than via _get_byte_range, so the run itself is never stored under its own
+			# (non-canonical) key -- that would both defeat the point of this fix and store the bytes twice on disk
+			run_bytes = self._read_bytes(run_start, run_end)
+			for start, end in run:
+				self._byte_ranges_cache[(start, end)] = run_bytes[start - run_start:end - run_start]
+
+	def _read_bytes(self, start, end):
+		"""Reads [start, end) from the input file (over the network for gs:// paths) and updates the transfer counters.
+
+		This is the only place bytes actually come off the wire, so the counters it maintains are what
+		--output-data-transfer-stats reports; cache hits deliberately never reach here.
+		"""
 		if self._is_file_in_google_storage:
 			byte_range = get_byte_range_from_google_storage(
 				self._cram_or_bam_path, start, end, client=self._storage_client)
@@ -658,6 +759,14 @@ class IntervalReader:
 
 		if len(byte_range) != end - start:
 			raise ValueError(f"Expected to read {end - start} bytes (from {start} to {end}) but read {len(byte_range)}")
+
+		return byte_range
+
+	def _get_byte_range(self, start, end):
+		if self._byte_ranges_cache is not None and (start, end) in self._byte_ranges_cache:
+			return self._byte_ranges_cache[(start, end)]
+
+		byte_range = self._read_bytes(start, end)
 
 		if self._byte_ranges_cache is not None:
 			self._byte_ranges_cache[(start, end)] = byte_range
