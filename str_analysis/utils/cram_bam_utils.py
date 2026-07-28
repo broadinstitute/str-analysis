@@ -225,8 +225,12 @@ class IntervalReader:
 			self._cram_or_bam_file = open(self._cram_or_bam_path, "rb")
 
 		if self._is_cram_file:
-			# initialize objects used by the self._load_cram_containers(..) method
+			# initialize objects used by the self._load_cram_containers(..) method.
+			# Two distinct quantities, previously conflated: _total_byte_ranges_loaded_from_cram counts PHYSICAL
+			# read requests, while _total_containers_loaded_from_cram counts CRAM containers. They differ because
+			# adjacent containers are coalesced into one request, so a single request can load many containers.
 			self._total_byte_ranges_loaded_from_cram = 0
+			self._total_containers_loaded_from_cram = 0
 			self._total_bytes_loaded_from_cram = 0
 
 			# detect the input CRAM's EOF marker (version-dependent length) so the last container is sized
@@ -267,10 +271,22 @@ class IntervalReader:
 		interval_tree.add(merged_interval)
 
 	def get_total_byte_ranges_loaded_from_cram(self):
-		"""Returns the total number of CRAM containers that were loaded from the input CRAM so far.
+		"""Returns the total number of physical read requests issued against the input CRAM so far.
+
+		This is NOT the number of containers loaded: adjacent containers are coalesced into a single request,
+		so one request can cover many containers. Use get_total_containers_loaded_from_cram() for that.
 		This only works for CRAM and not for BAM files.
 		"""
 		return self._total_byte_ranges_loaded_from_cram
+
+	def get_total_containers_loaded_from_cram(self):
+		"""Returns the total number of CRAM containers that were loaded from the input CRAM so far.
+
+		Counts each container once, regardless of how many were coalesced into the same read request, and
+		excludes containers served from the byte-range cache (those cost no I/O).
+		This only works for CRAM and not for BAM files.
+		"""
+		return self._total_containers_loaded_from_cram
 
 	def get_total_bytes_loaded_from_cram(self):
 		"""Returns the total number of bytes that were loaded from the input CRAM so far.
@@ -470,84 +486,26 @@ class IntervalReader:
 
 		return read_counter
 
-	def count_reads(self):
-		"""Returns the number of reads that overlap the added genomic intervals"""
-		with tempfile.NamedTemporaryFile(suffix=".cram") as temp_cram_file:
-			read_count = self.save_to_file(temp_cram_file.name, create_index=False)
-		return read_count
-
-	def get_header(self):
-		"""Returns the CRAM or BAM file header as a dictionary"""
-		saved_genomic_intervals = self._genomic_intervals  # save the genomic intervals
-		self.clear_intervals()
-		with tempfile.NamedTemporaryFile(suffix=".cram") as temp_cram_file:
-			self.save_to_file(temp_cram_file.name, create_index=True)
-			self._genomic_intervals = saved_genomic_intervals # restore the genomic intervals
-			with pysam.AlignmentFile(temp_cram_file.name) as input_file:
-				return input_file.header.to_dict()
-
 	def save_data_transfer_stats(self, stats_tsv_path=None):
 		total_bytes = self.get_total_bytes_loaded_from_cram()
-		total_containers = self.get_total_byte_ranges_loaded_from_cram()
-		print(f"Downloaded {total_containers:,d} CRAM containers and {total_bytes/10**6:0,.1f}Mb total")
+		total_containers = self.get_total_containers_loaded_from_cram()
+		total_requests = self.get_total_byte_ranges_loaded_from_cram()
+		print(f"Downloaded {total_containers:,d} CRAM containers ({total_requests:,d} read requests) "
+			  f"and {total_bytes/10**6:0,.1f}Mb total")
 		if not stats_tsv_path:
 			stats_tsv_path = re.sub(".cram$", "", os.path.basename(self._cram_or_bam_path))
 			stats_tsv_path += ".data_transfer_stats.tsv"
 
+		# total_read_requests is appended last so the first two numeric columns keep their existing positions,
+		# for readers that parse this file positionally
 		with open(stats_tsv_path, "wt") as stats_file:
-			stats_file.write("\t".join(["file_path", "total_bytes_loaded", "total_containers_loaded_from_cram"]) + "\n")
-			stats_file.write("\t".join(map(str, [self._cram_or_bam_path, total_bytes, total_containers])) + "\n")
+			stats_file.write("\t".join([
+				"file_path", "total_bytes_loaded", "total_containers_loaded_from_cram", "total_read_requests"]) + "\n")
+			stats_file.write("\t".join(map(str, [
+				self._cram_or_bam_path, total_bytes, total_containers, total_requests])) + "\n")
 
 		print(f"Wrote stats to {stats_tsv_path}")
 
-
-	def compute_read_stats(self):
-		"""Returns a dictionary of read stats for the added genomic intervals. The dictionary contains the following
-		keys:
-			"coverage": The average coverage across all the added intervals.
-			"read_length": The read length.
-			"read_count": The total number of reads across all the added intervals.
-		"""
-
-		stats = {}
-		read_length = None
-		read_count = 0
-		coverage = []
-
-		with tempfile.NamedTemporaryFile(suffix=".cram") as temp_cram_file:
-			self.save_to_file(temp_cram_file.name, create_index=True)
-
-			with pysam.AlignmentFile(temp_cram_file.name) as input_file:
-				for chrom, start_0based, end in self._get_merged_intervals():
-					bases_in_interval = 0
-					for read in input_file.fetch(chrom, start_0based, end):
-						if read.is_unmapped or read.is_secondary:
-							continue
-
-						current_read_length = read.infer_query_length()
-						if current_read_length is None:
-							continue
-
-						if read_length is None or read_length < current_read_length:
-							read_length = current_read_length
-
-						read_start_1based = read.reference_start + 1
-						read_end_1based = read.reference_start + current_read_length
-
-						if read_end_1based < start_0based + 1 or read_start_1based > end:
-							continue
-
-						read_count += 1
-						bases_in_interval += min(read_end_1based, end) - max(read_start_1based, start_0based + 1) + 1
-
-					if end - start_0based > 0:
-						coverage.append(bases_in_interval/float(end - start_0based))
-
-		stats["coverage"] = sum(coverage)/len(coverage) if coverage else 0
-		stats["read_length"] = read_length
-		stats["read_count"] = read_count
-
-		return stats
 
 	def close(self):
 		"""Release any system resources opened by IntervalReader"""
@@ -618,7 +576,9 @@ class IntervalReader:
 			byte_ranges_to_write = containers_to_load
 		else:
 			# no cache to reuse across calls, so there is nothing to keep canonical -- merge into runs to keep the
-			# number of network requests down, exactly as before
+			# number of network requests down, exactly as before. Every container is (re-)loaded on each call here,
+			# since without a cache nothing carries over.
+			self._total_containers_loaded_from_cram += len(containers_to_load)
 			byte_ranges_to_write = merge_adjacent_byte_ranges(containers_to_load)
 
 		# write all CRAM containers that overlap the requested intervals to the given CRAM file
@@ -639,7 +599,7 @@ class IntervalReader:
 
 		cram_container_file.flush()
 		if self._debug:
-			print(f"DEBUG: Wrote {len(merged_byte_ranges):,d} CRAM containers to {cram_container_file.name}")
+			print(f"DEBUG: Wrote {len(byte_ranges_to_write):,d} CRAM containers to {cram_container_file.name}")
 
 		if self._verbose and self._total_byte_ranges_loaded_from_cram > 0:
 			print(f"Copied {self._total_bytes_loaded_from_cram/10**6:5.1f}Mb total from {self._cram_or_bam_path}  to  {cram_container_file.name}")
@@ -699,12 +659,9 @@ class IntervalReader:
 		"""Reads the input CRAM's magic bytes and returns the EOF marker matching its major version
 		(CRAM 2.x uses the 30-byte marker, CRAM 3 the 38-byte one). Defaults to the CRAM 3 marker for
 		anything that doesn't look like a CRAM 2 file."""
-		if self._is_file_in_google_storage:
-			magic_and_version = get_byte_range_from_google_storage(
-				self._cram_or_bam_path, 0, 6, client=self._storage_client)
-		else:
-			self._cram_or_bam_file.seek(0)
-			magic_and_version = self._cram_or_bam_file.read(6)
+		# routed through _read_bytes so this probe is included in the transfer counters -- it is a real (if tiny)
+		# network read for gs:// inputs, and _read_bytes is documented as the single place bytes come off the wire
+		magic_and_version = self._read_bytes(0, 6)
 
 		if magic_and_version[:4] == b"CRAM" and len(magic_and_version) >= 5 and magic_and_version[4] == 2:
 			return CRAM_EOF_CONTAINER_V2
@@ -723,6 +680,8 @@ class IntervalReader:
 		missing = [byte_range for byte_range in containers if byte_range not in self._byte_ranges_cache]
 		if not missing:
 			return
+		# containers served from the cache cost no I/O, so only the missing ones count as loaded
+		self._total_containers_loaded_from_cram += len(missing)
 
 		# group the missing containers into runs of exactly-adjacent containers (end of one == start of the next),
 		# keeping each run's member containers so the fetched bytes can be split back up and cached individually

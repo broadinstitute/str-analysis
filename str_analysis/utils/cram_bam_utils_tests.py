@@ -351,6 +351,112 @@ class TestCramBamUtils(unittest.TestCase):
 		# and it stays far below the total number of reads written, which is what used to be retained
 		self.assertLess(wide_window, wide_reads / 2)
 
+	def test_interval_reader_debug_mode_runs(self):
+		# Regression test: a debug print referenced a variable that had been renamed, so constructing an
+		# IntervalReader with debug=True raised NameError before doing any work. Nothing else in the suite
+		# exercises debug=True, so the whole --debug code path was unprotected.
+		reader = IntervalReader(
+			self._local_cram_path, self._local_cram_path + ".crai", debug=True, cache_byte_ranges=True)
+		try:
+			reader.add_interval(*self._FXN_intervals[0])
+			with tempfile.NamedTemporaryFile(suffix=".cram") as output_cram_file:
+				reader._load_cram_containers(output_cram_file)
+		finally:
+			reader.close()
+
+	def test_container_and_request_counters_are_distinct(self):
+		# Regression test: one counter was used for both "containers loaded" and "read requests issued", but
+		# adjacent containers are coalesced into a single request, so the value reported as a container count
+		# (including in the --output-data-transfer-stats TSV) undercounted containers.
+		reader = IntervalReader(
+			self._local_cram_path, self._local_cram_path + ".crai", cache_byte_ranges=True)
+		try:
+			# these two intervals live in ADJACENT containers, so they coalesce into one request
+			reader.add_interval("chr5", 127247318, 127247487)
+			reader.add_interval(*self._FXN_intervals[0])
+			with tempfile.NamedTemporaryFile(suffix=".cram") as output_cram_file:
+				reader._load_cram_containers(output_cram_file)
+
+			self.assertEqual(reader.get_total_containers_loaded_from_cram(), 2)
+			# both containers came from a single coalesced request, so requests < containers for this fetch;
+			# the reader also issues the version probe and header reads, which are requests but not containers
+			self.assertLess(
+				reader.get_total_byte_ranges_loaded_from_cram() - 2, reader.get_total_containers_loaded_from_cram())
+		finally:
+			reader.close()
+
+	def test_cram_version_probe_is_counted_in_transfer_totals(self):
+		# Regression test: _detect_cram_eof_container read the first 6 bytes directly instead of through
+		# _read_bytes, so those bytes and that request were missing from the reported transfer totals even
+		# though _read_bytes is documented as the only place bytes come off the wire.
+		reader = IntervalReader(self._local_cram_path, self._local_cram_path + ".crai")
+		try:
+			# the probe and the CRAM header read both happen during construction, before any interval is added
+			self.assertGreaterEqual(reader.get_total_byte_ranges_loaded_from_cram(), 2)
+			self.assertGreaterEqual(reader.get_total_bytes_loaded_from_cram(), 6)
+		finally:
+			reader.close()
+
+	def _run_make_bamlet(self, output_name, regions):
+		"""Runs the make_bamlet CLI on the local BAM fixture and returns (output_path, CompletedProcess)."""
+		local_bam_path = os.path.join(self._temp_dir.name, "FXN.wgsim_HET_250xGAA.bam")
+		if not os.path.isfile(local_bam_path):
+			with open(local_bam_path, "wb") as f:
+				f.write(pkgutil.get_data("str_analysis", "data/tests/FXN.wgsim_HET_250xGAA.bam"))
+			with open(local_bam_path + ".bai", "wb") as f:
+				f.write(pkgutil.get_data("str_analysis", "data/tests/FXN.wgsim_HET_250xGAA.bam.bai"))
+
+		output_path = os.path.join(self._temp_dir.name, output_name)
+		return output_path, subprocess.run(
+			[sys.executable, "-m", "str_analysis.make_bamlet", "-R", get_chr9_reference_fasta(),
+			 "-o", output_path, local_bam_path] + regions,
+			capture_output=True, text=True)
+
+	def test_make_bamlet_handles_locus_near_contig_start(self):
+		# Regression test: main() padded every region by 2000bp without clamping, so any locus within 2000bp of
+		# a contig start passed a negative coordinate to pysam.fetch and raised "start out of range".
+		output_path, result = self._run_make_bamlet("near_origin.bam", ["chr9:1-2"])
+		self.assertNotIn("start out of range", result.stdout + result.stderr)
+		self.assertEqual(result.returncode, 0, msg=result.stderr[-500:])
+
+	def test_make_bamlet_does_not_duplicate_reads_across_regions(self):
+		# Regression test: extract_region was called once per requested region with its own local read_pairs and
+		# no cross-region deduplication, so a read overlapping two regions was written once per region.
+		# Duplicates are misread downstream as a complete read pair and suppress real mate retrieval.
+		output_path, result = self._run_make_bamlet(
+			"two_regions.bam", ["chr9:69037287-69037288", "chr9:69037320-69037321"])
+		self.assertEqual(result.returncode, 0, msg=result.stderr[-500:])
+		with pysam.AlignmentFile(output_path) as f:
+			read_keys = [(read.query_name, read.flag, read.reference_start) for read in f]
+		self.assertGreater(len(read_keys), 0)
+		self.assertEqual(len(read_keys), len(set(read_keys)))
+
+	def test_make_bamlet_writes_cram_when_cram_output_requested(self):
+		# Regression test: a .cram output path was opened in CRAM mode but then unconditionally sorted into a
+		# .sorted.bam and renamed over the .cram path, so the tool exited 0 having produced BAM bytes (and a
+		# .bai) behind a .cram filename.
+		output_path, result = self._run_make_bamlet("out.cram", ["chr9:69037287-69037304"])
+		self.assertEqual(result.returncode, 0, msg=result.stderr[-500:])
+		with open(output_path, "rb") as f:
+			self.assertEqual(f.read(4), b"CRAM")
+		self.assertTrue(os.path.isfile(output_path + ".crai"))
+		self.assertFalse(os.path.isfile(output_path + ".bai"))
+
+	def test_make_minicram_accepts_a_different_chromosome_naming_convention(self):
+		# Regression test: the mate-discovery phase passed the user's raw -L chromosome name straight to
+		# pysam.fetch against the extracted temp CRAM, whose header carries the INPUT CRAM's naming convention.
+		# Requesting "9:..." against a CRAM whose header says "chr9" therefore raised "invalid contig", even
+		# though IntervalReader already normalizes naming for its own fetch calls.
+		output_path = os.path.join(self._temp_dir.name, "naming.cram")
+		result = subprocess.run(
+			[sys.executable, "-m", "str_analysis.make_minicram_for_expansion_hunter",
+			 "-R", get_chr9_reference_fasta(), "-o", output_path,
+			 "-i", self._local_cram_path + ".crai", "-L", "9:69037287-69037304", self._local_cram_path],
+			capture_output=True, text=True)
+		self.assertNotIn("invalid contig", result.stdout + result.stderr)
+		self.assertEqual(result.returncode, 0, msg=result.stderr[-500:])
+		self.assertTrue(os.path.isfile(output_path))
+
 	def test_merge_adjacent_byte_ranges(self):
 		self.assertEqual(merge_adjacent_byte_ranges([]), [])
 		# overlapping and exactly-adjacent ranges collapse; disjoint ones stay separate

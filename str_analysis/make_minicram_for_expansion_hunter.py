@@ -27,7 +27,7 @@ import time
 from google.cloud import storage
 
 from str_analysis.make_bamlet import extract_region
-from str_analysis.utils.cram_bam_utils import IntervalReader
+from str_analysis.utils.cram_bam_utils import IntervalReader, normalize_chromosome_name
 from str_analysis.utils.file_utils import set_requester_pays_project, file_exists, open_file, get_file_size
 from str_analysis.utils.misc_utils import parse_interval
 
@@ -146,12 +146,28 @@ def main():
         input_bam_file = pysam.AlignmentFile(
             temporary_cram_file.name, reference_filename=args.reference_fasta)
 
+        # map normalized chrom name -> the exact reference name in this file's header, so fetch() below always uses
+        # a name valid for the header even when the user's -L/catalog used a different naming convention ("9" vs
+        # "chr9"). IntervalReader.save_to_file does the same for its own fetch calls; without it, extract_region
+        # passes the raw user-supplied name straight to pysam and raises "invalid contig".
+        normalized_to_reference_name = {
+            normalize_chromosome_name(name): name for name in input_bam_file.references
+        }
+
         for chrom, start, end in intervals:
             if args.verbose and len(intervals) > 1:
                 print("-"*100)
 
+            fetch_chrom = normalized_to_reference_name.get(normalize_chromosome_name(chrom))
+            if fetch_chrom is None:
+                # the contig had no CRAI entries, so _load_cram_containers already skipped it and it is absent
+                # from the temp CRAM's header -- there are no mates to discover for it
+                print(f"WARNING: {chrom} is not present in the extracted reads; skipping mate discovery for "
+                      f"{chrom}:{start}-{end}")
+                continue
+
             genomic_regions = extract_region(
-                chrom, start, end,
+                fetch_chrom, start, end,
                 input_bam=input_bam_file,
                 bamlet=None,
                 merge_regions_distance=args.merge_regions_distance,
@@ -191,9 +207,11 @@ def main():
         sys.exit(1)
 
     total_bytes = cram_reader.get_total_bytes_loaded_from_cram()
-    total_containers = cram_reader.get_total_byte_ranges_loaded_from_cram()
+    total_containers = cram_reader.get_total_containers_loaded_from_cram()
+    total_requests = cram_reader.get_total_byte_ranges_loaded_from_cram()
     total_duration_seconds = time.time() - start_time
-    print(f"Downloaded {total_containers:,d} containers, {total_bytes/10**6:0,.1f}Mb in {round(total_duration_seconds, 2)} seconds")
+    print(f"Downloaded {total_containers:,d} containers ({total_requests:,d} read requests), "
+          f"{total_bytes/10**6:0,.1f}Mb in {round(total_duration_seconds, 2)} seconds")
     if args.output_data_transfer_stats:
         cram_reader.save_data_transfer_stats()
 

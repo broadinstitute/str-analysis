@@ -59,7 +59,8 @@ def jump_for_mates(bam, chrom, start, end, read_names_set):
     return [alignment for read_pair_list in read_pairs.values() for alignment in read_pair_list]
 
 
-def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=1000, verbose=False):
+def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=1000, verbose=False,
+                   written_read_keys=None):
     genomic_regions_to_fetch = [
         (chrom, start, end)
     ]
@@ -130,6 +131,14 @@ def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=
         read_counter = 0
         for read_name, read_pair in read_pairs.items():
             for read in read_pair:
+                if written_read_keys is not None:
+                    # read_pairs is local to this call, so a read overlapping two requested regions would otherwise
+                    # be written once per region; duplicates are misread downstream as a complete read pair and
+                    # suppress real mate retrieval
+                    read_key = (read.query_name, read.flag, read.reference_start)
+                    if read_key in written_read_keys:
+                        continue
+                    written_read_keys.add(read_key)
                 read_counter += 1
                 bamlet.write(read)
         print(f"Wrote {read_counter:,d} reads to {getattr(bamlet, 'filename', b'bamlet').decode()}")
@@ -162,23 +171,36 @@ def main():
     input_bam_file = pysam.AlignmentFile(args.input_bam_or_cram, "r", index_filename=args.read_index, reference_filename=args.reference_fasta)
     bamlet_file = pysam.AlignmentFile(args.bamlet, "wc" if args.bamlet.endswith(".cram") else "wb", template=input_bam_file)
 
+    # shared across regions so a read overlapping more than one requested region is written only once
+    written_read_keys = set()
     for region in args.region:
         chrom, start, end = parse_interval(region)
 
-        # get the genomic regions first
+        # get the genomic regions first. max(0, ...) keeps the padded start on the contig -- pysam's fetch()
+        # raises "start out of range" for a negative coordinate, which any locus within 2000bp of a contig start
+        # would otherwise produce.
         extract_region(
-            chrom, start - 2000, end + 2000,
+            chrom, max(0, start - 2000), end + 2000,
             input_bam=input_bam_file,
             bamlet=bamlet_file,
             merge_regions_distance=args.merge_regions_distance,
-            verbose=args.verbose)
+            verbose=args.verbose,
+            written_read_keys=written_read_keys)
 
     bamlet_file.close()
     input_bam_file.close()
 
     try:
-        pysam.sort("-o", f"{args.bamlet}.sorted.bam", args.bamlet)
-        os.rename(f"{args.bamlet}.sorted.bam", args.bamlet)
+        # sort into a file of the SAME format as the requested output: samtools infers the format from the
+        # extension, so sorting a .cram request into a .sorted.bam and renaming it over the .cram path would
+        # leave BAM bytes (and a .bai) behind a .cram name
+        is_cram_output = args.bamlet.endswith(".cram")
+        sorted_path = f"{args.bamlet}.sorted.cram" if is_cram_output else f"{args.bamlet}.sorted.bam"
+        sort_args = ["-o", sorted_path]
+        if is_cram_output:
+            sort_args += ["--output-fmt", "CRAM", "--reference", args.reference_fasta]
+        pysam.sort(*sort_args, args.bamlet)
+        os.rename(sorted_path, args.bamlet)
         pysam.index(args.bamlet)
     except Exception as e:
         print(f"WARNING: Failed to sort and index {args.bamlet}: {e}")
