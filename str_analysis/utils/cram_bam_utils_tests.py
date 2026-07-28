@@ -280,44 +280,45 @@ class TestCramBamUtils(unittest.TestCase):
 		# every run missed on the second call and re-downloaded bytes already fetched: on the 50000-locus benchmark
 		# total network reads reached 133% of the full CRAM size. Growing the interval set must only ever fetch
 		# containers that are genuinely new.
-		chr9_reference_fasta = get_chr9_reference_fasta()
-		with tempfile.NamedTemporaryFile(suffix=".cram") as first_output, \
-			  tempfile.NamedTemporaryFile(suffix=".cram") as second_output:
+		reader = IntervalReader(
+			self._local_cram_path, self._local_cram_path + ".crai", cache_byte_ranges=True)
+		# Record every range that actually comes off the wire/disk, so overlap between reads is detectable.
+		# Asserting on the byte COUNTER alone is not enough: it stays self-consistent under either cache keying,
+		# because whatever gets fetched is also what gets stored.
+		physical_reads = []
+		original_read_bytes = reader._read_bytes
 
-			reader = IntervalReader(
-				self._local_cram_path, self._local_cram_path + ".crai",
-				reference_fasta_path=chr9_reference_fasta, cache_byte_ranges=True)
-			# record every range that actually comes off the wire/disk, so overlap between reads is detectable.
-			# Asserting on the byte COUNTER alone is not enough: it stays self-consistent under either cache keying,
-			# because whatever gets fetched is also what gets stored.
-			physical_reads = []
-			original_read_bytes = reader._read_bytes
+		def recording_read_bytes(start, end):
+			physical_reads.append((start, end))
+			return original_read_bytes(start, end)
 
-			def recording_read_bytes(start, end):
-				physical_reads.append((start, end))
-				return original_read_bytes(start, end)
-
-			reader._read_bytes = recording_read_bytes
-			try:
-				# The two intervals below sit in ADJACENT containers of the test CRAM -- chr5 in the container at
-				# byte offset 99943 and chr9 in the one at 101430 -- so adding the second one makes those containers
-				# merge into a single larger run. That shifting run boundary is precisely what used to invalidate the
-				# cache key and re-download the first container. Intervals inside one container would not exercise it.
+		reader._read_bytes = recording_read_bytes
+		try:
+			# _load_cram_containers is exercised directly rather than through save_to_file: the container fetching
+			# is where the fix lives, and going through save_to_file would additionally require pysam to DECODE the
+			# exported containers against a matching reference (the intervals below deliberately span two different
+			# contigs, so no single-contig test reference can decode them).
+			#
+			# The two intervals sit in ADJACENT containers of the test CRAM -- chr5 in the container at byte offset
+			# 99943 and chr9 in the one at 101430 -- so adding the second makes those containers merge into a single
+			# larger run. That shifting run boundary is precisely what used to invalidate the cache key and
+			# re-download the first container. Two intervals inside one container would not exercise it.
+			with tempfile.NamedTemporaryFile(suffix=".cram") as first_output, \
+				  tempfile.NamedTemporaryFile(suffix=".cram") as second_output:
 				reader.add_interval("chr5", 127247318, 127247487)
-				reader.save_to_file(first_output.name)
+				reader._load_cram_containers(first_output)
 				self.assertGreater(reader.get_total_bytes_loaded_from_cram(), 0)
 				self.assertGreater(len(physical_reads), 0)
 
-				# second pass: the added interval extends the run, then re-export
 				reader.add_interval(*self._FXN_intervals[0])
-				reader.save_to_file(second_output.name)
+				reader._load_cram_containers(second_output)
 
-				# no byte may be read twice: the total read equals the size of the union of the ranges read
-				bytes_read = sum(end - start for start, end in physical_reads)
-				bytes_covered = sum(end - start for start, end in merge_adjacent_byte_ranges(physical_reads))
-				self.assertEqual(bytes_read, bytes_covered)
-			finally:
-				reader.close()
+			# no byte may be read twice: the total read equals the size of the union of the ranges read
+			bytes_read = sum(end - start for start, end in physical_reads)
+			bytes_covered = sum(end - start for start, end in merge_adjacent_byte_ranges(physical_reads))
+			self.assertEqual(bytes_read, bytes_covered)
+		finally:
+			reader.close()
 
 	def test_save_to_file_dedup_window_does_not_grow_with_output_size(self):
 		# Regression test: save_to_file used to keep one (query_name, flag, reference_start) key for EVERY read it
