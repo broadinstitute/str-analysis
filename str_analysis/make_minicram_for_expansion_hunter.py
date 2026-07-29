@@ -74,6 +74,24 @@ def main():
     elif not args.output_cram.endswith(".cram"):
         parser.error(f"Output CRAM file must have a .cram extension: {args.output_cram}")
 
+    # Refuse to write the output on top of the input. save_to_file opens the output with pysam mode "wc", which
+    # TRUNCATES it, and then rewrites the .crai next to it -- so "-o in.cram in.cram" silently replaced a full
+    # CRAM with the tiny minicram subset and exited 0, destroying every read outside the requested loci.
+    # samefile() catches symlinks and hard links; the abspath comparison covers a local output that does not
+    # exist yet, since samefile needs both paths to exist. Skipped entirely for a gs:// input, which cannot
+    # name the same file as the always-local output.
+    if not args.input_cram.startswith("gs://"):
+        if os.path.abspath(args.input_cram) == os.path.abspath(args.output_cram) or (
+                os.path.isfile(args.output_cram) and os.path.isfile(args.input_cram)
+                and os.path.samefile(args.input_cram, args.output_cram)):
+            parser.error(f"Output CRAM path {args.output_cram} is the same file as the input CRAM "
+                         f"{args.input_cram}. Choose a different -o path.")
+
+    # set before the variant-catalog download below, not after it: download_local_copy reads this module global at
+    # call time to build its "gsutil -u <project>" flag, so setting it later left the catalog fetch -- the first
+    # gs:// read this tool does -- without the user's -u/--gcloud-project.
+    set_requester_pays_project(args.gcloud_project)
+
     if args.variant_catalog:
         args.region = []
         with open_file(args.variant_catalog, download_local_copy_before_opening=True) as f:
@@ -85,7 +103,17 @@ def main():
                 reference_regions = record["ReferenceRegion"]
                 if not isinstance(reference_regions, list):
                     reference_regions = [reference_regions]
-                for region in reference_regions:
+
+                # OfftargetRegions are extracted too. ExpansionHunter recruits reads from a locus's off-target
+                # regions when genotyping large expansions, so a minicram built from a catalog that defines them
+                # but containing only the ReferenceRegion reads can yield different genotypes than running the
+                # same catalog against the full CRAM -- which defeats the purpose of this tool. To keep the
+                # minicram smaller, pass a catalog without them (the repo ships variant_catalog_without_offtargets).
+                offtarget_regions = record.get("OfftargetRegions") or []
+                if not isinstance(offtarget_regions, list):
+                    offtarget_regions = [offtarget_regions]
+
+                for region in reference_regions + offtarget_regions:
                     if args.debug:
                         print(f"DEBUG: Adding", record["LocusId"], "region", region)
                     args.region.append(region)
@@ -105,9 +133,13 @@ def main():
 
         window_start = max(0, start - args.window_size)
         window_end = end + args.window_size
+        # parse_interval does not check that start < end, so a zero-width or reversed region combined with a
+        # small --window-size yields an empty window. add_interval would reject it, but only from deep inside
+        # the reader with a bare ValueError; report it here as an ordinary CLI error naming the region.
+        if window_end <= window_start:
+            parser.error(f"Region {region} is empty after applying --window-size {args.window_size:,d} "
+                         f"({chrom}:{window_start}-{window_end})")
         intervals.append((chrom, window_start, window_end))
-
-    set_requester_pays_project(args.gcloud_project)
 
     input_crai_path = args.crai_index_path if args.crai_index_path else f"{args.input_cram}.crai"
     if not file_exists(input_crai_path):
@@ -118,8 +150,10 @@ def main():
 
     # create a CramIntervalRreader and use it to generate a temp CRAM file containing the CRAM header and any reads
     # overlapping the user-specified region interval(s)
-    print(f"Processing {len(args.region):,d} loci")
-    print(f"Retrieving reads within {args.window_size:,d}bp of each locus")
+    # "regions", not "loci": a catalog record contributes one entry per ReferenceRegion AND one per
+    # OfftargetRegions, so this count is much larger than the number of loci in the catalog
+    print(f"Processing {len(args.region):,d} regions")
+    print(f"Retrieving reads within {args.window_size:,d}bp of each region")
     cram_reader = IntervalReader(args.input_cram, input_crai_path, verbose=args.verbose, debug=args.debug,
                                  reference_fasta_path=args.reference_fasta, cache_byte_ranges=True)
 
@@ -154,16 +188,23 @@ def main():
             normalize_chromosome_name(name): name for name in input_bam_file.references
         }
 
-        for chrom, start, end in intervals:
-            if args.verbose and len(intervals) > 1:
+        # deduplicated because mate discovery re-scans the reads in every entry it is given, and the raw list can
+        # repeat the same coordinates -- a catalog record whose ReferenceRegion and OfftargetRegions overlap, or
+        # two records sharing a region, made extract_region fetch the identical window more than once for no
+        # additional mates. sorted() only to keep the traversal (and its verbose output) deterministic.
+        deduplicated_intervals = sorted(set(intervals))
+        for chrom, start, end in deduplicated_intervals:
+            if args.verbose and len(deduplicated_intervals) > 1:
                 print("-"*100)
 
             fetch_chrom = normalized_to_reference_name.get(normalize_chromosome_name(chrom))
             if fetch_chrom is None:
-                # the contig had no CRAI entries, so _load_cram_containers already skipped it and it is absent
-                # from the temp CRAM's header -- there are no mates to discover for it
-                print(f"WARNING: {chrom} is not present in the extracted reads; skipping mate discovery for "
-                      f"{chrom}:{start}-{end}")
+                # the contig matches no reference in the input CRAM's header at all -- a wrong naming convention
+                # or a different genome build. A contig that is IN the header but has no CRAI entries does not
+                # reach this branch: _load_cram_containers skips only its containers and still writes the full
+                # original header (see the self._cram_header_bytes write), so it stays resolvable here.
+                print(f"WARNING: {chrom} is not present in the header of {args.input_cram}; skipping mate "
+                      f"discovery for {chrom}:{start}-{end}")
                 continue
 
             genomic_regions = extract_region(

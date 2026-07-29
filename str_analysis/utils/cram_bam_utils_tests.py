@@ -187,9 +187,16 @@ class TestCramBamUtils(unittest.TestCase):
 			real_alignment_file = pysam.AlignmentFile
 
 			def record_output_format_options(*args, **kwargs):
-				"""Records output format options while delegating to pysam.AlignmentFile."""
-				if args[0] in (reference_compressed_output.name, self_contained_output.name):
-					observed_format_options[args[0]] = kwargs.get("format_options")
+				"""Records output format options while delegating to pysam.AlignmentFile.
+
+				save_to_file writes to a sibling "<output>.partial.cram" and only renames it onto the requested
+				path once indexing has succeeded, so match on that prefix and record under the requested name.
+				"""
+				# args[0] is not always a path -- the CRAM branch opens the temp container file object itself
+				for output_name in (reference_compressed_output.name, self_contained_output.name):
+					if isinstance(args[0], str) and (
+							args[0] == output_name or args[0].startswith(f"{output_name}.partial.")):
+						observed_format_options[output_name] = kwargs.get("format_options")
 				return real_alignment_file(*args, **kwargs)
 
 			try:

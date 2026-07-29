@@ -10,6 +10,7 @@ import tempfile
 
 from google.cloud import storage
 
+from str_analysis.utils import file_utils
 from str_analysis.utils.file_utils import open_file, get_file_size, get_byte_range_from_google_storage
 
 
@@ -239,7 +240,15 @@ class IntervalReader:
 			# guarded on _is_cram_file for the same reason as the local handle below: only the CRAM byte-range
 			# path reads through this client, so a gs:// BAM-backed reader was building one it never used
 			if self._is_cram_file:
-				self._storage_client = storage.Client()
+				# project is passed EXPLICITLY, matching every storage.Client in file_utils. storage.Client
+				# distinguishes an omitted project from an explicit None via a private _marker default: an
+				# explicit None means "no project" and never raises, while omitting it falls through to
+				# _ClientProjectMixin, which raises EnvironmentError when no default project can be resolved
+				# from the environment. Omitting it therefore crashed reader construction on any machine
+				# without a configured default project, even though the file_exists() checks that run first
+				# succeed there. Read off the module (not imported by value) because
+				# set_requester_pays_project() assigns it after this module is imported.
+				self._storage_client = storage.Client(project=file_utils.gcloud_requester_pays_project)
 		else:
 			if not os.path.isfile(self._cram_or_bam_path):
 				raise ValueError(f"{self._cram_or_bam_path} not found")
@@ -347,6 +356,7 @@ class IntervalReader:
 		temp_cram_container_file = None
 		pysam_input_file = None
 		pysam_output_file = None
+		partial_path = None
 		try:
 			if self._is_cram_file:
 				temp_cram_container_file = tempfile.NamedTemporaryFile(suffix=".cram")
@@ -388,7 +398,13 @@ class IntervalReader:
 			# no_ref=1 stores read sequences verbatim (like BAM) instead of reference-compressing them. This avoids htslib
 			# validating each contig's reference md5 against the header @SQ M5 tag, which fails when the reference build
 			# differs from the input alignment or a read's contig cannot be populated from the supplied reference.
-			pysam_output_file = pysam.AlignmentFile(local_path, mode="wc" if self._is_cram_file else "wb",
+			# Everything is written to a sibling ".partial" path and moved into place only once the reads are
+			# written AND the index has been built. Writing local_path directly truncated it up front, so an
+			# exception anywhere downstream destroyed a previously valid output and could leave its stale index
+			# beside a half-written file. The partial lives in the same directory so the final os.replace is an
+			# atomic same-filesystem rename.
+			partial_path = f"{local_path}.partial.cram" if self._is_cram_file else f"{local_path}.partial.bam"
+			pysam_output_file = pysam.AlignmentFile(partial_path, mode="wc" if self._is_cram_file else "wb",
 												template=pysam_input_file, reference_filename=self._reference_fasta_path,
 												format_options=[b"no_ref=1"]
 												if self._is_cram_file and disable_reference_compression else None)
@@ -464,6 +480,7 @@ class IntervalReader:
 			pysam_output_file.close()
 			pysam_input_file = pysam_output_file = None
 
+			index_suffix = ".crai" if self._is_cram_file else ".bai"
 			if create_index:
 				if self._debug:
 					print(f"DEBUG: Using pysam to generate a CRAM index for {local_path}")
@@ -477,22 +494,35 @@ class IntervalReader:
 					if self._is_cram_file:
 						# A CRAI is a flat per-container record list, so pysam.index does not require a sort here;
 						# re-sorting would only write another full-size CRAM.
-						pysam.index(local_path)
+						pysam.index(partial_path)
 					else:
 						# BAI construction (unlike CRAI) hard-fails on out-of-order positions, so keep an explicit
 						# sort here as insurance even though the stream above is already coordinate-sorted.
-						pysam.sort("-o", f"{local_path}.sorted.bam", local_path)
-						os.rename(f"{local_path}.sorted.bam", local_path)
-						pysam.index(local_path)
+						pysam.sort("-o", f"{partial_path}.sorted.bam", partial_path)
+						os.rename(f"{partial_path}.sorted.bam", partial_path)
+						pysam.index(partial_path)
 					if self._debug:
 						# the BAM branch above writes a .bai, not a .crai -- stat'ing the wrong suffix raised
 						# FileNotFoundError, which the except below swallowed into a false "Failed to prepare and
 						# index" warning even though indexing had succeeded
-						index_path = f"{local_path}.crai" if self._is_cram_file else f"{local_path}.bai"
-						print(f"DEBUG: Generated index {index_path} (size: {os.path.getsize(index_path):,d} bytes)")
+						print(f"DEBUG: Generated index {partial_path}{index_suffix} "
+							  f"(size: {os.path.getsize(partial_path + index_suffix):,d} bytes)")
 				except Exception as e:
-					print(f"WARNING: Failed to prepare and index {local_path}: {e}")
+					# raised, not warned: the index is not optional. Downstream tools (ExpansionHunter, pysam
+					# fetch) cannot use an unindexed output, and a stale .crai left beside a freshly written
+					# CRAM is worse than none. Swallowing this returned a nonzero read count, so callers -- and
+					# make_minicram's "did the file get written" check -- reported success for an unusable file.
+					raise RuntimeError(f"Failed to prepare and index {local_path}: {e}") from e
 
+			# the output and its index are only now moved into place, together. os.replace is atomic within a
+			# filesystem, so a reader either sees the previous output or the new one, never a half-written file.
+			os.replace(partial_path, local_path)
+			if create_index:
+				os.replace(f"{partial_path}{index_suffix}", f"{local_path}{index_suffix}")
+			elif os.path.isfile(f"{local_path}{index_suffix}"):
+				# no index was built, so any index already sitting here belongs to the file just replaced and
+				# would silently mis-describe the new one
+				os.remove(f"{local_path}{index_suffix}")
 
 			if self._verbose:
 				print(f"Wrote {read_counter:,d} reads to {local_path}")
@@ -503,6 +533,12 @@ class IntervalReader:
 			for pysam_file in (pysam_input_file, pysam_output_file):
 				if pysam_file is not None:
 					pysam_file.close()
+			# on the success path these were already renamed away, so this only fires when something failed
+			if partial_path is not None:
+				for leftover in (partial_path, f"{partial_path}.crai", f"{partial_path}.bai",
+								 f"{partial_path}.sorted.bam"):
+					if os.path.isfile(leftover):
+						os.remove(leftover)
 			if temp_cram_container_file is not None:
 				temp_crai_path = f"{temp_cram_container_file.name}.crai"
 				if os.path.isfile(temp_crai_path):
@@ -510,6 +546,14 @@ class IntervalReader:
 				temp_cram_container_file.close()
 
 	def save_data_transfer_stats(self, stats_tsv_path=None):
+		# the counters below are only incremented by the CRAM byte-range path, so for a BAM input they are all
+		# still 0 and a report would read as "nothing was transferred" even though the BAM was read in full
+		# through pysam/htslib. Say so instead of writing a file of zeros.
+		if not self._is_cram_file:
+			print(f"Data transfer stats are only tracked for CRAM inputs; skipping them for "
+				  f"{self._cram_or_bam_path}")
+			return
+
 		total_bytes = self.get_total_bytes_loaded_from_cram()
 		total_containers = self.get_total_containers_loaded_from_cram()
 		total_requests = self.get_total_byte_ranges_loaded_from_cram()
