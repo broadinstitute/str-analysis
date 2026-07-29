@@ -44,7 +44,7 @@ def main():
                         "user-specified region(s). This is useful for including read pairs that may overlap the region(s)")
     parser.add_argument("-u", "--gcloud-project", help="Google Cloud project name to use when reading the input cram.")
     parser.add_argument("-R", "--reference-fasta", required=True, help="Reference genome FASTA file used for reading the CRAM file")
-    parser.add_argument("-o", "--output-cram", help="Output file path prefix")
+    parser.add_argument("-o", "--output-cram", help="Output CRAM file path (must end in .cram)")
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("-L", "--region", action="append", help="Region(s) for which to extract reads (chr:start-end). "

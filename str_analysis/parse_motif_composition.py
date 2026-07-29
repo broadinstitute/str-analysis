@@ -14,7 +14,7 @@ import re
 from scipy.stats import binom
 
 from str_analysis.utils.misc_utils import reverse_complement, parse_interval
-from str_analysis.utils.cram_bam_utils import get_total_mapped_reads
+from str_analysis.utils.cram_bam_utils import get_total_mapped_reads, normalize_chromosome_name
 
 MOTIF_INDEX_REGEXP = re.compile(r"[|][(\d+)][|]")
 NUCLEOTIDE_SEQUENCE_REGEXP = re.compile(r"([ACGTRYMKSWHBVDN]+)", re.IGNORECASE)
@@ -214,7 +214,10 @@ class LocusParser:
             return None
 
         if min_matches_threshold:
-            match_count = sum(1 for s in seq.split(SEPARATOR) if len(s) > 0 and not _is_nucleotide_sequence(s))
+            # count matches in the WINNING orientation. `seq` is the leftover loop variable, so with
+            # check_reverse_complement=True it holds the reverse-complement parse, which for a non-palindromic motif
+            # typically has zero matches -- that rejected every read whose forward orientation actually matched.
+            match_count = sum(1 for s in best_parsed_seq.split(SEPARATOR) if len(s) > 0 and not _is_nucleotide_sequence(s))
             if match_count < min_matches_threshold:
                 return None
 
@@ -254,76 +257,6 @@ class LocusParser:
 
         return best_parsed_seq
 
-
-    def process_sequences_in_alignment_file(
-        self,
-        alignment_file_path,
-        genomic_intervals,
-        include_low_quality_alignments=False,
-        alignment_index_file_path=None,
-        reference_filename=None,
-        chance_occurrence_threshold=10**-3,
-        min_matches_threshold=1,
-    ):
-        """Process sequences in an alignment file and count the number of occurrences of each motif.
-
-        Args:
-            alignment_file_path (str): path to a BAM/CRAM file
-            genomic_intervals (list or str): genomic interval or list of intervals to extract from the alignment file
-            include_low_quality_alignments (bool): whether to count low quality alignments (those with MAPQ < 3)
-            alignment_index_file_path (str): optional path to a BAM/CRAM index file
-            reference_filename (str): optional path to a reference fasta file for parsing a CRAM file
-            chance_occurrence_threshold (float): if not None, this method will compute the probability that the identified
-                motif occurrences were found by chance (taking into account the relative base pair frequencies within
-                the input sequence and the sequence of the motifs in the reference_motif_frequency_dict). If
-                this probability is higher than the threshold, the result will be considered spurious, and not counted.
-            min_matches_threshold (int): if a read contains fewer than this many repeats of motifs from the reference
-                motif frequency dictionary, it will be ignored.
-        Returns:
-            dict: interval mapped to the average read depth of processed reads in that interval
-        """
-
-        if not alignment_file_path.startswith("gs://") and not alignment_file_path.startswith("s3://") and \
-                not os.path.isfile(alignment_file_path):
-            raise ValueError(f"Alignment file not found: {alignment_file_path}")
-        if not alignment_file_path.endswith(".bam") and not alignment_file_path.endswith(".cram"):
-            raise ValueError(f"Alignment file must end with .bam or .cram: {alignment_file_path}")
-        if not genomic_intervals:
-            raise ValueError("counted_region_list not specified")
-        if isinstance(genomic_intervals, str):
-            genomic_intervals = [genomic_intervals]
-
-        interval_to_read_depth = collections.defaultdict(int)
-        with pysam.AlignmentFile(alignment_file_path, index_filename=alignment_index_file_path, reference_filename=reference_filename) as f:
-            for interval in genomic_intervals:
-                chrom, start_0based, end_1based = parse_interval(interval)
-                chrom = chrom.replace("chr", "")
-                if f.references[0].startswith("chr"):
-                    chrom = f"chr{chrom}"
-
-                for read in f.fetch(chrom, start_0based, end_1based):
-                    if not read.is_mapped or not read.query_alignment_sequence or (
-                            not include_low_quality_alignments and read.mapq < MIN_MAPQ):
-                        continue
-
-                    # total number of aligned bases in this read that overlap the interval
-                    bases_within_locus = min(end_1based, read.reference_end) - max(start_0based, read.reference_start)
-                    interval_to_read_depth[interval] += bases_within_locus
-
-                    self.convert_nucleotide_seq_to_motif_seq(
-                        read.query_alignment_sequence,
-                        check_reverse_complement=True,
-                        chance_occurrence_threshold=chance_occurrence_threshold,
-                        min_matches_threshold=min_matches_threshold,
-                        record_reference_motif_counts=True,
-                        record_novel_motif_counts=True,
-                        record_motif_pair_counts=True,
-                        record_motif_triplet_counts=True,
-                    )
-
-                interval_to_read_depth[interval] /= end_1based - start_0based   # divide by interval width
-
-        return interval_to_read_depth
 
     def get_reference_motif_id_to_motif_dict(self):
         return self._reference_motif_id_to_motif
@@ -390,6 +323,25 @@ class LocusParser:
         return ",".join(items)
 
 
+def _resolve_chrom(chrom, interval, normalized_to_reference_name, input_path):
+    """Returns the reference name from the alignment file's header that matches the given chromosome name,
+    regardless of which naming convention ("9" vs "chr9") the interval was specified with.
+
+    Args:
+        chrom (str): chromosome name as given by the user
+        interval (str): the full interval string the chromosome came from, for the error message
+        normalized_to_reference_name (dict): maps normalized chrom name -> reference name in the file's header
+        input_path (str): path of the BAM/CRAM being read, for the error message
+
+    Returns:
+        str: the reference name to pass to pysam's fetch()
+    """
+    if normalize_chromosome_name(chrom) not in normalized_to_reference_name:
+        raise ValueError(f"Chromosome {chrom} from region {interval} is not present in {input_path}")
+
+    return normalized_to_reference_name[normalize_chromosome_name(chrom)]
+
+
 def parse_motif_composition_from_alignment_file(
     input_sequence_or_path,
     motif_frequency_dict,
@@ -402,6 +354,8 @@ def parse_motif_composition_from_alignment_file(
     output_prefix=None,
     output_format=None,
     verbose=False,
+    count_mapped_reads_in_cram=False,
+    min_matches_threshold=None,
 ):
     """Returns a dictionary with results. See below for more details.
         
@@ -417,13 +371,19 @@ def parse_motif_composition_from_alignment_file(
         output_prefix (str): output path prefix
         output_format (str): output file format ("JSON" or "TSV")
         verbose (bool): whether to print verbose output
+        count_mapped_reads_in_cram (bool): for CRAM inputs, decode the whole file to count mapped reads.
+            Off by default because a CRAI carries no alignment counts, so this needs a full-file scan.
+        min_matches_threshold (int): if a sequence contains fewer than this many repeats of motifs from
+            motif_frequency_dict, it is ignored. None means no threshold.
     
     Returns:
         dict: a dictionary with the following fields:
 
         "input": BAM/CRAM file path or nucleotide input sequence
         "input_file_size": size of the input file in bytes or None if the input is a nucleotide sequence
-        "total_mapped_reads": total number of mapped reads in the input BAM/CRAM file or None if the input is a nucleotide sequence
+        "total_mapped_reads": total number of mapped reads in the input BAM/CRAM file. None for a nucleotide
+            sequence, and also None for a CRAM unless count_mapped_reads_in_cram is set, since a CRAI carries no
+            alignment counts and the only exact answer requires decoding the whole file
         "motif_frequency": a string representation of the motif frequencies observed in input reads or nucleotide sequence
         "novel_motif_frequency": a string representation of novel motif frequencies (ie. motifs not in the motif_frequency_table) 
             observed in input reads or nucleotide sequence
@@ -443,9 +403,17 @@ def parse_motif_composition_from_alignment_file(
         input_is_file = True
         input_file = pysam.AlignmentFile(input_sequence_or_path, index_filename=alignment_index_file_path, reference_filename=reference_fasta_path)
 
+        # map normalized chrom name -> the exact reference name in this file's header, so fetch() always uses a name
+        # valid for the header even when the region was given with a different naming convention ("9" vs "chr9").
+        # Without this, a -L chr9:... region against a GRCh37-style header raises "invalid contig".
+        normalized_to_reference_name = {
+            normalize_chromosome_name(name): name for name in input_file.references
+        }
+
         for interval in counted_region_list:
             interval_key = f"read_depth_counted_region_{interval}"
             chrom, start_0based, end_1based = parse_interval(interval)
+            chrom = _resolve_chrom(chrom, interval, normalized_to_reference_name, input_sequence_or_path)
             locus_width = end_1based - start_0based
             read_iterator = input_file.fetch(chrom, start_0based, end_1based)
             for read in read_iterator:
@@ -469,6 +437,7 @@ def parse_motif_composition_from_alignment_file(
                     record_motif_pair_counts=True,
                     record_motif_triplet_counts=True,
                     chance_occurrence_threshold=10**-3,
+                    min_matches_threshold=min_matches_threshold,
                 )
 
             interval_read_depth_dict[interval_key] /= locus_width
@@ -478,13 +447,16 @@ def parse_motif_composition_from_alignment_file(
                 interval_key = f"read_depth_other_region_{interval}"
 
                 chrom, start_0based, end_1based = parse_interval(interval)
-                chrom = chrom.replace("chr", "")
-                if input_file.references[0].startswith("chr"):
-                    chrom = f"chr{chrom}"
+                chrom = _resolve_chrom(chrom, interval, normalized_to_reference_name, input_sequence_or_path)
                 locus_width = end_1based - start_0based
                 read_iterator = input_file.fetch(chrom, start_0based, end_1based)
                 for read in read_iterator:
-                    if not read.is_mapped or read.mapq < MIN_MAPQ:
+                    # the MAPQ term is gated on include_low_quality_alignments exactly as in the counted-region loop
+                    # above: --include-low-quality-alignments applies to every region, and hard-coding the filter
+                    # here understated the depth these regions are used to normalize by, while the output still
+                    # reported low-quality alignments as included. Unlike that loop this one does not also require
+                    # read.query_alignment_sequence -- depth is summed from reference spans, never from the sequence.
+                    if not read.is_mapped or (not include_low_quality_alignments and read.mapq < MIN_MAPQ):
                         continue
 
                     bases_within_locus = min(end_1based, read.reference_end) - max(start_0based, read.reference_start)  # total number of aligned bases in this read that overlap the interval
@@ -505,13 +477,18 @@ def parse_motif_composition_from_alignment_file(
             record_motif_pair_counts=True,
             record_motif_triplet_counts=True,
             chance_occurrence_threshold=10**-3,
+            min_matches_threshold=min_matches_threshold,
         )
 
 
     output_record = {
         "input":                    input_sequence_or_path,
         "input_file_size":          os.path.getsize(input_sequence_or_path) if input_is_file else None,
-        "total_mapped_reads":       get_total_mapped_reads(input_sequence_or_path) if input_is_file else None,
+        "total_mapped_reads":       get_total_mapped_reads(
+                                        input_sequence_or_path,
+                                        reference_fasta_path=reference_fasta_path,
+                                        index_filename=alignment_index_file_path,
+                                        scan_cram=count_mapped_reads_in_cram) if input_is_file else None,
         "motif_frequency":          locus_parser.get_observed_motif_frequency_dict(as_string=True),
         "motif_pair_frequency":     locus_parser.get_observed_motif_pair_frequency_dict(as_string=True),
         "motif_triplet_frequency":  locus_parser.get_observed_motif_triplet_frequency_dict(as_string=True),
@@ -580,6 +557,10 @@ def main():
     parser.add_argument("-R", "--reference-fasta", help="Reference fasta - only required when the input is a CRAM file")
     parser.add_argument("--min-matches-threshold", type=int, help="If a sequence contains fewer than this many repeats "
         "of motifs from the reference motif frequency dictionary, it will be ignored")
+    parser.add_argument("--count-mapped-reads-in-cram", action="store_true",
+                        help="For CRAM inputs, decode the whole file to count mapped reads for the "
+                             "total_mapped_reads output field. Off by default because a CRAI carries no "
+                             "alignment counts, so this requires a full-file scan; without it the field is None.")
     parser.add_argument("--verbose", action="store_true", help="Print additional logging messages.")
     parser.add_argument("--output-prefix", help="Optional output filename prefix")
     parser.add_argument("--output-format", choices=("JSON", "TSV"), help="Output format" , default="JSON")
@@ -629,6 +610,8 @@ def main():
         check_reverse_complement=args.check_reverse_complement,
         output_prefix=args.output_prefix,
         output_format=args.output_format,
+        count_mapped_reads_in_cram=args.count_mapped_reads_in_cram,
+        min_matches_threshold=args.min_matches_threshold,
         verbose=args.verbose,
     )
 

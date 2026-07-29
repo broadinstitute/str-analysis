@@ -316,6 +316,39 @@ class TestDownloadLocalCopy(unittest.TestCase):
 
         os.unlink(local_path)
 
+    @mock.patch('str_analysis.utils.file_utils.os.system')
+    def test_failed_gsutil_download_is_not_cached(self, mock_system):
+        """A failed gsutil transfer must not leave its partial output in the cache.
+
+        Regression test: the gsutil exit status was ignored and success was inferred from the .temp file merely
+        existing, so an interrupted transfer's partial file was renamed into the permanent cache path and served
+        as a complete download on every later run.
+        """
+        gs_path = "gs://my-bucket/interrupted.txt"
+        cache_path = os.path.join(
+            tempfile.gettempdir(),
+            f"{hashlib.sha256(gs_path.encode()).hexdigest()[:16]}_{os.path.basename(gs_path)}")
+        for stale in (cache_path, f"{cache_path}.temp"):
+            if os.path.isfile(stale):
+                os.unlink(stale)
+
+        def failing_gsutil(command):
+            # mimic an interrupted transfer: a partial .temp is written, but the command reports failure
+            with open(f"{cache_path}.temp", "wb") as f:
+                f.write(b"partial")
+            return 1
+
+        mock_system.side_effect = failing_gsutil
+        try:
+            # hail is not expected to be installed in the test env; either way the partial file must not be cached
+            with self.assertRaises(BaseException):
+                download_local_copy(gs_path)
+        finally:
+            self.assertFalse(os.path.isfile(cache_path), "partial download was cached")
+            for stale in (cache_path, f"{cache_path}.temp"):
+                if os.path.isfile(stale):
+                    os.unlink(stale)
+
 
 class TestGetByteRangeFromGoogleStorage(unittest.TestCase):
     """Test get_byte_range_from_google_storage function."""
@@ -368,51 +401,6 @@ class TestGetByteRangeFromGoogleStorage(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             get_byte_range_from_google_storage("gs://my-bucket/missing.txt", 0, 100)
         self.assertIn("not found", str(cm.exception))
-
-
-class TestTeeStdoutAndStderr(unittest.TestCase):
-    """Test tee_stdout_and_stderr_to_log_file function."""
-
-    def setUp(self):
-        """Create temporary directory for log files."""
-        self.temp_dir = tempfile.mkdtemp()
-        self.log_file = os.path.join(self.temp_dir, "test.log")
-
-    def test_tee_stdout_to_log(self):
-        """Test that stdout is written to the log file."""
-        # tee_stdout_and_stderr_to_log_file irreversibly redirects this process's stdout/stderr file
-        # descriptors, so run it in a subprocess to avoid corrupting the test runner's streams.
-        script = (
-            "import time\n"
-            "from str_analysis.utils.file_utils import tee_stdout_and_stderr_to_log_file\n"
-            f"tee_stdout_and_stderr_to_log_file({self.log_file!r})\n"
-            "print('Test message', flush=True)\n"
-            "time.sleep(0.1)\n"
-        )
-        subprocess.run([sys.executable, "-c", script], check=True)
-
-        with open(self.log_file, "r") as f:
-            self.assertIn("Test message", f.read())
-
-    def test_tee_creates_log_file(self):
-        """Test that the log file is created."""
-        self.assertFalse(os.path.exists(self.log_file))
-
-        script = (
-            "from str_analysis.utils.file_utils import tee_stdout_and_stderr_to_log_file\n"
-            f"tee_stdout_and_stderr_to_log_file({self.log_file!r})\n"
-        )
-        subprocess.run([sys.executable, "-c", script], check=True)
-
-        self.assertTrue(os.path.exists(self.log_file))
-
-    def tearDown(self):
-        """Clean up temporary files."""
-        import shutil
-        try:
-            shutil.rmtree(self.temp_dir)
-        except:
-            pass  # May fail due to file descriptors
 
 
 if __name__ == "__main__":

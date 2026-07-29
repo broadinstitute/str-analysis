@@ -18,6 +18,7 @@ import pysam
 import re
  
 from str_analysis.utils.misc_utils import parse_interval
+from str_analysis.utils.cram_bam_utils import normalize_chromosome_name
 
 def is_close(chrom, pos, region, max_dist=1000):
     reg_chrom, reg_start, reg_end = region
@@ -40,7 +41,10 @@ def jump_for_mates(bam, chrom, start, end, read_names_set):
     sys.stdout.write(f"Jumping to {chrom}:{start}-{end} ({end-start}bp window) to retrieve {len(read_names_set)} mates.. ")
     alignment_counter = 0
     for alignment in bam.fetch(chrom, start, end + 1):
-        if alignment.is_secondary:
+        # same filter extract_region applies when collecting primary reads, matching
+        # https://github.com/bw2/ExpansionHunter/blob/master/ehunter/sample/MateExtractor.cpp#L143 -- the two
+        # mate-selection paths had drifted apart, letting supplementary alignments through only on this one
+        if alignment.is_secondary or alignment.is_supplementary:
             continue
         alignment_counter += 1
         read_name = alignment.query_name
@@ -121,7 +125,10 @@ def extract_region(chrom, start, end, input_bam, bamlet, merge_regions_distance=
     genomic_regions_to_fetch.extend(mate_regions.keys())
 
     if verbose:
-        print(f"{chrom}:{start}-{end}: Need to fetch {len(read_pairs)} mates from {len(mate_regions)} regions")
+        # read_pairs holds every pair collected from the region; the mates still to fetch are the read names
+        # accumulated in mate_regions, which is a strictly smaller set
+        mate_count = sum(len(read_names) for read_names in mate_regions.values())
+        print(f"{chrom}:{start}-{end}: Need to fetch {mate_count} mates from {len(mate_regions)} regions")
 
     if bamlet is not None:
         for (mate_chrom, mate_start, mate_end), read_names_set in mate_regions.items():
@@ -154,7 +161,7 @@ def main():
                         "and retrieved using a single disk read operation. To reduce number of the disk reads, increase "
                         "this parameter, or decrease it to reduce the total number of bytes read.")
     parser.add_argument("-R", "--reference-fasta", required=True, help="Reference genome FASTA file to use when reading from CRAM")
-    parser.add_argument("-o", "--bamlet", help="Output file path prefix")
+    parser.add_argument("-o", "--bamlet", help="Output BAMlet path; a .cram extension writes CRAM, otherwise BAM")
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("--read-index", help="Optional path of the input BAM or CRAM index file. This can be a local "
                                              "or a gs:// path")
@@ -169,18 +176,43 @@ def main():
 
 
     input_bam_file = pysam.AlignmentFile(args.input_bam_or_cram, "r", index_filename=args.read_index, reference_filename=args.reference_fasta)
-    bamlet_file = pysam.AlignmentFile(args.bamlet, "wc" if args.bamlet.endswith(".cram") else "wb", template=input_bam_file)
+
+    # map normalized chrom name -> the exact reference name in this file's header, so fetch() always uses a name
+    # valid for the header even when the region was given with a different naming convention ("9" vs "chr9").
+    # Without this, pysam raises "invalid contig"; make_minicram_for_expansion_hunter resolves names the same way.
+    normalized_to_reference_name = {
+        normalize_chromosome_name(name): name for name in input_bam_file.references
+    }
+
+    # every region is resolved BEFORE the output file is opened. parser.error raises SystemExit, and running this
+    # check inside the write loop below meant an unknown contig in the 2nd of several regions aborted after the
+    # 1st region's reads had already been written, leaving an unsorted, unindexed partial BAMlet at the -o path.
+    regions = []
+    for region in args.region:
+        chrom, start, end = parse_interval(region)
+        fetch_chrom = normalized_to_reference_name.get(normalize_chromosome_name(chrom))
+        if fetch_chrom is None:
+            parser.error(f"Chromosome {chrom} from region {region} is not present in "
+                         f"{args.input_bam_or_cram}")
+        regions.append((fetch_chrom, start, end))
+
+    # CRAM output needs the reference to encode records; without it htslib falls back to resolving the header's
+    # M5/UR tags. no_ref=1 stores sequences verbatim instead, avoiding reference-md5 validation against a
+    # reference build that may not match the input alignment (same choice save_to_file makes for CRAM output).
+    write_cram = args.bamlet.endswith(".cram")
+    bamlet_file = pysam.AlignmentFile(
+        args.bamlet, "wc" if write_cram else "wb", template=input_bam_file,
+        reference_filename=args.reference_fasta if write_cram else None,
+        format_options=[b"no_ref=1"] if write_cram else None)
 
     # shared across regions so a read overlapping more than one requested region is written only once
     written_read_keys = set()
-    for region in args.region:
-        chrom, start, end = parse_interval(region)
-
+    for fetch_chrom, start, end in regions:
         # get the genomic regions first. max(0, ...) keeps the padded start on the contig -- pysam's fetch()
         # raises "start out of range" for a negative coordinate, which any locus within 2000bp of a contig start
         # would otherwise produce.
         extract_region(
-            chrom, max(0, start - 2000), end + 2000,
+            fetch_chrom, max(0, start - 2000), end + 2000,
             input_bam=input_bam_file,
             bamlet=bamlet_file,
             merge_regions_distance=args.merge_regions_distance,
@@ -198,7 +230,11 @@ def main():
         sorted_path = f"{args.bamlet}.sorted.cram" if is_cram_output else f"{args.bamlet}.sorted.bam"
         sort_args = ["-o", sorted_path]
         if is_cram_output:
-            sort_args += ["--output-fmt", "CRAM", "--reference", args.reference_fasta]
+            # no_ref=1 must be repeated here: the file was written self-contained to avoid reference-MD5
+            # validation, and re-encoding it during the sort WITHOUT that option would reference-compress it
+            # and reintroduce exactly the M5 mismatch the initial write avoided
+            sort_args += ["--output-fmt", "CRAM", "--output-fmt-option", "no_ref=1",
+                          "--reference", args.reference_fasta]
         pysam.sort(*sort_args, args.bamlet)
         os.rename(sorted_path, args.bamlet)
         pysam.index(args.bamlet)

@@ -100,9 +100,6 @@ def parse_crai_index(crai_path, cram_path, eof_container_length=len(CRAM_EOF_CON
 				raise ValueError(f"Expected {len(CRAI_FILE_HEADER)} columns but found {len(fields)} in line #{i} of {crai_path}: {line}")
 
 			crai_record = dict(zip(CRAI_FILE_HEADER, map(int, fields)))
-			if crai_record["alignment_span"] < 0:
-				continue
-
 			reference_sequence_id = crai_record["reference_sequence_id"]
 			# CRAI alignment_start is 1-based; convert to 0-based so it matches the 0-based half-open
 			# genomic intervals used in the overlap queries (add_interval / _load_cram_containers)
@@ -110,16 +107,31 @@ def parse_crai_index(crai_path, cram_path, eof_container_length=len(CRAM_EOF_CON
 			end = start + crai_record["alignment_span"]
 			absolute_container_header_byte_offset = crai_record["absolute_container_header_byte_offset"]
 
+			# The header boundary and the container offset are recorded for EVERY record, before any filtering.
+			# Skipping a record entirely would drop its offset from container_byte_offsets, and since a
+			# container's size is derived as (next offset - this offset), a missing offset silently inflates the
+			# preceding container's size; skipping record 0 would also push end_of_cram_header_byte_offset out to
+			# a later container, making the "header" span most of the file. Unmapped slices
+			# (reference_sequence_id -1) conventionally carry alignment_span 0, so this is the common case.
 			if i == 0:
 				end_of_cram_header_byte_offset = absolute_container_header_byte_offset
 
-			interval = intervaltree.Interval(start, end, data=ByteRange(absolute_container_header_byte_offset, None))
+			container_byte_offsets.add(absolute_container_header_byte_offset)
 
 			if reference_sequence_id not in interval_trees:
 				interval_trees[reference_sequence_id] = intervaltree.IntervalTree()
-			interval_trees[reference_sequence_id].add(interval)
 
-			container_byte_offsets.add(absolute_container_header_byte_offset)
+			if crai_record["alignment_span"] > 0:
+				interval_trees[reference_sequence_id].add(
+					intervaltree.Interval(start, end, data=ByteRange(absolute_container_header_byte_offset, None)))
+			else:
+				# A zero/negative-span slice covers no reference bases, so it can never satisfy an overlap query,
+				# and intervaltree rejects a null interval (end <= start). It still needs an entry for the -1
+				# (unmapped) tree, which _load_cram_containers iterates wholesale rather than querying by overlap,
+				# so store it as a minimal 1-base placeholder.
+				interval_trees[reference_sequence_id].add(
+					intervaltree.Interval(start, start + 1,
+										  data=ByteRange(absolute_container_header_byte_offset, None)))
 
 	cram_file_size = get_file_size(cram_path)
 
@@ -156,14 +168,16 @@ def normalize_chromosome_name(chrom):
 
 class IntervalReader:
 	"""This class retrieves genomic regions from a CRAM or BAM file and saves them to a local mini-cram or mini-bam.
-	The original file can be local or remove. For CRAM files, this class optionally uses a more i/o-efficient algorithm
-	than htslib/htsjdk/samtools, reading only containers that overlap the requesteed interval(s), while htslib/htsjdk
-	read more than that for some reason. This becomes important when reading from Google Cloud Nearline storage which
-	currently costs $0.01 per gigabyte to read.
+	The input file can be local or on gs://.
 
-	In default mode, when not using the i/o-efficient algorithm, this class can still read CRAMs or BAMs directly from
-	Google Storage by using the pysam/htslib library. In that case, the GCS_OAUTH_TOKEN environment variable must be
-	set first, for example by running:
+	CRAM inputs ALWAYS use the i/o-efficient path: the CRAI is parsed up front and only the containers overlapping
+	the requested interval(s) are read, rather than the larger spans htslib/htsjdk fetch. This matters when reading
+	from Google Cloud Nearline storage, where cost is proportional to bytes read. gs:// CRAM byte ranges are fetched
+	with the google-cloud-storage client (see get_byte_range_from_google_storage), so no GCS_OAUTH_TOKEN is involved.
+
+	BAM inputs are read through pysam/htslib directly, since the byte-range algorithm is CRAM-specific. A gs:// BAM
+	therefore goes through htslib's own Google Storage support, which requires the GCS_OAUTH_TOKEN environment
+	variable to be set first, for example by running:
 
 	export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token);
 	"""
@@ -216,22 +230,34 @@ class IntervalReader:
 		self._peak_dedup_window_size = 0
 
 
+		# The raw handle below is only ever read by _read_bytes, which serves the CRAM byte-range path; the BAM
+		# path opens its own pysam.AlignmentFile. Opening it for BAM too left an unused fd open for the reader's
+		# whole lifetime, so both attributes default to None and only the one actually needed is acquired.
+		self._storage_client = None
+		self._cram_or_bam_file = None
 		if self._is_file_in_google_storage:
-			self._storage_client = storage.Client()
+			# guarded on _is_cram_file for the same reason as the local handle below: only the CRAM byte-range
+			# path reads through this client, so a gs:// BAM-backed reader was building one it never used
+			if self._is_cram_file:
+				self._storage_client = storage.Client()
 		else:
 			if not os.path.isfile(self._cram_or_bam_path):
 				raise ValueError(f"{self._cram_or_bam_path} not found")
 
-			self._cram_or_bam_file = open(self._cram_or_bam_path, "rb")
+			if self._is_cram_file:
+				self._cram_or_bam_file = open(self._cram_or_bam_path, "rb")
+
+		# Two distinct quantities, previously conflated: _total_byte_ranges_loaded_from_cram counts PHYSICAL read
+		# requests, while _total_containers_loaded_from_cram counts CRAM containers. They differ because adjacent
+		# containers are coalesced into one request, so a single request can load many containers.
+		# Initialized for BAM inputs too (they simply stay at 0): the getters and save_data_transfer_stats are
+		# public and unguarded, so leaving them undefined made a BAM-backed reader raise AttributeError.
+		self._total_byte_ranges_loaded_from_cram = 0
+		self._total_containers_loaded_from_cram = 0
+		self._total_bytes_loaded_from_cram = 0
 
 		if self._is_cram_file:
-			# initialize objects used by the self._load_cram_containers(..) method.
-			# Two distinct quantities, previously conflated: _total_byte_ranges_loaded_from_cram counts PHYSICAL
-			# read requests, while _total_containers_loaded_from_cram counts CRAM containers. They differ because
-			# adjacent containers are coalesced into one request, so a single request can load many containers.
-			self._total_byte_ranges_loaded_from_cram = 0
-			self._total_containers_loaded_from_cram = 0
-			self._total_bytes_loaded_from_cram = 0
+			# initialize objects used by the self._load_cram_containers(..) method
 
 			# detect the input CRAM's EOF marker (version-dependent length) so the last container is sized
 			# correctly and the reconstructed file gets a compatible footer
@@ -242,9 +268,6 @@ class IntervalReader:
 			# load the CRAM header
 			self._cram_header_bytes = self._get_byte_range(0, self._end_of_cram_header_byte_offset)
 			self._init_chrom_index_lookup()
-
-	def set_verbose(self, verbose):
-		self._verbose = verbose
 
 	def add_interval(self, chrom, start_0based, end):
 		if not isinstance(chrom, str) or not chrom:
@@ -302,20 +325,6 @@ class IntervalReader:
 		"""
 		return self._peak_dedup_window_size
 
-	def clear_intervals(self):
-		"""Clears all the genomic intervals that were added so far."""
-		self._genomic_intervals = collections.defaultdict(intervaltree.IntervalTree)
-
-	def reset_total_byte_ranges_loaded_from_cram_counter(self):
-		"""Resets the counter of the total number of byte ranges that were retrieved from the input CRAM so far."""
-		self._total_byte_ranges_loaded_from_cram = 0
-
-	def reset_total_bytes_loaded_from_cram(self):
-		"""Resets the counter of the total number of bytes loaded from the input CRAM so far.
-		This is only works for CRAM and not for BAM files
-		"""
-		self._total_bytes_loaded_from_cram = 0
-
 	def save_to_file(self, local_path, create_index=True, disable_reference_compression=True):
 		"""Load and save the added genomic intervals to a local file at the given local_path.
 
@@ -329,162 +338,176 @@ class IntervalReader:
 				compression. This increases output size but avoids reference MD5 validation. Ignored when the input
 				is a BAM.
 		"""
-		if self._is_cram_file:
-			temp_cram_container_file = tempfile.NamedTemporaryFile(suffix=".cram")
-			if self._debug:
-				print(f"DEBUG: Writing containers to {temp_cram_container_file.name}")
-			bytes_written = self._load_cram_containers(temp_cram_container_file)
-			if bytes_written == 0:
-				print(f"WARNING: No CRAM containers were loaded from {self._cram_or_bam_path}")
-				return 0
-
-			if self._debug:
-				print(f"DEBUG: {temp_cram_container_file.name} has file size "
-					  f"{os.path.getsize(temp_cram_container_file.name):,d} bytes")
-				print(f"DEBUG: Using pysam to generate a CRAM index for {temp_cram_container_file.name}")
-			temp_cram_container_file.seek(0)
-			pysam.index(temp_cram_container_file.name)
-			if self._debug:
-				print(f"DEBUG: Generated CRAM index {temp_cram_container_file.name}.crai (size: {os.path.getsize(temp_cram_container_file.name + '.crai'):,d} bytes)")
-			pysam_input_file = pysam.AlignmentFile(
-				temp_cram_container_file, require_index=True, reference_filename=self._reference_fasta_path)
-			pysam_input_filename = temp_cram_container_file.name
-		elif self._is_bam_file:
-			pysam_input_file = pysam.AlignmentFile(
-				self._cram_or_bam_path, index_filename=self._crai_or_bai_path,
-				reference_filename=self._reference_fasta_path, require_index=True,
-			)
-			pysam_input_filename = os.path.basename(self._crai_or_bai_path)
-		else:
-			raise ValueError(f"Output path {local_path} must end with .cram or .bam")
-
-		chom_order = [normalize_chromosome_name(c) for c in pysam_input_file.references]
-		# map normalized chrom name -> the exact reference name in this file's header, so fetch() always uses a
-		# name valid for the header even when the requested region used a different naming convention (e.g. "9" vs "chr9")
-		normalized_to_reference_name = {
-			normalize_chromosome_name(name): name for name in pysam_input_file.references
-		}
-		# no_ref=1 stores read sequences verbatim (like BAM) instead of reference-compressing them. This avoids htslib
-		# validating each contig's reference md5 against the header @SQ M5 tag, which fails when the reference build
-		# differs from the input alignment or a read's contig cannot be populated from the supplied reference.
-		pysam_output_file = pysam.AlignmentFile(local_path, mode="wc" if self._is_cram_file else "wb",
-											template=pysam_input_file, reference_filename=self._reference_fasta_path,
-											format_options=[b"no_ref=1"]
-											if self._is_cram_file and disable_reference_compression else None)
-		read_counter = 0
-		# A read overlapping two non-overlapping requested intervals is returned by fetch() once per interval;
-		# track written alignments so each is emitted at most once (duplicates would otherwise be interpreted
-		# as a complete read pair downstream and suppress real mate retrieval).
-		#
-		# Only a SLIDING WINDOW of keys is retained, not every read written. Intervals are traversed in header
-		# reference order then ascending position, and fetch() returns reads in coordinate order, so once the scan
-		# passes a read's reference_end that read cannot be returned again -- not by the rest of this interval, nor
-		# by any later interval, which starts at an even higher position. Keeping the full history instead made this
-		# set the single largest memory consumer: at ~219 bytes per entry it reached an estimated ~8GB of the 13.7GB
-		# peak on the 50000-locus benchmark, and OOM-killed the 6.5GB and 13GB VM tiers outright. The window holds
-		# only reads overlapping the current position, i.e. on the order of the local coverage depth.
-		written_read_keys = set()
-		# min-heap of (reference_end, read_key), used to drop keys once the scan has moved past them
-		eviction_heap = []
-		current_fetch_chrom = None
-		if self._verbose:
-			print("Writing reads to", local_path)
-		# _get_merged_intervals already sorts chromosomes by the supplied header order and intervals by position.
-		# Wrapping its result in sorted() would incorrectly restore lexicographic chromosome order (chr10 before chr2).
-		for chrom, start, end in self._get_merged_intervals(
-				chrom_sort_order=lambda ch: chom_order.index(normalize_chromosome_name(ch))
-					if normalize_chromosome_name(ch) in chom_order else len(chom_order)):
-			normalized_chrom = normalize_chromosome_name(chrom)
-			if normalized_chrom not in normalized_to_reference_name:
-				# contig absent from this file's header (e.g. an off-header interval that _load_cram_containers
-				# already skipped) — there is nothing to fetch for it
-				continue
-			fetch_chrom = normalized_to_reference_name[normalized_chrom]
-			if self._debug:
-				print(f"DEBUG: Fetching {fetch_chrom}:{start}-{end} from {pysam_input_filename}")
-
-			if fetch_chrom != current_fetch_chrom:
-				# positions restart on a new contig, so nothing already seen can recur -- reset the whole window
-				current_fetch_chrom = fetch_chrom
-				written_read_keys.clear()
-				eviction_heap.clear()
-
-			for read in pysam_input_file.fetch(fetch_chrom, start, end):
-				# drop keys for reads that end before this one starts; coordinate-ordered traversal guarantees
-				# they cannot be returned again
-				while eviction_heap and eviction_heap[0][0] < read.reference_start:
-					written_read_keys.discard(heapq.heappop(eviction_heap)[1])
-
-				read_key = (read.query_name, read.flag, read.reference_start)
-				if read_key in written_read_keys:
-					continue
-				written_read_keys.add(read_key)
-				# reference_end is None for an unmapped read placed at its mate's position; such a read spans no
-				# reference bases, so key it off reference_start to keep the heap ordering consistent
-				heapq.heappush(
-					eviction_heap,
-					(read.reference_end if read.reference_end is not None else read.reference_start, read_key))
-				# high-water mark of the dedup window, exposed via get_peak_dedup_window_size() so the bound can be
-				# asserted in tests and eyeballed in production -- this set is what used to grow to multiple GB
-				self._peak_dedup_window_size = max(self._peak_dedup_window_size, len(written_read_keys))
-				read_counter += 1
-				pysam_output_file.write(read)
-
-		if self._include_unmapped_read_pairs:
-			# unmapped reads carry no reference position, so the coordinate-based window above does not apply to
-			# them; dedup them against each other with their own set. They cannot collide with the mapped reads
-			# written above, whose keys all carry a real reference_start.
-			written_unmapped_read_keys = set()
-			for read in pysam_input_file.fetch("*"):
-				read_key = (read.query_name, read.flag, read.reference_start)
-				if read_key in written_unmapped_read_keys:
-					continue
-				written_unmapped_read_keys.add(read_key)
-				read_counter += 1
-				pysam_output_file.write(read)
-
-		pysam_input_file.close()
-		pysam_output_file.close()
-
-		if self._is_cram_file:
-			# temp_cram_container_file is auto-deleted when its handle closes, but the .crai index that
-			# pysam.index created next to it is a separate path NamedTemporaryFile does not track, so
-			# remove it explicitly to avoid leaking one orphan .crai per save_to_file call
-			temp_crai_path = f"{temp_cram_container_file.name}.crai"
-			if os.path.isfile(temp_crai_path):
-				os.remove(temp_crai_path)
-			temp_cram_container_file.close()
-
-		if create_index:
-			if self._debug:
-				print(f"DEBUG: Using pysam to generate a CRAM index for {local_path}")
-
-			try:
-				# The output is already coordinate-sorted: this code assumes the input is coordinate-sorted (the
-				# byte-range CRAM algorithm and require_index=True both rely on that), intervals are traversed in
-				# header reference order and then coordinate order, and written_read_keys keeps a read spanning two
-				# intervals at its first (earlier) occurrence. A regression test exercises this invariant with
-				# non-adjacent intervals, an earlier mate, a duplicated boundary read, and unmapped reads.
-				if self._is_cram_file:
-					# A CRAI is a flat per-container record list, so pysam.index does not require a sort here;
-					# re-sorting would only write another full-size CRAM.
-					pysam.index(local_path)
-				else:
-					# BAI construction (unlike CRAI) hard-fails on out-of-order positions, so keep an explicit
-					# sort here as insurance even though the stream above is already coordinate-sorted.
-					pysam.sort("-o", f"{local_path}.sorted.bam", local_path)
-					os.rename(f"{local_path}.sorted.bam", local_path)
-					pysam.index(local_path)
+		# temp_cram_container_file auto-deletes on close, but the .crai pysam.index writes beside it is a separate
+		# path NamedTemporaryFile does not track. The removal below is in a finally: everything between indexing and
+		# cleanup (opening the output, the fetch/write loop, closing files) can raise, and on that path the sidecar
+		# used to be left behind in the temp dir.
+		# the pysam handles are closed in the same finally for the same reason: they were closed only on the
+		# success path, so an exception while opening or writing the output leaked them
+		temp_cram_container_file = None
+		pysam_input_file = None
+		pysam_output_file = None
+		try:
+			if self._is_cram_file:
+				temp_cram_container_file = tempfile.NamedTemporaryFile(suffix=".cram")
 				if self._debug:
-					print(f"DEBUG: Generated CRAM index {local_path}.crai (size: {os.path.getsize(local_path + '.crai'):,d} bytes)")
-			except Exception as e:
-				print(f"WARNING: Failed to prepare and index {local_path}: {e}")
+					print(f"DEBUG: Writing containers to {temp_cram_container_file.name}")
+				bytes_written = self._load_cram_containers(temp_cram_container_file)
+				if bytes_written == 0:
+					print(f"WARNING: No CRAM containers were loaded from {self._cram_or_bam_path}")
+					return 0
+
+				if self._debug:
+					print(f"DEBUG: {temp_cram_container_file.name} has file size "
+						  f"{os.path.getsize(temp_cram_container_file.name):,d} bytes")
+					print(f"DEBUG: Using pysam to generate a CRAM index for {temp_cram_container_file.name}")
+				temp_cram_container_file.seek(0)
+				pysam.index(temp_cram_container_file.name)
+				if self._debug:
+					print(f"DEBUG: Generated CRAM index {temp_cram_container_file.name}.crai (size: {os.path.getsize(temp_cram_container_file.name + '.crai'):,d} bytes)")
+				pysam_input_file = pysam.AlignmentFile(
+					temp_cram_container_file, require_index=True, reference_filename=self._reference_fasta_path)
+				pysam_input_filename = temp_cram_container_file.name
+			elif self._is_bam_file:
+				pysam_input_file = pysam.AlignmentFile(
+					self._cram_or_bam_path, index_filename=self._crai_or_bai_path,
+					reference_filename=self._reference_fasta_path, require_index=True,
+				)
+				# the file actually being fetched from is the BAM, not its index (the CRAM branch above names the
+				# container file it opened); this feeds the "DEBUG: Fetching ... from {pysam_input_filename}" print
+				pysam_input_filename = self._cram_or_bam_path
+			# no else: __init__ already rejects any input that is neither .cram nor .bam, so one of the two
+			# branches above always applies
+
+			chom_order = [normalize_chromosome_name(c) for c in pysam_input_file.references]
+			# map normalized chrom name -> the exact reference name in this file's header, so fetch() always uses a
+			# name valid for the header even when the requested region used a different naming convention (e.g. "9" vs "chr9")
+			normalized_to_reference_name = {
+				normalize_chromosome_name(name): name for name in pysam_input_file.references
+			}
+			# no_ref=1 stores read sequences verbatim (like BAM) instead of reference-compressing them. This avoids htslib
+			# validating each contig's reference md5 against the header @SQ M5 tag, which fails when the reference build
+			# differs from the input alignment or a read's contig cannot be populated from the supplied reference.
+			pysam_output_file = pysam.AlignmentFile(local_path, mode="wc" if self._is_cram_file else "wb",
+												template=pysam_input_file, reference_filename=self._reference_fasta_path,
+												format_options=[b"no_ref=1"]
+												if self._is_cram_file and disable_reference_compression else None)
+			read_counter = 0
+			# A read overlapping two non-overlapping requested intervals is returned by fetch() once per interval;
+			# track written alignments so each is emitted at most once (duplicates would otherwise be interpreted
+			# as a complete read pair downstream and suppress real mate retrieval).
+			#
+			# Only a SLIDING WINDOW of keys is retained, not every read written. Intervals are traversed in header
+			# reference order then ascending position, and fetch() returns reads in coordinate order, so once the scan
+			# passes a read's reference_end that read cannot be returned again -- not by the rest of this interval, nor
+			# by any later interval, which starts at an even higher position. Keeping the full history instead made this
+			# set the single largest memory consumer: at ~219 bytes per entry it reached an estimated ~8GB of the 13.7GB
+			# peak on the 50000-locus benchmark, and OOM-killed the 6.5GB and 13GB VM tiers outright. The window holds
+			# only reads overlapping the current position, i.e. on the order of the local coverage depth.
+			written_read_keys = set()
+			# min-heap of (reference_end, read_key), used to drop keys once the scan has moved past them
+			eviction_heap = []
+			current_fetch_chrom = None
+			if self._verbose:
+				print("Writing reads to", local_path)
+			# _get_merged_intervals already sorts chromosomes by the supplied header order and intervals by position.
+			# Wrapping its result in sorted() would incorrectly restore lexicographic chromosome order (chr10 before chr2).
+			for chrom, start, end in self._get_merged_intervals(
+					chrom_sort_order=lambda ch: chom_order.index(normalize_chromosome_name(ch))
+						if normalize_chromosome_name(ch) in chom_order else len(chom_order)):
+				normalized_chrom = normalize_chromosome_name(chrom)
+				if normalized_chrom not in normalized_to_reference_name:
+					# contig absent from this file's header (e.g. an off-header interval that _load_cram_containers
+					# already skipped) — there is nothing to fetch for it
+					continue
+				fetch_chrom = normalized_to_reference_name[normalized_chrom]
+				if self._debug:
+					print(f"DEBUG: Fetching {fetch_chrom}:{start}-{end} from {pysam_input_filename}")
+
+				if fetch_chrom != current_fetch_chrom:
+					# positions restart on a new contig, so nothing already seen can recur -- reset the whole window
+					current_fetch_chrom = fetch_chrom
+					written_read_keys.clear()
+					eviction_heap.clear()
+
+				for read in pysam_input_file.fetch(fetch_chrom, start, end):
+					# drop keys for reads that end before this one starts; coordinate-ordered traversal guarantees
+					# they cannot be returned again
+					while eviction_heap and eviction_heap[0][0] < read.reference_start:
+						written_read_keys.discard(heapq.heappop(eviction_heap)[1])
+
+					read_key = (read.query_name, read.flag, read.reference_start)
+					if read_key in written_read_keys:
+						continue
+					written_read_keys.add(read_key)
+					# reference_end is None for an unmapped read placed at its mate's position; such a read spans no
+					# reference bases, so key it off reference_start to keep the heap ordering consistent
+					heapq.heappush(
+						eviction_heap,
+						(read.reference_end if read.reference_end is not None else read.reference_start, read_key))
+					# high-water mark of the dedup window, exposed via get_peak_dedup_window_size() so the bound can be
+					# asserted in tests and eyeballed in production -- this set is what used to grow to multiple GB
+					self._peak_dedup_window_size = max(self._peak_dedup_window_size, len(written_read_keys))
+					read_counter += 1
+					pysam_output_file.write(read)
+
+			if self._include_unmapped_read_pairs:
+				# fetch("*") is a single linear pass over the unplaced reads, so it cannot return the same read twice
+				# and no deduplication is needed here. Keeping a key per unmapped read would reintroduce exactly the
+				# unbounded-set memory growth the sliding window above exists to avoid.
+				for read in pysam_input_file.fetch("*"):
+					read_counter += 1
+					pysam_output_file.write(read)
+
+			# closed here (not only in the finally) because create_index below reads the finished output file
+			pysam_input_file.close()
+			pysam_output_file.close()
+			pysam_input_file = pysam_output_file = None
+
+			if create_index:
+				if self._debug:
+					print(f"DEBUG: Using pysam to generate a CRAM index for {local_path}")
+
+				try:
+					# The output is already coordinate-sorted: this code assumes the input is coordinate-sorted (the
+					# byte-range CRAM algorithm and require_index=True both rely on that), intervals are traversed in
+					# header reference order and then coordinate order, and written_read_keys keeps a read spanning two
+					# intervals at its first (earlier) occurrence. A regression test exercises this invariant with
+					# non-adjacent intervals, an earlier mate, a duplicated boundary read, and unmapped reads.
+					if self._is_cram_file:
+						# A CRAI is a flat per-container record list, so pysam.index does not require a sort here;
+						# re-sorting would only write another full-size CRAM.
+						pysam.index(local_path)
+					else:
+						# BAI construction (unlike CRAI) hard-fails on out-of-order positions, so keep an explicit
+						# sort here as insurance even though the stream above is already coordinate-sorted.
+						pysam.sort("-o", f"{local_path}.sorted.bam", local_path)
+						os.rename(f"{local_path}.sorted.bam", local_path)
+						pysam.index(local_path)
+					if self._debug:
+						# the BAM branch above writes a .bai, not a .crai -- stat'ing the wrong suffix raised
+						# FileNotFoundError, which the except below swallowed into a false "Failed to prepare and
+						# index" warning even though indexing had succeeded
+						index_path = f"{local_path}.crai" if self._is_cram_file else f"{local_path}.bai"
+						print(f"DEBUG: Generated index {index_path} (size: {os.path.getsize(index_path):,d} bytes)")
+				except Exception as e:
+					print(f"WARNING: Failed to prepare and index {local_path}: {e}")
 
 
-		if self._verbose:
-			print(f"Wrote {read_counter:,d} reads to {local_path}")
+			if self._verbose:
+				print(f"Wrote {read_counter:,d} reads to {local_path}")
 
-		return read_counter
+			return read_counter
+
+		finally:
+			for pysam_file in (pysam_input_file, pysam_output_file):
+				if pysam_file is not None:
+					pysam_file.close()
+			if temp_cram_container_file is not None:
+				temp_crai_path = f"{temp_cram_container_file.name}.crai"
+				if os.path.isfile(temp_crai_path):
+					os.remove(temp_crai_path)
+				temp_cram_container_file.close()
 
 	def save_data_transfer_stats(self, stats_tsv_path=None):
 		total_bytes = self.get_total_bytes_loaded_from_cram()
@@ -512,10 +535,12 @@ class IntervalReader:
 		if self._byte_ranges_cache is not None:
 			self._byte_ranges_cache.close()
 			self._byte_ranges_cache = None
-		if self._is_file_in_google_storage:
+		if self._storage_client is not None:
 			self._storage_client.close()
-		else:
+			self._storage_client = None
+		if self._cram_or_bam_file is not None:
 			self._cram_or_bam_file.close()
+			self._cram_or_bam_file = None
 
 
 	def _load_cram_containers(self, cram_container_file):
@@ -569,6 +594,9 @@ class IntervalReader:
 		# benchmark that pushed total network reads to 133% of the full CRAM size -- worse than downloading it once,
 		# which defeats the entire point of building a minicram.
 		containers_to_load = sorted(set(byte_ranges_to_load))
+		# snapshot taken before any bytes are read, so the debug print below can report the number of PHYSICAL reads
+		# this call issued (every read from here on goes through _read_bytes, which increments this counter)
+		byte_ranges_loaded_before = self._total_byte_ranges_loaded_from_cram
 		if self._byte_ranges_cache is not None:
 			# pre-fetch the containers this call needs but does not already have, coalescing contiguous misses so the
 			# request count stays close to what merging used to give, then serve every container from the cache below
@@ -599,7 +627,12 @@ class IntervalReader:
 
 		cram_container_file.flush()
 		if self._debug:
-			print(f"DEBUG: Wrote {len(byte_ranges_to_write):,d} CRAM containers to {cram_container_file.name}")
+			# the request count is the measured number of _read_bytes calls, not len(byte_ranges_to_write): on the
+			# cache branch byte_ranges_to_write IS containers_to_load, so its length is the container count over
+			# again, and containers served from the cache cost no read at all
+			print(f"DEBUG: Wrote {len(containers_to_load):,d} CRAM containers "
+				  f"({self._total_byte_ranges_loaded_from_cram - byte_ranges_loaded_before:,d} read requests) "
+				  f"to {cram_container_file.name}")
 
 		if self._verbose and self._total_byte_ranges_loaded_from_cram > 0:
 			print(f"Copied {self._total_bytes_loaded_from_cram/10**6:5.1f}Mb total from {self._cram_or_bam_path}  to  {cram_container_file.name}")
@@ -611,16 +644,14 @@ class IntervalReader:
 		parsing the list of reference sequence names and in order.
 		"""
 
-		# load the CRAM header of the input CRAM file into a local temp file
+		# Write just the CRAM header + EOF marker to a temp file. This used to call _load_cram_containers, which
+		# does far more than needed here: with include_unmapped_read_pairs set it appends EVERY CRAI -1 (unmapped)
+		# container, so merely constructing a reader downloaded all the unmapped-read containers before a single
+		# interval had been added. Only the reference names are needed, and those live in the header.
 		with tempfile.NamedTemporaryFile(suffix=".cram") as cram_header_file:
-			# load the CRAM header from the temp file using pysam to get the list of reference sequence names
-			was_verbose = self._verbose
-			self._verbose = False
-			bytes_written = self._load_cram_containers(cram_header_file)
-			self._verbose = was_verbose
-
-			if bytes_written > 0:
-				pysam.index(cram_header_file.name)
+			cram_header_file.write(self._cram_header_bytes)
+			cram_header_file.write(self._cram_eof_container)
+			cram_header_file.flush()
 
 			# By default, if a file is opened in mode 'r', it is checked for a valid header (`check_header` = True)
 			# and a definition of chromosome names (`check_sq` = True).
@@ -734,24 +765,36 @@ class IntervalReader:
 
 
 
-def get_total_mapped_reads(input_bam_or_cram_path):
-    """Fast approximation of the total number of mapped reads in a BAM/CRAM file."""
+def get_total_mapped_reads(input_bam_or_cram_path, reference_fasta_path=None, index_filename=None,
+                           scan_cram=False):
+    """Returns the total number of mapped reads in a BAM/CRAM file, or None when a CRAM count is unavailable.
+
+    For BAM this is the fast index-statistics path. A CRAI carries no per-contig alignment counts, so
+    get_index_statistics() reports mapped=0 for every contig and a shared index-statistics path would silently
+    return 0 for any nonempty CRAM. The only way to get a real CRAM count is to decode every record, which is a
+    whole-file scan -- far more expensive than the locus-scoped work its callers otherwise do. So CRAM returns
+    None (unavailable) unless the caller explicitly asks for the scan.
+
+    Args:
+        input_bam_or_cram_path: BAM or CRAM path.
+        reference_fasta_path: Reference FASTA. Required for a reference-compressed CRAM, which cannot be decoded
+            without it; ignored for BAM.
+        index_filename: Optional index path, for inputs whose index does not sit at the default location.
+        scan_cram: If True, decode the whole CRAM to count mapped records. Off by default because of the cost.
+
+    Returns:
+        int: number of mapped reads, or None for a CRAM when scan_cram is False.
+    """
+    if input_bam_or_cram_path.endswith(".cram"):
+        if not scan_cram:
+            return None
+        with pysam.AlignmentFile(input_bam_or_cram_path, "rc", index_filename=index_filename,
+                                 reference_filename=reference_fasta_path) as cram:
+            return sum(1 for read in cram.fetch(until_eof=True) if not read.is_unmapped)
+
     mapped = 0
-    with pysam.AlignmentFile(input_bam_or_cram_path, "rb") as bam:
+    with pysam.AlignmentFile(input_bam_or_cram_path, "rb", index_filename=index_filename) as bam:
         for contig in bam.get_index_statistics():
             mapped += contig.mapped
 
     return mapped
-
-
-
-def get_average_read_depth(input_bam_or_cram_path):
-    """Fast approximation of the average read depth in a BAM/CRAM file."""
-    total_bases = 0
-    total_genome_bases = 0
-    with pysam.AlignmentFile(input_bam_or_cram_path, "rb") as bam:
-        for contig in bam.get_index_statistics():
-            total_bases += contig.mapped
-            total_genome_bases += contig.length
-
-    return total_bases / total_genome_bases if total_genome_bases else 0    

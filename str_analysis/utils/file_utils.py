@@ -105,7 +105,13 @@ def download_local_copy(url_or_google_storage_path, verbose=False):
 
             # try using gsutil first (it's currently more reliable than hfs.copy)
             gcloud_requester_pays_arg = f"-u {gcloud_requester_pays_project}" if gcloud_requester_pays_project is not None else ""
-            os.system(f"gsutil {gcloud_requester_pays_arg} -m cp {url_or_google_storage_path} {path}.temp")
+            # the exit status matters: a failed or interrupted transfer can still leave a PARTIAL .temp file
+            # behind, and treating "the file exists" as success would rename that truncated copy into the
+            # permanent cache path, where it is served as a complete download on every later run
+            gsutil_exit_code = os.system(
+                f"gsutil {gcloud_requester_pays_arg} -m cp {url_or_google_storage_path} {path}.temp")
+            if gsutil_exit_code != 0 and os.path.isfile(f"{path}.temp"):
+                os.remove(f"{path}.temp")
             if not os.path.isfile(f"{path}.temp"):
                 # fall back on hfs.copy
                 try:
@@ -117,10 +123,16 @@ def download_local_copy(url_or_google_storage_path, verbose=False):
 
             os.rename(f"{path}.temp", path)
     else:
+        # NOTE: a cached copy is trusted indefinitely -- the cache key is derived only from the URL, so a change to
+        # a mutable URL's content is never picked up until the temp dir is cleared. That is deliberate (callers rely
+        # on a cache hit costing no network round-trip); pass an immutable/versioned URL when freshness matters.
         if not os.path.isfile(path):
             if verbose:
                 print(f"Downloading {url_or_google_storage_path} to {path}")
             r = requests.get(url_or_google_storage_path)
+            # an unchecked error response would otherwise be written into the cache and served as real content on
+            # every later run, since the cache is consulted by path existence alone and never retried
+            r.raise_for_status()
             with open(f"{path}.temp", "wb") as f:
                 f.write(r.content)
             os.rename(f"{path}.temp", path)
@@ -154,44 +166,3 @@ def get_byte_range_from_google_storage(google_storage_path, start_bytes, end_byt
         raise ValueError(f"{google_storage_path} not found")
 
 
-def tee_stdout_and_stderr_to_log_file(log_path):
-    """Redirects stdout and stderr to both the console and a log file.
-
-    This function creates a "tee" behavior for stdout and stderr, where all output
-    is written to both the original destinations (console) and a log file simultaneously.
-
-    Args:
-        log_path (str): Path to the log file where output will be written
-
-    Note:
-        Uses daemon threads which will be terminated when the main program exits.
-    """
-    log_fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
-
-    # Save original fds
-    stdout_fd = os.dup(1)
-    stderr_fd = os.dup(2)
-
-    def _tee(src_fd, dst_fds):
-        while True:
-            data = os.read(src_fd, 1024)
-            if not data:
-                break
-            for fd in dst_fds:
-                os.write(fd, data)
-
-    # Create pipes
-    r_out, w_out = os.pipe()
-    r_err, w_err = os.pipe()
-
-    # Redirect stdout/stderr → pipes
-    os.dup2(w_out, 1)
-    os.dup2(w_err, 2)
-
-    # Start tee threads
-    threading.Thread(target=_tee, args=(r_out, [stdout_fd, log_fd]), daemon=True).start()
-    threading.Thread(target=_tee, args=(r_err, [stderr_fd, log_fd]), daemon=True).start()
-
-    # Re-wrap Python streams
-    sys.stdout = os.fdopen(1, 'w', buffering=1)
-    sys.stderr = os.fdopen(2, 'w', buffering=1)

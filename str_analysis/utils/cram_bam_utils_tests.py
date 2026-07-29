@@ -13,7 +13,7 @@ from unittest import mock
 import pysam
 
 from str_analysis.make_bamlet import extract_region
-from str_analysis.utils.cram_bam_utils import IntervalReader, merge_adjacent_byte_ranges
+from str_analysis.utils.cram_bam_utils import IntervalReader, merge_adjacent_byte_ranges, get_total_mapped_reads, parse_crai_index
 from str_analysis.utils.file_utils import set_requester_pays_project
 
 
@@ -458,6 +458,161 @@ class TestCramBamUtils(unittest.TestCase):
 		# which some pysam/htslib builds reject. That is a limitation of the single-contig test reference, not of
 		# the naming fix, so asserting returncode == 0 here would make this test environment-dependent.
 		self.assertNotIn("invalid contig", result.stdout + result.stderr)
+
+	def test_get_total_mapped_reads_counts_cram_records(self):
+		# Regression test: the CRAM and BAM paths shared get_index_statistics(), but a CRAI carries no per-contig
+		# alignment counts, so every nonempty CRAM was reported as having 0 mapped reads.
+		local_bam_path = os.path.join(self._temp_dir.name, "FXN.wgsim_HET_250xGAA.bam")
+		with open(local_bam_path, "wb") as f:
+			f.write(pkgutil.get_data("str_analysis", "data/tests/FXN.wgsim_HET_250xGAA.bam"))
+		with open(local_bam_path + ".bai", "wb") as f:
+			f.write(pkgutil.get_data("str_analysis", "data/tests/FXN.wgsim_HET_250xGAA.bam.bai"))
+
+		mapped_in_bam = get_total_mapped_reads(local_bam_path)
+		self.assertGreater(mapped_in_bam, 0)
+		self.assertEqual(get_total_mapped_reads(self._local_cram_path, scan_cram=True), mapped_in_bam)
+		# the scan is opt-in because it decodes the whole file, so the default reports "unavailable" rather than
+		# the 0 that index statistics would wrongly yield for a CRAM
+		self.assertIsNone(get_total_mapped_reads(self._local_cram_path))
+
+	def test_transfer_counters_available_for_bam_backed_reader(self):
+		# Regression test: the transfer counters were initialized only inside __init__'s CRAM branch, so calling
+		# the (public, unguarded) getters or save_data_transfer_stats on a BAM-backed reader raised AttributeError.
+		local_bam_path = os.path.join(self._temp_dir.name, "FXN.wgsim_HET_250xGAA.bam")
+		with open(local_bam_path, "wb") as f:
+			f.write(pkgutil.get_data("str_analysis", "data/tests/FXN.wgsim_HET_250xGAA.bam"))
+		with open(local_bam_path + ".bai", "wb") as f:
+			f.write(pkgutil.get_data("str_analysis", "data/tests/FXN.wgsim_HET_250xGAA.bam.bai"))
+
+		reader = IntervalReader(local_bam_path, local_bam_path + ".bai")
+		try:
+			self.assertEqual(reader.get_total_bytes_loaded_from_cram(), 0)
+			self.assertEqual(reader.get_total_containers_loaded_from_cram(), 0)
+			self.assertEqual(reader.get_total_byte_ranges_loaded_from_cram(), 0)
+		finally:
+			reader.close()
+
+	def test_constructing_reader_does_not_load_containers(self):
+		# Regression test: the constructor built its chromosome lookup by calling _load_cram_containers, which
+		# appends every CRAI -1 (unmapped) container when include_unmapped_read_pairs is set -- so merely creating
+		# a reader downloaded all the unmapped-read containers before a single interval had been added. Only the
+		# reference names are needed there, and those come from the already-fetched CRAM header.
+		#
+		# Asserted by patching _load_cram_containers rather than by counting loaded containers: this test CRAM's
+		# CRAI has no -1 (unmapped) entries at all, so a container-count assertion would pass either way.
+		with mock.patch.object(IntervalReader, "_load_cram_containers") as mock_load_containers:
+			reader = IntervalReader(
+				self._local_cram_path, self._local_cram_path + ".crai",
+				include_unmapped_read_pairs=True, cache_byte_ranges=True)
+			try:
+				mock_load_containers.assert_not_called()
+				# the header still has to yield a usable chromosome lookup
+				self.assertIn("9", reader._chrom_index_lookup)
+			finally:
+				reader.close()
+
+	def test_get_total_mapped_reads_accepts_an_explicit_index_path(self):
+		# Regression test: get_total_mapped_reads reopened the input with no way to supply a nonstandard index,
+		# so callers that track their index path separately (parse_motif_composition passes one everywhere else)
+		# could not use it here.
+		self.assertGreater(
+			get_total_mapped_reads(self._local_cram_path, index_filename=self._local_cram_path + ".crai",
+								   scan_cram=True), 0)
+
+	def test_save_to_file_does_not_leak_temp_index_when_it_fails(self):
+		# Regression test: save_to_file indexes its temp container CRAM early, but the os.remove of that sidecar
+		# .crai sat ~100 lines later. Anything raising in between (opening the output, the fetch/write loop) left
+		# the sidecar behind, since NamedTemporaryFile only tracks the .cram itself.
+		# tempfile.tempdir is set directly rather than via the TMPDIR env var: tempfile caches the resolved temp
+		# directory on first use, so setting TMPDIR here would be ignored and the temp files would land elsewhere,
+		# making this assertion pass no matter what.
+		temp_root = tempfile.mkdtemp()
+		before = set(os.listdir(temp_root))
+		original_tempdir = tempfile.tempdir
+		tempfile.tempdir = temp_root
+		try:
+			reader = IntervalReader(self._local_cram_path, self._local_cram_path + ".crai")
+			try:
+				reader.add_interval(*self._FXN_intervals[0])
+				# an unwritable output path makes save_to_file raise after the temp index has been created
+				with self.assertRaises(Exception):
+					reader.save_to_file(os.path.join(temp_root, "no_such_subdir", "out.cram"))
+			finally:
+				reader.close()
+		finally:
+			tempfile.tempdir = original_tempdir
+
+		leaked = [name for name in set(os.listdir(temp_root)) - before if name.endswith(".crai")]
+		self.assertEqual(leaked, [])
+
+	def test_save_to_file_closes_alignment_handles_when_it_fails(self):
+		# Regression test: save_to_file closed its pysam input/output handles only on the success path, so an
+		# exception while opening or writing the output (the finally added for the temp file covered only that
+		# temp file) left the input AlignmentFile open.
+		opened_files = []
+		original_alignment_file = pysam.AlignmentFile
+
+		def recording_alignment_file(*args, **kwargs):
+			alignment_file = original_alignment_file(*args, **kwargs)
+			opened_files.append(alignment_file)
+			return alignment_file
+
+		reader = IntervalReader(self._local_cram_path, self._local_cram_path + ".crai")
+		with mock.patch.object(pysam, "AlignmentFile", side_effect=recording_alignment_file):
+			try:
+				reader.add_interval(*self._FXN_intervals[0])
+				with self.assertRaises(Exception):
+					reader.save_to_file(os.path.join(self._temp_dir.name, "no_such_subdir", "out.cram"))
+			finally:
+				reader.close()
+
+		self.assertGreater(len(opened_files), 0)
+		self.assertEqual([f for f in opened_files if not f.closed], [])
+
+	def test_parse_crai_index_skips_zero_span_records(self):
+		# Regression test: the record filter was 'alignment_span < 0', so a zero-span slice got through and
+		# produced start == end, which intervaltree rejects as a null interval -- parse_crai_index runs from
+		# IntervalReader.__init__, so such a CRAI made construction raise.
+		# A zero-span slice must not become a null interval (intervaltree rejects end <= start), but it must
+		# ALSO NOT be dropped outright: its container offset participates in container sizing (a container's
+		# size is derived as next-offset minus this-offset, so a missing offset inflates its predecessor), and
+		# record 0 establishes end_of_cram_header_byte_offset. Unmapped slices (ref id -1) conventionally carry
+		# alignment_span 0, so the zero-span-first layout below is the common real-world case.
+		cram_path = os.path.join(self._temp_dir.name, "zero_span.cram")
+		with open(cram_path, "wb") as f:
+			f.write(b"\0" * 100000)
+		crai_path = cram_path + ".crai"
+		with gzip.open(crai_path, "wt") as f:
+			f.write("-1\t1\t0\t1000\t100\t200\n")       # zero-span unmapped slice, first physical record
+			f.write("0\t2000\t500\t5000\t100\t200\n")
+			f.write("0\t3000\t500\t7000\t100\t200\n")
+
+		end_of_header_offset, interval_trees = parse_crai_index(crai_path, cram_path)
+
+		# the header ends at the FIRST container, even though that record is zero-span
+		self.assertEqual(end_of_header_offset, 1000)
+		# every container is represented, including the unmapped one
+		self.assertEqual(sum(len(tree) for tree in interval_trees.values()), 3)
+		self.assertIn(-1, interval_trees)
+		# the zero-span record's offset still bounds the next container, so sizes stay correct
+		byte_ranges = sorted(
+			(interval.data.start, interval.data.end)
+			for tree in interval_trees.values() for interval in tree)
+		self.assertEqual(byte_ranges[0], (1000, 5000))
+		self.assertEqual(byte_ranges[1], (5000, 7000))
+
+	def test_make_bamlet_accepts_a_different_chromosome_naming_convention(self):
+		# Regression test: make_bamlet passed the region's chromosome name straight to pysam.fetch without
+		# resolving it against the input file's header, so "9:..." against a file whose header says "chr9"
+		# raised "invalid contig". The sibling make_minicram tool already normalized names this way.
+		output_path, result = self._run_make_bamlet("naming.bam", ["9:69037287-69037304"])
+		self.assertNotIn("invalid contig", result.stdout + result.stderr)
+		self.assertEqual(result.returncode, 0, msg=result.stderr[-500:])
+
+		# a genuinely absent contig should still be rejected, with a clear message rather than a pysam traceback
+		_, missing_contig_result = self._run_make_bamlet("missing.bam", ["chrZZ:1-2"])
+		self.assertNotEqual(missing_contig_result.returncode, 0)
+		self.assertIn("is not present in", missing_contig_result.stdout + missing_contig_result.stderr)
 
 	def test_merge_adjacent_byte_ranges(self):
 		self.assertEqual(merge_adjacent_byte_ranges([]), [])
