@@ -36,10 +36,14 @@ pysam.set_verbosity(0)
 
 def main():
     parser = argparse.ArgumentParser(description="A script to generate BAMlets")
-    parser.add_argument("-d", "--merge-regions-distance", type=int, default=1000, help="Region merge distance. "
-        "When retrieving mates, regions that are within this distance of each other will be merged "
-        "and retrieved using a single disk read operation. To reduce number of the disk reads, increase "
-        "this parameter, or decrease it to reduce the total number of bytes read.")
+    # NOTE: make_bamlet.py defines this same arg with different help text, and that text is correct there:
+    # make_bamlet passes a real bamlet, so it runs jump_for_mates and each merged region really does become a
+    # single disk read. This tool passes bamlet=None, so that retrieval never happens here and only the merged
+    # intervals themselves matter -- hence the different wording below.
+    parser.add_argument("-d", "--merge-regions-distance", type=int, default=1000, help="Mate merge distance. "
+        "Mates found within this distance of each other are merged into a single interval, and those intervals "
+        "determine which CRAM containers get downloaded. Increasing this widens the merged intervals, which "
+        "tends to increase the total number of bytes fetched; decreasing it keeps the intervals tighter.")
     parser.add_argument("-w", "--window-size", type=int, default=1000, help="Window size in bp to include around the "
                         "user-specified region(s). This is useful for including read pairs that may overlap the region(s)")
     parser.add_argument("-u", "--gcloud-project", help="Google Cloud project name to use when reading the input cram.")

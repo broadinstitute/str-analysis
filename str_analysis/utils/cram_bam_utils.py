@@ -27,6 +27,14 @@ CRAM_EOF_CONTAINER = binascii.unhexlify("0f000000ffffffff0fe0454f460000000001000
 # CRAM 2.x uses a shorter (30-byte) EOF marker than the 38-byte CRAM 3 one above
 CRAM_EOF_CONTAINER_V2 = binascii.unhexlify("0b000000ffffffff0fe0454f460000000001000001000606010001000100")
 
+# Upper bound on how many bytes _fetch_uncached_containers will pull in a single read. CRAI-derived containers are
+# always exactly adjacent (each container's size is next_offset - this_offset), so without a cap every consecutive
+# stretch of requested containers coalesces into one read -- and a genome-wide catalog requests essentially all of
+# them, which would have meant holding the entire input CRAM in memory as one bytes object. Capping the run bounds
+# peak memory without changing the total bytes read; only the number of requests goes up, and only for runs this
+# long. Typical jobs never reach it (a 5-locus run's longest run was ~12Mb).
+MAX_RUN_BYTES = 500 * 10**6
+
 
 class ByteRange:
 	def __init__(self, start, end):
@@ -759,10 +767,13 @@ class IntervalReader:
 		self._total_containers_loaded_from_cram += len(missing)
 
 		# group the missing containers into runs of exactly-adjacent containers (end of one == start of the next),
-		# keeping each run's member containers so the fetched bytes can be split back up and cached individually
+		# keeping each run's member containers so the fetched bytes can be split back up and cached individually.
+		# A run is also cut off once it would exceed MAX_RUN_BYTES, since the whole run is held in memory below.
+		# A single container larger than the cap still gets its own run and is read whole -- a container cannot be
+		# split without breaking the per-container cache keys -- but CRAM containers are far smaller than the cap.
 		runs = []
 		for start, end in missing:
-			if runs and runs[-1][-1][1] == start:
+			if runs and runs[-1][-1][1] == start and end - runs[-1][0][0] <= MAX_RUN_BYTES:
 				runs[-1].append((start, end))
 			else:
 				runs.append([(start, end)])

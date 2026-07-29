@@ -13,6 +13,7 @@ from unittest import mock
 import pysam
 
 from str_analysis.make_bamlet import extract_region
+from str_analysis.utils import cram_bam_utils
 from str_analysis.utils.cram_bam_utils import IntervalReader, merge_adjacent_byte_ranges, get_total_mapped_reads, parse_crai_index
 from str_analysis.utils.file_utils import set_requester_pays_project
 
@@ -575,6 +576,48 @@ class TestCramBamUtils(unittest.TestCase):
 
 		self.assertGreater(len(opened_files), 0)
 		self.assertEqual([f for f in opened_files if not f.closed], [])
+
+	def test_fetch_uncached_containers_caps_run_length(self):
+		# Regression test: CRAI-derived containers are always exactly adjacent (a container's size is
+		# next-offset minus this-offset), so every consecutive stretch of requested containers used to coalesce
+		# into ONE _read_bytes call with no upper bound -- a genome-wide catalog requests essentially all of
+		# them, which meant holding the whole input CRAM in memory as a single bytes object. MAX_RUN_BYTES is
+		# patched down here so the cap can be exercised with a small fixture; the assertion is that the run is
+		# split into several reads AND that the per-container bytes cached are byte-for-byte what one
+		# unrestricted read produced.
+		containers = [(0, 400), (400, 800), (800, 1200), (1200, 1600), (1600, 2000)]
+
+		def cached_bytes_with_cap(cap):
+			reader = IntervalReader(self._local_cram_path, self._local_cram_path + ".crai",
+									cache_byte_ranges=True)
+			try:
+				read_calls = []
+				real_read_bytes = reader._read_bytes
+
+				def counting_read_bytes(start, end):
+					read_calls.append((start, end))
+					return real_read_bytes(start, end)
+
+				with mock.patch.object(cram_bam_utils, "MAX_RUN_BYTES", cap), \
+						mock.patch.object(reader, "_read_bytes", counting_read_bytes):
+					reader._fetch_uncached_containers(containers)
+				return read_calls, {key: reader._byte_ranges_cache[key] for key in containers}
+			finally:
+				reader.close()
+
+		uncapped_calls, uncapped_bytes = cached_bytes_with_cap(10**9)
+		capped_calls, capped_bytes = cached_bytes_with_cap(800)
+
+		# the whole adjacent stretch is one read when the cap is out of reach, several once it bites
+		self.assertEqual(len(uncapped_calls), 1)
+		self.assertEqual(uncapped_calls[0], (0, 2000))
+		self.assertGreater(len(capped_calls), 1)
+		self.assertTrue(all(end - start <= 800 for start, end in capped_calls))
+
+		# capping changes only how the bytes are requested, never which bytes each container ends up with
+		self.assertEqual(capped_bytes, uncapped_bytes)
+		# and no byte of the range is skipped or fetched twice
+		self.assertEqual(sum(end - start for start, end in capped_calls), 2000)
 
 	def test_parse_crai_index_skips_zero_span_records(self):
 		# Regression test: the record filter was 'alignment_span < 0', so a zero-span slice got through and
