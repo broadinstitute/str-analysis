@@ -84,6 +84,27 @@ class TestOpenFile(unittest.TestCase):
             content = f.read()
             self.assertEqual(content, "Compressed Hello World\n")
 
+    def test_open_uncompressed_file_whose_name_merely_ends_in_gz(self):
+        """Regression test: the auto-detect used path.endswith("gz") rather than the real extensions, so ANY name
+        whose last two characters happened to be "gz" was opened as gzip. tempfile.NamedTemporaryFile names end in
+        8 random [a-z0-9_] characters, so roughly 1 in 1,400 temp files tripped this -- which is exactly how it
+        surfaced, as a lone BadGzipFile on one CI platform in convert_trgt_vcf_to_expansion_hunter_json_tests."""
+        not_gzipped = os.path.join(self.temp_dir, "tmpab12gz")
+        with open(not_gzipped, "w") as f:
+            f.write("Plain text\n")
+
+        with open_file(not_gzipped, is_text_file=True) as f:
+            self.assertEqual(f.read(), "Plain text\n")
+
+    def test_open_bgzipped_file_auto_detect(self):
+        """The .bgz extension must still auto-detect as gzip -- that is why the check was loose in the first place."""
+        bgz_file = os.path.join(self.temp_dir, "test.txt.bgz")
+        with gzip.open(bgz_file, "wt") as f:
+            f.write("Compressed Hello World\n")
+
+        with open_file(bgz_file, is_text_file=True) as f:
+            self.assertEqual(f.read(), "Compressed Hello World\n")
+
     def test_open_gzipped_file_explicit(self):
         """Test opening a gzipped file with explicit gunzip=True."""
         # Rename to remove .gz extension to test explicit gunzip

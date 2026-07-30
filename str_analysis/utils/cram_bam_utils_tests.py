@@ -32,6 +32,35 @@ _TEST_REFERENCE_CACHE_DIR = Path(
     os.environ.get("STR_ANALYSIS_TEST_REF_DIR", "~/.cache/str_analysis_test_refs")).expanduser()
 
 
+def write_reference_free_cram(bam_path, directory):
+    """Transcodes a BAM into a no_ref=1 CRAM in `directory`, indexes it, and returns the CRAM path.
+
+    For tests that decode a CRAM in full (get_total_mapped_reads(scan_cram=True) scans with fetch(until_eof=True)).
+    The packaged FXN test CRAM cannot be used for those: its reads span 11 contigs -- only 588 of its 690 mapped
+    reads are on chr9, the rest on chr1/chr2/chr5/chr6/chr7/chr11/chr13/chr16/chr22/chrX -- so a whole-file decode
+    needs a full hg38 reference, and the chr9-only get_chr9_reference_fasta() cannot decode the other containers.
+    Locally that is masked by htslib resolving the missing contigs through REF_PATH (a shared hts-ref cache or the
+    EBI md5 registry); on GitHub Actions neither is available and it surfaces as "OSError: truncated file".
+
+    no_ref=1 stores read sequences verbatim instead of reference-compressing them, so the result decodes with no
+    reference at all -- the same option save_to_file uses for its CRAM output.
+
+    Args:
+        bam_path: BAM to transcode.
+        directory: dir to write the CRAM into.
+
+    Returns:
+        str: path to the written, indexed CRAM.
+    """
+    cram_path = os.path.join(directory, os.path.basename(bam_path).replace(".bam", ".no_ref.cram"))
+    with pysam.AlignmentFile(bam_path, "rb") as bam, pysam.AlignmentFile(
+            cram_path, "wc", header=bam.header, format_options=[b"no_ref=1"]) as cram:
+        for read in bam.fetch(until_eof=True):
+            cram.write(read)
+    pysam.index(cram_path)
+    return cram_path
+
+
 def get_chr9_reference_fasta():
     """Returns the path to a local bgzipped chr9 FASTA for decoding the test CRAM files.
 
@@ -478,7 +507,9 @@ class TestCramBamUtils(unittest.TestCase):
 
 		mapped_in_bam = get_total_mapped_reads(local_bam_path)
 		self.assertGreater(mapped_in_bam, 0)
-		self.assertEqual(get_total_mapped_reads(self._local_cram_path, scan_cram=True), mapped_in_bam)
+		self.assertEqual(
+			get_total_mapped_reads(write_reference_free_cram(local_bam_path, self._temp_dir.name), scan_cram=True),
+			mapped_in_bam)
 		# the scan is opt-in because it decodes the whole file, so the default reports "unavailable" rather than
 		# the 0 that index statistics would wrongly yield for a CRAM
 		self.assertIsNone(get_total_mapped_reads(self._local_cram_path))
@@ -523,9 +554,12 @@ class TestCramBamUtils(unittest.TestCase):
 		# Regression test: get_total_mapped_reads reopened the input with no way to supply a nonstandard index,
 		# so callers that track their index path separately (parse_motif_composition passes one everywhere else)
 		# could not use it here.
+		local_bam_path = os.path.join(self._temp_dir.name, "FXN.wgsim_HET_250xGAA.bam")
+		with open(local_bam_path, "wb") as f:
+			f.write(pkgutil.get_data("str_analysis", "data/tests/FXN.wgsim_HET_250xGAA.bam"))
+		cram_path = write_reference_free_cram(local_bam_path, self._temp_dir.name)
 		self.assertGreater(
-			get_total_mapped_reads(self._local_cram_path, index_filename=self._local_cram_path + ".crai",
-								   scan_cram=True), 0)
+			get_total_mapped_reads(cram_path, index_filename=cram_path + ".crai", scan_cram=True), 0)
 
 	def test_save_to_file_does_not_leak_temp_index_when_it_fails(self):
 		# Regression test: save_to_file indexes its temp container CRAM early, but the os.remove of that sidecar

@@ -35,10 +35,10 @@ def open_file(path, *, download_local_copy_before_opening=False, gunzip=False, i
             sys.exit(1)
 
         file = hfs.open(path, f"{mode}b", requester_pays_config=gcloud_requester_pays_project)
-        if gunzip or path.endswith("gz"):
+        if gunzip or path.endswith((".gz", ".bgz")):
             file = gzip.GzipFile(fileobj=file, mode=mode)
     else:
-        if gunzip or path.endswith("gz"):
+        if gunzip or path.endswith((".gz", ".bgz")):
             file = gzip.open(path, mode=mode)
         else:
             if is_text_file:
