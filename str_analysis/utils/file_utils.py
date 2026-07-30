@@ -83,6 +83,24 @@ def get_file_size(path):
         return os.path.getsize(os.path.expanduser(path))
 
 
+def get_local_copy_path(url_or_google_storage_path):
+    """Returns the deterministic local cache path download_local_copy would use for a remote path.
+
+    Exposed so a caller can tell, BEFORE calling download_local_copy, whether the next call will actually transfer
+    anything (`os.path.isfile(get_local_copy_path(url))` is False) or be served from the on-disk cache for free.
+    That distinction matters when the caller is metering network egress. Returns the expanded path unchanged for a
+    local input, matching download_local_copy's own behaviour.
+    """
+    if not url_or_google_storage_path.startswith(("gs://", "http://", "https://")):
+        return os.path.expanduser(url_or_google_storage_path)
+
+    # include a hash of the full source URI in the cache filename so that two different remote paths that
+    # merely share a basename don't collide and silently reuse each other's cached content
+    return os.path.join(
+        tempfile.gettempdir(),
+        f"{hashlib.sha256(url_or_google_storage_path.encode()).hexdigest()[:16]}_{os.path.basename(url_or_google_storage_path)}")
+
+
 def download_local_copy(url_or_google_storage_path, verbose=False):
     """Downloads the given URL or gs:// path to a local temp file and returns the path to the local file.
     If the path is already a local file, returns it as-is.
@@ -92,12 +110,7 @@ def download_local_copy(url_or_google_storage_path, verbose=False):
     if not url_or_google_storage_path.startswith(("gs://", "http://", "https://")):
         return os.path.expanduser(url_or_google_storage_path)
 
-    temp_dir = tempfile.gettempdir()
-    # include a hash of the full source URI in the cache filename so that two different remote paths that
-    # merely share a basename don't collide and silently reuse each other's cached content
-    path = os.path.join(
-        temp_dir,
-        f"{hashlib.sha256(url_or_google_storage_path.encode()).hexdigest()[:16]}_{os.path.basename(url_or_google_storage_path)}")
+    path = get_local_copy_path(url_or_google_storage_path)
     if url_or_google_storage_path.startswith("gs://"):
         if not os.path.isfile(path):
             if verbose:

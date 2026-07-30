@@ -514,6 +514,72 @@ class TestCramBamUtils(unittest.TestCase):
 		# the 0 that index statistics would wrongly yield for a CRAM
 		self.assertIsNone(get_total_mapped_reads(self._local_cram_path))
 
+	def test_index_bytes_counted_only_for_a_remote_crai(self):
+		# Regression test: parse_crai_index accepts a gs:// path and fetches the .crai itself, so a run whose index
+		# was never localized still pays for it over the network -- but that transfer was missing from the reported
+		# byte total, which claimed to be the egress figure for cost estimation.
+		reader = IntervalReader(self._local_cram_path, self._local_cram_path + ".crai")
+		try:
+			# a local index is not egress
+			self.assertEqual(reader.get_total_index_bytes_loaded(), 0)
+		finally:
+			reader.close()
+
+		crai_size = os.path.getsize(self._local_cram_path + ".crai")
+		reader = self._reader_with_remote_crai("gs://some-bucket/remote.cram.crai", crai_size, cached=False)
+		try:
+			self.assertEqual(reader.get_total_index_bytes_loaded(), crai_size)
+			stats_path = os.path.join(self._temp_dir.name, "stats.tsv")
+			reader.save_data_transfer_stats(stats_path)
+			values = self._read_stats_tsv(stats_path)
+			self.assertEqual(int(values["total_index_bytes_loaded"]), crai_size)
+			# the CRAM here is LOCAL, so its bytes are disk reads, not egress: total_network_bytes must be the index
+			# alone. total_bytes_loaded still counts them, since it means "bytes read from the CRAM".
+			self.assertGreater(int(values["total_bytes_loaded"]), 0)
+			self.assertEqual(int(values["total_network_bytes"]), crai_size)
+		finally:
+			reader.close()
+
+	def test_cached_remote_crai_is_not_counted_as_a_transfer(self):
+		# Regression test: download_local_copy serves a remote .crai from a deterministic on-disk cache with zero
+		# network I/O, so counting the index unconditionally billed every rerun on the same machine for a transfer
+		# that never happened. Confirmed against the real 1.2Mb HG002 CRAI before the fix.
+		crai_size = os.path.getsize(self._local_cram_path + ".crai")
+		remote_crai = "gs://some-bucket/already-cached.cram.crai"
+		reader = self._reader_with_remote_crai(remote_crai, crai_size, cached=True)
+		try:
+			self.assertEqual(reader.get_total_index_bytes_loaded(), 0)
+		finally:
+			reader.close()
+
+	def _read_stats_tsv(self, stats_path):
+		"""Reads the one-row data-transfer-stats TSV into a {column: value} dict."""
+		with open(stats_path) as f:
+			columns = f.readline().rstrip("\n").split("\t")
+			return dict(zip(columns, f.readline().rstrip("\n").split("\t")))
+
+	def _reader_with_remote_crai(self, remote_crai_path, crai_size, cached):
+		"""Builds an IntervalReader for the local test CRAM but with a remote-looking .crai path.
+
+		parse_crai_index is redirected to the packaged local .crai so no network is needed; the real function is
+		captured BEFORE patching, or the replacement would recurse into itself. get_file_size is keyed on the path
+		rather than given a blanket return_value: parse_crai_index resolves the SAME module global to size the input
+		CRAM, so a blanket mock silently forces cram_file_size to the tiny crai size and corrupts the last container's
+		computed size. `cached` controls whether download_local_copy's on-disk cache is reported as already populated.
+		"""
+		real_parse_crai_index = cram_bam_utils.parse_crai_index
+		real_get_file_size = cram_bam_utils.get_file_size
+		with mock.patch.object(cram_bam_utils, "get_file_size",
+							   side_effect=lambda path: crai_size if path == remote_crai_path
+							   else real_get_file_size(path)), \
+				mock.patch.object(cram_bam_utils, "get_local_copy_path",
+								  return_value=self._local_cram_path + ".crai" if cached
+								  else os.path.join(self._temp_dir.name, "not_cached")), \
+				mock.patch.object(cram_bam_utils, "parse_crai_index",
+								  side_effect=lambda _crai, cram, **kw: real_parse_crai_index(
+									  self._local_cram_path + ".crai", cram, **kw)):
+			return IntervalReader(self._local_cram_path, remote_crai_path)
+
 	def test_transfer_counters_available_for_bam_backed_reader(self):
 		# Regression test: the transfer counters were initialized only inside __init__'s CRAM branch, so calling
 		# the (public, unguarded) getters or save_data_transfer_stats on a BAM-backed reader raised AttributeError.

@@ -11,7 +11,8 @@ import tempfile
 from google.cloud import storage
 
 from str_analysis.utils import file_utils
-from str_analysis.utils.file_utils import open_file, get_file_size, get_byte_range_from_google_storage
+from str_analysis.utils.file_utils import (
+	open_file, get_file_size, get_byte_range_from_google_storage, get_local_copy_path)
 
 
 CRAI_FILE_HEADER = [
@@ -272,6 +273,12 @@ class IntervalReader:
 		self._total_byte_ranges_loaded_from_cram = 0
 		self._total_containers_loaded_from_cram = 0
 		self._total_bytes_loaded_from_cram = 0
+		# Bytes pulled over the network for the INDEX itself. parse_crai_index accepts a gs:// path and fetches the
+		# .crai on its own, so an index that was never localized is still real egress -- and for a small catalog it is
+		# not negligible (the 36.7Gb HG002 CRAI is 1.2Mb, which is 2.4% of a 50Mb fetch). Counted only for a remote
+		# index that is not already in download_local_copy's on-disk cache; a local path contributes 0. Kept separate
+		# from _total_bytes_loaded_from_cram so the CRAM-container figure stays exactly what its name says.
+		self._total_index_bytes_loaded = 0
 
 		if self._is_cram_file:
 			# initialize objects used by the self._load_cram_containers(..) method
@@ -279,6 +286,13 @@ class IntervalReader:
 			# detect the input CRAM's EOF marker (version-dependent length) so the last container is sized
 			# correctly and the reconstructed file gets a compatible footer
 			self._cram_eof_container = self._detect_cram_eof_container()
+			if str(self._crai_or_bai_path).startswith(("gs://", "http://", "https://")) \
+					and not os.path.isfile(get_local_copy_path(self._crai_or_bai_path)):
+				# Checked BEFORE parse_crai_index runs, because that call populates the cache. download_local_copy
+				# serves a cached copy with zero network I/O, so counting the index unconditionally would bill every
+				# rerun on the same machine for a transfer that never happened. get_file_size is a metadata lookup,
+				# not a transfer; the download itself happens inside parse_crai_index below.
+				self._total_index_bytes_loaded = get_file_size(self._crai_or_bai_path) or 0
 			self._end_of_cram_header_byte_offset, self._crai_interval_trees = parse_crai_index(
 				self._crai_or_bai_path, self._cram_or_bam_path, eof_container_length=len(self._cram_eof_container))
 
@@ -327,6 +341,14 @@ class IntervalReader:
 		This only works for CRAM and not for BAM files.
 		"""
 		return self._total_containers_loaded_from_cram
+
+	def get_total_index_bytes_loaded(self):
+		"""Returns the bytes fetched over the network for the .crai index, or 0 if the index was a local path.
+
+		Separate from get_total_bytes_loaded_from_cram(), which counts only CRAM container bytes. Add the two for
+		the total egress a run costs -- the relevant figure when the input lives in a pay-per-byte tier.
+		"""
+		return self._total_index_bytes_loaded
 
 	def get_total_bytes_loaded_from_cram(self):
 		"""Returns the total number of bytes that were loaded from the input CRAM so far.
@@ -565,19 +587,31 @@ class IntervalReader:
 		total_bytes = self.get_total_bytes_loaded_from_cram()
 		total_containers = self.get_total_containers_loaded_from_cram()
 		total_requests = self.get_total_byte_ranges_loaded_from_cram()
+		index_bytes = self.get_total_index_bytes_loaded()
+		# _read_bytes increments total_bytes for BOTH the gs:// branch and the local seek/read branch, so
+		# total_bytes_loaded is "bytes read from the CRAM", not "bytes off the wire". Only count it as egress when
+		# the CRAM itself is remote -- otherwise a local CRAM would report its disk reads as network traffic.
+		cram_network_bytes = total_bytes if self._is_file_in_google_storage else 0
+		total_network_bytes = cram_network_bytes + index_bytes
 		print(f"Downloaded {total_containers:,d} CRAM containers ({total_requests:,d} read requests) "
 			  f"and {total_bytes/10**6:0,.1f}Mb total")
+		if index_bytes:
+			print(f"Downloaded {index_bytes/10**6:0,.1f}Mb for the index")
+		print(f"{total_network_bytes/10**6:0,.1f}Mb was transferred over the network in total")
 		if not stats_tsv_path:
 			stats_tsv_path = re.sub(".cram$", "", os.path.basename(self._cram_or_bam_path))
 			stats_tsv_path += ".data_transfer_stats.tsv"
 
-		# total_read_requests is appended last so the first two numeric columns keep their existing positions,
-		# for readers that parse this file positionally
+		# New columns are APPENDED so the existing ones keep their positions, for readers that parse this file
+		# positionally. total_bytes_loaded counts bytes read from the CRAM whether local or remote;
+		# total_network_bytes is the egress figure and excludes a local CRAM's disk reads.
 		with open(stats_tsv_path, "wt") as stats_file:
 			stats_file.write("\t".join([
-				"file_path", "total_bytes_loaded", "total_containers_loaded_from_cram", "total_read_requests"]) + "\n")
+				"file_path", "total_bytes_loaded", "total_containers_loaded_from_cram", "total_read_requests",
+				"total_index_bytes_loaded", "total_network_bytes"]) + "\n")
 			stats_file.write("\t".join(map(str, [
-				self._cram_or_bam_path, total_bytes, total_containers, total_requests])) + "\n")
+				self._cram_or_bam_path, total_bytes, total_containers, total_requests,
+				index_bytes, total_network_bytes])) + "\n")
 
 		print(f"Wrote stats to {stats_tsv_path}")
 
