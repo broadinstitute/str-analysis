@@ -24,8 +24,15 @@ OUTPUT_COLUMNS there), so add_sequence_accuracy_columns.py consumes either one u
     ExtractionStatus           "ok" or "multiallelic" (per locus)
 
 A locus contributes no_call/no_call when ExpansionHunter didn't genotype it at all (no "Genotype" key), or genotyped
-it but has no ConsensusSequences for it -- e.g. a locus with more than one repeat variant, which
-locus/LocusAnalyzer.cpp explicitly skips consensus-building for ("multiple repeat variants not supported").
+it but has no ConsensusSequences for it. The latter is the common case, not an edge case: in optimized-streaming mode
+(HtsLowMemStreamingSampleAnalysis.cpp's kOptimizedStreaming branch), most loci are genotyped by a fast spanning-read
+heuristic (processLocusFast) that never builds the alignment buffer ConsensusSequences comes from; only loci where
+that heuristic fails fall through to full graph-alignment genotyping (genotypeLocusFull), which does build one. On
+this project's truth-set catalog that's ~11% of genotyped loci -- so this extractor's output, and the sequence-
+accuracy benchmark built on it, cover a harder-than-average, non-random subset of what ExpansionHunter actually
+genotypes (a "no consensus" locus was still called on and scored in the repeat-count accuracy benchmark, just not
+here). A locus with more than one repeat variant is also always no_call/no_call, since
+locus/LocusAnalyzer.cpp explicitly skips consensus-building for those ("multiple repeat variants not supported").
 ref_mismatch (from the VCF extractor) doesn't apply here: there's no REF/ALT trimmed against a reference interval,
 just the tool's own consensus.
 """
