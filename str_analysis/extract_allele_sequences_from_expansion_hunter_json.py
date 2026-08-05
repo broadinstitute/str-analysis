@@ -23,15 +23,19 @@ OUTPUT_COLUMNS there), so add_sequence_accuracy_columns.py consumes either one u
     AlleleStatus: Allele 2     "called" or "no_call"
     ExtractionStatus           "ok" or "multiallelic" (per locus)
 
-A locus contributes no_call/no_call when ExpansionHunter didn't genotype it at all (no "Genotype" key), or genotyped
-it but has no ConsensusSequences for it. The latter is the common case, not an edge case: in optimized-streaming mode
-(HtsLowMemStreamingSampleAnalysis.cpp's kOptimizedStreaming branch), most loci are genotyped by a fast spanning-read
-heuristic (processLocusFast) that never builds the alignment buffer ConsensusSequences comes from; only loci where
-that heuristic fails fall through to full graph-alignment genotyping (genotypeLocusFull), which does build one. On
-this project's truth-set catalog that's ~11% of genotyped loci -- so this extractor's output, and the sequence-
-accuracy benchmark built on it, cover a harder-than-average, non-random subset of what ExpansionHunter actually
-genotypes (a "no consensus" locus was still called on and scored in the repeat-count accuracy benchmark, just not
-here). A locus with more than one repeat variant is also always no_call/no_call, since
+Both of optimized-streaming mode's genotyping paths emit consensus sequences: the fast spanning-read heuristic
+(HtsLowMemStreamingHelpers.cpp, which handles most loci) as well as the full graph-alignment genotyper the harder
+loci fall through to. The two derive the consensus differently -- the fast path uses only whole-repeat-spanning
+reads and does no realignment -- so a fast-path sequence will not always match what full genotyping would have
+produced for the same locus; see "Consensus sequences in fast genotyping mode" in ExpansionHunter's
+docs/05_OutputJsonFiles.md for the full list of differences. Loci genotyped by the fast path are flagged with
+"QuickGenotype": true in the json.
+
+Allele shapes: a heterozygous call carries one consensus per allele, while a homozygous call carries a SINGLE
+consensus covering both of its identical alleles (both paths do this) -- that one is duplicated into both output
+slots, exactly as a haploid call is. A locus contributes no_call/no_call when ExpansionHunter didn't genotype it at
+all (no "Genotype" key), when consensus sequences were disabled or couldn't be built, or when the shape is anything
+other than those two. A locus with more than one repeat variant is also always no_call/no_call, since
 locus/LocusAnalyzer.cpp explicitly skips consensus-building for those ("multiple repeat variants not supported").
 ref_mismatch (from the VCF extractor) doesn't apply here: there's no REF/ALT trimmed against a reference interval,
 just the tool's own consensus.
@@ -78,8 +82,14 @@ def extract_allele_sequences_from_locus_json(locus_json):
     if len(genotype_fields) > 2:
         return make_row(locus_id, extraction_status=EXTRACTION_MULTIALLELIC)
 
+    # A homozygous call carries ONE consensus for its two identical alleles (both the full genotyper and the fast
+    # path do this -- see "Homozygous calls get a single consensus" in HtsLowMemStreamingHelpers.cpp), so
+    # "one sequence per allele" and "one sequence for an N-ploid homozygous call" are both valid shapes. Anything
+    # else is unexpected and is treated as no data rather than guessed at.
     consensus_sequences = variant_json.get("ConsensusSequences")
-    if not consensus_sequences or len(consensus_sequences) != len(genotype_fields):
+    is_homozygous = len(set(genotype_fields)) == 1
+    if not consensus_sequences or not (
+            len(consensus_sequences) == len(genotype_fields) or (len(consensus_sequences) == 1 and is_homozygous)):
         # no consensus available for this locus (e.g. --dont-output-consensus-sequences was used, or the read
         # support was too poor to build one), or a malformed/unexpected ConsensusSequences shape
         return make_row(locus_id)
@@ -87,9 +97,10 @@ def extract_allele_sequences_from_locus_json(locus_json):
     sequences = list(consensus_sequences)
     statuses = [CALLED] * len(sequences)
     if len(sequences) == 1:
-        # a haploid call (male chrX/chrY outside the PAR). The truth set stores these HEMI loci as a duplicated
-        # diploid genotype, and add_tool_results_columns.py mirrors that for the repeat-count columns, so do the
-        # same here rather than leaving Allele 2 as a no-call.
+        # Either a homozygous diploid call (one consensus covering both identical alleles) or a haploid call (male
+        # chrX/chrY outside the PAR). The truth set stores HEMI loci as a duplicated diploid genotype, and
+        # add_tool_results_columns.py mirrors that for the repeat-count columns, so duplicate here too rather than
+        # leaving Allele 2 as a no-call -- which would drop every homozygous locus from the benchmark.
         sequences.append(sequences[0])
         statuses.append(CALLED)
 

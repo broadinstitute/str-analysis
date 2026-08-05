@@ -40,6 +40,28 @@ class Tests(unittest.TestCase):
         self.assertEqual(row["AlleleStatus: Allele 1"], CALLED)
         self.assertEqual(row["AlleleStatus: Allele 2"], CALLED)
 
+    def test_homozygous_call_with_one_consensus_is_duplicated(self):
+        # A homozygous diploid call reports "20/20" but only ONE consensus sequence for the two identical
+        # alleles (both the full genotyper and the fast path do this). Requiring one sequence per genotype field
+        # would drop every homozygous locus -- 6,417 of HG002's 60,394 consensus-bearing loci at 31x.
+        row = extract_allele_sequences_from_locus_json(locus("chr1-711957-712094-TATATAT", {
+            "1-711957-712094-TATATAT": {"Genotype": "20/20", "ConsensusSequences": ["TATATAT" * 20]},
+        }))
+        self.assertEqual(row["AlleleSequence: Allele 1"], "TATATAT" * 20)
+        self.assertEqual(row["AlleleSequence: Allele 2"], "TATATAT" * 20)
+        self.assertEqual(row["AlleleStatus: Allele 1"], CALLED)
+        self.assertEqual(row["AlleleStatus: Allele 2"], CALLED)
+        self.assertEqual(row["ExtractionStatus"], EXTRACTION_OK)
+
+    def test_heterozygous_call_with_one_consensus_is_no_call(self):
+        # a single consensus is only meaningful when the two alleles are identical; for a het call it's an
+        # unexpected shape, so score nothing rather than duplicating one allele's sequence onto the other
+        row = extract_allele_sequences_from_locus_json(locus("chr1-1-10-A", {
+            "1-1-10-A": {"Genotype": "5/8", "ConsensusSequences": ["A" * 5]},
+        }))
+        self.assertEqual(row["AlleleStatus: Allele 1"], NO_CALL)
+        self.assertEqual(row["AlleleStatus: Allele 2"], NO_CALL)
+
     def test_missing_consensus_sequences_is_no_call(self):
         # Genotype present (ExpansionHunter did call it) but no ConsensusSequences (e.g. consensus sequences were
         # disabled for this run, or read support was too poor to build one)
@@ -51,13 +73,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(row["AlleleSequence: Allele 1"], "")
         self.assertEqual(row["AlleleSequence: Allele 2"], "")
         self.assertEqual(row["ExtractionStatus"], EXTRACTION_OK)
-
-    def test_mismatched_consensus_sequences_length_is_no_call(self):
-        row = extract_allele_sequences_from_locus_json(locus("chr1-1-10-A", {
-            "1-1-10-A": {"Genotype": "5/8", "ConsensusSequences": ["A" * 5]},
-        }))
-        self.assertEqual(row["AlleleStatus: Allele 1"], NO_CALL)
-        self.assertEqual(row["AlleleStatus: Allele 2"], NO_CALL)
 
     def test_multiple_repeat_variants_is_multiallelic(self):
         row = extract_allele_sequences_from_locus_json(locus("chr1-1-10-A", {
