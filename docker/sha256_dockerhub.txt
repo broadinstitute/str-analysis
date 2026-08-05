@@ -1,1 +1,1 @@
-weisburd/str-analysis@sha256:5c2b3abee2fcc8bf452ccdfa3de5066ab59de7f890a3525bd0084adf5fdd1cdf
+weisburd/str-analysis@sha256:8df40b11b45f4f464da12772a18462a481206cb95e291019b4e5b2b579ffce4e
