@@ -12,10 +12,6 @@ For a given STR region (for example the HTT repeat @ chr4:3074877-3074933), this
 """
 
 import argparse
-import binascii
-import collections
-import gzip
-import intervaltree
 import json
 import os
 import re
@@ -24,11 +20,10 @@ import pysam
 import tempfile
 import time
 
-from google.cloud import storage
-
 from str_analysis.make_bamlet import extract_region
 from str_analysis.utils.cram_bam_utils import IntervalReader, normalize_chromosome_name
-from str_analysis.utils.file_utils import set_requester_pays_project, file_exists, open_file, get_file_size
+from str_analysis.utils.file_utils import set_requester_pays_project, file_exists, open_file, \
+    get_local_file_stat, local_file_was_replaced
 from str_analysis.utils.misc_utils import parse_interval
 
 pysam.set_verbosity(0)
@@ -78,9 +73,9 @@ def main():
     elif not args.output_cram.endswith(".cram"):
         parser.error(f"Output CRAM file must have a .cram extension: {args.output_cram}")
 
-    # Refuse to write the output on top of the input. save_to_file opens the output with pysam mode "wc", which
-    # TRUNCATES it, and then rewrites the .crai next to it -- so "-o in.cram in.cram" silently replaced a full
-    # CRAM with the tiny minicram subset and exited 0, destroying every read outside the requested loci.
+    # Refuse to write the output on top of the input. save_to_file replaces the output path with the extracted
+    # subset and rewrites its index next to it -- so "-o in.cram in.cram" silently replaced a full CRAM with the
+    # tiny minicram subset and exited 0, destroying every read outside the requested loci.
     # samefile() catches symlinks and hard links; the abspath comparison covers a local output that does not
     # exist yet, since samefile needs both paths to exist. Skipped entirely for a gs:// input, which cannot
     # name the same file as the always-local output.
@@ -135,6 +130,12 @@ def main():
         except ValueError as e:
             parser.error(f"Unable to parse region {region}: {e}")
 
+        # parse_interval builds the chromosome from everything before the last colon, so a region written as
+        # ":100-200" yields an empty name without raising. add_interval rejects it, but only from deep inside the
+        # reader with a bare ValueError; report it here as an ordinary CLI error naming the region.
+        if not chrom:
+            parser.error(f"Missing chromosome name in region {region}")
+
         window_start = max(0, start - args.window_size)
         window_end = end + args.window_size
         # parse_interval does not check that start < end, so a zero-width or reversed region combined with a
@@ -164,6 +165,10 @@ def main():
     for chrom, start, end in intervals:
         cram_reader.add_interval(chrom, start, end)
 
+    # stat'd before the run so the "was an output written" check below can tell a file this run wrote from one an
+    # earlier run left at the same path -- os.path.isfile alone cannot, and would report success for a run that
+    # wrote nothing. print_reads.py uses the same pair of calls around its own save_to_file.
+    output_cram_stat_before = get_local_file_stat(args.output_cram)
     temporary_cram_file = tempfile.NamedTemporaryFile(suffix=".cram", delete=False)
     input_bam_file = None
     phase_name = "initial interval export"
@@ -246,9 +251,11 @@ def main():
                 os.remove(temp_path)
         cram_reader.close()
 
-    if not os.path.isfile(args.output_cram):
+    if not local_file_was_replaced(args.output_cram, output_cram_stat_before):
         print(f"ERROR: No output CRAM was written to {args.output_cram} because none of the requested "
-              f"regions had overlapping CRAM containers in {args.input_cram}")
+              f"regions had overlapping CRAM containers in {args.input_cram}"
+              + (". The file already at that path is left over from a previous run"
+                 if os.path.isfile(args.output_cram) else ""))
         sys.exit(1)
 
     total_bytes = cram_reader.get_total_bytes_loaded_from_cram()

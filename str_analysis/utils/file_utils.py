@@ -67,6 +67,40 @@ def file_exists(path):
     return os.path.isfile(path)
 
 
+def get_local_file_stat(local_path):
+    """Returns os.stat(local_path), or None if local_path is not an existing file.
+
+    Args:
+        local_path: A local file path.
+
+    Returns:
+        os.stat_result: The stat of local_path, or None if it does not exist.
+    """
+    return os.stat(os.path.expanduser(local_path)) if os.path.isfile(os.path.expanduser(local_path)) else None
+
+
+def local_file_was_replaced(local_path, stat_before):
+    """Returns whether local_path was replaced by a fresh file since stat_before was taken.
+
+    IntervalReader.save_to_file writes to a sibling ".partial" path and then os.replace()s it into position, so a
+    run that really wrote its output always leaves a different inode at local_path than the one that was there
+    before it started. Checking only whether local_path exists cannot distinguish that from a file an earlier run
+    left at the same path, which makes a run that wrote nothing look like it succeeded.
+
+    Args:
+        local_path: The output file path to check.
+        stat_before: The result of get_local_file_stat(local_path) taken before the run, or None if the path did
+            not exist at that point.
+
+    Returns:
+        bool: True if local_path now holds a file that was not there before the run.
+    """
+    stat_after = get_local_file_stat(local_path)
+    if stat_after is None:
+        return False
+    return stat_before is None or stat_before.st_ino != stat_after.st_ino
+
+
 def get_file_size(path):
     if path.startswith("gs://"):
         google_storage_path_match = re.match("^gs://([^/]+)/(.+)", path)
