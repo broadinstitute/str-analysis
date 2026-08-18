@@ -1,14 +1,7 @@
 """
-This is a modified version of the https://github.com/Illumina/ExpansionHunterDenovo/blob/master/scripts/make-bamlet.py
-script from ExpansionHunterDenovo. It takes a CRAM file as input, and extracts all relevant reads needed to genotype
-the given locus using ExpansionHunter. It writes these reads to a much smaller CRAMlet file which can then be given to
-ExpansionHunter and should yield the same genotype as the full BAM or CRAM.
-
-It minimizes the number of bytes read from
-the input file. This is useful for CRAM files stored in Nearline or other cloud storage types where the cost is
-proportional to the number of bytes read (as is currently the case for AllOfUs CRAMS).
-
-For a given STR region (for example the HTT repeat @ chr4:3074877-3074933), this script will
+This script takes an ExpansionHunter catalog and a CRAM file path - either local or in a Google Storage bucket (gs://) - and extracts the subset of reads that ExpansionHunter will need to genotype that catalog. 
+It outputs these reads into a local "minicram". One benefit of this is that it minimizes the number of bytes read from
+the input CRAM file, which, for CRAM files stored in Nearline storage (as is currently the case with AllOfUs genomes), it also minimizes the Nearline access costs. 
 """
 
 import argparse
