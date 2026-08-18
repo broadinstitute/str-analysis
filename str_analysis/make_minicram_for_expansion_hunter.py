@@ -24,6 +24,9 @@ ExpansionHunter \
   --sex male \
   --variant-catalog /path/to/variant_catalog.json \
   --output-prefix sample1
+
+
+Thanks to Ronen Mukamel for the original idea of how to determine and retrieve the subset of CRAM containers (ie. byte ranges) that corespond to specific genomic intervals. 
 """
 
 import argparse
