@@ -1,7 +1,29 @@
 """
 This script takes an ExpansionHunter catalog and a CRAM file path - either local or in a Google Storage bucket (gs://) - and extracts the subset of reads that ExpansionHunter will need to genotype that catalog. 
-It outputs these reads into a local "minicram". One benefit of this is that it minimizes the number of bytes read from
+It outputs these reads into a local "minicram". This script is designed so that ExpansionHunter's outputs when it runs on this minicram are identical to it's outputs when it runs on the full CRAM.
+One benefit of this is that it minimizes the number of bytes read from
 the input CRAM file, which, for CRAM files stored in Nearline storage (as is currently the case with AllOfUs genomes), it also minimizes the Nearline access costs. 
+
+Example command-lines:
+
+python3 -u -m str_analysis.make_minicram_for_expansion_hunter \
+  -R gs://path/to/hg38.fa \
+  -c /path/to/variant_catalog.json \
+  -i gs://bucket/path/to/sample1.cram.crai \
+  -o sample1.minicram.cram \
+  --output-data-transfer-stats \
+  gs://bucket/path/to/sample1.cram
+
+# The ExpansionHunter command below contains 3 flags that are only available in the https://github.com/bw2/ExpansionHunter fork, but the minicram works equally well with the original https://github.com/Illumina/ExpansionHunter
+ExpansionHunter \
+  --dont-output-consensus-sequences \
+  --compress-output-files \
+  --analysis-mode optimized-streaming \
+  --reference gs://path/to/hg38.fa \
+  --reads sample1.minicram.cram \
+  --sex male \
+  --variant-catalog /path/to/variant_catalog.json \
+  --output-prefix sample1
 """
 
 import argparse
