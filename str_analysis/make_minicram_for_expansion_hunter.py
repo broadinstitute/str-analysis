@@ -7,7 +7,7 @@ One benefit of using this script is that it minimizes the number of bytes read f
 Example command-lines:
 
 python3 -u -m str_analysis.make_minicram_for_expansion_hunter \
-  -R gs://path/to/hg38.fa \
+  -R /path/to/hg38.fa \
   -c /path/to/variant_catalog.json \
   -i gs://bucket/path/to/sample1.cram.crai \
   -o sample1.minicram.cram \
@@ -19,14 +19,14 @@ ExpansionHunter \
   --dont-output-consensus-sequences \
   --compress-output-files \
   --analysis-mode optimized-streaming \
-  --reference gs://path/to/hg38.fa \
+  --reference /path/to/hg38.fa \
   --reads sample1.minicram.cram \
   --sex male \
   --variant-catalog /path/to/variant_catalog.json \
   --output-prefix sample1
 
 
-Thanks to Ronen Mukamel for the original idea of how to determine and retrieve the subset of CRAM containers (ie. byte ranges) that corespond to specific genomic intervals. 
+Thanks to Ronen Mukamel for the original idea of how to determine and retrieve the subset of CRAM containers (ie. byte ranges) that correspond to specific genomic intervals. 
 """
 
 import argparse
