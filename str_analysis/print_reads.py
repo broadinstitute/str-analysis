@@ -1,6 +1,21 @@
 """This script is a lighter-weight alternative to GATK PrintReads
 (https://gatk.broadinstitute.org/hc/en-us/articles/360036883571-PrintReads).
 It exracts data for genomic regions of a CRAM or BAM file.
+
+Specifically for CRAM files stored in Google Cloud buckets, this script minimizes the number of bytes read from the input CRAM file compared to using 'samtools view' or other htslib-based approaches. 
+For CRAM files stored in Nearline storage (as is currently the case with AllOfUs genomes) this substantially reduces Nearline access costs. 
+
+Thanks to Ronen Mukamel for the original idea of how to determine and retrieve the subset of CRAM containers (ie. byte ranges) that corespond to specific genomic intervals. 
+
+Example command-line:
+
+python3 -u -m str_analysis.print_reads \
+  -R gs://path/to/hg38.fa \
+  -L chr4:12345-54321  -L chrM \
+  -o sample1.minicram.cram \
+  --output-data-transfer-stats \
+  gs://bucket/path/to/sample1.cram
+
 """
 
 import argparse
