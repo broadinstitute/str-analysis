@@ -6,7 +6,8 @@ Specifically for CRAM files stored in Google Cloud Storage buckets, this script 
 using 'samtools view' or other htslib-based approaches.  For CRAM files stored in Nearline storage (as is currently the case with AllOfUs genomes) this 
 substantially reduces Nearline access costs. 
 
-Thanks to Ronen Mukamel for the original idea of how to determine and retrieve the subset of CRAM containers (ie. byte ranges) that corespond to specific genomic intervals. 
+Thanks to Ronen Mukamel for the original idea of how to determine and retrieve the subset of CRAM containers (ie. byte ranges) that corespond to specific 
+genomic intervals. 
 
 Example command-line:
 
