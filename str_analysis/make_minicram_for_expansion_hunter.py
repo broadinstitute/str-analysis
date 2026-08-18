@@ -1,6 +1,6 @@
 """
 This script takes an ExpansionHunter catalog and a CRAM file path - either local or in a Google Storage bucket (gs://) - and extracts the subset of reads that ExpansionHunter will need to genotype that catalog. 
-It outputs these reads into a local "minicram". This script is designed so that ExpansionHunter's outputs when it runs on this minicram are identical to it's outputs when it runs on the full CRAM.
+It is designed so that ExpansionHunter's outputs when it runs on the extracted minicram will be identical to its outputs when it runs on the full CRAM.
 One benefit of using this script is that it minimizes the number of bytes read from the input CRAM file, which, for CRAM files stored in Nearline storage 
 (as is currently the case with AllOfUs genomes) also minimizes the Nearline access costs. 
 
