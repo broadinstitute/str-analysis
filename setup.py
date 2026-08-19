@@ -47,6 +47,7 @@ setup(
             'simulate_str_expansions = str_analysis.simulate_str_expansions:main',
             'merge_loci = str_analysis.merge_loci:main',
             'annotate_and_filter_str_catalog = str_analysis.annotate_and_filter_str_catalog:main',
+            'extend_str_catalog_boundaries = str_analysis.extend_str_catalog_boundaries:main',
             'annotate_EHdn_locus_outliers = str_analysis.annotate_EHdn_locus_outliers:main',
             'convert_annotated_EHdn_locus_outliers_to_expansion_hunter_catalog = str_analysis.convert_annotated_EHdn_locus_outliers_to_expansion_hunter_catalog:main',
             'combine_str_json_to_tsv = str_analysis.combine_str_json_to_tsv:main',
