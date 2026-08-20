@@ -3,7 +3,7 @@ import collections
 import unittest
 
 from str_analysis.extend_str_catalog_boundaries import build_output_records, catalog_record_key, \
-    compute_output_path, extend_catalog_record, rename_variant_ids
+    compute_output_path, extend_catalog_record
 
 
 class FakeFasta:
@@ -86,30 +86,23 @@ class TestBuildOutputRecords(unittest.TestCase):
         self.assertEqual(sum(count for label, count in self.counters.items()
                              if "already in the catalog" in label), 1)
 
-    def test_replace_mode_keeps_a_locus_whose_extension_would_duplicate_another(self):
-        # "a" extends onto what "b" already is. The extended definition is dropped as a duplicate, and
-        # "a" falls back to its own original definition rather than disappearing from the catalog.
+    def test_replace_mode_drops_an_extension_that_duplicates_a_locus_already_in_the_output(self):
+        # "a" extends onto what "b" already is, so only "b"'s definition survives
         pairs = [
             (record("a", "chr1:100-110"), record("a", "chr1:100-130")),
             (record("b", "chr1:100-130"), None),
         ]
         output = self.build(pairs, keep_originals=False)
-        self.assertEqual(definitions(output),
-                         [("chr1:100-110", "(CAT)*"), ("chr1:100-130", "(CAT)*")])
-        self.assertEqual([r["LocusId"] for r in output], ["a", "b"])
+        self.assertEqual(definitions(output), [("chr1:100-130", "(CAT)*")])
 
-    def test_no_locus_is_ever_dropped_when_two_loci_extend_onto_each_other(self):
-        # both extend to the same interval: one contributes the extended definition, the other falls
-        # back to its original, so the catalog still describes two loci
+    def test_two_loci_extending_onto_each_other_collapse_to_one_definition(self):
         pairs = [
             (record("a", "chr1:100-110"), record("a", "chr1:100-130")),
             (record("b", "chr1:115-125"), record("b", "chr1:100-130")),
         ]
         output = self.build(pairs, keep_originals=False)
-        self.assertEqual(len(output), 2)
-        self.assertEqual([r["LocusId"] for r in output], ["a", "b"])
-        self.assertEqual(definitions(output),
-                         [("chr1:100-130", "(CAT)*"), ("chr1:115-125", "(CAT)*")])
+        self.assertEqual(definitions(output), [("chr1:100-130", "(CAT)*")])
+        self.assertEqual([r["LocusId"] for r in output], ["a"])
 
     def test_extended_definitions_are_renamed_after_the_interval_they_now_cover(self):
         pairs = [(record("some_gene", "chr1:100-110"), record("some_gene", "chr1:100-130"))]
@@ -134,22 +127,6 @@ class TestBuildOutputRecords(unittest.TestCase):
         self.assertEqual(len(set(locus_ids)), len(locus_ids))
         self.assertIn("1-100-130-CAT_extended", locus_ids)
 
-    def test_variant_id_follows_the_locus_id_when_the_extended_definition_is_renamed(self):
-        original = record("a", "chr1:100-110")
-        original["VariantId"] = "a"
-        extended = record("a", "chr1:100-130")
-        extended["VariantId"] = "a"
-        output = self.build([(original, extended)], keep_originals=True)
-        variant_ids = [r["VariantId"] for r in output]
-        self.assertEqual(len(set(variant_ids)), 2, f"VariantIds collide: {variant_ids}")
-        self.assertEqual(variant_ids[1], output[1]["LocusId"])
-
-    def test_multi_region_records_are_keyed_on_all_of_their_regions(self):
-        multi = {"LocusId": "m", "ReferenceRegion": ["chr1:100-110", "chr1:110-120"],
-                 "LocusStructure": "(CAT)*(CAG)*", "VariantType": "Repeat"}
-        self.assertEqual(catalog_record_key(multi),
-                         (("chr1:100-110", "chr1:110-120"), ("CAT", "CAG")))
-
     def test_key_ignores_the_locus_id(self):
         self.assertEqual(catalog_record_key(record("a", "chr1:100-110")),
                          catalog_record_key(record("b", "chr1:100-110")))
@@ -169,100 +146,38 @@ class TestExtendCatalogRecord(unittest.TestCase):
                                          self.counters)
         self.assertEqual(extended["ReferenceRegion"], "chr1:100-130")
 
-    def test_main_reference_region_moves_with_the_boundary_it_names(self):
+    def test_every_other_field_is_passed_through_unmodified(self):
+        # ReferenceRegion is the only field this tool rewrites: optional fields, annotations included,
+        # are the caller's to refresh, and inventing policy for them here would surprise more than help
         input_record = record("a", "chr1:100-121")
-        input_record["MainReferenceRegion"] = "chr1:100-121"
+        input_record.update({"VariantId": "a", "MainReferenceRegion": "chr1:100-121",
+                             "NumRepeatsInReference": 7, "ReferenceRepeatPurity": 1.0,
+                             "Diseases": [{"Name": "Example", "NormalMax": 20}], "Gene": "SOME_GENE"})
         extended = extend_catalog_record(input_record, self.fasta, self.args, self.counters)
-        self.assertEqual(extended["MainReferenceRegion"], "chr1:100-130")
-
-
-    def test_annotations_computed_from_the_old_interval_are_dropped(self):
-        # listed out in full rather than derived from the constant, so that dropping a field from the
-        # constant makes this test fail instead of quietly narrowing with it
-        stale_annotations = ["NumRepeatsInReference", "ReferenceRepeatPurity", "NsInFlanks",
-                             "LeftFlankMappability", "RightFlankMappability", "FlanksAndLocusMappability",
-                             "HighestPurityMotif", "HighestPurityMotifPurity", "HighestPurityMotifQuality",
-                             "TandemRepeatFinderMotif", "TandemRepeatFinderMotifQuality",
-                             "KnownDiseaseAssociatedLocus"]
-        input_record = record("a", "chr1:100-121")
-        input_record.update({annotation: 1 for annotation in stale_annotations})
-        input_record["Gene"] = "SOME_GENE"
-        extended = extend_catalog_record(input_record, self.fasta, self.args, self.counters)
-        for annotation in stale_annotations:
-            self.assertNotIn(annotation, extended)
-        # Gene does not depend on the exact boundary, so it survives
-        self.assertEqual(extended["Gene"], "SOME_GENE")
-        # and the input record itself is untouched, since its own interval did not move
-        self.assertEqual(input_record["NumRepeatsInReference"], 1)
+        self.assertEqual(extended["ReferenceRegion"], "chr1:100-130")
+        for field, value in input_record.items():
+            if field != "ReferenceRegion":
+                self.assertEqual(extended[field], value, f"{field} should have been passed through")
 
     def test_a_locus_the_rule_declines_to_extend_returns_none(self):
         self.assertIsNone(extend_catalog_record(record("a", "chr1:10-20"), self.fasta, self.args,
                                                 self.counters))
 
-    def test_several_motifs_sharing_one_region_are_passed_through_instead_of_crashing(self):
-        # how a TRGT-format BED row parses: one spanning region, several motifs. Where each motif
-        # starts inside the span is unknown, so the locus cannot be extended correctly.
+    def test_several_motifs_sharing_one_interval_is_a_hard_error(self):
+        # how a TRGT-format BED row parses: one interval, several motifs. Where each motif starts
+        # inside it is unknown, so the locus can neither be extended nor written back as one BED row.
         trgt_style = {"LocusId": "t", "ReferenceRegion": "chr1:100-121",
                       "LocusStructure": "(CAT)*(CAG)*", "VariantType": "Repeat"}
-        self.assertIsNone(extend_catalog_record(trgt_style, self.fasta, self.args, self.counters))
-        self.assertEqual(sum(count for label, count in self.counters.items()
-                             if "do not correspond one-to-one" in label), 1)
-
-
-class TestExtendMultiRegionRecord(unittest.TestCase):
-    """A record with adjacent regions must move only its two OUTER boundaries."""
-
-    def setUp(self):
-        self.counters = collections.Counter()
-        self.args = argparse.Namespace(max_repeats_in_gap=2, min_purity_of_new_sequence=0.9,
-                                       verbose=False)
-        # 20 clean CAT copies at 0-60, then nothing repeat-like, so both outer boundaries can move
-        self.fasta = FakeFasta("CAT" * 20 + "G" * 50)
-        self.record = {"LocusId": "m", "ReferenceRegion": ["chr1:30-39", "chr1:39-48"],
-                       "LocusStructure": "(CAT)*(CAT)*", "VariantType": "Repeat"}
-
-    def test_only_the_outer_boundaries_move(self):
-        extended = extend_catalog_record(self.record, self.fasta, self.args, self.counters)
-        # the interior boundary at 39 is untouched, while 30 moves left and 48 moves right
-        self.assertEqual(extended["ReferenceRegion"], ["chr1:0-39", "chr1:39-60"])
-
-    def test_main_reference_region_naming_the_first_region_follows_the_left_boundary(self):
-        input_record = dict(self.record, MainReferenceRegion="chr1:30-39")
-        extended = extend_catalog_record(input_record, self.fasta, self.args, self.counters)
-        self.assertEqual(extended["MainReferenceRegion"], "chr1:0-39")
-
-    def test_main_reference_region_naming_the_last_region_follows_the_right_boundary(self):
-        input_record = dict(self.record, MainReferenceRegion="chr1:39-48")
-        extended = extend_catalog_record(input_record, self.fasta, self.args, self.counters)
-        self.assertEqual(extended["MainReferenceRegion"], "chr1:39-60")
-
-
-class TestRenameVariantIds(unittest.TestCase):
-
-    def test_a_plain_variant_id_is_replaced(self):
-        self.assertEqual(rename_variant_ids("HTT", "HTT", "4-100-200-CAG"), "4-100-200-CAG")
-
-    def test_a_list_keeps_its_shape_and_its_per_region_suffixes(self):
-        self.assertEqual(rename_variant_ids(["HTT", "HTT_adjacent1"], "HTT", "NEW"),
-                         ["NEW", "NEW_adjacent1"])
-
-    def test_none_is_returned_when_nothing_mentions_the_old_id(self):
-        # substitution cannot tell the two records apart here, so the caller drops the field rather
-        # than leave the same VariantId on both
-        self.assertIsNone(rename_variant_ids(["OTHER"], "HTT", "NEW"))
-        self.assertIsNone(rename_variant_ids("OTHER", "HTT", "NEW"))
-
-    def test_unrelated_entries_survive_when_another_entry_does_mention_the_old_id(self):
-        self.assertEqual(rename_variant_ids(["HTT", "OTHER"], "HTT", "NEW"), ["NEW", "OTHER"])
+        with self.assertRaises(ValueError):
+            extend_catalog_record(trgt_style, self.fasta, self.args, self.counters)
 
 
 class TestOutputPath(unittest.TestCase):
 
-    def test_output_path_keeps_the_input_format_and_is_always_gzipped(self):
+    def test_output_path_is_always_a_bgzipped_bed(self):
         self.assertEqual(compute_output_path("catalog.bed"), "catalog.extended.bed.gz")
         self.assertEqual(compute_output_path("catalog.bed.gz"), "catalog.extended.bed.gz")
-        self.assertEqual(compute_output_path("dir/catalog.json"), "catalog.extended.json.gz")
-        self.assertEqual(compute_output_path("catalog.json.gz"), "catalog.extended.json.gz")
+        self.assertEqual(compute_output_path("dir/catalog.bed.gz"), "catalog.extended.bed.gz")
         self.assertEqual(compute_output_path("my.catalog.v2.bed.bgz"), "my.catalog.v2.extended.bed.gz")
 
 
