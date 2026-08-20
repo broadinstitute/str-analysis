@@ -1,72 +1,49 @@
-"""Extend tandem repeat locus boundaries outward into their flanking sequence using the gap-purity rule.
+"""Extend tandem repeat locus boundaries outward into their flanking sequence using a gap-purity heuristic.
+The EP400 locus served as a motivating example for this (described in https://gnomad.broadinstitute.org/news/2026-07-str-data-update/).
 
-WHAT THIS DOES
-Catalog boundaries routinely stop short of where the repeat actually ends, because the tools that
-generated them stop at the first imperfect copy. This script walks outward from each boundary in a BED
-catalog and pulls in flanking sequence that is still recognizably the same repeat, even when a copy or
-two along the way is interrupted by a substitution.
 
-WHY IT MATTERS
-A boundary that stops early leaves real repeat sequence in the flank, where a genotyper treats it as
-unique anchoring sequence rather than as part of the repeat. Extending the locus to cover it measurably
-improves how often ExpansionHunter's genotypes match assembly-derived truth genotypes.
-
-WHY IT IS CONSERVATIVE, AND WHERE IT STOPS
-The rule only ever grows a locus, never shrinks or shifts it, and it moves in whole motif copies, so a
-locus's count of leftover partial-copy bases is exactly what it was before. That matters because
-ExpansionHunter models a locus as a whole number of copies, so changing the leftover count moves its
-quality score for reasons unrelated to whether the boundary is better. The purity test below is what
-keeps it from running away: a single mismatched base has to be paid for by roughly ten bases of clean
-repeat, so an isolated interrupted copy with nothing good after it is refused.
-
-ALGORITHM, PER SIDE OF EACH LOCUS, INDEPENDENTLY
+Algorithm pseudo-code, applied to each side of the existing locus definition:
 
     boundary = the locus's current start (going left) or end (going right)
     loop:
-        # 1. look outward for the next exact copy of the motif, in the locus's own frame,
-        #    tolerating a short run of interrupted copies on the way there
+		# 1. scan the flank for additional copies of the repeat motif
         scan outward from boundary in steps of one motif length
             stop the scan once an exact copy of the motif is found  -> anchor
-            give up if more than MAX_REPEATS_IN_GAP copies pass without an exact one
+            give up if you see more than MAX_REPEATS_IN_GAP motif copies that don't match the motif
         if no anchor was found:
             stop, this side is done
-        # 2. take the whole unbroken run of exact copies that follows the anchor
+            
+        # 2. extend to include all exact copies of the motif that follow the anchor
         run_end = anchor
         while the copy starting at run_end is exact:
             run_end += motif length
-        # 3. the candidate addition is everything from the boundary through that run,
-        #    the imperfect gap included, and it is judged as a whole
-        purity = fraction of bases in [boundary, run_end) matching a perfect tiling of the motif
-        if purity >= MIN_PURITY_OF_NEW_SEQUENCE:
+            
+        # 3. check if the candidate extension sequence passes a purity threshold
+        purity = fraction of bases in the [boundary, run_end) interval that match a perfect repeat sequence of the motif
+        if purity >= MIN_PURITY_OF_NEW_SEQUENCE:  # default min purity = 0.9 (matching ExpansionHunter's internal threshold for detecting repetitive reads)
             boundary = run_end          # accept, then try to extend further from here
         else:
             stop, this side is done     # rejection is final for this side
 
 Sequence is compared against the motif tiled in the locus's existing frame, so a repeat in the flank
-that is out of phase with the boundary will not match. IUPAC ambiguity codes in the motif match any
-base they represent, though note the shared BED reader passes through only ACGTN motifs, dropping any
-row using R, Y, S, W, K, M, B, D, H or V with a warning before this script sees it.
+that is out of phase with the boundary will not match. 
 
-WHAT THE OUTPUT CONTAINS
-By default an extended definition replaces the locus it came from. With
---keep-original-definitions-of-extended-loci the original is kept as well and the extended definition
-is added alongside it, making the output a superset of the input, which is useful when you want to
-compare the two or not commit to the extension yet. A locus the rule declines to extend is passed
-through unchanged either way.
+Output:
 
-Extended definitions are deduplicated on their interval and motif in both modes. Neighbouring loci in a
-catalog frequently describe overlapping pieces of the same underlying repeat, and extending them can
-land them all on one interval, so without this the output would carry several identical copies of it.
-Where that happens under the default, those loci collapse to the single extended definition they share.
-An extended definition is also dropped when an identical definition is already in the output as an
-input locus.
+By default an extended definition replaces original locus definition. Specifying
+--keep-original-definitions-of-extended-loci causes the original locus definition to be included 
+in the output alongside the extended definition, making the output a superset of the input.
+Any loci that didn't get extended are included in the output regardless.
+Also, extended definitions are deduplicated in both modes - eg. if neighboring loci in a
+catalog get extended to produce identical locus definitions. In that case, the neighboring loci collapse 
+to the single extended definition they share. An extended definition is also dropped when 
+an identical definition is already in the output as an input locus.
 
-Only the locus interval is rewritten. Every other field a record carries is copied to the extended
-definition unchanged, including any annotations that were computed from the original boundaries, so
-re-annotate the output if it needs annotations that match its new coordinates.
 
 Usage:
+
     python3 -m str_analysis.extend_str_catalog_boundaries -R hg38.fa catalog.bed.gz
+
 """
 
 import argparse
