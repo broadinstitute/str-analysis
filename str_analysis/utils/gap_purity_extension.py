@@ -15,6 +15,7 @@ import numpy as np
 
 MAX_REPEATS_IN_GAP = 2
 MIN_PURITY_OF_NEW_SEQUENCE = 0.9
+MIN_REFERENCE_PURITY = 0.9
 
 # How much flank to fetch on the first attempt, and how many times to widen it. Each attempt triples
 # the window, so the last is 81x the first. The first window is motif-dependent (see
@@ -86,6 +87,26 @@ def cumulative_mismatched_bases(flank_seq, motif, core_length, side):
     flank_array = np.frombuffer(flank_seq.upper().encode(), dtype=np.uint8)
     is_match = _IUPAC_MATCH_TABLE[flank_array, motif_array[phases]]
     return np.arange(1, max_offset + 1) - np.cumsum(is_match)
+
+
+def compute_reference_purity(sequence, motif):
+    """The fraction of the sequence's bases that match a perfect tiling of the motif from its start.
+
+    The same measure the gap-purity rule applies to sequence it is considering adding, turned on the
+    locus's own existing definition.
+
+    Args:
+        sequence (str): the locus's reference sequence.
+        motif (str): the locus motif, which may contain IUPAC ambiguity codes.
+
+    Return:
+        float: between 0 and 1, and 0 for an empty sequence.
+    """
+    if not sequence:
+        return 0.0
+    # A repeat region tiled from its own first base has phase k % motif_length at offset k, which is
+    # what cumulative_mismatched_bases works out for a right flank following a zero-length region.
+    return 1 - int(cumulative_mismatched_bases(sequence, motif, 0, "right")[-1]) / len(sequence)
 
 
 def extend_by_gap_purity(flank_seq, motif, core_length, side,
@@ -162,6 +183,49 @@ def extend_by_gap_purity(flank_seq, motif, core_length, side,
                   f"{(run_end - anchor_start) // motif_length} exact), "
                   f"purity={purity:.3f} >= {min_purity_of_new_sequence} -- extend to {run_end}")
         accepted = run_end
+
+
+def extend_to_capture_partial_copy(flank_seq, motif, core_length, side):
+    """Return how many of the flank's boundary-adjacent bases continue the motif's tiling exactly.
+
+    The gap-purity rule only ever moves a boundary by whole motif copies, so it can leave a run of
+    bases that do continue the repeat, but are fewer than one copy, sitting just outside the locus.
+    The EP400 locus is an example: its boundary lands one base short of the 'G' that starts the next
+    copy. This picks those bases up.
+
+    Args:
+        flank_seq (str): flank sequence starting at the boundary, in forward genomic order for
+            'right', and reversed (boundary-adjacent base first) for 'left'.
+        motif (str): the locus motif, which may contain IUPAC ambiguity codes.
+        core_length (int): length of the repeat region whose phase the flank continues.
+        side (str): 'left' or 'right'.
+
+    Return:
+        int: how many bases to add, between 0 and len(motif) - 1.
+    """
+    # A whole copy's worth of matching bases is a full exact copy, which the gap-purity rule would
+    # have taken already, so stopping one base short of that is not a limit this can run into.
+    max_offset = min(len(flank_seq), len(motif) - 1)
+    if max_offset <= 0:
+        return 0
+
+    motif = motif.upper()
+    # An IUPAC code matches whatever base happens to sit under it. That is what keeps a real copy of
+    # an RFC1 or RUNX2-style motif from being scored as a mismatch at every degenerate position, but
+    # here it would pull a base into the locus on no evidence at all, so the walk stops before one.
+    phases = _flank_phases(core_length, len(motif), side, max_offset)
+    for offset, phase in enumerate(phases):
+        if motif[phase] not in "ACGT":
+            max_offset = offset
+            break
+    if max_offset == 0:
+        return 0
+
+    mismatched = cumulative_mismatched_bases(flank_seq[:max_offset], motif, core_length, side)
+    # mismatched is cumulative, so its first non-zero entry is the first base that doesn't match, and
+    # its index is the number of matching bases before it.
+    first_mismatch = np.flatnonzero(mismatched)
+    return int(first_mismatch[0]) if len(first_mismatch) > 0 else max_offset
 
 
 def compute_extension(fasta_obj, chrom, start_0based, end_1based, motif, side,
