@@ -123,7 +123,7 @@ def process_inquistr_calls(inquistr_calls_path, sample_id=None, discard_hom_ref=
         },
     }
 
-    fopen = gzip.open if inquistr_calls_path.endswith("gz") else open
+    fopen = gzip.open if inquistr_calls_path.endswith((".gz", ".bgz")) else open
 
     no_call_count = discarded_hom_ref_count = 0
     with fopen(inquistr_calls_path, "rt") as f:

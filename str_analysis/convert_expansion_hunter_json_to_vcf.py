@@ -31,7 +31,7 @@ def parse_expansion_hunter_json(json_path):
     allele_counts is the list of integer repeat counts per allele (length 1 for hemizygous calls), and ci_strings is the
     matching list of '{start}-{end}' confidence-interval strings (one per allele).
     """
-    fopen = gzip.open if json_path.endswith("gz") else open
+    fopen = gzip.open if json_path.endswith((".gz", ".bgz")) else open
     with fopen(json_path, "rt") as f:
         contents = json.load(f)
 

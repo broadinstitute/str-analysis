@@ -159,7 +159,7 @@ def process_catalog(input_path, reference_fasta_path, output_path, output_format
     iterator = get_variant_catalog_iterator(input_path, show_progress_bar=show_progress_bar)
 
     if output_format == "JSON":
-        fopen = gzip.open if output_path.endswith("gz") else open
+        fopen = gzip.open if output_path.endswith((".gz", ".bgz")) else open
         with fopen(output_path, "wt") as f:
             f.write("[\n")
             first_record = True

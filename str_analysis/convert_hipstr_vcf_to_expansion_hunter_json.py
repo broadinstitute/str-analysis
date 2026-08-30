@@ -88,7 +88,7 @@ def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False):
         },
     }
 
-    fopen = gzip.open if vcf_path.endswith("gz") else open
+    fopen = gzip.open if vcf_path.endswith((".gz", ".bgz")) else open
     with fopen(vcf_path, "rt") as vcf:
         line_counter = 0
         locus_coordinates_adjusted_counter = 0

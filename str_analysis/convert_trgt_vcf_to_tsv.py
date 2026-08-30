@@ -374,7 +374,7 @@ def main():
 
     # Parse sample ID from VCF header
     sample_id = args.sample_id
-    fopen = gzip.open if args.vcf_path.endswith("gz") else open
+    fopen = gzip.open if args.vcf_path.endswith((".gz", ".bgz")) else open
     with fopen(args.vcf_path, "rt") as vcf:
         for line in vcf:
             if line.startswith("#CHROM"):

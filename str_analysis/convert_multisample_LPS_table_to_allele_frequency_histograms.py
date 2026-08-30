@@ -288,7 +288,7 @@ def main():
     if args.vcf_interval_tsv and not os.path.isfile(args.vcf_interval_tsv):
         parser.error(f"--vcf-interval-tsv {args.vcf_interval_tsv} does not exist")
 
-    fopen = gzip.open if args.input_table.endswith("gz") else open
+    fopen = gzip.open if args.input_table.endswith((".gz", ".bgz")) else open
 
     if args.no_header:
         # Read first line to determine number of columns, then generate synthetic header

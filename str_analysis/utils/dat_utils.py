@@ -51,7 +51,7 @@ def parse_dat_file(dat_file_path, n=None):
         DatRecord object for each row in the .dat file
     """
 
-    fopen = gzip.open if dat_file_path.endswith("gz") else open
+    fopen = gzip.open if dat_file_path.endswith((".gz", ".bgz")) else open
     with fopen(dat_file_path, "rt") as input_dat_file:
         current_sequence_name = None
         for i, line in enumerate(input_dat_file):

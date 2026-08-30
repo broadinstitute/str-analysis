@@ -90,7 +90,7 @@ def parse_lps_table(
     Raises:
         ValueError: If the header format is unexpected.
     """
-    fopen = gzip.open if input_table_path.endswith("gz") else open
+    fopen = gzip.open if input_table_path.endswith((".gz", ".bgz")) else open
     with fopen(input_table_path, "rt") as f:
         header_fields = next(f).rstrip().split("\t")
         if len(header_fields) < 3 or header_fields[0] != "trid" or header_fields[1] != "motif":
@@ -193,7 +193,7 @@ def parse_combined_lps_allele_histograms_table(
     Raises:
         ValueError: If the header format is unexpected.
     """
-    fopen = gzip.open if input_table_path.endswith("gz") else open
+    fopen = gzip.open if input_table_path.endswith((".gz", ".bgz")) else open
     with fopen(input_table_path, "rt") as f:
         header_fields = next(f).rstrip().split("\t")
         expected_header = ["LocusId", "Motif", "AllAlleleHistogram", "ShortAlleleHistogram",
@@ -273,7 +273,7 @@ def detect_input_table_type(input_table_path):
     Raises:
         ValueError: If the header format is not recognized.
     """
-    fopen = gzip.open if input_table_path.endswith("gz") else open
+    fopen = gzip.open if input_table_path.endswith((".gz", ".bgz")) else open
     with fopen(input_table_path, "rt") as f:
         header_fields = next(f).rstrip().split("\t")
 
@@ -342,7 +342,7 @@ def main():
         if not os.path.isfile(args.trid_list):
             parser.error(f"TRID list file {args.trid_list} does not exist")
 
-        fopen = gzip.open if args.trid_list.endswith("gz") else open
+        fopen = gzip.open if args.trid_list.endswith((".gz", ".bgz")) else open
         with fopen(args.trid_list, "rt") as f:
             trids_to_include = set(line.strip() for line in f if line.strip())
         print(f"Will only include the {len(trids_to_include):,d} TRIDs from {args.trid_list}")

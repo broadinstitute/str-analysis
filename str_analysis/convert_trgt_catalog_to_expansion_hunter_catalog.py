@@ -46,7 +46,7 @@ def process_variant_catalog(trgt_bed_path_path, reference_fasta_path, output_fil
 	print(f"Parsing {trgt_bed_path_path}")
 	output_json_records = []
 	counter = collections.defaultdict(int)
-	fopen = gzip.open if trgt_bed_path_path.endswith("gz") else open
+	fopen = gzip.open if trgt_bed_path_path.endswith((".gz", ".bgz")) else open
 	with fopen(trgt_bed_path_path, "rt") as f:
 		iterator = f
 		if show_progress_bar:
@@ -134,7 +134,7 @@ def process_variant_catalog(trgt_bed_path_path, reference_fasta_path, output_fil
 
 	print(f"Parsed {counter['total input loci']:,d} loci from {trgt_bed_path_path}")
 	print(f"Writing {len(output_json_records):,d} records to {output_file_path}")
-	fopen = gzip.open if output_file_path.endswith("gz") else open
+	fopen = gzip.open if output_file_path.endswith((".gz", ".bgz")) else open
 	with fopen(output_file_path, "wt") as f:
 		json.dump(output_json_records, f, indent=4, ignore_nan=True)
 

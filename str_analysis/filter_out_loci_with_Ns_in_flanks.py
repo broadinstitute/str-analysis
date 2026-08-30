@@ -44,7 +44,7 @@ def main():
 	num_flanking_bases = args.region_extension_length
 
 	print(f"Parsing {args.variant_catalog}")
-	fopen = gzip.open if args.output_file.endswith("gz") else open
+	fopen = gzip.open if args.output_file.endswith((".gz", ".bgz")) else open
 	output_file = fopen(args.output_file, "wt")
 
 	output_list_of_filtered_loci_file = None

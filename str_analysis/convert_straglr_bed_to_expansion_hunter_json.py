@@ -40,7 +40,7 @@ def process_straglr_bed(bed_path, sample_id=None, verbose=False, show_progress_b
         },
     }
 
-    fopen = gzip.open if bed_path.endswith("gz") else open
+    fopen = gzip.open if bed_path.endswith((".gz", ".bgz")) else open
     with fopen(bed_path, "rt") as bed_file:
         # #chrom, start, end, repeat_unit, allele1:size,  allele1:copy_number, allele1:support allele2:size, allele2:copy_number, allele2:support
         header_fields = bed_file.readline().strip().strip("#").split("\t")

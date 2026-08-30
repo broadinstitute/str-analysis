@@ -50,7 +50,7 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
     output_rows = []
     counter = 0
 
-    fopen = gzip.open if expansion_hunter_catalog_path.endswith("gz") else open
+    fopen = gzip.open if expansion_hunter_catalog_path.endswith((".gz", ".bgz")) else open
     with fopen(expansion_hunter_catalog_path, "rt") as f:
         iterator = ijson.items(f, "item", use_float=True)
         if show_progress_bar:

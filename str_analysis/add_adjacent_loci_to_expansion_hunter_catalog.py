@@ -497,7 +497,7 @@ def main():
                 output_catalog_path = args.output_catalog
         else:
             output_catalog_path = re.sub(".json(.gz)?$", "", input_catalog_path) + ".with_adjacent_loci.json"
-            if input_catalog_path.endswith("gz"):
+            if input_catalog_path.endswith((".gz", ".bgz")):
                 output_catalog_path += ".gz"
 
         if args.output_dir:
@@ -513,7 +513,7 @@ def main():
         if args.verbose:
             print(f"Writing {len(output_catalog):,d} records to {output_catalog_path}")
 
-        fopen = gzip.open if output_catalog_path.endswith("gz") else open
+        fopen = gzip.open if output_catalog_path.endswith((".gz", ".bgz")) else open
         with fopen(output_catalog_path, "wt") as f:
             json.dump(output_catalog, f, indent=4, ignore_nan=True)
 

@@ -129,13 +129,13 @@ def process_expansion_hunter_catalog(reference_fasta_path, expansion_hunter_cata
     print(f"Parsing {expansion_hunter_catalog_path}")
     counter = 0
     total = 0
-    fopen = gzip.open if expansion_hunter_catalog_path.endswith("gz") else open
+    fopen = gzip.open if expansion_hunter_catalog_path.endswith((".gz", ".bgz")) else open
     with fopen(expansion_hunter_catalog_path, "rt") as f:
         iterator = ijson.items(f, "item", use_float=True)
         if show_progress_bar:
             iterator = tqdm.tqdm(iterator, unit=" variant catalog records", unit_scale=True)
 
-        fopen2 = gzip.open if output_file_path.endswith("gz") else open
+        fopen2 = gzip.open if output_file_path.endswith((".gz", ".bgz")) else open
         with fopen2(output_file_path, "wt") as f2:
             for i, record in enumerate(iterator):
                 total += 1
@@ -146,7 +146,7 @@ def process_expansion_hunter_catalog(reference_fasta_path, expansion_hunter_cata
                     output_row[0] = normalize_chrom(output_row[0])
                     f2.write("\t".join(map(str, output_row)) + "\n")
 
-    bgzip_step = "| bgzip" if output_file_path.endswith("gz") else ""
+    bgzip_step = "| bgzip" if output_file_path.endswith((".gz", ".bgz")) else ""
     os.system(f"bedtools sort -i {output_file_path} {bgzip_step} > {output_file_path}.sorted")
     os.system(f"mv {output_file_path}.sorted {output_file_path}")
     #os.system(f"bgzip -f {output_file_path}")

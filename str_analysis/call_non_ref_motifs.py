@@ -1213,7 +1213,7 @@ def main():
     expansion_hunter_denovo_json = None
     if args.expansion_hunter_denovo_profile:
         print(f"Parsing {args.expansion_hunter_denovo_profile}")
-        open_func = gzip.open if args.expansion_hunter_denovo_profile.endswith("gz") else open
+        open_func = gzip.open if args.expansion_hunter_denovo_profile.endswith((".gz", ".bgz")) else open
         with open_func(args.expansion_hunter_denovo_profile, "rt") as f:
             expansion_hunter_denovo_json = json.load(f)
 

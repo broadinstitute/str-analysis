@@ -41,12 +41,12 @@ def main():
 def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_path, split_adjacent_repeats=False,
                                      show_progress_bar=False, motif_size_column=False):
     print(f"Parsing {expansion_hunter_catalog_path}")
-    fopen = gzip.open if expansion_hunter_catalog_path.endswith("gz") else open
+    fopen = gzip.open if expansion_hunter_catalog_path.endswith((".gz", ".bgz")) else open
     with fopen(expansion_hunter_catalog_path, "rt") as f:
         iterator = ijson.items(f, "item", use_float=True)
         if show_progress_bar:
             iterator = tqdm.tqdm(iterator, unit=" variant catalog records", unit_scale=True)
-        with (gzip.open if output_file_path.endswith("gz") else open)(output_file_path, "wt") as f2:
+        with (gzip.open if output_file_path.endswith((".gz", ".bgz")) else open)(output_file_path, "wt") as f2:
             previous_chrom = None
             output_rows = []
             counter = 0
@@ -124,11 +124,11 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
                 counter += 1
                 f2.write("\t".join(map(str, output_row)) + "\n")
 
-    bgzip_step = "| bgzip" if output_file_path.endswith("gz") else ""
+    bgzip_step = "| bgzip" if output_file_path.endswith((".gz", ".bgz")) else ""
     os.system(f"bedtools sort -i {output_file_path} {bgzip_step} > {output_file_path}.sorted")
     os.system(f"mv {output_file_path}.sorted {output_file_path}")
     print(f"Wrote {counter:,d} rows to {output_file_path}")
-    if output_file_path.endswith("gz"):
+    if output_file_path.endswith((".gz", ".bgz")):
         os.system(f"tabix -f {output_file_path}")
         print(f"Added {output_file_path}.tbi index")
 

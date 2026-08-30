@@ -181,7 +181,7 @@ def parse_args():
     if args.locus_id_file:
         if not file_exists(os.path.expanduser(args.locus_id_file)):
             parser.error(f"File not found: {args.locus_id_file}")
-        fopen = gzip.open if args.locus_id_file.endswith("gz") else open
+        fopen = gzip.open if args.locus_id_file.endswith((".gz", ".bgz")) else open
         with fopen(os.path.expanduser(args.locus_id_file)) as f:
             locus_ids = [line.strip() for line in f if line.strip()]
         print(f"Parsed {len(locus_ids):,d} locus ids from {args.locus_id_file}")

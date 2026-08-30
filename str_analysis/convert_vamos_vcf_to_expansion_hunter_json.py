@@ -135,7 +135,7 @@ def process_vamos_vcf(vamos_vcf_path, sample_id=None, discard_hom_ref=True, show
         },
     }
 
-    fopen = gzip.open if vamos_vcf_path.endswith("gz") else open
+    fopen = gzip.open if vamos_vcf_path.endswith((".gz", ".bgz")) else open
 
     skipped_multi_motif_count = no_genotype_count = discarded_hom_ref_count = 0
     with fopen(vamos_vcf_path, "rt") as vcf:

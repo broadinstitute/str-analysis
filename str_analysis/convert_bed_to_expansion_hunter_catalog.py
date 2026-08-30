@@ -49,7 +49,7 @@ def main():
             args.output_path = output_path_prefix + ".json.gz"
 
         print(f"Writing {len(json_records):,d} records to {args.output_path}")
-        fopen = gzip.open if args.output_path.endswith("gz") else open
+        fopen = gzip.open if args.output_path.endswith((".gz", ".bgz")) else open
         with fopen(args.output_path, "wt") as f:
             json.dump(json_records, f, indent=4)
         print(f"Wrote {len(json_records):,d} to {args.output_path}")
@@ -76,7 +76,7 @@ def parse_file(bed_or_json_path, trim=True, verbose=False, show_progress_bar=Fal
     json_records = []
     existing_locus_ids = set()
     counter = collections.defaultdict(int)
-    fopen = gzip.open if bed_or_json_path.endswith("gz") else open
+    fopen = gzip.open if bed_or_json_path.endswith((".gz", ".bgz")) else open
     for i, record in enumerate(get_variant_catalog_iterator(
         bed_or_json_path, show_progress_bar=show_progress_bar)):
         if isinstance(record["ReferenceRegion"], list):

@@ -25,7 +25,7 @@ def main():
 	if not args.output_file:
 		args.output_file = re.sub(".json(.gz)?$", "", os.path.basename(args.expansion_hunter_catalog))
 		args.output_file += ".split.json"
-		if args.expansion_hunter_catalog.endswith("gz"):
+		if args.expansion_hunter_catalog.endswith((".gz", ".bgz")):
 			args.output_file += ".gz"
 
 	process_expansion_hunter_catalog(args.expansion_hunter_catalog, args.output_file, show_progress_bar=args.show_progress_bar)
@@ -93,7 +93,7 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
 			output_records_split_counter += 1
 
 	print(f"Split {input_records_split_counter:,d} loci into {output_records_split_counter:,d} output records")
-	fopen = gzip.open if output_file_path.endswith("gz") else open
+	fopen = gzip.open if output_file_path.endswith((".gz", ".bgz")) else open
 	with fopen(output_file_path, "wt") as f:
 		json.dump(output_records, f, indent=2)
 

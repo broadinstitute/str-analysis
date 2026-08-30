@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>gnomAD STR Update — Components &amp; TODO List (for Phil Darnowsky handoff)</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 980px; margin: 2em auto; padding: 0 1.5em; color: #1a1a1a; line-height: 1.5; }
+  h1 { font-size: 1.6em; border-bottom: 3px solid #2c3e50; padding-bottom: 0.3em; }
+  h2 { font-size: 1.25em; margin-top: 2em; color: #2c3e50; border-bottom: 1px solid #ddd; padding-bottom: 0.2em; }
+  h3 { font-size: 1.05em; margin-top: 1.4em; color: #34495e; }
+  .urgent { background: #fdecea; border: 2px solid #e74c3c; border-radius: 6px; padding: 1em 1.4em; margin: 1.2em 0; }
+  .urgent strong { color: #c0392b; }
+  .source { background: #eef6fb; border: 1px solid #b8dcee; border-radius: 6px; padding: 1em 1.4em; margin: 1.2em 0; font-size: 0.95em; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 0.92em; }
+  th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: #2c3e50; color: white; }
+  tr:nth-child(even) { background: #f7f9fa; }
+  code, .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.9em; background: #f0f0f0; padding: 1px 5px; border-radius: 3px; }
+  .checklist { list-style: none; padding-left: 0; }
+  .checklist li { margin: 0.6em 0; padding-left: 1.8em; position: relative; }
+  .checklist li::before { content: "☐"; position: absolute; left: 0; font-size: 1.1em; color: #2c3e50; }
+  .checklist li.done::before { content: "☑"; color: #27ae60; }
+  .tag { display: inline-block; font-size: 0.72em; font-weight: bold; padding: 1px 7px; border-radius: 10px; margin-left: 0.4em; }
+  .tag-email { background: #fdebd0; color: #9c640c; }
+  .tag-git { background: #e8f8f5; color: #148f77; }
+  .tag-repo { background: #ebedef; color: #566573; }
+  .tag-checked { background: #eafaf1; color: #1e8449; }
+  footer { margin-top: 3em; font-size: 0.8em; color: #888; border-top: 1px solid #ddd; padding-top: 1em; }
+</style>
+</head>
+<body>
+
+<h1>gnomAD STR Update — Components &amp; TODO List</h1>
+<p>Compiled 2026-07-02 from: repo code/git history, work email with Shay Tzur (Illumina/Emedgene), bash history of the 2022 release, and a live re-check against STRchive.org.</p>
+
+<div class="urgent">
+<strong>⚠️ Phil Darnowsky's last day at TGG is 2026-07-03 (tomorrow).</strong> His farewell card closes 2026-07-02 5pm. If he's meant to receive/ship these files, this needs to go out today, or you need a new point of contact for the handoff.
+</div>
+
+<div class="urgent" style="border-color:#e67e22; background:#fef5e7;">
+<strong>Unanswered email:</strong> Shay Tzur's 2026-06-22 message is still marked <strong>unread</strong> in Gmail. It's his second ask for a timeline, and specifically flags CBL. Worth a reply regardless of what else ships today.
+</div>
+
+<h2>1. Timeline reconstructed (git log + bash history)</h2>
+<table>
+<tr><th>Date</th><th>Event</th></tr>
+<tr><td>2022-01-20</td><td>First public gnomAD STR release (v3.1.3). <span class="mono">generate_gnomad_json.py</span> output uploaded to <span class="mono">gs://gnomad-browser/STRs/</span> and <span class="mono">gs://gnomad-public-requester-pays/release/3.1.3/{tsv,json}/</span>.</td></tr>
+<tr><td>2023-06-15</td><td>Re-export/QC pass of the same v1 dataset (no new public release, no catalog changes).</td></tr>
+<tr><td>2023-06-23 → 2023-11-24</td><td>Novel-STR-catalog and non-ref-motif work for gnomAD; EP400/FAM193B/NAXE/PRE-MIR7-2/RAI1 added to the catalog (commit <span class="mono">8a71a35</span>).</td></tr>
+<tr><td>2023-11-24 → 2025-03-17</td><td>"gnomad-v2" prep in <span class="mono">~/p1_iter3/2023_11_24__updated_gnomad_callset/</span>: manual review of read visualizations, Q-score correlation analysis, readviz svg renaming/encryption. EP400 threshold widened based on manual review (commit <span class="mono">33c1665</span>).</td></tr>
+<tr><td>2026-03-08 – 03-09</td><td>Side-track: EHdn sample-profile QC/dedup infra work (10,509→10,301 profiles) — supports future genome-wide catalog work, not this release directly.</td></tr>
+<tr><td>2026-03-11</td><td>MIR7-2 manual-review fix folded into <span class="mono">combined_manual_review_genotype_quality..._fixed_MIR7-2__20260311.tsv</span>.</td></tr>
+<tr><td>2026-03-18</td><td>Last full <span class="mono">generate_gnomad_v2_json</span> run (readviz metadata + rename list regenerated). <strong>This is the most recent full pipeline output on disk — it has not shipped.</strong></td></tr>
+<tr><td>2026-05-25</td><td>Shay Tzur (Illumina) emails about gnomAD-website vs. JSON-catalog discrepancies for Emedgene's new variant schema.</td></tr>
+<tr><td>2026-05-26</td><td>You re-ran the STRchive sync and renamed <span class="mono">PRE-MIR7-2</span> → <span class="mono">MIR7-2</span> in the catalog (commits <span class="mono">49cc83e</span>/<span class="mono">8a37bb1</span>/<span class="mono">7f393e9</span>) to match STRchive.org.</td></tr>
+<tr><td>2026-06-03</td><td>Shay pushes back on the MIR7-2 rename ("gene MIR7-2 is located far away from the reported STR locus") — <strong>unresolved</strong>.</td></tr>
+<tr><td>2026-06-16 – 17</td><td>Shay asks about site-level vs. sub-locus pathogenicity definitions (ATXN7/CNBP examples); you explain the underscore-suffix / <span class="mono">MainReferenceRegion</span> convention and note it "isn't clearly documented anywhere."</td></tr>
+<tr><td>2026-06-17</td><td>You promise Shay a "last updated" indicator + GitHub link on the gnomAD STR pages — <strong>not yet done</strong>.</td></tr>
+<tr><td>2026-06-22</td><td>Shay flags CBL specifically and re-asks for a timeline — <strong>unread, unanswered</strong>.</td></tr>
+<tr><td>2026-07-02 (today)</td><td>Re-ran <span class="mono">compare_with_other_catalogs.py --only-compare-with-strchive</span> live: <strong>no new STRchive data since the 2026-05-26 sync</strong> — the committed <span class="mono">STRchive_definitions.json</span> is still current.</td></tr>
+<tr><td>2026-07-03</td><td>Phil Darnowsky's last day at TGG.</td></tr>
+</table>
+
+<h2>2. Discrepancies reported by Shay Tzur (Illumina/Emedgene) — website vs. JSON catalog</h2>
+<p>All verified live against <span class="mono">variant_catalog_without_offtargets.GRCh38.json</span> today — the JSON catalog does have complete data for every locus Shay flagged; the gnomAD <em>website</em> is what's stale/incomplete.</p>
+
+<h3>2a. Threshold mismatches (website shows different Normal/Pathogenic values than the JSON catalog)</h3>
+<table>
+<tr><th>Locus</th><th>Website NormalMax</th><th>Website PathogenicMin</th><th>JSON file value</th></tr>
+<tr><td>ATXN2</td><td>31</td><td>35</td><td>30</td></tr>
+<tr><td>ATXN3</td><td>44</td><td>56</td><td>60</td></tr>
+<tr><td>ATXN7</td><td>33</td><td>37</td><td>27</td></tr>
+<tr><td>CNBP</td><td>54</td><td>55</td><td>26–75</td></tr>
+<tr><td>EIF4A3</td><td>11</td><td>14</td><td>12</td></tr>
+<tr><td>FGF14</td><td>250</td><td>320</td><td>179</td></tr>
+<tr><td>FXN</td><td>33</td><td>66</td><td>56</td></tr>
+<tr><td>MARCHF6</td><td>667</td><td>668</td><td>650</td></tr>
+<tr><td>PHOX2B</td><td>20</td><td>24</td><td>26</td></tr>
+<tr><td>SAMD12</td><td>99</td><td>100</td><td>105</td></tr>
+<tr><td>TBP</td><td>42</td><td>43</td><td>49</td></tr>
+<tr><td>XYLT1</td><td>20</td><td>110</td><td>72</td></tr>
+<tr><td>ZFHX3</td><td>26</td><td>41</td><td>46</td></tr>
+</table>
+
+<h3>2b. Loci defined in the JSON catalog but missing/incomplete on the website</h3>
+<table>
+<tr><th>Locus</th><th>Status on website (per Shay)</th><th>What's actually in the JSON catalog (checked today)</th></tr>
+<tr><td>AFF3</td><td>No longer appears</td><td>FRA2A / intellectual disability, AD, NormalMax 20, PathogenicMin 300</td></tr>
+<tr><td>CBL</td><td>Not shown as pathogenic (Shay's Jun-22 flag)</td><td>Jacobsen syndrome (FRAX11B), AD, NormalMax 79, PathogenicMin 101, intermediate 80–100</td></tr>
+<tr><td>RAI1</td><td>Completely missing STR data</td><td>FAME8, AD, OMIM 601068, PathogenicMin 9</td></tr>
+<tr><td>ZNF713</td><td>No longer appears</td><td>FRA7A / autism spectrum disorder, AD, PathogenicMin 450</td></tr>
+</table>
+<p>None of these 4 are among the README's 9 "historically listed but not currently causal" loci (TMEM185A, DMD, etc.) — they have full, current disease associations and should not be excluded.</p>
+
+<h2>3. STRchive freshness check (run live today, 2026-07-02)</h2>
+<div class="source">
+Re-ran <span class="mono">python3 -m str_analysis.variant_catalogs.scripts.compare_with_other_catalogs --only-compare-with-strchive</span> against <span class="mono">https://raw.githubusercontent.com/dashnowlab/STRchive/refs/heads/main/data/STRchive-loci.json</span>.
+<br><br>
+Result: <strong>identical</strong> to the committed <span class="mono">STRchive_definitions.json</span> (last synced 2026-05-26, commit <span class="mono">49cc83e</span>). No new STRchive loci or threshold changes to pull in for this round. The 48/72 "reference region differs" lines in <span class="mono">gnomAD_STRchive_comparison.txt</span> are mostly the same repeat expressed in a different canonical rotation (e.g. GCG vs. CGG vs. GCN) — not real threshold changes — and were already reviewed as of the May sync.
+</div>
+
+<h2>4. Manual review &amp; quality-score status (the two components you named)</h2>
+<ul>
+<li><strong>Manual review:</strong> latest combined table is <span class="mono">combined_manual_review_genotype_quality_with_EP400_FAM193B_NAXE_etc__fixed_MIR7-2__20260311.tsv</span> (in <span class="mono">~/p1_iter3/2023_11_24__updated_gnomad_callset/svg_images_final_version_2024_06_07/</span>). Covers EP400, FAM193B, NAXE, RAI1, and the MIR7-2 fix. No newer manual-review pass exists on disk.</li>
+<li><strong>Quality scores:</strong> <span class="mono">combine_final_manual_review_table_with_Q_scores.py</span> joins the manual review labels (low…high, mapped 1–5) against ExpansionHunter's own <span class="mono">Q: Allele 2</span> confidence score and reports per-locus correlation — this is the existing "quality score summary" tool. It was last run against the 2024-07-18 data pull, which <strong>predates</strong> the current gnomad-v2 dataset (last regenerated 2026-03-18). It should be re-run against the current pull before this ships, so the summary reflects the data actually going to Phil.</li>
+</ul>
+
+<h2>5. Repo-comment TODOs</h2>
+<p>Grepped <span class="mono">str_analysis/</span>, <span class="mono">generate_gnomad_json.py</span>, <span class="mono">generate_gnomad_v2_json.py</span>, <span class="mono">eh_catalog_utils.py</span>, <span class="mono">merge_loci.py</span>, README.md, and every script in the two <span class="mono">p1_iter3</span> working directories for <span class="mono">TODO</span>/<span class="mono">FIXME</span>/<span class="mono">XXX</span>. <strong>None found relevant to this update</strong> — the outstanding work lives in the email thread and in the unshipped pipeline output, not in code comments.</p>
+
+<h2>6. Housekeeping</h2>
+<p>The repo root (<span class="mono">~/code/str-analysis/</span>) has ~15 uncommitted, untracked leftover files from this same effort: <span class="mono">generate_gnomad_json.v1.sh</span>, <span class="mono">generate_gnomad_json.v2.sh</span>, several <span class="mono">gnomAD_STR_*.gz</span> outputs, <span class="mono">hail_batch_pipelines/</span>, <span class="mono">gnomad_sample_qc.py</span>, sample-QC TSVs, etc. Worth a pass to commit/.gitignore/delete once the update ships — not blocking, but will keep confusing "git status".</p>
+
+<h2>7. Master deduplicated checklist</h2>
+<ul class="checklist">
+<li><strong>Reply to Shay's unread 2026-06-22 email</strong> with a timeline, addressing CBL specifically. <span class="tag tag-email">email</span></li>
+<li><strong>Resolve the MIR7-2 naming disagreement</strong>: catalog already renamed PRE-MIR7-2→MIR7-2 (May 26) but Shay asked you not to (Jun 3) — decide and close the loop with him. <span class="tag tag-email">email</span><span class="tag tag-git">git</span></li>
+<li>Re-run <span class="mono">generate_gnomad_v2_json</span> so the shipped output reflects the MIR7-2 rename (last full run, 2026-03-18, predates the May-26 rename). <span class="tag tag-repo">repo</span></li>
+<li>Re-run <span class="mono">combine_final_manual_review_table_with_Q_scores.py</span> (or the locus-review-summary plot scripts) against the current data pull for an up-to-date quality-score summary to send with the data. <span class="tag tag-repo">repo</span></li>
+<li>Confirm no additional manual review is needed beyond the 2026-03-11 MIR7-2-fixed table (EP400/FAM193B/NAXE/RAI1/MIR7-2 already covered). <span class="tag tag-repo">repo</span></li>
+<li>Push the 13 corrected pathogenic/normal thresholds (§2a) from the JSON catalog to the live gnomAD website. <span class="tag tag-email">email</span></li>
+<li>Add/fix website display for AFF3, CBL, RAI1, ZNF713 (§2b) — all 4 have complete data in the JSON catalog already. <span class="tag tag-email">email</span></li>
+<li>Add a "last updated" date indicator + GitHub variant-catalog link to the gnomAD STR pages (promised to Shay Jun 17). <span class="tag tag-email">email</span></li>
+<li>Document the site-level vs. sub-locus pathogenicity convention (VariantId underscore suffix / MainReferenceRegion) in README.md — flagged by you as undocumented. <span class="tag tag-email">email</span></li>
+<li>STRchive re-checked live today — no new loci/thresholds to merge this round. <span class="tag tag-checked">checked 2026-07-02</span></li>
+<li>Package final outputs for Phil: <span class="mono">gnomAD_STR_genotypes__&lt;date&gt;.tsv.gz</span>, <span class="mono">gnomAD_STR_distributions__&lt;date&gt;.json.gz</span>, <span class="mono">gnomAD_STR_readviz_metadata__&lt;date&gt;.{json,tsv}.gz</span>, updated <span class="mono">variant_catalog_*.GRCh38.json</span> (with/without offtargets), plus a README describing the format (precedent: commit <span class="mono">78f6b2c</span> for the 2022 release). <span class="tag tag-git">git</span></li>
+<li>Confirm current upload targets with Phil/gnomAD-browser team before he leaves — 2022 precedent was <span class="mono">gs://gnomad-browser/STRs/</span> and <span class="mono">gs://gnomad-public-requester-pays/release/&lt;ver&gt;/{tsv,json}/</span>, but bucket paths shift release-to-release. <span class="tag tag-git">git</span></li>
+<li><strong>Given Phil's last day is tomorrow: decide today whether to (a) ship a minimal package now, or (b) identify his replacement/successor contact for this handoff.</strong></li>
+<li>Clean up ~15 untracked leftover files in the repo root once the update ships. <span class="tag tag-repo">repo</span></li>
+</ul>
+
+<footer>
+Sources: git log (str-analysis), Gmail threads with Tzur, Shay &lt;stzur@illumina.com&gt; (May 25 – Jun 22 2026) and the tgg-core farewell-card announcement (Jun 25 2026), bash history (<span class="mono">~/.history_full/2022–2026</span>), live re-run of <span class="mono">compare_with_other_catalogs.py</span> against STRchive.org (2026-07-02), and file inventory of <span class="mono">~/p1_iter3/2023_11_24__updated_gnomad_callset/</span>.
+</footer>
+
+</body>
+</html>

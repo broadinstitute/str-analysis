@@ -261,7 +261,7 @@ def process_vcfs(vcf_paths, tool, output_path, get_reference_sequence=None, show
         output_file.write("\t".join(OUTPUT_COLUMNS) + "\n")
         for vcf_path in vcf_paths:
             print(f"Processing {vcf_path}")
-            with (gzip.open if vcf_path.endswith("gz") else open)(vcf_path, "rt") as vcf:
+            with (gzip.open if vcf_path.endswith((".gz", ".bgz")) else open)(vcf_path, "rt") as vcf:
                 if show_progress_bar:
                     from tqdm import tqdm
                     vcf = tqdm(vcf, unit=" vcf records", unit_scale=True, unit_divisor=1000)

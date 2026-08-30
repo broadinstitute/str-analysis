@@ -112,7 +112,7 @@ def process_gangstr_vcf(vcf_path, variant_catalog=None, sample_id=None):
 
     variant_catalog_lookup = create_variant_catalog_lookup(variant_catalog or [])
 
-    fopen = gzip.open if vcf_path.endswith("gz") else open
+    fopen = gzip.open if vcf_path.endswith((".gz", ".bgz")) else open
     with fopen(vcf_path, "rt") as vcf:
         line_counter = 0
         for line in vcf:

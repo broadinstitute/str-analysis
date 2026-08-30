@@ -125,7 +125,7 @@ def process_atarva_vcf(atarva_vcf_path, sample_id=None, discard_hom_ref=True, sh
         },
     }
 
-    fopen = gzip.open if atarva_vcf_path.endswith("gz") else open
+    fopen = gzip.open if atarva_vcf_path.endswith((".gz", ".bgz")) else open
 
     no_genotype_count = skipped_multizygous_count = discarded_hom_ref_count = 0
     with fopen(atarva_vcf_path, "rt") as vcf:

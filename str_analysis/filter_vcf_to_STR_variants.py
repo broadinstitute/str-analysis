@@ -1063,7 +1063,7 @@ def main():
     fasta_obj = pyfaidx.Fasta(args.reference_fasta_path, one_based_attributes=False, as_raw=True)
 
     # open output files for writing
-    fopen = gzip.open if args.input_vcf_path.endswith("gz") else open
+    fopen = gzip.open if args.input_vcf_path.endswith((".gz", ".bgz")) else open
     vcf_writer = open(f"{args.output_prefix}.vcf", "wt")
     filtered_out_variants_vcf_writer = open(f"{args.output_prefix}.filtered_out_variants.vcf", "wt") if args.write_vcf_with_filtered_out_variants else None
 

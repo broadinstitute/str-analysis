@@ -718,7 +718,7 @@ def write_output_catalog(output_catalog_record_iter, output_path, output_format)
             record.pop("FilenameHash", None)
             output_catalog_record_list.append(record)
 
-        fopen = gzip.open if output_path.endswith("gz") else open
+        fopen = gzip.open if output_path.endswith((".gz", ".bgz")) else open
         with fopen(output_path, "wt") as output_catalog:
             json.dump(output_catalog_record_list, output_catalog, indent=4, ignore_nan=True)
             #json.dump(output_catalog_record_iter, output_catalog, indent=4, ignore_nan=True)

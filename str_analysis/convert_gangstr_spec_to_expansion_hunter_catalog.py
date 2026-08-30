@@ -35,7 +35,7 @@ def process_variant_catalog(gangstr_spec_path, output_file_path, trim_loci=False
     json_records = []
     existing_locus_ids = set()
     counter = collections.defaultdict(int)
-    fopen = gzip.open if gangstr_spec_path.endswith("gz") else open
+    fopen = gzip.open if gangstr_spec_path.endswith((".gz", ".bgz")) else open
     with fopen(gangstr_spec_path, "rt") as f:
         iterator = f
         if show_progress_bar:
@@ -87,7 +87,7 @@ def process_variant_catalog(gangstr_spec_path, output_file_path, trim_loci=False
             # TODO add support for off-target regions
 
     print(f"Writing records to {output_file_path}")
-    fopen = gzip.open if output_file_path.endswith("gz") else open
+    fopen = gzip.open if output_file_path.endswith((".gz", ".bgz")) else open
     with fopen(output_file_path, "wt") as f:
         json.dump(json_records, f, indent=4, ignore_nan=True)
 

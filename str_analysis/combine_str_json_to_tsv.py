@@ -391,7 +391,7 @@ def parse_json_file(json_path):
     if not os.path.isfile(json_path):
         raise ValueError(f"{json_path} not found")
 
-    fopen = gzip.open if json_path.endswith("gz") else open
+    fopen = gzip.open if json_path.endswith((".gz", ".bgz")) else open
     with fopen(json_path, "rt", encoding="UTF-8") as f:
         try:
             return json.load(f)

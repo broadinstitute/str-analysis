@@ -33,7 +33,7 @@ def load_catalog_loci(variant_catalog_path):
       - per_chrom_intervals: dict chrom_no_chr -> sorted list of (start_0based, end_1based, locus_id, motif)
     The motif is parsed from the trailing field of the LocusId ('{chrom}-{start0}-{end1}-{motif}').
     """
-    fopen = gzip.open if variant_catalog_path.endswith("gz") else open
+    fopen = gzip.open if variant_catalog_path.endswith((".gz", ".bgz")) else open
     with fopen(variant_catalog_path, "rt") as f:
         catalog = json.load(f)
 
@@ -93,7 +93,7 @@ def process_ensembletr_vcf(vcf_path, exact_lookup, per_chrom_intervals, sample_i
     }
     counters = collections.Counter()
 
-    fopen = gzip.open if vcf_path.endswith("gz") else open
+    fopen = gzip.open if vcf_path.endswith((".gz", ".bgz")) else open
     with fopen(vcf_path, "rt") as vcf:
         sample_column_index = 9
         for line in vcf:

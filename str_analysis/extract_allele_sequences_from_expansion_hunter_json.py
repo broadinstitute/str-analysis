@@ -129,7 +129,7 @@ def process_expansion_hunter_json_files(json_paths, output_path, show_progress_b
         output_file.write("\t".join(OUTPUT_COLUMNS) + "\n")
         for json_path in json_paths:
             print(f"Processing {json_path}")
-            with (gzip.open if json_path.endswith("gz") else open)(json_path, "rt") as f:
+            with (gzip.open if json_path.endswith((".gz", ".bgz")) else open)(json_path, "rt") as f:
                 json_contents = json.load(f)
 
             locus_results = list(json_contents.get("LocusResults", {}).values())

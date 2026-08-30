@@ -67,7 +67,7 @@ def main():
     if args.trid_list:
         if not os.path.isfile(args.trid_list):
             sys.exit(f"Error: {args.trid_list} not found")
-        fopen = gzip.open if args.trid_list.endswith("gz") else open
+        fopen = gzip.open if args.trid_list.endswith((".gz", ".bgz")) else open
         with fopen(args.trid_list, "rt") as f:
             trids_to_include = set(line.strip() for line in f if line.strip())
         print(f"Will only include {len(trids_to_include):,d} LocusIds from {args.trid_list}")
@@ -87,7 +87,7 @@ def main():
     hemi_sample_ids = collections.defaultdict(lambda: collections.defaultdict(list))
 
     for input_path in args.input_tables:
-        fopen = gzip.open if input_path.endswith("gz") else open
+        fopen = gzip.open if input_path.endswith((".gz", ".bgz")) else open
         with fopen(input_path, "rt") as f:
             header = next(f).rstrip("\n").split("\t")
             for required_col in ("LocusId", "SampleId", "RepeatUnit", "Genotype"):
