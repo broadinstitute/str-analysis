@@ -28,6 +28,10 @@ Algorithm pseudo-code, applied to each side of the existing locus definition:
 Sequence is compared against the motif tiled in the locus's existing frame, so a repeat in the flank
 that is out of phase with the boundary will not match.
 
+A locus whose motif contains IUPAC codes is never put through the rule. Such a motif stands for a set
+of sequences rather than one, so it matches flanking sequence that a concrete motif would not, and the
+rule would read that as the repeat continuing.
+
 A locus is only put through the rule at all when its existing definition is itself pure enough:
 at least MIN_REFERENCE_PURITY of the bases it already covers must match a perfect tiling of its own
 motif. Where a locus is a poor match for the motif it is annotated with, its boundaries are not
@@ -37,28 +41,38 @@ Polishing a locus that was extended:
 
 The loop above moves a boundary by whole motif copies only, so it can stop with a run of bases that
 do continue the repeat, but are fewer than one copy, still outside the locus. Every locus the rule
-extended is therefore polished afterwards:
+extended therefore has its right boundary pushed outward afterwards, one base at a time, for as long
+as the flanking bases keep matching the motif's tiling, which adds up to at most len(motif) - 1 bases.
 
-    1. each boundary is pushed outward, one base at a time, for as long as the flanking bases keep
-       matching the motif's tiling, which adds up to len(motif) - 1 bases per side
-    2. the motif is re-phased to the copy that now starts at the new left boundary, so the locus
-       still satisfies the convention that its first base is the motif's first base. A CAG locus
-       whose left boundary picks up one base becomes a GCA locus, for instance.
+The left boundary is never moved by part of a copy, so an extended locus is still read in the same
+frame as the locus it grew from. The locus's first base is its motif's first base, and taking a
+partial copy on the left would leave the locus starting part-way through the motif, with the motif
+having to be rotated to match: a CAG locus that picked up one base on the left would become a GCA
+locus. At EP400, for instance, chr12:132062548-132062611 (CAG)* extends to
+chr12:132062524-132062611 (CAG)*, stopping short of the G at 132062523 that a rotated motif could
+have taken.
 
-Loci the rule did not extend are left exactly as they were, motif included.
+Loci the rule did not extend are left exactly as they were.
 
 Output:
 
-By default an extended definition replaces original locus definition. Specifying
---keep-original-definitions-of-extended-loci causes the original locus definition to be included
-in the output alongside the extended definition, making the output a superset of the input.
-Any loci that didn't get extended are included in the output regardless.
+There are three output modes. By default an extended definition replaces the original locus
+definition. Specifying --keep-original-definitions-of-extended-loci causes the original locus
+definition to be included in the output alongside the extended definition, making the output a
+superset of the input. In both of those the output is a catalog in its own right, and any loci that
+didn't get extended are included regardless.
+
+--only-output-extended-loci is the third, and writes only the definitions the rule produced, leaving
+out every locus the input catalog held. What it writes is therefore not a catalog on its own: it is
+the set of definitions this rule adds to the one it was given, meant to be appended to that catalog
+as a separate source of loci. The two paragraphs below about putting a displaced locus back do not
+apply to it, since the locus in question never left the catalog this output gets appended to.
 
 An extended definition is dropped before any of that when the input catalog already described the
 same repeat with more: a locus that shares its canonical motif, overlaps it by any amount, and covers
 more base pairs than it does. The locus it grew from is left as it was.
 
-Extended definitions are deduplicated against each other in both modes: among the extended
+Extended definitions are deduplicated against each other in every mode: among the extended
 definitions that overlap and share a canonical motif, only the longest is kept, taking them
 longest-first so that a definition is dropped only when it overlaps one that was actually kept.
 Definitions of equal length are ranked by coordinate, motif and locus id, so one of those can lose
@@ -66,14 +80,31 @@ to a definition that is no longer than it is.
 Neighboring loci that grow onto the same repeat therefore collapse, though a run of definitions
 that overlap only through each other collapses to as many as are needed to cover it, not to one. An
 extended definition is also dropped when an identical definition is already in the output as an
-input locus. When an extended definition is dropped and the original it came from is not being kept,
-the original is put back unless what was kept for its repeat already describes every base it covered,
-so the output never covers less sequence than the input and never repeats a definition it already has.
+input locus. In the two whole-catalog modes, when an extended definition is dropped and the original
+it came from is not being kept, the original is put back unless what was kept for its repeat already
+describes every base it covered, so the output never covers less sequence than the input and never
+repeats a definition it already has.
+
+
+The input catalog can be in BED or JSON format, and the output is written in the same format as the
+input. Every locus must be defined by one interval and one motif: a JSON record that gives a locus
+several adjacent intervals, or a BED row that lists several motifs for one interval, stops the run,
+since which interval each boundary belongs to and the motif phase at each one would have to be
+tracked separately. Split such a catalog first with
+str_analysis.split_adjacent_loci_in_expansion_hunter_catalog.
+
+BED carries only the interval and the motif, so a BED run drops every other field, while a JSON
+run passes all of them through untouched. ReferenceRegion and LocusId are the only fields this tool
+rewrites, so fields computed from the original boundaries, such as NumRepeatsInReference or
+ReferenceRepeatPurity, survive a JSON run while describing the locus as it was before it grew, and
+need recomputing afterwards.
 
 
 Usage:
 
     python3 -m str_analysis.extend_str_catalog_boundaries -R hg38.fa catalog.bed.gz
+    python3 -m str_analysis.extend_str_catalog_boundaries -R hg38.fa catalog.json.gz
+    python3 -m str_analysis.extend_str_catalog_boundaries -R hg38.fa --only-output-extended-loci catalog.bed.gz
 
 """
 
@@ -90,6 +121,7 @@ from tqdm import tqdm
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from str_analysis.utils.eh_catalog_utils import get_variant_catalog_iterator, \
     parse_motifs_from_locus_structure, convert_json_records_to_bed_format_tuples
+from str_analysis.utils.export_json import export_json
 from str_analysis.utils.fasta_utils import normalize_chrom_using_pysam_fasta
 from str_analysis.utils.gap_purity_extension import compute_extension, compute_reference_purity, \
     extend_to_capture_partial_copy, MAX_REPEATS_IN_GAP, MIN_PURITY_OF_NEW_SEQUENCE, \
@@ -103,8 +135,9 @@ def parse_args():
                     "gap-purity rule.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-R", "--reference-fasta", required=True, help="Reference fasta file path.")
-    parser.add_argument("-o", "--output-path", help="Output BED path. Defaults to the input path with "
-                        "'.extended' added before the file extension. Always bgzipped and tabix-indexed.")
+    parser.add_argument("-o", "--output-path", help="Output path. Defaults to the input path with "
+                        "'.extended' added before the file extension, in the same format as the input. "
+                        "A BED output is always bgzipped and tabix-indexed, and a JSON output gzipped.")
     parser.add_argument("--max-repeats-in-gap", type=int, default=MAX_REPEATS_IN_GAP,
                         help="How many consecutive interrupted motif copies may separate the current "
                              "boundary from the next exact copy of the motif. Raising this lets the "
@@ -130,12 +163,20 @@ def parse_args():
                              "one survivor. When an extended definition is dropped and the original is "
                              "not being kept, the original is put back unless what was kept already "
                              "covers it.")
+    parser.add_argument("--only-output-extended-loci", action="store_true",
+                        help="Write only the definitions the rule produced, leaving out every locus "
+                             "from the input catalog. The output is then not a catalog in its own "
+                             "right: it is the set of definitions this rule adds to the one it was "
+                             "given, meant to be appended to that catalog as a separate source of "
+                             "loci. Extended definitions are still dropped when the input already "
+                             "describes the same repeat, so nothing here duplicates the input.")
     parser.add_argument("-n", "--process-n-loci", type=int, help="Only process the first N loci.")
     parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar.")
     parser.add_argument("--verbose", action="store_true", help="Print every accept/reject decision the "
                         "rule makes, with the purity behind it. Intended for looking at a handful of "
                         "loci, not a whole catalog.")
-    parser.add_argument("catalog_bed", help="A catalog of tandem repeats in BED format.")
+    parser.add_argument("catalog_json_or_bed", help="A catalog of tandem repeats in BED or JSON "
+                        "format, with one interval and one motif per locus.")
     args = parser.parse_args()
 
     if not 0 < args.min_purity_of_new_sequence <= 1:
@@ -144,30 +185,48 @@ def parse_args():
     if not 0 <= args.min_reference_purity <= 1:
         parser.error(f"--min-reference-purity must be between 0 and 1, got "
                      f"{args.min_reference_purity}")
+    if args.only_output_extended_loci and args.keep_original_definitions_of_extended_loci:
+        parser.error("--only-output-extended-loci writes none of the input's own definitions, so it "
+                     "cannot be combined with --keep-original-definitions-of-extended-loci, which "
+                     "asks for them to be kept.")
     if args.max_repeats_in_gap < 0:
         parser.error(f"--max-repeats-in-gap cannot be negative, got {args.max_repeats_in_gap}")
     if not os.path.isfile(args.reference_fasta):
         parser.error(f"Reference fasta not found: {args.reference_fasta}")
-    if ".json" in os.path.basename(args.catalog_bed):
-        parser.error(f"This script takes a BED catalog, not JSON: {args.catalog_bed}")
-
     if not args.output_path:
-        args.output_path = compute_output_path(args.catalog_bed)
+        args.output_path = compute_output_path(args.catalog_json_or_bed)
     else:
-        # The output is bgzipped and tabix-indexed, and bgzip always writes <prefix>.gz, so a path
-        # without that suffix, or one ending in .bgz, would name a file that never appears. Fixing it
-        # here keeps every later message pointing at the file that is actually produced.
+        # The output is compressed, and bgzip and gzip both write <prefix>.gz, so a path without that
+        # suffix, or one ending in .bgz, would name a file that never appears. Fixing it here keeps
+        # every later message pointing at the file that is actually produced.
         args.output_path = re.sub(r"\.bgz$", ".gz", args.output_path)
         if not args.output_path.endswith(".gz"):
             args.output_path = f"{args.output_path}.gz"
+        if is_json_path(args.output_path) != is_json_path(args.catalog_json_or_bed):
+            # The format written is taken from the output path, and BED keeps only the interval and
+            # the motif, so a JSON catalog sent to a path that doesn't say .json would quietly lose
+            # every other field.
+            expected_format = "JSON" if is_json_path(args.catalog_json_or_bed) else "BED"
+            parser.error(f"--output-path must name a {expected_format} file, to match the input "
+                         f"catalog: got {args.output_path}")
 
     return args
 
 
-def compute_output_path(catalog_bed):
-    """<input prefix>.extended.bed.gz"""
-    filename_prefix = re.sub(r"\.bed(\.b?gz)?$", "", os.path.basename(catalog_bed))
-    return f"{filename_prefix}.extended.bed.gz"
+def compute_output_path(catalog_json_or_bed):
+    """<input prefix>.extended.json.gz or <input prefix>.extended.bed.gz, matching the input format."""
+    filename = os.path.basename(catalog_json_or_bed)
+    if is_json_path(filename):
+        return re.sub(r"\.json(\.b?gz)?$", "", filename) + ".extended.json.gz"
+
+    return re.sub(r"\.bed(\.b?gz)?$", "", filename) + ".extended.bed.gz"
+
+
+def is_json_path(path):
+    """Whether the path names a JSON catalog rather than a BED one. Matches how
+    get_variant_catalog_iterator decides which parser to use, so input and output stay consistent.
+    """
+    return ".json" in path
 
 
 def catalog_record_key(record):
@@ -197,46 +256,37 @@ def compute_span(record):
     return end_1based - start_0based
 
 
-def rotate_motif(motif, bases_added_on_the_left):
-    """Re-phase the motif onto a left boundary that moved out by the given number of bases.
-
-    The locus's first base is its motif's first base, so moving the left boundary out by a whole
-    number of copies leaves the motif alone, while moving it out by part of a copy starts the locus
-    part-way through the motif and needs the motif rotated to match.
-    """
-    rotation = (-bases_added_on_the_left) % len(motif)
-    return motif[rotation:] + motif[:rotation]
-
-
-def polish_extended_locus(fasta_obj, chrom, start_0based, end_1based, motif, core_length):
-    """Grow an extended locus over the partial motif copies its boundaries stopped short of.
+def polish_right_boundary(fasta_obj, chrom, start_0based, end_1based, motif):
+    """Grow an extended locus over the partial motif copy its right boundary stopped short of.
 
     Args:
         fasta_obj (pysam.FastaFile): the reference genome.
         chrom (str): chromosome name, already matching the reference's naming.
         start_0based (int): the extended locus start.
         end_1based (int): the extended locus end.
-        motif (str): the locus motif, in the phase it had before the extension.
-        core_length (int): length of the locus before it was extended, which fixes the motif phase.
-            The gap-purity rule moves each boundary by whole copies, so this still gives the right
-            phase at the extended boundaries.
+        motif (str): the locus motif.
 
     Return:
-        tuple: (start_0based, end_1based, motif) of the polished locus.
+        int: the polished end_1based.
     """
-    left_flank = fasta_obj.fetch(chrom, max(0, start_0based - len(motif) + 1), start_0based)[::-1]
     right_flank = fasta_obj.fetch(
         chrom, end_1based, min(fasta_obj.get_reference_length(chrom), end_1based + len(motif) - 1))
-    bases_added_on_the_left = extend_to_capture_partial_copy(left_flank, motif, core_length, "left")
-    bases_added_on_the_right = extend_to_capture_partial_copy(right_flank, motif, core_length, "right")
 
-    return (start_0based - bases_added_on_the_left,
-            end_1based + bases_added_on_the_right,
-            rotate_motif(motif, bases_added_on_the_left))
+    # The locus starts on the motif's first base, both before and after the extension, so its own
+    # length is the phase the flank continues from.
+    return end_1based + extend_to_capture_partial_copy(right_flank, motif, end_1based - start_0based)
 
 
 def extend_catalog_record(record, fasta_obj, args, counters):
     """Return an extended copy of the record, or None if the rule declines to move either boundary."""
+    if isinstance(record["ReferenceRegion"], list):
+        # A JSON catalog can define one locus as several adjacent intervals. Which interval each
+        # boundary belongs to, and the motif phase at each one, would have to be tracked separately,
+        # so stop now rather than mangle the definition.
+        raise ValueError(f"This script handles one interval per locus, but {record['LocusId']} has "
+                         f"{len(record['ReferenceRegion'])}. Split it into one record per interval "
+                         f"with str_analysis.split_adjacent_loci_in_expansion_hunter_catalog.")
+
     motifs = parse_motifs_from_locus_structure(record["LocusStructure"])
     if len(motifs) != 1:
         # A TRGT-format BED row can define several motifs sharing one interval. Where each motif starts
@@ -245,6 +295,17 @@ def extend_catalog_record(record, fasta_obj, args, counters):
         # Stop now rather than after processing the whole catalog.
         raise ValueError(f"This script handles one motif per locus, but {record['LocusId']} has "
                          f"{len(motifs)} ({record['LocusStructure']}). Split it into one row per motif.")
+
+    if set(motifs[0]) - set("ACGT"):
+        # An IUPAC code stands for a set of bases, so it matches more of the flanking sequence than a
+        # concrete motif would, and the rule would read that as the repeat continuing. GCN, for
+        # instance, matches any GC followed by anything at all. Where the motif is written this
+        # loosely its boundaries are not something this rule can place, so the locus is left alone.
+        counters["loci not considered because the motif contains IUPAC codes"] += 1
+        if args.verbose:
+            print(f"{record['LocusId']}: motif {motifs[0]} contains IUPAC codes "
+                  f"-- leave this locus alone")
+        return None
 
     chrom, start_0based, end_1based = parse_interval(record["ReferenceRegion"])
     normalized_chrom = normalize_chrom_using_pysam_fasta(fasta_obj, chrom)
@@ -274,15 +335,12 @@ def extend_catalog_record(record, fasta_obj, args, counters):
     if left_extension == 0 and right_extension == 0:
         return None
 
-    polished_start, polished_end, polished_motif = polish_extended_locus(
-        fasta_obj, normalized_chrom, start_0based - left_extension, end_1based + right_extension,
-        motifs[0], end_1based - start_0based)
-    if polished_motif != motifs[0]:
-        counters["extended definitions whose motif was re-phased onto the new left boundary"] += 1
+    extended_start = start_0based - left_extension
+    extended_end = polish_right_boundary(fasta_obj, normalized_chrom, extended_start,
+                                         end_1based + right_extension, motifs[0])
 
     extended_record = dict(record)
-    extended_record["ReferenceRegion"] = f"{chrom}:{polished_start}-{polished_end}"
-    extended_record["LocusStructure"] = f"({polished_motif})*"
+    extended_record["ReferenceRegion"] = f"{chrom}:{extended_start}-{extended_end}"
     return extended_record
 
 
@@ -422,7 +480,8 @@ def discard_extensions_outdone_by_the_input(records_and_extensions, counters):
             for index, (record, extended) in enumerate(records_and_extensions)]
 
 
-def build_output_records(records_and_extensions, keep_original_definitions, counters):
+def build_output_records(records_and_extensions, keep_original_definitions, counters,
+                         only_extended_definitions=False):
     """Assemble the output catalog from each input record paired with its extended form or None.
 
     Args:
@@ -430,18 +489,22 @@ def build_output_records(records_and_extensions, keep_original_definitions, coun
         keep_original_definitions (bool): keep the original definition of a locus that was extended,
             in addition to its extended definition, rather than replacing it.
         counters (collections.Counter): updated with what was added and skipped.
+        only_extended_definitions (bool): write only the definitions the rule produced, leaving out
+            every input locus. The result is not a catalog in its own right, it is the set of
+            definitions this rule adds to the one it was given.
 
     Return:
         list: the output catalog records.
     """
-    # Which definitions survive as themselves. An extended definition that matches one of these would
-    # be a duplicate of a locus already in the output, so it is not added. This has to be computed over
-    # the whole catalog up front, because the locus it collides with may come later in the file.
-    kept_original_keys = {catalog_record_key(record)
-                          for record, extended in records_and_extensions
-                          if extended is None or keep_original_definitions}
-    taken_locus_ids = {record["LocusId"] for record, extended in records_and_extensions
-                       if extended is None or keep_original_definitions}
+    # Which of the input's own definitions are still around for an extended definition to collide
+    # with. An extended definition that matches one of these would be a duplicate, so it is not added.
+    # This has to be computed over the whole catalog up front, because the locus it collides with may
+    # come later in the file. With only_extended_definitions none of them are written here, but the
+    # output is meant to be appended to the catalog it came from, where all of them remain.
+    surviving_records = [record for record, extended in records_and_extensions
+                         if only_extended_definitions or extended is None or keep_original_definitions]
+    kept_original_keys = {catalog_record_key(record) for record in surviving_records}
+    taken_locus_ids = {record["LocusId"] for record in surviving_records}
 
     # Deciding this needs every extended definition in hand, since the one that displaces a given
     # definition can come from anywhere in the catalog.
@@ -454,7 +517,7 @@ def build_output_records(records_and_extensions, keep_original_definitions, coun
 
     output_records = []
     for record, extended in records_and_extensions:
-        if extended is None or keep_original_definitions:
+        if not only_extended_definitions and (extended is None or keep_original_definitions):
             output_records.append(record)
 
         if extended is None:
@@ -465,8 +528,8 @@ def build_output_records(records_and_extensions, keep_original_definitions, coun
             continue
         if id(extended) not in kept_candidates:
             counters["extended definitions dropped in favor of an overlapping extended definition that was kept"] += 1
-            if not keep_original_definitions and not is_covered_by_kept_definitions(
-                    record, kept_intervals_per_group):
+            if not only_extended_definitions and not keep_original_definitions \
+                    and not is_covered_by_kept_definitions(record, kept_intervals_per_group):
                 # The definitions that displaced this one only have to overlap it, so they don't
                 # always reach over everything this locus covered. Put the locus back when they
                 # don't, rather than let the catalog lose sequence it used to describe. Asking the
@@ -477,36 +540,67 @@ def build_output_records(records_and_extensions, keep_original_definitions, coun
             continue
 
         counters["extended definitions added to the output"] += 1
-        if keep_original_definitions:
-            # The original keeps its own id and stays in the output, so the extended definition needs a
-            # different one. When the original is being replaced its id is free and the extended
-            # definition inherits it. Ids only matter to callers working with these records: the BED
-            # this script writes has no name column, so none of them reach the output file.
-            extended = dict(extended)
-            extended["LocusId"] = compute_extended_locus_id(extended, taken_locus_ids)
-            taken_locus_ids.add(extended["LocusId"])
+        # An extended definition is always named after the interval it now covers, whatever the
+        # original was called. The original id described the locus before it grew, and the original
+        # may still be in the output holding that id, so the extended definition takes a
+        # chrom-start-end-motif name of its own.
+        extended = dict(extended)
+        extended["LocusId"] = compute_extended_locus_id(extended, taken_locus_ids)
+        taken_locus_ids.add(extended["LocusId"])
         output_records.append(extended)
 
     return output_records
 
 
+def sort_catalog_records(output_records):
+    """Order the catalog the way its consumers require: each chromosome contiguous, keeping the order
+    the chromosomes arrived in, and non-decreasing coordinates within each one.
+
+    Sorting is not cosmetic here. An extension can move a locus's left boundary, so an extended
+    definition can start before the locus it grew from, and appending it after that locus leaves the
+    catalog locally out of order. str_analysis.utils.eh_catalog_utils.group_overlapping_loci, which
+    the annotation steps downstream run on this output, raises on the first pair of records whose
+    coordinates decrease.
+    """
+    chrom_order = {}
+    for record in output_records:
+        chrom, _, _ = parse_interval(record["ReferenceRegion"])
+        if chrom not in chrom_order:
+            chrom_order[chrom] = len(chrom_order)
+
+    def sort_key(record):
+        chrom, start_0based, end_1based = parse_interval(record["ReferenceRegion"])
+        return (chrom_order[chrom], start_0based, end_1based, record["LocusStructure"],
+                record["LocusId"])
+
+    return sorted(output_records, key=sort_key)
+
+
 def write_output_catalog(output_records, output_path):
-    """Write the BED rows, then bgzip and tabix them."""
+    """Write the catalog, as gzipped JSON that keeps every field, or as bgzipped and tabixed BED rows
+    that keep only the interval and the motif.
+    """
+    if is_json_path(output_path):
+        export_json(sort_catalog_records(output_records), output_path)
+        return
+
     uncompressed_path = re.sub(r"\.b?gz$", "", output_path)
     print(f"Writing {output_path}")
     with open(uncompressed_path, "wt") as output_bed:
         for bed_record in sorted(convert_json_records_to_bed_format_tuples(output_records)):
             output_bed.write("\t".join(map(str, bed_record)) + "\n")
-    os.system(f"bgzip -f {uncompressed_path}")
-    os.system(f"tabix -f -p bed {uncompressed_path}.gz")
+    if os.system(f"bgzip -f {uncompressed_path}") != 0:
+        raise RuntimeError(f"bgzip failed for {uncompressed_path}")
+    if os.system(f"tabix -f -p bed {uncompressed_path}.gz") != 0:
+        raise RuntimeError(f"tabix failed for {uncompressed_path}.gz")
 
 
 def main():
     args = parse_args()
     fasta_obj = pysam.FastaFile(args.reference_fasta)
 
-    print(f"Parsing {args.catalog_bed}")
-    catalog_iterator = get_variant_catalog_iterator(args.catalog_bed)
+    print(f"Parsing {args.catalog_json_or_bed}")
+    catalog_iterator = get_variant_catalog_iterator(args.catalog_json_or_bed)
     if args.show_progress_bar:
         catalog_iterator = tqdm(catalog_iterator, unit=" loci", unit_scale=True)
 
@@ -526,7 +620,8 @@ def main():
 
     records_and_extensions = discard_extensions_outdone_by_the_input(records_and_extensions, counters)
     output_records = build_output_records(
-        records_and_extensions, args.keep_original_definitions_of_extended_loci, counters)
+        records_and_extensions, args.keep_original_definitions_of_extended_loci, counters,
+        only_extended_definitions=args.only_output_extended_loci)
 
     locus_ids = [record["LocusId"] for record in output_records]
     duplicates = [locus_id for locus_id, count in collections.Counter(locus_ids).items() if count > 1]
@@ -539,16 +634,19 @@ def main():
 
     write_output_catalog(output_records, args.output_path)
 
-    # Taken from the finished catalog rather than accumulated per extension, since a locus can also
-    # leave the output when its extension is dropped for an overlapping one, and a figure that only
-    # ever added would report growth the catalog didn't get.
-    base_pairs_added = (sum(compute_span(record) for record in output_records)
-                        - sum(compute_span(record) for record, _ in records_and_extensions))
     print(f"The rule extended {counters['extended']:,d} out of {counters['total']:,d} loci "
           f"({counters['extended'] / max(counters['total'], 1):.1%}). "
-          f"{counters['extended definitions added to the output']:,d} extended definitions reached the "
-          f"output, whose locus definitions now span {base_pairs_added:,d}bp more in total than the "
-          f"input's did")
+          f"{counters['extended definitions added to the output']:,d} extended definitions reached "
+          f"the output")
+    if not args.only_output_extended_loci:
+        # Taken from the finished catalog rather than accumulated per extension, since a locus can
+        # also leave the output when its extension is dropped for an overlapping one, and a figure
+        # that only ever added would report growth the catalog didn't get. It says nothing when the
+        # input's own definitions were left out of the output.
+        base_pairs_added = (sum(compute_span(record) for record in output_records)
+                            - sum(compute_span(record) for record, _ in records_and_extensions))
+        print(f"Locus definitions in the output span {base_pairs_added:,d}bp more in total than the "
+              f"input's did")
     print(f"Wrote {len(output_records):,d} locus definitions to {args.output_path}")
     already_reported = ("total", "extended", "extended definitions added to the output")
     for label, count in counters.items():

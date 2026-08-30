@@ -4,7 +4,7 @@ import unittest
 
 from str_analysis.extend_str_catalog_boundaries import build_output_records, catalog_record_key, \
     compute_output_path, discard_extensions_outdone_by_the_input, extend_catalog_record, \
-    rotate_motif, select_longest_non_overlapping
+    select_longest_non_overlapping, sort_catalog_records
 
 
 class FakeFasta:
@@ -103,7 +103,7 @@ class TestBuildOutputRecords(unittest.TestCase):
         ]
         output = self.build(pairs, keep_originals=False)
         self.assertEqual(definitions(output), [("chr1:100-130", "(CAT)*")])
-        self.assertEqual([r["LocusId"] for r in output], ["a"])
+        self.assertEqual([r["LocusId"] for r in output], ["1-100-130-CAT"])
 
     def test_a_locus_whose_extension_is_dropped_is_put_back_when_it_would_otherwise_be_lost(self):
         # b's extension loses to a's, which is longer, but a's stops at 300 and b covered up to 350
@@ -178,12 +178,12 @@ class TestBuildOutputRecords(unittest.TestCase):
         output = self.build(pairs, keep_originals=True)
         self.assertEqual([r["LocusId"] for r in output], ["some_gene", "1-100-130-CAT"])
 
-    def test_replacing_a_locus_preserves_its_locus_id(self):
-        # the original is gone, so its name is free, and a name like HTT is worth more than a
-        # coordinate string
+    def test_replacing_a_locus_still_renames_it_after_the_new_interval(self):
+        # the original name is free once the original is gone, but it described the locus before it
+        # grew, so the extended definition is named after what it now covers instead
         pairs = [(record("HTT", "chr1:100-110"), record("HTT", "chr1:100-130"))]
         output = self.build(pairs, keep_originals=False)
-        self.assertEqual([r["LocusId"] for r in output], ["HTT"])
+        self.assertEqual([r["LocusId"] for r in output], ["1-100-130-CAT"])
         self.assertEqual(definitions(output), [("chr1:100-130", "(CAT)*")])
 
     def test_output_locus_ids_stay_unique_when_a_generated_name_is_already_taken(self):
@@ -218,37 +218,48 @@ class TestExtendCatalogRecord(unittest.TestCase):
         self.assertEqual(extended["ReferenceRegion"], "chr1:100-130")
 
     def test_every_other_field_is_passed_through_unmodified(self):
-        # ReferenceRegion and LocusStructure are the only fields this tool rewrites: optional fields,
+        # ReferenceRegion is the only field extend_catalog_record rewrites: optional fields,
         # annotations included, are the caller's to refresh, and inventing policy for them here would
-        # surprise more than help. Nothing is re-phased here, so LocusStructure comes back unchanged.
+        # surprise more than help. The motif is never re-phased, so LocusStructure is passed through
+        # like everything else, "+" quantifier and all.
         input_record = record("a", "chr1:100-121")
         input_record.update({"VariantId": "a", "MainReferenceRegion": "chr1:100-121",
-                             "NumRepeatsInReference": 7, "ReferenceRepeatPurity": 1.0,
+                             "LocusStructure": "(CAT)+", "NumRepeatsInReference": 7,
+                             "ReferenceRepeatPurity": 1.0,
                              "Diseases": [{"Name": "Example", "NormalMax": 20}], "Gene": "SOME_GENE"})
         extended = extend_catalog_record(input_record, self.fasta, self.args, self.counters)
         self.assertEqual(extended["ReferenceRegion"], "chr1:100-130")
         for field, value in input_record.items():
-            if field not in ("ReferenceRegion", "LocusStructure"):
+            if field != "ReferenceRegion":
                 self.assertEqual(extended[field], value, f"{field} should have been passed through")
 
     def test_a_locus_the_rule_declines_to_extend_returns_none(self):
         self.assertIsNone(extend_catalog_record(record("a", "chr1:10-20"), self.fasta, self.args,
                                                 self.counters))
 
-    def test_an_extended_locus_is_polished_over_the_partial_copies_at_its_new_boundaries(self):
-        # 10 CAT copies at 101-131, one leftover "T" before them and a leftover "CA" after, so the
-        # extension itself stops at 101-131 and the polish widens it to the whole run
+    def test_an_extended_locus_is_polished_over_the_partial_copy_at_its_new_right_boundary(self):
+        # 10 CAT copies at 101-131 with a leftover "CA" after them, so the extension itself stops at
+        # 131 and the polish widens it over the "CA"
         fasta = FakeFasta("G" * 100 + "T" + "CAT" * 10 + "CA" + "G" * 100)
         extended = extend_catalog_record(record("a", "chr1:101-122"), fasta, self.args, self.counters)
-        self.assertEqual(extended["ReferenceRegion"], "chr1:100-133")
-        # the locus now starts on the T, so it is a TCA repeat rather than a CAT one
-        self.assertEqual(extended["LocusStructure"], "(TCA)*")
+        self.assertEqual(extended["ReferenceRegion"], "chr1:101-133")
+        # the "T" at 100 continues the repeat too, but taking it would start the locus part-way
+        # through the motif and make it a TCA locus, so the left boundary stops short of it
+        self.assertEqual(extended["LocusStructure"], "(CAT)*")
+
+    def test_the_left_boundary_moves_only_by_whole_copies_so_the_motif_keeps_its_frame(self):
+        # EP400's shape: 10 CAT copies at 101-131, preceded by the "T" that ends the copy before
+        # them. The locus grows left over the 3 whole copies it is short of and stops at 101.
+        fasta = FakeFasta("G" * 100 + "T" + "CAT" * 10 + "G" * 100)
+        extended = extend_catalog_record(record("a", "chr1:110-131"), fasta, self.args, self.counters)
+        self.assertEqual(extended["ReferenceRegion"], "chr1:101-131")
+        self.assertEqual(extended["LocusStructure"], "(CAT)*")
 
     def test_a_locus_the_rule_declines_to_extend_is_left_alone_even_next_to_a_partial_copy(self):
-        # the "T" just left of this locus does continue the repeat, but polishing is only for loci
+        # the "CA" just right of this locus does continue the repeat, but polishing is only for loci
         # the rule actually extended, and nothing here reaches far enough to be extended
-        fasta = FakeFasta("G" * 100 + "T" + "CAT" * 3 + "G" * 100)
-        self.assertIsNone(extend_catalog_record(record("a", "chr1:101-110"), fasta, self.args,
+        fasta = FakeFasta("G" * 100 + "CAT" * 3 + "CA" + "G" * 100)
+        self.assertIsNone(extend_catalog_record(record("a", "chr1:100-109"), fasta, self.args,
                                                 self.counters))
 
     def test_a_locus_that_is_a_poor_match_for_its_own_motif_is_left_alone(self):
@@ -416,28 +427,154 @@ class TestSelectLongestNonOverlapping(unittest.TestCase):
                           ("chr2", "ATC"): ([100], [200])})
 
 
-class TestRotateMotif(unittest.TestCase):
+class TestIupacMotifsAreNotExtended(unittest.TestCase):
+    """A motif written with IUPAC codes matches more sequence than a concrete one, so the rule that
+    reads the flank for more copies of the motif cannot be trusted on it.
+    """
 
-    def test_a_boundary_that_did_not_move_leaves_the_motif_alone(self):
-        self.assertEqual(rotate_motif("CAG", 0), "CAG")
+    def setUp(self):
+        self.counters = collections.Counter()
+        self.args = argparse.Namespace(
+            max_repeats_in_gap=2, min_purity_of_new_sequence=0.9, min_reference_purity=0.9,
+            verbose=False)
 
-    def test_the_motif_starts_at_whichever_base_the_new_boundary_landed_on(self):
-        # picking up the "G" that ends the copy before the locus makes it a GCA locus
-        self.assertEqual(rotate_motif("CAG", 1), "GCA")
-        self.assertEqual(rotate_motif("CAG", 2), "AGC")
+    def extend(self, motif, sequence):
+        return extend_catalog_record(
+            record("locus", "chr1:0-6", motif=motif), FakeFasta(sequence), self.args, self.counters)
 
-    def test_whole_copies_leave_the_motif_alone(self):
-        self.assertEqual(rotate_motif("CAG", 3), "CAG")
-        self.assertEqual(rotate_motif("CAG", 4), "GCA")
+    def test_a_gcn_motif_is_left_alone(self):
+        # GCAGCA followed by more of the same: a concrete GCA motif extends here
+        self.assertIsNone(self.extend("GCN", "GCAGCAGCAGCA"))
+        self.assertEqual(self.counters["loci not considered because the motif contains IUPAC codes"], 1)
+
+    def test_the_same_locus_with_a_concrete_motif_is_extended(self):
+        extended = self.extend("GCA", "GCAGCAGCAGCA")
+        self.assertIsNotNone(extended)
+        self.assertEqual(self.counters["loci not considered because the motif contains IUPAC codes"], 0)
+
+    def test_other_iupac_codes_are_caught_too(self):
+        for motif in ("AARRG", "CWG", "NNN"):
+            self.assertIsNone(self.extend(motif, "AAAAGAAAAGAAAAG"))
+
+
+class TestOnlyExtendedDefinitions(unittest.TestCase):
+    """--only-output-extended-loci turns the output into the set of definitions the rule adds to the
+    input catalog, for use as a separate source of loci appended to that catalog.
+    """
+
+    def setUp(self):
+        self.counters = collections.Counter()
+
+    def build(self, pairs):
+        return build_output_records(pairs, False, self.counters, only_extended_definitions=True)
+
+    def test_only_the_extended_definitions_are_written(self):
+        pairs = [(record("a", "chr1:100-110"), record("a", "chr1:100-130")),
+                 (record("b", "chr1:500-510"), None)]
+        output = self.build(pairs)
+        self.assertEqual(definitions(output), [("chr1:100-130", "(CAT)*")])
+
+    def test_an_unextended_catalog_produces_nothing(self):
+        pairs = [(record("a", "chr1:100-110"), None), (record("b", "chr1:500-510"), None)]
+        self.assertEqual(self.build(pairs), [])
+
+    def test_a_definition_the_input_already_has_is_still_dropped(self):
+        # nothing here may duplicate the catalog this output gets appended to
+        pairs = [(record("a", "chr1:100-110"), record("a", "chr1:100-130")),
+                 (record("b", "chr1:100-130"), None)]
+        self.assertEqual(self.build(pairs), [])
+
+    def test_a_displaced_locus_is_not_put_back(self):
+        # in whole-catalog mode 'b' would come back so the catalog keeps covering 300-350; here the
+        # input catalog still holds it, so putting it back would duplicate a locus that never left
+        pairs = [(record("a", "chr1:100-110"), record("a", "chr1:100-300")),
+                 (record("b", "chr1:320-350"), record("b", "chr1:150-350"))]
+        output = self.build(pairs)
+        self.assertEqual([r["LocusId"] for r in output], ["1-100-300-CAT"])
+
+    def test_a_definition_matching_the_original_of_an_extended_locus_is_dropped(self):
+        # 'p' is extended, so in whole-catalog mode its own definition would be gone and something
+        # else growing onto it would be worth writing. Here 'p' stays in the input catalog, so 's'
+        # growing into exactly 'p' has nothing to add. 'p' is dropped in favor of 'r' first, which is
+        # what leaves 's' as the definition that would otherwise be written.
+        pairs = [(record("p", "chr1:200-230"), record("p", "chr1:200-330")),
+                 (record("s", "chr1:210-224"), record("s", "chr1:200-230")),
+                 (record("r", "chr1:310-360"), record("r", "chr1:300-500"))]
+        output = self.build(pairs)
+        self.assertEqual(definitions(output), [("chr1:300-500", "(CAT)*")])
+
+
+class TestSortCatalogRecords(unittest.TestCase):
+    """The JSON output feeds group_overlapping_loci downstream, which raises on any pair of records
+    whose coordinates decrease, so the catalog has to leave here in order.
+    """
+
+    def test_a_left_extension_is_placed_before_the_locus_it_grew_from(self):
+        # what build_output_records emits with keep_originals: the original, then its extension,
+        # which starts 24bp earlier, a whole number of motif copies
+        records = [record("orig", "chr12:132062548-132062611"),
+                   record("ext", "chr12:132062524-132062611")]
+        self.assertEqual([r["ReferenceRegion"] for r in sort_catalog_records(records)],
+                         ["chr12:132062524-132062611", "chr12:132062548-132062611"])
+
+    def test_chromosomes_stay_contiguous_and_keep_the_order_they_arrived_in(self):
+        records = [record("a", "chr10:500-510"), record("b", "chr2:100-110"),
+                   record("c", "chr10:100-110")]
+        self.assertEqual([r["ReferenceRegion"] for r in sort_catalog_records(records)],
+                         ["chr10:100-110", "chr10:500-510", "chr2:100-110"])
+
+    def test_records_at_the_same_interval_are_ordered_deterministically(self):
+        records = [record("b", "chr1:100-110", motif="CAT"), record("a", "chr1:100-110", motif="CAT")]
+        self.assertEqual([r["LocusId"] for r in sort_catalog_records(records)], ["a", "b"])
+        # sorting the reversed input gives the same answer
+        self.assertEqual([r["LocusId"] for r in sort_catalog_records(records[::-1])], ["a", "b"])
 
 
 class TestOutputPath(unittest.TestCase):
 
-    def test_output_path_is_always_a_bgzipped_bed(self):
+    def test_a_bed_input_gives_a_bgzipped_bed(self):
         self.assertEqual(compute_output_path("catalog.bed"), "catalog.extended.bed.gz")
         self.assertEqual(compute_output_path("catalog.bed.gz"), "catalog.extended.bed.gz")
         self.assertEqual(compute_output_path("dir/catalog.bed.gz"), "catalog.extended.bed.gz")
         self.assertEqual(compute_output_path("my.catalog.v2.bed.bgz"), "my.catalog.v2.extended.bed.gz")
+
+    def test_a_json_input_gives_a_gzipped_json(self):
+        self.assertEqual(compute_output_path("catalog.json"), "catalog.extended.json.gz")
+        self.assertEqual(compute_output_path("catalog.json.gz"), "catalog.extended.json.gz")
+        self.assertEqual(compute_output_path("dir/catalog.json.gz"), "catalog.extended.json.gz")
+        self.assertEqual(compute_output_path("my.catalog.v2.json.bgz"), "my.catalog.v2.extended.json.gz")
+
+
+class TestExtendedLocusIds(unittest.TestCase):
+    """Which extended definitions get renamed, now that a JSON output puts locus ids in the file."""
+
+    def setUp(self):
+        self.counters = collections.Counter()
+
+    def build(self, pairs, keep_originals):
+        return build_output_records(pairs, keep_originals, self.counters)
+
+    def test_an_extended_definition_is_named_after_its_new_interval(self):
+        for keep_originals in (False, True):
+            pairs = [(record("1-100-110-CAT", "chr1:100-110"), record("1-100-110-CAT", "chr1:100-130"))]
+            output = build_output_records(pairs, keep_originals, collections.Counter())
+            self.assertEqual([r["LocusId"] for r in output][-1], "1-100-130-CAT")
+
+    def test_a_name_is_replaced_by_coordinates_too(self):
+        for keep_originals in (False, True):
+            pairs = [(record("HTT", "chr1:100-110"), record("HTT", "chr1:100-130"))]
+            output = build_output_records(pairs, keep_originals, collections.Counter())
+            self.assertEqual([r["LocusId"] for r in output][-1], "1-100-130-CAT")
+
+    def test_keeping_the_original_leaves_its_own_id_alone(self):
+        pairs = [(record("HTT", "chr1:100-110"), record("HTT", "chr1:100-130"))]
+        output = self.build(pairs, keep_originals=True)
+        self.assertEqual([r["LocusId"] for r in output], ["HTT", "1-100-130-CAT"])
+
+    def test_an_unextended_locus_keeps_its_id(self):
+        pairs = [(record("1-100-110-CAT", "chr1:100-110"), None), (record("HTT", "chr1:200-210"), None)]
+        output = self.build(pairs, keep_originals=False)
+        self.assertEqual([r["LocusId"] for r in output], ["1-100-110-CAT", "HTT"])
 
 
 if __name__ == "__main__":
