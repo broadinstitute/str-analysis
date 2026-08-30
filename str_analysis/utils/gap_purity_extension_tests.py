@@ -99,48 +99,44 @@ class TestReferencePurity(unittest.TestCase):
 
 
 class TestCaptureOfPartialCopies(unittest.TestCase):
+    """Only the right boundary picks up a partial copy: taking one on the left would move the locus's
+    first base off the motif's first base, changing the frame the locus is read in.
+    """
 
     def test_bases_that_continue_the_tiling_are_taken(self):
         # a core of 9bp ends on a copy boundary, so the flank has to resume with "CA" to be taken
-        self.assertEqual(extend_to_capture_partial_copy("CAGGGG", "CAT", 9, "right"), 2)
-        self.assertEqual(extend_to_capture_partial_copy("CGGGGG", "CAT", 9, "right"), 1)
-        self.assertEqual(extend_to_capture_partial_copy("GGGGGG", "CAT", 9, "right"), 0)
+        self.assertEqual(extend_to_capture_partial_copy("CAGGGG", "CAT", 9), 2)
+        self.assertEqual(extend_to_capture_partial_copy("CGGGGG", "CAT", 9), 1)
+        self.assertEqual(extend_to_capture_partial_copy("GGGGGG", "CAT", 9), 0)
 
     def test_a_whole_copy_is_never_taken(self):
         # a full exact copy is the gap-purity rule's to take, so this stops one base short of one
-        self.assertEqual(extend_to_capture_partial_copy("CATCATCAT", "CAT", 9, "right"), 2)
+        self.assertEqual(extend_to_capture_partial_copy("CATCATCAT", "CAT", 9), 2)
 
     def test_a_single_base_motif_has_no_partial_copy_to_capture(self):
-        self.assertEqual(extend_to_capture_partial_copy("AAAA", "A", 9, "right"), 0)
+        self.assertEqual(extend_to_capture_partial_copy("AAAA", "A", 9), 0)
 
     def test_phase_depends_on_the_core_length(self):
         # a core of 10bp ends one base into a copy, so the flank resumes at the motif's 2nd base
-        self.assertEqual(extend_to_capture_partial_copy("ATGGG", "CAT", 10, "right"), 2)
-        self.assertEqual(extend_to_capture_partial_copy("CAGGG", "CAT", 10, "right"), 0)
-
-    def test_left_flank_is_read_outward_from_the_boundary(self):
-        # genomic sequence ...GGAT|core: the boundary-adjacent bases finish a copy as "AT", so the
-        # caller passes them reversed and 2 bases are taken
-        self.assertEqual(extend_to_capture_partial_copy("GGAT"[::-1], "CAT", 9, "left"), 2)
-        self.assertEqual(extend_to_capture_partial_copy("GGGT"[::-1], "CAT", 9, "left"), 1)
-        self.assertEqual(extend_to_capture_partial_copy("GGGG"[::-1], "CAT", 9, "left"), 0)
+        self.assertEqual(extend_to_capture_partial_copy("ATGGG", "CAT", 10), 2)
+        self.assertEqual(extend_to_capture_partial_copy("CAGGG", "CAT", 10), 0)
 
     def test_a_flank_shorter_than_the_motif_is_handled(self):
-        self.assertEqual(extend_to_capture_partial_copy("", "CAT", 9, "right"), 0)
-        self.assertEqual(extend_to_capture_partial_copy("C", "CAT", 9, "right"), 1)
+        self.assertEqual(extend_to_capture_partial_copy("", "CAT", 9), 0)
+        self.assertEqual(extend_to_capture_partial_copy("C", "CAT", 9), 1)
 
     def test_a_degenerate_motif_position_stops_the_capture(self):
         # a position that matches any base would pull a base into the locus on no evidence, so the
-        # walk stops before one. GCN's left flank resumes on the N, whatever the flank reads
-        self.assertEqual(extend_to_capture_partial_copy("TTTT"[::-1], "GCN", 9, "left"), 0)
-        self.assertEqual(extend_to_capture_partial_copy("GCCG"[::-1], "GCN", 9, "left"), 0)
-        # GNC's right flank resumes on the literal G and reaches the N one base later
-        self.assertEqual(extend_to_capture_partial_copy("GTTT", "GNC", 9, "right"), 1)
-        self.assertEqual(extend_to_capture_partial_copy("TTTT", "GNC", 9, "right"), 0)
+        # walk stops before one. GNC's flank resumes on the literal G and reaches the N one base later
+        self.assertEqual(extend_to_capture_partial_copy("GTTT", "GNC", 9), 1)
+        self.assertEqual(extend_to_capture_partial_copy("TTTT", "GNC", 9), 0)
+        # NGC's flank resumes on the N, whatever the flank reads
+        self.assertEqual(extend_to_capture_partial_copy("TTTT", "NGC", 9), 0)
+        self.assertEqual(extend_to_capture_partial_copy("AGCT", "NGC", 9), 0)
 
     def test_literal_positions_of_a_motif_with_iupac_codes_are_still_matched(self):
-        self.assertEqual(extend_to_capture_partial_copy("GTGGG", "GCN", 9, "right"), 1)
-        self.assertEqual(extend_to_capture_partial_copy("GCGGG", "GCN", 9, "right"), 2)
+        self.assertEqual(extend_to_capture_partial_copy("GTGGG", "GCN", 9), 1)
+        self.assertEqual(extend_to_capture_partial_copy("GCGGG", "GCN", 9), 2)
 
 
 if __name__ == "__main__":

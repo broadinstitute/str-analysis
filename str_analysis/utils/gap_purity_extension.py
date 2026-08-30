@@ -4,6 +4,10 @@ The rule tolerates a short run of imperfect motif copies in the flank rather tha
 immediate exact match, as long as the whole newly added stretch of sequence stays highly pure. See
 extend_str_catalog_boundaries.py for the pseudocode and the reasoning behind it.
 
+Motifs written with IUPAC ambiguity codes are handled throughout, a code matching any base it stands
+for. extend_str_catalog_boundaries.py, this module's one caller in this repo, screens those motifs
+out before it calls in, so that handling is here for other callers rather than for it.
+
 Convention used throughout: the annotated repeat region is assumed to be phase-aligned such that
 core_seq[0] == motif[0]. This matches how ExpansionHunter anchors reference-repeat purity in
 RepeatPurity.cpp, which performs no rotation search. The motif phase at any position relative to the
@@ -185,20 +189,22 @@ def extend_by_gap_purity(flank_seq, motif, core_length, side,
         accepted = run_end
 
 
-def extend_to_capture_partial_copy(flank_seq, motif, core_length, side):
-    """Return how many of the flank's boundary-adjacent bases continue the motif's tiling exactly.
+def extend_to_capture_partial_copy(flank_seq, motif, core_length):
+    """Return how many of the right flank's boundary-adjacent bases continue the motif's tiling exactly.
 
     The gap-purity rule only ever moves a boundary by whole motif copies, so it can leave a run of
     bases that do continue the repeat, but are fewer than one copy, sitting just outside the locus.
-    The EP400 locus is an example: its boundary lands one base short of the 'G' that starts the next
-    copy. This picks those bases up.
+    This picks those bases up.
+
+    Only the right boundary is grown this way. Taking a partial copy on the left would move the
+    locus's first base off the motif's first base, so the locus would then be read in a different
+    frame than the motif it is annotated with describes.
 
     Args:
-        flank_seq (str): flank sequence starting at the boundary, in forward genomic order for
-            'right', and reversed (boundary-adjacent base first) for 'left'.
+        flank_seq (str): the flank sequence starting at the locus's right boundary, in forward
+            genomic order.
         motif (str): the locus motif, which may contain IUPAC ambiguity codes.
         core_length (int): length of the repeat region whose phase the flank continues.
-        side (str): 'left' or 'right'.
 
     Return:
         int: how many bases to add, between 0 and len(motif) - 1.
@@ -213,7 +219,7 @@ def extend_to_capture_partial_copy(flank_seq, motif, core_length, side):
     # An IUPAC code matches whatever base happens to sit under it. That is what keeps a real copy of
     # an RFC1 or RUNX2-style motif from being scored as a mismatch at every degenerate position, but
     # here it would pull a base into the locus on no evidence at all, so the walk stops before one.
-    phases = _flank_phases(core_length, len(motif), side, max_offset)
+    phases = _flank_phases(core_length, len(motif), "right", max_offset)
     for offset, phase in enumerate(phases):
         if motif[phase] not in "ACGT":
             max_offset = offset
@@ -221,7 +227,7 @@ def extend_to_capture_partial_copy(flank_seq, motif, core_length, side):
     if max_offset == 0:
         return 0
 
-    mismatched = cumulative_mismatched_bases(flank_seq[:max_offset], motif, core_length, side)
+    mismatched = cumulative_mismatched_bases(flank_seq[:max_offset], motif, core_length, "right")
     # mismatched is cumulative, so its first non-zero entry is the first base that doesn't match, and
     # its index is the number of matching bases before it.
     first_mismatch = np.flatnonzero(mismatched)
