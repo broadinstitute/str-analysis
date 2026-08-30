@@ -1,4 +1,10 @@
-"""This script converts an ExpansionHunter variant catalog to a BED file."""
+"""This script converts an ExpansionHunter variant catalog to a BED file.
+
+The 5th column is a placeholder '.' by default. --motif-size-column puts the motif's length there
+instead, which is the 5-column layout ATaRVa (https://github.com/SowpatiLab/ATaRVa) expects of its
+--regions file: chromosome, start, end, motif, motif length. ATaRVa reads one motif per row, so
+combine that option with --split-adjacent-repeats.
+"""
 
 import argparse
 import gzip
@@ -15,6 +21,10 @@ def main():
     p.add_argument("-s", "--split-adjacent-repeats", action="store_true", help="If a locus is defined "
                    "as having several adjacent repeats in the ExpansionHunter catalog, split it into separate "
                    "BED file rows. Otherwise, the entire locus will be represented as a single BED file row.")
+    p.add_argument("--motif-size-column", action="store_true", help="Write the motif's length in the "
+                   "5th column rather than a '.' placeholder. This is the layout ATaRVa expects of its "
+                   "--regions file. Use together with --split-adjacent-repeats, since a row covering "
+                   "several adjacent repeats has no single motif length to report.")
     p.add_argument("-o", "--output-file", help="BED file output path")
     p.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     p.add_argument("expansion_hunter_catalog", help="ExpansionHunter variant catalog in JSON format")
@@ -24,10 +34,12 @@ def main():
         args.output_file = re.sub(".json(.gz)?$", "", args.expansion_hunter_catalog) + ".bed.gz"
 
     process_expansion_hunter_catalog(args.expansion_hunter_catalog, args.output_file, args.split_adjacent_repeats,
-                                     show_progress_bar=args.show_progress_bar)
+                                     show_progress_bar=args.show_progress_bar,
+                                     motif_size_column=args.motif_size_column)
 
 
-def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_path, split_adjacent_repeats=False, show_progress_bar=False):
+def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_path, split_adjacent_repeats=False,
+                                     show_progress_bar=False, motif_size_column=False):
     print(f"Parsing {expansion_hunter_catalog_path}")
     fopen = gzip.open if expansion_hunter_catalog_path.endswith("gz") else open
     with fopen(expansion_hunter_catalog_path, "rt") as f:
@@ -85,7 +97,7 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
                             start_0based,
                             end_1based,
                             motif,
-                            ".",
+                            len(motif) if motif_size_column else ".",
                         ])
                 else:
                     motif_string = ",".join(motifs)
@@ -95,6 +107,8 @@ def process_expansion_hunter_catalog(expansion_hunter_catalog_path, output_file_
                         locus_start_0based,
                         locus_end_1based,
                         motif_string,
+                        # A row spanning adjacent repeats has no single motif length, so the
+                        # placeholder stands even when a motif size column was asked for.
                         ".",
                     ])
 
