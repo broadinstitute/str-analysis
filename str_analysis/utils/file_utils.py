@@ -1,6 +1,7 @@
 import logging
 logging.getLogger('asyncio').setLevel(logging.CRITICAL)
 
+import atexit
 import gzip
 import hashlib
 import io
@@ -213,3 +214,74 @@ def get_byte_range_from_google_storage(google_storage_path, start_bytes, end_byt
         raise ValueError(f"{google_storage_path} not found")
 
 
+
+
+def tee_stdout_and_stderr_to_log_file(log_path):
+    """Redirects stdout and stderr to both the console and a log file.
+
+    This function creates a "tee" behavior for stdout and stderr, where all output
+    is written to both the original destinations (console) and a log file simultaneously.
+
+    Args:
+        log_path (str): Path to the log file where output will be written
+
+    Note:
+        Uses daemon threads which will be terminated when the main program exits.
+    """
+    log_fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+
+    # Save original fds
+    stdout_fd = os.dup(1)
+    stderr_fd = os.dup(2)
+
+    def _tee(src_fd, dst_fds):
+        while True:
+            data = os.read(src_fd, 1024)
+            if not data:
+                break
+            for fd in dst_fds:
+                os.write(fd, data)
+
+    # Create pipes
+    r_out, w_out = os.pipe()
+    r_err, w_err = os.pipe()
+
+    # Redirect stdout/stderr → pipes
+    os.dup2(w_out, 1)
+    os.dup2(w_err, 2)
+
+    # fds 1 and 2 are the pipes' write ends now, so these spare copies are redundant. Closing them
+    # matters: a reader only reaches EOF once every write end of its pipe is closed, and any copy
+    # left open here would keep that from ever happening.
+    os.close(w_out)
+    os.close(w_err)
+
+    # Start tee threads
+    tee_threads = [
+        threading.Thread(target=_tee, args=(r_out, [stdout_fd, log_fd]), daemon=True),
+        threading.Thread(target=_tee, args=(r_err, [stderr_fd, log_fd]), daemon=True),
+    ]
+    for thread in tee_threads:
+        thread.start()
+
+    # Re-wrap Python streams
+    sys.stdout = os.fdopen(1, 'w', buffering=1)
+    sys.stderr = os.fdopen(2, 'w', buffering=1)
+
+    def drain_and_restore():
+        """Give the readers what is still in flight before the process goes away.
+
+        The threads are daemons, so without this they are killed wherever they happen to be when the
+        interpreter exits, and whatever had not been read yet is lost from both the console copy and
+        the log. Pointing fds 1 and 2 back at the real console closes the last write end of each
+        pipe, which is what lets each reader see EOF and finish.
+        """
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os.dup2(stdout_fd, 1)
+        os.dup2(stderr_fd, 2)
+        for thread in tee_threads:
+            thread.join()
+        os.close(log_fd)
+
+    atexit.register(drain_and_restore)
