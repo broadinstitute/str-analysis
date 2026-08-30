@@ -1,3 +1,5 @@
+import gzip
+import os
 import simplejson as json
 import tempfile
 import unittest
@@ -34,7 +36,7 @@ class Tests(unittest.TestCase):
 
     def setUp(self):
         # write vcf contents to temp file
-        self.test_vcf1 = tempfile.NamedTemporaryFile(mode="wt", delete=False)
+        self.test_vcf1 = tempfile.NamedTemporaryFile(mode="wt", suffix=".vcf", delete=False)
         self.test_vcf1.write(VCF_CONTENTS1)
         self.test_vcf1.flush()
         self.test_vcf1.seek(0)
@@ -70,3 +72,22 @@ class Tests(unittest.TestCase):
                 if allele2_purity > 0.99:
                     #print(alelle2[1:], motif*num_repeats2)
                     self.assertEqual(alelle2[1:], motif*num_repeats2)
+
+    def test_plain_vcf_whose_name_merely_ends_in_gz(self):
+        """Regression test: the gzip auto-detect used vcf_path.endswith("gz"), so any name whose last
+        two characters happened to be "gz" was opened as gzip. tempfile names end in 8 random
+        [a-z0-9_] characters, so about 1 in 1,400 temp files tripped it, which is how it surfaced: a
+        lone BadGzipFile on one CI platform in this test file.
+        """
+        plain_path = os.path.join(tempfile.mkdtemp(), "tmpab12gz")
+        with open(plain_path, "wt") as f:
+            f.write(VCF_CONTENTS1)
+
+        self.assertEqual(len(process_trgt_vcf(plain_path)["LocusResults"]), 5)
+
+    def test_a_genuinely_gzipped_vcf_is_still_read_as_gzip(self):
+        gzipped_path = os.path.join(tempfile.mkdtemp(), "test.vcf.gz")
+        with gzip.open(gzipped_path, "wt") as f:
+            f.write(VCF_CONTENTS1)
+
+        self.assertEqual(len(process_trgt_vcf(gzipped_path)["LocusResults"]), 5)

@@ -133,7 +133,11 @@ def process_trgt_vcf(vcf_path, sample_id=None, discard_hom_ref=True, use_trgt_lo
         },
     }
 
-    fopen = gzip.open if vcf_path.endswith("gz") else open
+    # Match on the real extensions rather than the last two characters. endswith("gz") treats any
+    # path ending in those letters as gzipped, which is how a plain-text temp file named
+    # tmpab12gz turned into a BadGzipFile on one CI platform. .bgz is included because bgzipped
+    # files are gzip-readable, which is why the check was loose to begin with.
+    fopen = gzip.open if vcf_path.endswith((".gz", ".bgz")) else open
 
     with fopen(vcf_path, "rt") as vcf:
         for line in vcf:
