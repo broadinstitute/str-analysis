@@ -7,26 +7,28 @@ motif    (example: "A")
 
 and outputs a per-locus summary table with allele frequency histograms and statistics.
 
-When ``--vcf-interval-tsv`` is provided (the small TSV produced by
+When ``--vcf-trid-metadata-tsv`` is provided (the small TSV produced by
 extract_vcf_interval_metadata.py with columns ``trid, locus_id, motif,
 interval, vc``), each output row also carries:
 
     LocusId  = the resolved single locus_id (chrom-start-end-motif) for this row
     Interval = "{chrom}:{vcf_start_0based}-{vcf_end_1based}"  (always set)
-    VC       = the inner span from INFO/STRUC if the row was genotyped as
-               part of a variation cluster (<VC:...>), or "" for an isolated TR
-               (<TR:...>).
+    VC       = the variation cluster's own span, "{chrom}:{POS}-{END}", when the
+               row was genotyped as part of a cluster, or "" for an isolated TR.
+               A cluster is recognized under either catalog convention: STRUC
+               starting with <VC:, or TRID starting with VC:.
 
 These columns disambiguate the rows that share a LocusId because the same
 LocusId was genotyped under multiple TRGT catalog intervals (e.g. once as a
 standalone TR and once inside a VC).
 
-For each LPS row's (trid, motif) key, the script pops one chunk from the
-pre-built (trid, motif) -> deque[chunk] map, where each chunk groups all
-LocusIds genotyped by the same VCF record (so a compound TRID with three
-LocusIds ending in ``-AGAA`` for motif ``AGAA`` produces a single chunk
-containing three locus_ids, all sharing the same interval/vc, and the
-script emits three output rows from the LPS row's allele data).
+Each LPS row's (trid, motif) key resolves to exactly one chunk of the pre-built
+(trid, motif) -> chunk map, where a chunk groups all LocusIds genotyped by the
+same VCF record (so a compound TRID with three LocusIds ending in ``-AGAA`` for
+motif ``AGAA`` produces a single chunk containing three locus_ids, all sharing
+the same interval/vc, and the script emits three output rows from the LPS row's
+allele data). A key covering more than one VCF record is rejected outright by
+``load_vcf_trid_metadata`` rather than paired by stream order.
 
 The script enforces a process-wide uniqueness invariant: no two output rows
 share the same (LocusId, Interval, VC) tuple.
@@ -64,22 +66,23 @@ HEADER_FIELDS = [
 ]
 
 
-def load_vcf_interval_metadata(tsv_path):
-    """Loads the small interval-metadata TSV into ``(trid, motif) -> deque[chunk]``.
+def load_vcf_trid_metadata(tsv_path):
+    """Loads the small TRID-metadata TSV into ``(trid, motif) -> chunk``.
 
     The TSV is produced by ``data-prep/hprc-lps/extract_vcf_interval_metadata.py``
     with columns ``trid, locus_id, motif, interval, vc``. Consecutive rows
     with the same ``(trid, motif, interval, vc)`` come from the same VCF
     record and are grouped into a single chunk
-    ``(interval, vc, [locus_id, ...])``. The deque preserves VCF order across
-    distinct VCF records that share a ``(trid, motif)`` key (e.g. one TR plus
-    one VC genotyping of the same LocusId).
+    ``(interval, vc, [locus_id, ...])``.
 
     Args:
         tsv_path: Path to the gzipped or plain TSV.
 
     Returns:
-        ``dict[(trid, motif), collections.deque[(interval, vc, [locus_id, ...])]]``.
+        ``dict[(trid, motif), (interval, vc, [locus_id, ...])]``.
+
+    Raises:
+        ValueError: if any ``(trid, motif)`` key covers more than one VCF record.
     """
     opener = gzip.open if str(tsv_path).endswith(".gz") else open
     metadata = {}
@@ -91,16 +94,26 @@ def load_vcf_interval_metadata(tsv_path):
         if current_key is None or current_chunk_key is None:
             return
         interval, vc = current_chunk_key
-        metadata.setdefault(current_key, collections.deque()).append(
-            (interval, vc, current_locus_ids)
-        )
+        if current_key in metadata:
+            trid, motif = current_key
+            previous_interval, previous_vc, _ = metadata[current_key]
+            raise ValueError(
+                f"(trid={trid!r}, motif={motif!r}) in {tsv_path} covers more than one VCF "
+                f"record: {previous_interval!r} (vc {previous_vc!r}) and {interval!r} "
+                f"(vc {vc!r}). This is a variation cluster sharing a TRID with a repeat it "
+                f"contains, and which LPS row belongs to which record cannot be recovered "
+                f"from these inputs. Regenerate the VCF and the LPS table with "
+                f"data-prep/hprc-lps/regenerate_unique_trid_vcf_and_lps.sh, then re-extract "
+                f"--vcf-trid-metadata-tsv from the rewritten VCF. "
+                f"See https://github.com/PacificBiosciences/trgt-lps/issues/5")
+        metadata[current_key] = (interval, vc, current_locus_ids)
 
     with opener(tsv_path, "rt") as f:
         header = next(f).rstrip("\n").split("\t")
         expected = ["trid", "locus_id", "motif", "interval", "vc"]
         if header != expected:
             raise ValueError(
-                f"--vcf-interval-tsv header must be {expected!r}; got {header!r}"
+                f"--vcf-trid-metadata-tsv header must be {expected!r}; got {header!r}"
             )
         for line in f:
             trid, locus_id, motif, interval, vc = line.rstrip("\n").split("\t")
@@ -264,7 +277,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--sample-metadata-tsv", default="https://storage.googleapis.com/tandem-repeat-catalog/1kGP_metadata.tsv", help="Sample ancestry metadata TSV file (local path or URL)")
     parser.add_argument("--input-table", default="hprc-lps_2025-12-06/hprc-lps.txt.gz", help="Combine HPRC LPS dataset")
-    parser.add_argument("--vcf-interval-tsv", help="Path to a small TSV.gz produced by data-prep/hprc-lps/extract_vcf_interval_metadata.py (columns: trid, locus_id, motif, interval, vc). Required to populate the LocusId/Interval/VC output columns and resolve compound TRIDs.")
+    parser.add_argument("--vcf-trid-metadata-tsv", help="Path to a small TSV.gz produced by data-prep/hprc-lps/extract_vcf_interval_metadata.py (columns: trid, locus_id, motif, interval, vc). Required to populate the LocusId/Interval/VC output columns and resolve compound TRIDs.")
     parser.add_argument("--no-header", action="store_true", help="If set, assume the first row is data (not a header) and generate synthetic sample names (_s1, _s2, ...)")
     parser.add_argument("--population", choices=["AFR", "AMR", "EAS", "EUR", "SAS"], help="If specified, only process samples from this population")
     parser.add_argument("--sex", choices=["male", "female"], help="If specified, only process samples from this sex")
@@ -285,8 +298,8 @@ def main():
     if not os.path.isfile(args.input_table):
         parser.error(f"Input file {args.input_table} does not exist")
 
-    if args.vcf_interval_tsv and not os.path.isfile(args.vcf_interval_tsv):
-        parser.error(f"--vcf-interval-tsv {args.vcf_interval_tsv} does not exist")
+    if args.vcf_trid_metadata_tsv and not os.path.isfile(args.vcf_trid_metadata_tsv):
+        parser.error(f"--vcf-trid-metadata-tsv {args.vcf_trid_metadata_tsv} does not exist")
 
     fopen = gzip.open if args.input_table.endswith((".gz", ".bgz")) else open
 
@@ -383,15 +396,14 @@ def main():
     else:
         output_path += ".tsv.gz"
 
-    # Build the full (trid, motif) -> deque[chunk] map from the small interval
-    # TSV when --vcf-interval-tsv is given. Each chunk groups all LocusIds
-    # genotyped by one VCF record (same interval/vc, differing locus_id).
+    # Build the full (trid, motif) -> chunk map from the small TRID metadata TSV when
+    # --vcf-trid-metadata-tsv is given. Each chunk groups all LocusIds genotyped by one
+    # VCF record (same interval/vc, differing locus_id).
     vcf_metadata = {}
-    if args.vcf_interval_tsv:
-        print(f"Loading interval metadata from {args.vcf_interval_tsv}")
-        vcf_metadata = load_vcf_interval_metadata(args.vcf_interval_tsv)
-        chunks_total = sum(len(v) for v in vcf_metadata.values())
-        print(f"Loaded {chunks_total:,d} VCF-record chunks across {len(vcf_metadata):,d} unique (trid, motif) keys")
+    if args.vcf_trid_metadata_tsv:
+        print(f"Loading TRID metadata from {args.vcf_trid_metadata_tsv}")
+        vcf_metadata = load_vcf_trid_metadata(args.vcf_trid_metadata_tsv)
+        print(f"Loaded {len(vcf_metadata):,d} VCF-record chunks, one per unique (trid, motif) key")
 
     # Process-wide uniqueness check for emitted (LocusId, Interval, VC) tuples.
     seen_output_keys = set()
@@ -438,28 +450,33 @@ def main():
 
             # Resolve the (trid, motif) key against the pre-loaded VCF metadata
             # to determine which LocusIds and which (interval, vc) this LPS row
-            # represents. If --vcf-interval-tsv was not provided, fall back to
+            # represents. If --vcf-trid-metadata-tsv was not provided, fall back to
             # the legacy single-LocusId / empty Interval&VC behavior.
-            if vcf_metadata:
-                chunks = vcf_metadata.get((trid, motif))
-                if chunks is None:
+            if args.vcf_trid_metadata_tsv:
+                # Consume by popping, so what is left at the end is exactly the set of VCF
+                # records no LPS row claimed (the drain check below), and a second LPS row
+                # for the same key finds nothing rather than silently reusing the chunk.
+                chunk = vcf_metadata.pop((trid, motif), None)
+                if chunk is None:
                     raise ValueError(
-                        f"Line #{line_number + 1}: no VCF record found for "
-                        f"(trid={trid!r}, motif={motif!r}) in --vcf-interval-tsv"
+                        f"Line #{line_number + 1}: no unconsumed VCF record for "
+                        f"(trid={trid!r}, motif={motif!r}) in --vcf-trid-metadata-tsv. Either the "
+                        f"key is absent from the TRID metadata TSV, or an earlier LPS row already "
+                        f"claimed its one record. Both mean the LPS table and "
+                        f"--vcf-trid-metadata-tsv were not derived from the same VCF."
                     )
-                if not chunks:
-                    raise ValueError(
-                        f"Line #{line_number + 1}: --vcf-interval-tsv has fewer "
-                        f"chunks than the LPS table has rows for "
-                        f"(trid={trid!r}, motif={motif!r}); all chunks for this "
-                        f"key were already consumed by earlier LPS rows."
-                    )
-                interval, vc, chunk_locus_ids = chunks.popleft()
+                interval, vc, chunk_locus_ids = chunk
             else:
-                if "," in trid:
+                # Without the TRID metadata TSV the TRID has to double as the LocusId, which only
+                # works when it already is one. A compound TRID lists several, and a variation
+                # cluster TRID (VC:{chrom}:{start}-{end}, written by
+                # data-prep/hprc-lps/rewrite_vc_trids_in_vcf.py) names the cluster rather than
+                # any repeat -- writing either into the LocusId column would emit an id that
+                # matches no catalog locus.
+                if "," in trid or trid.startswith("VC:"):
                     raise ValueError(
-                        f"Line #{line_number + 1}: compound TRID {trid!r} cannot "
-                        f"be resolved without --vcf-interval-tsv"
+                        f"Line #{line_number + 1}: TRID {trid!r} is not a single LocusId and "
+                        f"cannot be resolved without --vcf-trid-metadata-tsv"
                     )
                 interval = ""
                 vc = ""
@@ -522,24 +539,22 @@ def main():
         if args.output_format == "JSON":
             outfile.write("\n]\n")
 
-     # End-of-processing assertion: every chunk popped from the deque must
-     # correspond to an LPS row. Leftover chunks indicate a mismatch between
-     # the LPS table and --vcf-interval-tsv (e.g. extract emitted records that
-     # the LPS table doesn't have, which would mean LPS rows got paired with
-     # the wrong (Interval, VC) chunks via FIFO).
+     # End-of-processing assertion: every VCF record must have been claimed by an LPS
+     # row. Whatever is still in the map describes records the LPS table doesn't have,
+     # which means the two inputs came from different VCFs.
      #
      # Skip the check when --num-loci is in effect: the main loop intentionally
-     # breaks early, so leftover chunks are expected and not a sign of mismatch.
-     if vcf_metadata and args.num_loci is None:
-         unconsumed = sum(len(deq) for deq in vcf_metadata.values())
-         if unconsumed:
-             examples = [key for key, deq in vcf_metadata.items() if deq][:3]
-             raise ValueError(
-                 f"{unconsumed:,d} VCF-record chunks in --vcf-interval-tsv were "
-                 f"never consumed by an LPS row (e.g. {examples!r}). The two "
-                 f"inputs are out of sync; re-extract --vcf-interval-tsv from "
-                 f"the same VCF the LPS table was generated from."
-             )
+     # breaks early, so leftover records are expected and not a sign of mismatch.
+     if args.vcf_trid_metadata_tsv and args.num_loci is None and vcf_metadata:
+         # Reached only when records went unclaimed; an empty map instead means every
+         # record was consumed, which is the success case.
+         examples = list(vcf_metadata)[:3]
+         raise ValueError(
+             f"{len(vcf_metadata):,d} VCF records in --vcf-trid-metadata-tsv were "
+             f"never consumed by an LPS row (e.g. {examples!r}). The two "
+             f"inputs are out of sync; re-extract --vcf-trid-metadata-tsv from "
+             f"the same VCF the LPS table was generated from."
+         )
 
      # Atomic promote: only if the run succeeded (no exception, drain check passed).
      os.replace(tmp_output_path, output_path)
