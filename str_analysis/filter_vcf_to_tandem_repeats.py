@@ -69,6 +69,7 @@ from str_analysis.utils.file_utils import open_file, file_exists
 from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.trf_runner import TRFRunner
 from str_analysis.utils.find_motif_utils import compute_repeat_purity, compute_most_common_motif
+from str_analysis.utils.find_motif_utils import compute_best_phase_repeat_purity, compute_sequence_periodicity
 from str_analysis.utils.find_motif_utils import split_sequence_into_motifs, format_motifs_as_sequence_string
 
 DETECTION_MODE_PURE_REPEATS = "pure"
@@ -110,6 +111,10 @@ TRF_MAX_REPEATS_IN_REFERENCE_THRESHOLD = 3_500
 TRF_MAX_SPAN_IN_REFERENCE_THRESHOLD = 10_000      # 10Kb
 
 #FILTER_TR_ALLELE_PARTIAL_REPEAT = "ends in partial repeat"
+
+# Reasons why an inserted sequence at a tandem repeat locus was judged not to be part of the repeat
+INSERTION_FILTER_REASON_CONTAINS_NS = "inserted sequence contains Ns"
+INSERTION_FILTER_REASON_NOT_REPEAT_LIKE = "inserted sequence is not a tandem repeat"
 
 FILTER_TR_ALLELE_REPEAT_UNIT_TOO_SHORT = "repeat unit < {:,d} bp"
 FILTER_TR_ALLELE_REPEAT_UNIT_TOO_LONG = "repeat unit > {:,d} bp"
@@ -266,6 +271,26 @@ def parse_args():
     genotype_p.add_argument("--skip-hom-ref-loci", action="store_true",
                             help="Skip loci that have no overlapping variants (i.e., homozygous reference loci) and "
                                  "don't include them in the output.")
+
+    genotype_p.add_argument("--dont-filter-non-repeat-insertions", action="store_true",
+                            help="By default, an allele whose sequence contains an insertion that doesn't look like "
+                            "part of the tandem repeat (eg. an Alu element inserted into a poly-A tract, or an "
+                            "assembly error) gets no call, since there is no way to say how many repeats it carries. "
+                            "This option turns that off so that every base between the locus start and end "
+                            "coordinates is counted, which is the behavior of earlier versions.")
+    genotype_p.add_argument("--min-insertion-size-to-check", type=int, default=20,
+                            help="Insertions shorter than this many base pairs are always accepted as part of the "
+                            "repeat. Short insertions rarely inflate a repeat count much, and there aren't enough "
+                            "bases in them to tell a tandem repeat apart from random sequence.")
+    genotype_p.add_argument("--min-insertion-purity", type=float, default=0.6,
+                            help="Accept an insertion as part of the repeat if at least this fraction of its bases "
+                            "match a pure repeat of the locus motif (trying every starting offset within the motif).")
+    genotype_p.add_argument("--min-insertion-periodicity", type=float, default=0.65,
+                            help="Also accept an insertion if at least this fraction of its bases match a copy of "
+                            "itself shifted by the best-fitting number of bases. This keeps expansions made up of a "
+                            "different motif than the one annotated for the locus (eg. an AAGGG expansion at the "
+                            "AAAAG reference repeat in RFC1). Random sequence scores around 0.35 by this measure, "
+                            "while a tandem repeat of any motif scores close to 1.")
     genotype_p.add_argument("input_vcf_path", help="Input VCF single-sample VCF file containing variant genotypes from "
                                                    "which to compute the TR genotypes.")
 
@@ -938,8 +963,8 @@ class GenotypedTandemRepeat:
         zygosity (str): 'HOM', 'HET', 'HEMI', or None if missing
         num_repeats_short_allele (int): Repeat count in shorter allele
         num_repeats_long_allele (int): Repeat count in longer allele
-        allele1_sequence (str): Full sequence for haplotype 0
-        allele2_sequence (str): Full sequence for haplotype 1
+        allele1_sequence (str): Full sequence for haplotype 0, or None if that allele has no call
+        allele2_sequence (str): Full sequence for haplotype 1, or None if that allele has no call
 
     Example:
         >>> tr_locus = ReferenceTandemRepeat("chr4", 3074876, 3074933, "CAG")
@@ -959,6 +984,7 @@ class GenotypedTandemRepeat:
             num_repeats_allele2=None,
             allele1_purity=None,
             allele2_purity=None,
+            num_alleles_with_non_repeat_insertions=0,
         ):
         """Initialize a GenotypedTandemRepeat object.
 
@@ -971,6 +997,8 @@ class GenotypedTandemRepeat:
             num_repeats_allele2 (int): Number of repeats in allele 2
             allele1_purity (float): Repeat purity for allele 1 (0.0-1.0)
             allele2_purity (float): Repeat purity for allele 2 (0.0-1.0)
+            num_alleles_with_non_repeat_insertions (int): How many of the two alleles were set to no-call
+                because they contained an insertion that isn't part of the tandem repeat
         """
         self._tr_locus = tr_locus
         self._overlapping_variants = overlapping_variants if overlapping_variants else []
@@ -980,6 +1008,7 @@ class GenotypedTandemRepeat:
         self._num_repeats_allele2 = num_repeats_allele2
         self._allele1_purity = allele1_purity
         self._allele2_purity = allele2_purity
+        self._num_alleles_with_non_repeat_insertions = num_alleles_with_non_repeat_insertions
 
     # Properties from the underlying TR locus
     @property
@@ -1058,6 +1087,12 @@ class GenotypedTandemRepeat:
     @property
     def allele2_purity(self):
         return self._allele2_purity
+
+    @property
+    def num_alleles_with_non_repeat_insertions(self):
+        """How many of the two alleles were set to no-call because of an insertion that isn't part of the
+        tandem repeat."""
+        return self._num_alleles_with_non_repeat_insertions
 
     def _purity_ordered_by_num_repeats(self):
         """Return (short_allele_purity, long_allele_purity) ordered by repeat count so that the values line up
@@ -1647,6 +1682,373 @@ def convert_variants_to_haplotype_sequence(pos_1based, reference_sequence, varia
     return output_sequence
 
 
+# Locus motif and thresholds used to decide whether inserted bases belong to a locus tandem repeat.
+InsertionFilter = collections.namedtuple("InsertionFilter", [
+    "motif",
+    "min_insertion_size_to_check",
+    "min_insertion_purity",
+    "min_insertion_periodicity",
+])
+
+
+def build_insertion_filter(motif, args):
+    """Build an InsertionFilter for a locus, or return None if insertion filtering is turned off.
+
+    Args:
+        motif (str): the locus repeat motif
+        args (argparse.Namespace): command-line arguments parsed by parse_args()
+
+    Returns:
+        InsertionFilter: the thresholds to apply at this locus, or None if the caller should accept every
+            inserted base (ie. --dont-filter-non-repeat-insertions was specified).
+    """
+    if getattr(args, "dont_filter_non_repeat_insertions", False):
+        return None
+
+    return InsertionFilter(
+        motif=motif,
+        min_insertion_size_to_check=getattr(args, "min_insertion_size_to_check", 20),
+        min_insertion_purity=getattr(args, "min_insertion_purity", 0.6),
+        min_insertion_periodicity=getattr(args, "min_insertion_periodicity", 0.65),
+    )
+
+
+def check_if_inserted_sequence_belongs_to_repeat(inserted_sequence, insertion_filter):
+    """Decide whether inserted bases at a tandem repeat locus are part of that locus tandem repeat.
+
+    An inserted sequence is accepted if any of the following is true:
+      1. it is shorter than insertion_filter.min_insertion_size_to_check, since short insertions can't inflate a
+         repeat count by much and are too short to tell apart from random sequence
+      2. enough of its bases match a pure repeat of the locus motif, at the best starting offset within the motif
+      3. it looks like a tandem repeat of some other motif, which keeps expansions where the expanded motif
+         differs from the one annotated for the locus (eg. an AAGGG expansion at the AAAAG repeat in RFC1) as well
+         as expansions of large, highly degenerate VNTR units
+
+    Args:
+        inserted_sequence (str): the inserted bases
+        insertion_filter (InsertionFilter): locus motif and thresholds
+
+    Returns:
+        2-tuple (bool, str):
+            bool: True if the inserted bases are part of the tandem repeat
+            str: the reason the bases were rejected, or None if they were accepted
+    """
+    if len(inserted_sequence) < insertion_filter.min_insertion_size_to_check:
+        return True, None
+
+    if "N" in inserted_sequence.upper():
+        return False, INSERTION_FILTER_REASON_CONTAINS_NS
+
+    purity, _, _ = compute_best_phase_repeat_purity(inserted_sequence, insertion_filter.motif)
+    if purity == purity and purity >= insertion_filter.min_insertion_purity:  # purity is nan for short sequences
+        return True, None
+
+    max_period = min(500, max(100, 3 * len(insertion_filter.motif)))
+    _, periodicity = compute_sequence_periodicity(inserted_sequence, max_period=max_period)
+    if periodicity >= insertion_filter.min_insertion_periodicity:
+        return True, None
+
+    return False, INSERTION_FILTER_REASON_NOT_REPEAT_LIKE
+
+
+def find_insertions_that_dont_belong_to_repeat(variant_list, start_0based, end, insertion_filter, verbose=False):
+    """Find the insertions in a haplotype's variants that aren't part of the locus tandem repeat.
+
+    An insertion that isn't a tandem repeat (an Alu element dropped into a poly-A tract, an assembly error)
+    makes the whole haplotype unusable as a repeat measurement, since there is no way to say how many repeats
+    the sample really carries. Callers set the affected allele to a no-call rather than reporting a count.
+
+    Only insertions whose bases land between the locus boundaries are judged. A variant can overlap the locus
+    through its reference span while inserting its bases outside it, and such an insertion says nothing about
+    the repeat. Inserted bases are anchored at the end of the variant's reference span, the same convention
+    compute_locus_offset_in_haplotype() uses to decide which bases fall inside the locus.
+
+    Args:
+        variant_list (list): list of (pos_1based, ref, alt) tuples for one haplotype
+        start_0based (int): locus start position (0-based, inclusive)
+        end (int): locus end position (0-based, exclusive / 1-based inclusive)
+        insertion_filter (InsertionFilter): locus motif and thresholds
+        verbose (bool): if True, print each rejected insertion
+
+    Returns:
+        list: (inserted_sequence, reason) for each insertion inside the locus that isn't part of the tandem
+            repeat. Empty if every such insertion belongs to the repeat.
+    """
+    rejected_insertions = []
+    for variant_pos_1based, variant_ref, variant_alt in variant_list:
+        trimmed_ref, trimmed_alt = trim_shared_suffix(variant_ref.upper(), variant_alt.upper())
+        inserted_base_count = len(trimmed_alt) - len(trimmed_ref)
+        if inserted_base_count <= 0:
+            continue
+
+        inserted_bases_anchor = variant_pos_1based - 1 + len(trimmed_ref)
+        if not start_0based <= inserted_bases_anchor < end:
+            continue
+
+        inserted_sequence = trimmed_alt[-inserted_base_count:]
+        belongs_to_repeat, reason = check_if_inserted_sequence_belongs_to_repeat(
+            inserted_sequence, insertion_filter)
+        if not belongs_to_repeat:
+            rejected_insertions.append((inserted_sequence, reason))
+            if verbose:
+                print(f"  The {inserted_base_count:,d} bases inserted at position {variant_pos_1based:,d} are "
+                      f"not part of the repeat ({reason}), so this allele has no call")
+
+    return rejected_insertions
+
+
+# Per-haplotype result of building the sequence of a tandem repeat locus from VCF variants.
+HaplotypeSequences = collections.namedtuple("HaplotypeSequences", [
+    "sequence",             # locus sequence with all variants applied, or None if this allele has no call
+    "rejected_insertions",  # (inserted_sequence, reason) for each insertion that isn't part of the repeat
+])
+
+MISSING_HAPLOTYPE_SEQUENCES = HaplotypeSequences(None, ())
+
+
+def compute_locus_offset_in_haplotype(boundary_0based, fetch_start, variant_list):
+    """Map a genomic position to the corresponding offset in a haplotype sequence.
+
+    The haplotype sequence is the one built by convert_variants_to_haplotype_sequence() from the reference
+    starting at fetch_start plus the given variants. Each variant's (suffix-trimmed) alt bases are anchored to
+    genomic positions: alt base i aligns to variant_start + i for i < len(ref) (matched, substituted or deleted
+    bases) and to variant_start + len(ref) for any extra inserted bases (i >= len(ref)). An alt base falls on the
+    near side of a boundary iff its anchor is strictly before it. This places a left-anchored insertion's
+    inserted bases (anchored at the variant's ref-span end, == the locus start) inside the locus, while keeping a
+    boundary-spanning deletion's surviving bases on the correct side.
+
+    Args:
+        boundary_0based (int): the genomic position to map
+        fetch_start (int): 0-based genomic start of the reference sequence the haplotype was built from
+        variant_list (list): list of (pos_1based, ref, alt) tuples that were applied, sorted by position
+
+    Returns:
+        int: the offset of the boundary within the haplotype sequence
+    """
+    output_pos = 0
+    genomic_pos = fetch_start  # next reference position not yet consumed
+    for variant_pos_1based, variant_ref, variant_alt in variant_list:
+        # Upper-case before trimming, the same way convert_variants_to_haplotype_sequence() does, so that the
+        # offsets computed here line up with the sequence it built. VCFs written against a soft-masked reference
+        # (eg. DipCall output) give the ref allele in lower case and the alt allele in upper case, so a
+        # case-sensitive comparison would find no shared suffix where there is one.
+        variant_ref, variant_alt = trim_shared_suffix(variant_ref.upper(), variant_alt.upper())
+        variant_start_0based = variant_pos_1based - 1
+        if boundary_0based <= genomic_pos:
+            return output_pos
+        # Reference bases between the current position and this variant, up to the boundary
+        ref_run_end = min(variant_start_0based, boundary_0based)
+        if ref_run_end > genomic_pos:
+            output_pos += ref_run_end - genomic_pos
+        if boundary_0based <= variant_start_0based:
+            return output_pos
+        # The variant starts before the boundary: count only the alt bases whose genomic anchor lies before it
+        ref_len = len(variant_ref)
+        for i in range(len(variant_alt)):
+            if variant_start_0based + (i if i < ref_len else ref_len) < boundary_0based:
+                output_pos += 1
+        genomic_pos = max(genomic_pos, variant_start_0based + ref_len)
+    # Trailing reference bases after the last variant
+    if boundary_0based > genomic_pos:
+        output_pos += boundary_0based - genomic_pos
+    return output_pos
+
+
+def get_haplotype_variant_list(vcf_variants, haplotype, verbose=False):
+    """Collect the variants that apply to one haplotype of a single-sample VCF.
+
+    Args:
+        vcf_variants (list): list of pysam.VariantRecord objects that overlap the locus
+        haplotype (int): 0 for the first haplotype, 1 for the second
+        verbose (bool): if True, print detailed output for debugging
+
+    Returns:
+        list: (pos_1based, ref, alt) tuples for the alt alleles this haplotype carries, upper-cased so that
+            downstream comparisons don't depend on the soft-masking of the reference the VCF was written
+            against, or None if the genotype is missing for this haplotype. Star alleles are skipped, since the
+            deletion they refer to is represented by its own VCF record.
+    """
+    variant_list = []
+    for variant in vcf_variants:
+        gt = variant.samples[0].get("GT")
+        if gt is None:
+            if verbose:
+                print(f"Haplotype {haplotype}: Missing GT for variant at {variant.pos}")
+            return None
+
+        # Haploid genotypes (e.g. a chrX/chrY call with GT == (1,)) have no second haplotype, so treat the
+        # absent haplotype as missing and let the existing HEMI logic handle it instead of indexing out of range.
+        if haplotype >= len(gt):
+            if verbose:
+                print(f"Haplotype {haplotype}: Haploid genotype at {variant.pos}; no allele for this haplotype")
+            return None
+
+        gt_value = gt[haplotype]
+
+        # Handle missing genotype (.)
+        if gt_value is None:
+            if verbose:
+                print(f"Haplotype {haplotype}: Missing genotype (.) at {variant.pos}")
+            return None
+
+        # Skip reference allele (0) - no change to reference sequence
+        if gt_value == 0:
+            continue
+
+        alt_allele = variant.alleles[gt_value]
+
+        # Skip star alleles - they indicate overlap with a previously specified deletion. The actual deletion is
+        # represented by a separate VCF record which pysam will fetch if it overlaps this locus.
+        if alt_allele == "*":
+            if verbose:
+                print(f"Haplotype {haplotype}: Skipping star allele at {variant.pos}")
+            continue
+
+        if verbose:
+            print(f"Haplotype {haplotype}: Variant at {variant.pos} {variant.ref} -> {alt_allele}")
+
+        variant_list.append((variant.pos, variant.ref.upper(), alt_allele.upper()))
+
+    return variant_list
+
+
+def extract_haplotype_sequences_and_insertions_from_vcf(chrom, start_0based, end, fasta_obj, vcf_variants,
+                                                        verbose=False, insertion_filter=None):
+    """Extract diploid haplotype sequences for a genomic locus from VCF variants, optionally rejecting a
+    haplotype that contains an insertion which isn't part of the locus tandem repeat.
+
+    This is the implementation behind extract_haplotype_sequences_from_vcf(). It additionally reports, for each
+    haplotype, which insertions were judged not to be part of the repeat. A haplotype with any such insertion
+    has no sequence, since there is no way to say how many repeats it carries.
+
+    Args:
+        chrom (str): Chromosome name
+        start_0based (int): Locus start position (0-based, inclusive)
+        end (int): Locus end position (0-based, exclusive / 1-based inclusive)
+        fasta_obj (pyfaidx.Fasta): Reference genome fasta object (with one_based_attributes=False)
+        vcf_variants (list): List of pysam.VariantRecord objects that overlap this locus
+        verbose (bool): If True, print detailed output for debugging
+        insertion_filter (InsertionFilter): thresholds for deciding whether inserted bases belong to the repeat,
+            or None to accept every inserted base
+
+    Returns:
+        tuple: (HaplotypeSequences, HaplotypeSequences) for haplotype 0 and haplotype 1
+    """
+    # Check for phasing ambiguity first
+    # If multiple variants overlap AND any GT is unphased, return missing genotype
+    if len(vcf_variants) > 1:
+        for variant in vcf_variants:
+            gt = variant.samples[0].get("GT")
+            if gt is None:
+                continue
+            # pysam returns phased=False if GT uses '/' separator
+            if not variant.samples[0].phased:
+                if verbose:
+                    print(f"Multiple variants overlap locus and GT is unphased at {variant.pos}: "
+                          f"returning missing genotype")
+                return (MISSING_HAPLOTYPE_SEQUENCES, MISSING_HAPLOTYPE_SEQUENCES)
+
+    # Determine the actual region we need to fetch from the reference
+    # This may be larger than the locus if variants extend beyond its boundaries
+    fetch_start = start_0based
+    fetch_end = end
+
+    for variant in vcf_variants:
+        # variant.pos is 1-based, convert to 0-based
+        variant_start_0based = variant.pos - 1
+        variant_end_0based = variant_start_0based + len(variant.ref)
+
+        # Expand fetch region if variant extends beyond locus
+        if variant_start_0based < fetch_start:
+            fetch_start = variant_start_0based
+        if variant_end_0based > fetch_end:
+            fetch_end = variant_end_0based
+
+    # Fetch the (potentially expanded) reference sequence
+    try:
+        ref_seq = str(fasta_obj[chrom][fetch_start:fetch_end]).upper()
+    except KeyError:
+        # Chromosome not found in fasta - try with/without chr prefix
+        alt_chrom = chrom[3:] if chrom.startswith("chr") else "chr" + chrom
+        try:
+            ref_seq = str(fasta_obj[alt_chrom][fetch_start:fetch_end]).upper()
+        except KeyError:
+            if verbose:
+                print(f"Chromosome {chrom} not found in reference fasta")
+            return (MISSING_HAPLOTYPE_SEQUENCES, MISSING_HAPLOTYPE_SEQUENCES)
+
+    if verbose:
+        print(f"Extracting haplotypes for {chrom}:{start_0based}-{end}")
+        print(f"Fetched reference region {chrom}:{fetch_start}-{fetch_end}: {ref_seq}")
+        print(f"Processing {len(vcf_variants)} overlapping variants")
+
+    # Build haplotype sequences for both haplotypes (0 and 1)
+    haplotype_results = []
+
+    for haplotype in (0, 1):
+        variant_list = get_haplotype_variant_list(vcf_variants, haplotype, verbose=verbose)
+
+        if variant_list is None:
+            haplotype_results.append(MISSING_HAPLOTYPE_SEQUENCES)
+            continue
+
+        # If no variants affect this haplotype, use reference sequence
+        if not variant_list:
+            # Return just the locus portion, not the expanded fetch region
+            haplotype_seq = ref_seq[start_0based - fetch_start:end - fetch_start]
+            haplotype_results.append(HaplotypeSequences(haplotype_seq, ()))
+            continue
+
+        if insertion_filter is not None:
+            rejected_insertions = find_insertions_that_dont_belong_to_repeat(
+                variant_list, start_0based, end, insertion_filter, verbose=verbose)
+            if rejected_insertions:
+                haplotype_results.append(HaplotypeSequences(None, tuple(rejected_insertions)))
+                continue
+
+        haplotype_seq = build_locus_sequence_from_variants(
+            fetch_start, ref_seq, variant_list, start_0based, end, verbose=verbose)
+        if haplotype_seq is None:
+            haplotype_results.append(MISSING_HAPLOTYPE_SEQUENCES)
+            continue
+
+        haplotype_results.append(HaplotypeSequences(haplotype_seq, ()))
+
+    return tuple(haplotype_results)
+
+
+def build_locus_sequence_from_variants(fetch_start, ref_seq, variant_list, start_0based, end, verbose=False):
+    """Apply a haplotype's variants to the fetched reference sequence and trim the result to the locus.
+
+    Args:
+        fetch_start (int): 0-based genomic start of ref_seq
+        ref_seq (str): reference sequence covering the locus and any variants that extend beyond it
+        variant_list (list): (pos_1based, ref, alt) tuples for this haplotype, sorted by position
+        start_0based (int): locus start position (0-based, inclusive)
+        end (int): locus end position (0-based, exclusive)
+        verbose (bool): if True, print detailed output for debugging
+
+    Returns:
+        str: the locus sequence for this haplotype, or None if the variants could not be applied
+    """
+    try:
+        # pos_1based for convert_variants_to_haplotype_sequence is fetch_start + 1
+        full_haplotype_seq = convert_variants_to_haplotype_sequence(
+            fetch_start + 1, ref_seq, variant_list, verbose=verbose
+        )
+    except ValueError as e:
+        if verbose:
+            print(f"Error converting variants: {e}")
+        return None
+
+    # Trim the haplotype sequence back to the original locus boundaries. We may have built the haplotype over an
+    # expanded fetch region to cover variants that extend beyond the locus, so map the genomic locus interval
+    # [start_0based, end) to offsets in the output sequence.
+    return full_haplotype_seq[
+        compute_locus_offset_in_haplotype(start_0based, fetch_start, variant_list):
+        compute_locus_offset_in_haplotype(end, fetch_start, variant_list)]
+
+
 def extract_haplotype_sequences_from_vcf(chrom, start_0based, end, fasta_obj, vcf_variants, verbose=False):
     """Extract diploid haplotype sequences for a genomic locus from VCF variants.
 
@@ -1683,177 +2085,10 @@ def extract_haplotype_sequences_from_vcf(chrom, start_0based, end, fasta_obj, vc
           an expanded reference region and trimming the result
         - Star alleles ('*') are skipped as they indicate overlap with a deletion
     """
-    # Check for phasing ambiguity first
-    # If multiple variants overlap AND any GT is unphased, return missing genotype
-    if len(vcf_variants) > 1:
-        for variant in vcf_variants:
-            gt = variant.samples[0].get("GT")
-            if gt is None:
-                continue
-            # pysam returns phased=False if GT uses '/' separator
-            if not variant.samples[0].phased:
-                if verbose:
-                    print(f"Multiple variants overlap locus and GT is unphased at {variant.pos}: "
-                          f"returning missing genotype")
-                return (None, None)
+    haplotype_results = extract_haplotype_sequences_and_insertions_from_vcf(
+        chrom, start_0based, end, fasta_obj, vcf_variants, verbose=verbose)
 
-    # Determine the actual region we need to fetch from the reference
-    # This may be larger than the locus if variants extend beyond its boundaries
-    fetch_start = start_0based
-    fetch_end = end
-
-    for variant in vcf_variants:
-        # variant.pos is 1-based, convert to 0-based
-        variant_start_0based = variant.pos - 1
-        variant_end_0based = variant_start_0based + len(variant.ref)
-
-        # Expand fetch region if variant extends beyond locus
-        if variant_start_0based < fetch_start:
-            fetch_start = variant_start_0based
-        if variant_end_0based > fetch_end:
-            fetch_end = variant_end_0based
-
-    # Fetch the (potentially expanded) reference sequence
-    try:
-        ref_seq = str(fasta_obj[chrom][fetch_start:fetch_end]).upper()
-    except KeyError:
-        # Chromosome not found in fasta - try with/without chr prefix
-        alt_chrom = chrom[3:] if chrom.startswith("chr") else "chr" + chrom
-        try:
-            ref_seq = str(fasta_obj[alt_chrom][fetch_start:fetch_end]).upper()
-        except KeyError:
-            if verbose:
-                print(f"Chromosome {chrom} not found in reference fasta")
-            return (None, None)
-
-    if verbose:
-        print(f"Extracting haplotypes for {chrom}:{start_0based}-{end}")
-        print(f"Fetched reference region {chrom}:{fetch_start}-{fetch_end}: {ref_seq}")
-        print(f"Processing {len(vcf_variants)} overlapping variants")
-
-    # Build haplotype sequences for both haplotypes (0 and 1)
-    haplotype_sequences = []
-
-    for haplotype in (0, 1):
-        variant_list = []
-        missing_genotype = False
-
-        for variant in vcf_variants:
-            gt = variant.samples[0].get("GT")
-            if gt is None:
-                if verbose:
-                    print(f"Haplotype {haplotype}: Missing GT for variant at {variant.pos}")
-                missing_genotype = True
-                break
-
-            # Haploid genotypes (e.g. a chrX/chrY call with GT == (1,)) have no second
-            # haplotype, so treat the absent haplotype as missing and let the existing
-            # HEMI logic handle it instead of indexing out of range.
-            if haplotype >= len(gt):
-                if verbose:
-                    print(f"Haplotype {haplotype}: Haploid genotype at {variant.pos}; no allele for this haplotype")
-                missing_genotype = True
-                break
-
-            gt_value = gt[haplotype]
-
-            # Handle missing genotype (.)
-            if gt_value is None:
-                if verbose:
-                    print(f"Haplotype {haplotype}: Missing genotype (.) at {variant.pos}")
-                missing_genotype = True
-                break
-
-            # Skip reference allele (0) - no change to reference sequence
-            if gt_value == 0:
-                continue
-
-            # Get the alt allele for this genotype
-            alt_allele = variant.alleles[gt_value]
-
-            # Skip star alleles - they indicate overlap with a previously specified deletion.
-            # The actual deletion is represented by a separate VCF record which pysam will
-            # fetch if it overlaps this locus.
-            if alt_allele == "*":
-                if verbose:
-                    print(f"Haplotype {haplotype}: Skipping star allele at {variant.pos}")
-                continue
-
-            if verbose:
-                print(f"Haplotype {haplotype}: Variant at {variant.pos} {variant.ref} -> {alt_allele}")
-
-            variant_list.append((variant.pos, variant.ref, alt_allele))
-
-        if missing_genotype:
-            haplotype_sequences.append(None)
-            continue
-
-        # If no variants affect this haplotype, use reference sequence
-        if not variant_list:
-            # Return just the locus portion, not the expanded fetch region
-            locus_start_in_fetch = start_0based - fetch_start
-            locus_end_in_fetch = end - fetch_start
-            haplotype_seq = ref_seq[locus_start_in_fetch:locus_end_in_fetch]
-            haplotype_sequences.append(haplotype_seq)
-            continue
-
-        # Convert variants to haplotype sequence
-        try:
-            # pos_1based for convert_variants_to_haplotype_sequence is fetch_start + 1
-            full_haplotype_seq = convert_variants_to_haplotype_sequence(
-                fetch_start + 1, ref_seq, variant_list, verbose=verbose
-            )
-        except ValueError as e:
-            if verbose:
-                print(f"Haplotype {haplotype}: Error converting variants: {e}")
-            haplotype_sequences.append(None)
-            continue
-
-        # Trim the haplotype sequence back to the original locus boundaries.
-        # We may have built the haplotype over an expanded fetch region to cover
-        # variants that extend beyond the locus, so map the genomic locus interval
-        # [start_0based, end) to offsets in the output sequence by walking the same
-        # construction that convert_variants_to_haplotype_sequence performed.
-        #
-        # Each variant's (suffix-trimmed) alt bases are anchored to genomic positions:
-        # alt base i aligns to variant_start + i for i < len(ref) (matched/substituted/
-        # deleted bases) and to variant_start + len(ref) for any extra inserted bases
-        # (i >= len(ref)). An alt base falls on the near side of a boundary iff its anchor
-        # is strictly before it. This places a left-anchored insertion's inserted bases
-        # (anchored at the variant's ref-span end, == the locus start) inside the locus,
-        # while keeping a boundary-spanning deletion's surviving bases on the correct side.
-        def locus_offset_in_output(boundary_0based):
-            output_pos = 0
-            genomic_pos = fetch_start  # next reference position not yet consumed
-            for variant_pos_1based, variant_ref, variant_alt in variant_list:
-                variant_ref, variant_alt = trim_shared_suffix(variant_ref, variant_alt)
-                variant_start_0based = variant_pos_1based - 1
-                if boundary_0based <= genomic_pos:
-                    return output_pos
-                # Reference bases between the current position and this variant,
-                # up to the boundary
-                ref_run_end = min(variant_start_0based, boundary_0based)
-                if ref_run_end > genomic_pos:
-                    output_pos += ref_run_end - genomic_pos
-                if boundary_0based <= variant_start_0based:
-                    return output_pos
-                # The variant starts before the boundary: count only the alt bases whose
-                # genomic anchor lies before it (inserted bases beyond the ref span anchor
-                # at variant_start + len(ref)).
-                ref_len = len(variant_ref)
-                for i in range(len(variant_alt)):
-                    if variant_start_0based + (i if i < ref_len else ref_len) < boundary_0based:
-                        output_pos += 1
-                genomic_pos = max(genomic_pos, variant_start_0based + ref_len)
-            # Trailing reference bases after the last variant
-            if boundary_0based > genomic_pos:
-                output_pos += boundary_0based - genomic_pos
-            return output_pos
-
-        haplotype_seq = full_haplotype_seq[locus_offset_in_output(start_0based):locus_offset_in_output(end)]
-        haplotype_sequences.append(haplotype_seq)
-
-    return tuple(haplotype_sequences)
+    return tuple(haplotype_result.sequence for haplotype_result in haplotype_results)
 
 
 def compute_repeat_counts_from_sequence(sequence, repeat_unit):
@@ -1866,7 +2101,9 @@ def compute_repeat_counts_from_sequence(sequence, repeat_unit):
     The repeat count uses simple integer division: len(sequence) // len(repeat_unit).
     This is an approximation that assumes the sequence starts at a motif boundary.
     The purity field indicates how well the sequence matches a pure repeat pattern,
-    revealing any interruptions or motif changes.
+    revealing any interruptions or motif changes. It is computed at whichever starting
+    offset within the motif fits the sequence best, so an allele that starts in the
+    middle of a motif is not penalized.
 
     Args:
         sequence (str): The haplotype sequence to analyze. Can be None for missing
@@ -1917,9 +2154,11 @@ def compute_repeat_counts_from_sequence(sequence, repeat_unit):
     num_repeats = len(sequence) // len(repeat_unit)
     repeat_size_bp = len(sequence)
 
-    # Calculate purity - how well the sequence matches a pure repeat
-    # Include partial repeats since the sequence may not be an exact multiple of motif length
-    purity, _ = compute_repeat_purity(
+    # Calculate purity - how well the sequence matches a pure repeat.
+    # Include partial repeats since the sequence may not be an exact multiple of motif length, and try every
+    # starting offset within the motif since an allele often starts in the middle of a motif (eg. after a 1bp
+    # deletion just upstream of the locus, "CAGCAGCAG" becomes "AGCAGCAG").
+    purity, _, _ = compute_best_phase_repeat_purity(
         sequence,
         repeat_unit,
         include_partial_repeats=True
@@ -1941,7 +2180,8 @@ def compute_repeat_counts_from_sequence(sequence, repeat_unit):
     }
 
 
-def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, verbose=False):
+def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, verbose=False,
+                          insertion_filter=None):
     """Genotype a single tandem repeat locus using VCF variants.
 
     This function takes a TR locus from a catalog, fetches any overlapping VCF variants,
@@ -1955,6 +2195,9 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, v
         normalize_chrom (function): Function to normalize chromosome names to match
             the VCF naming convention. If provided, will be called on chromosome names.
         verbose (bool): If True, print detailed output for debugging
+        insertion_filter (InsertionFilter): thresholds for deciding whether inserted bases belong to the repeat.
+            When None, every inserted base between the locus start and end is counted.
+            An allele containing an insertion that isn't part of the repeat gets no call.
 
     Returns:
         GenotypedTandemRepeat: A genotyped locus object containing:
@@ -1968,6 +2211,7 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, v
         - No overlapping variants → both alleles equal reference (HOM)
         - Missing genotype on one haplotype → HEMI
         - Multiple unphased variants overlapping → missing genotype
+        - Insertion that isn't part of the tandem repeat → that allele gets no call
     """
     chrom = tr_locus.chrom
     start_0based = tr_locus.start_0based
@@ -1987,10 +2231,11 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, v
         print(f"  Found {len(variants)} overlapping variants")
 
     # Extract haplotype sequences
-    # This handles phasing ambiguity (multiple unphased variants) by returning (None, None)
-    haplotype0_seq, haplotype1_seq = extract_haplotype_sequences_from_vcf(
-        chrom, start_0based, end, fasta_obj, variants, verbose=verbose
+    # This handles phasing ambiguity (multiple unphased variants) by returning missing genotypes
+    haplotype0, haplotype1 = extract_haplotype_sequences_and_insertions_from_vcf(
+        chrom, start_0based, end, fasta_obj, variants, verbose=verbose, insertion_filter=insertion_filter
     )
+    haplotype0_seq, haplotype1_seq = haplotype0.sequence, haplotype1.sequence
 
     if verbose:
         if haplotype0_seq is not None:
@@ -2002,7 +2247,7 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, v
         else:
             print(f"  Haplotype 1: missing")
 
-    # Compute repeat counts for each haplotype
+    # Compute repeat counts for each haplotype that has a call
     allele1_counts = compute_repeat_counts_from_sequence(haplotype0_seq, repeat_unit)
     allele2_counts = compute_repeat_counts_from_sequence(haplotype1_seq, repeat_unit)
 
@@ -2020,6 +2265,8 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, v
         num_repeats_allele2=allele2_counts["num_repeats"],
         allele1_purity=allele1_counts["purity"],
         allele2_purity=allele2_counts["purity"],
+        num_alleles_with_non_repeat_insertions=(
+            bool(haplotype0.rejected_insertions) + bool(haplotype1.rejected_insertions)),
     )
 
     if verbose:
@@ -2080,6 +2327,7 @@ def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
             fasta_obj,
             normalize_chrom=normalize_chrom,
             verbose=verbose,
+            insertion_filter=build_insertion_filter(tr_locus.repeat_unit, args),
         )
         genotyped_loci.append(genotyped)
 
@@ -2088,6 +2336,11 @@ def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
             counters["loci_with_variants"] += 1
         else:
             counters["loci_without_variants"] += 1
+
+        if genotyped.num_alleles_with_non_repeat_insertions > 0:
+            counters["loci_with_non_repeat_insertions"] += 1
+            counters["alleles_without_a_call_due_to_non_repeat_insertions"] += (
+                genotyped.num_alleles_with_non_repeat_insertions)
 
         if genotyped.zygosity is None:
             counters["loci_with_missing_genotype"] += 1
@@ -2112,6 +2365,9 @@ def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
         print(f"    HOM: {counters['loci_HOM']:,d}")
         print(f"    HET: {counters['loci_HET']:,d}")
         print(f"    HEMI: {counters['loci_HEMI']:,d}")
+        print(f"  Loci with an insertion that isn't part of the repeat: "
+              f"{counters['loci_with_non_repeat_insertions']:,d} "
+              f"({counters['alleles_without_a_call_due_to_non_repeat_insertions']:,d} alleles without a call)")
 
     return genotyped_loci, counters
 
@@ -2896,7 +3152,6 @@ def merge_overlapping_tandem_repeat_loci(tandem_repeat_alleles, pyfaidx_fasta_ob
         print(f"Dropped {before - len(results):,d} redundant tandem repeat loci, keeping {len(results):,d} tandem repeat loci")
     
     return results
-
 
 
 def need_to_reprocess_allele_with_extended_flanking_sequence(tandem_repeat_allele):
@@ -3714,7 +3969,8 @@ def compute_motif_lists_with_trf(genotyped_loci, trf_executable_path, min_allele
         # motif fields (as null) rather than omitting them.
         results[locus.locus_id] = {
             "allele1": None, "allele2": None, "allele1_method": None, "allele2_method": None}
-        for allele_key, sequence in [("allele1", locus.allele1_sequence), ("allele2", locus.allele2_sequence)]:
+        for allele_key, sequence in [("allele1", locus.allele1_sequence),
+                                     ("allele2", locus.allele2_sequence)]:
             if not sequence:
                 continue
 

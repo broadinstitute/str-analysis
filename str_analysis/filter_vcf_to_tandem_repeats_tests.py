@@ -32,8 +32,13 @@ from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele
     compute_repeat_counts_from_sequence, genotype_single_locus, write_tsv, \
     compute_motif_composition, compute_motif_lists_with_trf, \
     build_basic_split_motif_entry, format_motif_entry_as_sequence_string, \
-    MOTIF_DETECTION_METHOD_TRF, MOTIF_DETECTION_METHOD_BASIC_SPLIT
-from str_analysis.utils.find_motif_utils import format_motifs_as_sequence_string
+    MOTIF_DETECTION_METHOD_TRF, MOTIF_DETECTION_METHOD_BASIC_SPLIT, \
+    InsertionFilter, build_insertion_filter, check_if_inserted_sequence_belongs_to_repeat, \
+    find_insertions_that_dont_belong_to_repeat, \
+    extract_haplotype_sequences_and_insertions_from_vcf, \
+    INSERTION_FILTER_REASON_CONTAINS_NS, INSERTION_FILTER_REASON_NOT_REPEAT_LIKE
+from str_analysis.utils.find_motif_utils import format_motifs_as_sequence_string, \
+    compute_best_phase_repeat_purity
 
 
 class TestAllele(unittest.TestCase):
@@ -3977,6 +3982,335 @@ class TestRepeatUnitSimilarity(unittest.TestCase):
         # 7bp should use length
         self.assertEqual(compute_repeat_unit_id("AAAAAAA"), 7)
         self.assertTrue(are_repeat_units_similar("AAAAAAA", "AAAAAAC"))
+
+
+# A full-length AluY element seen as a 304bp insertion in HG002 at chr1:230,949,404, used here as a realistic
+# example of an insertion that is not a tandem repeat.
+ALU_INSERTION_SEQUENCE = (
+    "AAAAAAAAAAAGGCCGGGCGCGGTGGCTCACGCCTGTAATCCCAGCACTTTGGGAGGCCGAGGCGGGTGGATCATGAGGTCAGGAGATCGAGACCATCCTG"
+    "GCTAACAAGGTGAAACCCCGTCTCTACTAAAAATACAAAAAATTAGCCGGGCGCGGTGGCGGGCGCCTGTAGTCCCAGCTACTCGGGAGGCTGAGGCAGGA"
+    "GAATGGCGTGAACCCGGGAAGCGGAGCTTGCAGTGAGCCGAGATTGCGCCACTGCAGTCCGCAGTCCGGCCTGGGCGACAGAGCGAGACTCCGTCTCAAAAA")
+
+# The 333bp AAAGG/AAAGGG expansion seen on one haplotype of HG01109 at the RFC1 locus, whose reference repeat is
+# (AAAAG)n. It is a true tandem repeat expansion even though its motif differs from the annotated locus motif.
+RFC1_MOTIF_SWAP_INSERTION_SEQUENCE = (
+    "AAGGAAAGGGACGGGACGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAG"
+    "GGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAG"
+    "GGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGGGAAAGG")
+
+
+class TestInsertionFiltering(unittest.TestCase):
+    """Test the checks that decide whether inserted bases belong to a locus tandem repeat."""
+
+    def _insertion_filter(self, motif, **overrides):
+        settings = dict(
+            motif=motif,
+            min_insertion_size_to_check=20,
+            min_insertion_purity=0.6,
+            min_insertion_periodicity=0.65,
+        )
+        settings.update(overrides)
+        return InsertionFilter(**settings)
+
+    def test_short_insertion_is_always_counted(self):
+        """An insertion below the size threshold is counted without being evaluated."""
+        belongs, reason = check_if_inserted_sequence_belongs_to_repeat(
+            "GTCAGTCTGA", self._insertion_filter("A"))
+        self.assertTrue(belongs)
+        self.assertIsNone(reason)
+
+    def test_insertion_of_locus_motif_is_counted(self):
+        """More copies of the locus motif are counted."""
+        belongs, reason = check_if_inserted_sequence_belongs_to_repeat(
+            "CAG" * 20, self._insertion_filter("CAG"))
+        self.assertTrue(belongs)
+        self.assertIsNone(reason)
+
+    def test_insertion_starting_mid_motif_is_counted(self):
+        """An insertion that starts in the middle of the motif is still counted."""
+        belongs, _ = check_if_inserted_sequence_belongs_to_repeat(
+            "AG" + "CAG" * 20, self._insertion_filter("CAG"))
+        self.assertTrue(belongs)
+
+    def test_alu_insertion_into_poly_a_tract_is_not_counted(self):
+        """An Alu element inserted into a poly-A tract must not be counted as poly-A repeats."""
+        belongs, reason = check_if_inserted_sequence_belongs_to_repeat(
+            ALU_INSERTION_SEQUENCE, self._insertion_filter("A"))
+        self.assertFalse(belongs)
+        self.assertEqual(reason, INSERTION_FILTER_REASON_NOT_REPEAT_LIKE)
+
+    def test_alu_insertion_is_not_counted_at_a_locus_with_a_long_impure_motif(self):
+        """An Alu must still be rejected at a locus whose annotated motif is long and whose reference repeat is
+        itself impure, where the Alu's purity relative to that motif is close to what random sequence scores."""
+        belongs, reason = check_if_inserted_sequence_belongs_to_repeat(
+            ALU_INSERTION_SEQUENCE, self._insertion_filter("ATATCCACTTGCAGATTCTACAAAAAGAGT"))
+        self.assertFalse(belongs)
+        self.assertEqual(reason, INSERTION_FILTER_REASON_NOT_REPEAT_LIKE)
+
+    def test_expansion_with_a_different_motif_is_counted(self):
+        """An AAAGG/AAAGGG expansion at the (AAAAG)n RFC1 locus must still be counted."""
+        insertion_filter = self._insertion_filter("AAAAG")
+        purity, _, _ = compute_best_phase_repeat_purity(RFC1_MOTIF_SWAP_INSERTION_SEQUENCE, "AAAAG")
+        self.assertLess(purity, insertion_filter.min_insertion_purity)  # the purity clause alone would reject it
+
+        belongs, reason = check_if_inserted_sequence_belongs_to_repeat(
+            RFC1_MOTIF_SWAP_INSERTION_SEQUENCE, insertion_filter)
+        self.assertTrue(belongs)
+        self.assertIsNone(reason)
+
+    def test_impure_but_repetitive_insertion_is_counted(self):
+        """An insertion too impure to match the locus motif is still counted when it repeats on its own."""
+        # 12 copies of a 12bp unit, each with a different base substituted, so the insertion matches neither the
+        # locus motif nor a pure repeat of itself, yet is clearly still a tandem repeat
+        unit = "CAGGATTCCTGA"
+        impure_insertion = "".join(unit[:i] + "T" + unit[i + 1:] for i in range(len(unit)))
+        insertion_filter = self._insertion_filter("CAG")
+        purity, _, _ = compute_best_phase_repeat_purity(impure_insertion, "CAG")
+        self.assertLess(purity, insertion_filter.min_insertion_purity)
+        self.assertTrue(check_if_inserted_sequence_belongs_to_repeat(impure_insertion, insertion_filter)[0])
+
+    def test_insertion_with_ns_is_not_counted(self):
+        """Inserted bases containing Ns come from an assembly gap and must not be counted."""
+        belongs, reason = check_if_inserted_sequence_belongs_to_repeat(
+            "N" * 50, self._insertion_filter("A"))
+        self.assertFalse(belongs)
+        self.assertEqual(reason, INSERTION_FILTER_REASON_CONTAINS_NS)
+
+    def test_build_insertion_filter_returns_none_when_turned_off(self):
+        args = argparse.Namespace(dont_filter_non_repeat_insertions=True)
+        self.assertIsNone(build_insertion_filter("CAG", args))
+
+    def test_build_insertion_filter_uses_args(self):
+        args = argparse.Namespace(
+            dont_filter_non_repeat_insertions=False,
+            min_insertion_size_to_check=30,
+            min_insertion_purity=0.5,
+            min_insertion_periodicity=0.8)
+        insertion_filter = build_insertion_filter("CAG", args)
+        self.assertEqual(insertion_filter.motif, "CAG")
+        self.assertEqual(insertion_filter.min_insertion_size_to_check, 30)
+        self.assertEqual(insertion_filter.min_insertion_purity, 0.5)
+        self.assertEqual(insertion_filter.min_insertion_periodicity, 0.8)
+
+    def test_only_the_rejected_insertion_is_reported(self):
+        """Insertions that belong to the repeat, deletions and substitutions are all passed over."""
+        variant_list = [
+            (100, "A", "A" + "CAG" * 20),                      # a real expansion, accepted
+            (200, "T", "T" + ALU_INSERTION_SEQUENCE),          # an Alu insertion, rejected
+            (300, "GGGG", "G"),                                # a deletion, not an insertion
+        ]
+        rejected = find_insertions_that_dont_belong_to_repeat(
+            variant_list, 0, 1000, self._insertion_filter("CAG"))
+
+        self.assertEqual(len(rejected), 1)
+        self.assertEqual(rejected[0][0], ALU_INSERTION_SEQUENCE)
+        self.assertEqual(rejected[0][1], INSERTION_FILTER_REASON_NOT_REPEAT_LIKE)
+
+    def test_bases_shared_by_ref_and_alt_are_not_treated_as_inserted(self):
+        """Only the bases the alt actually adds are evaluated, not the suffix it shares with the ref."""
+        # ref "AT" -> alt "A" + 26 G's + "T": ref and alt share the trailing "T", and 26 G's are inserted
+        variant_list = [(100, "AT", "A" + "G" * 26 + "T")]
+        rejected = find_insertions_that_dont_belong_to_repeat(
+            variant_list, 0, 1000, self._insertion_filter("CAG", min_insertion_periodicity=1.01))
+        self.assertEqual(len(rejected), 1)
+        self.assertEqual(rejected[0][0], "G" * 26)
+
+    def test_nothing_is_rejected_when_every_insertion_belongs(self):
+        variant_list = [(100, "A", "A" + "CAG" * 20)]
+        self.assertEqual(
+            find_insertions_that_dont_belong_to_repeat(variant_list, 0, 1000, self._insertion_filter("CAG")), [])
+
+    def test_an_insertion_anchored_outside_the_locus_is_not_judged(self):
+        """A variant can overlap the locus through its reference span while inserting its bases outside it.
+        Those bases are not part of the locus sequence, so they must not cost the allele its call."""
+        # ref spans [99, 103) and the inserted bases are anchored at its end, 0-based position 103. The ref
+        # ends in G and the Alu in A, so there is no shared suffix to shift that anchor.
+        variant_list = [(100, "GGGG", "GGGG" + ALU_INSERTION_SEQUENCE)]
+        insertion_filter = self._insertion_filter("A")
+
+        # locus [50, 103) ends exactly where the bases are inserted, so they land past its end
+        self.assertEqual(
+            find_insertions_that_dont_belong_to_repeat(variant_list, 50, 103, insertion_filter), [])
+        # locus [50, 104) contains the insertion point, so the same insertion is judged and rejected
+        self.assertEqual(
+            len(find_insertions_that_dont_belong_to_repeat(variant_list, 50, 104, insertion_filter)), 1)
+
+
+class TestGenotypingWithInsertionFilter(unittest.TestCase):
+    """End-to-end genotyping tests covering insertions that don't belong to the locus tandem repeat."""
+
+    def setUp(self):
+        self._temp_files = []
+
+    def tearDown(self):
+        for f in self._temp_files:
+            if os.path.exists(f):
+                os.unlink(f)
+            for ext in [".tbi", ".csi", ".fai"]:
+                if os.path.exists(f + ext):
+                    os.unlink(f + ext)
+
+    def _create_temp_file(self, content, suffix):
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False, mode="w") as f:
+            f.write(content)
+            self._temp_files.append(f.name)
+            return f.name
+
+    def _create_vcf(self, vcf_content):
+        import subprocess
+        vcf_path = self._create_temp_file(vcf_content, ".vcf")
+        vcf_gz_path = vcf_path + ".gz"
+        self._temp_files.append(vcf_gz_path)
+        self._temp_files.append(vcf_gz_path + ".tbi")
+        try:
+            with open(vcf_gz_path, "wb") as gz_out:
+                subprocess.run(["bgzip", "-c", vcf_path], stdout=gz_out, check=True)
+            subprocess.run(["tabix", "-p", "vcf", vcf_gz_path], check=True)
+            return vcf_gz_path
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            return None
+
+    def _create_fasta(self, seq_dict):
+        fasta_content = "".join(f">{chrom}\n{seq}\n" for chrom, seq in seq_dict.items())
+        fasta_path = self._create_temp_file(fasta_content, ".fa")
+        pyfaidx.Fasta(fasta_path)
+        self._temp_files.append(fasta_path + ".fai")
+        return fasta_path
+
+    def _genotype_alu_insertion_into_poly_a(self, insertion_filter, genotype="1|1"):
+        """Genotype a 20bp poly-A locus carrying an Alu insertion in the middle of the tract."""
+        import pysam
+
+        reference = "GGCCGT" + "A" * 20 + "TTGCAC"
+        fasta_path = self._create_fasta({"chr1": reference})
+        # The insertion is anchored on the 10th A of the tract, ie. 1-based position 15
+        vcf_content = (
+            "##fileformat=VCFv4.2\n"
+            f"##contig=<ID=chr1,length={len(reference)}>\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1\n"
+            f"chr1\t15\t.\tA\tA{ALU_INSERTION_SEQUENCE}\t.\tPASS\t.\tGT\t{genotype}\n")
+        vcf_gz_path = self._create_vcf(vcf_content)
+        if vcf_gz_path is None:
+            self.skipTest("bgzip/tabix unavailable")
+
+        tr_locus = ReferenceTandemRepeat(chrom="chr1", start_0based=6, end_1based=26, repeat_unit="A")
+        fasta_obj = pyfaidx.Fasta(fasta_path, one_based_attributes=False, as_raw=True)
+        vcf_file = pysam.VariantFile(vcf_gz_path)
+        try:
+            return genotype_single_locus(
+                tr_locus, vcf_file, fasta_obj,
+                normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True),
+                insertion_filter=insertion_filter)
+        finally:
+            vcf_file.close()
+            fasta_obj.close()
+
+    def test_alu_insertion_leaves_both_alleles_without_a_call(self):
+        """An Alu dropped into a poly-A tract makes the repeat count unknowable, so neither allele gets a
+        call. The VCF here is homozygous, so both alleles carry the Alu."""
+        insertion_filter = build_insertion_filter("A", argparse.Namespace())
+        result = self._genotype_alu_insertion_into_poly_a(insertion_filter)
+
+        self.assertIsNone(result.num_repeats_allele1)
+        self.assertIsNone(result.num_repeats_allele2)
+        self.assertIsNone(result.allele1_sequence)
+        self.assertIsNone(result.allele2_sequence)
+        self.assertIsNone(result.zygosity)
+        self.assertIsNone(result.repeat_size_long_allele_bp)
+        self.assertEqual(result.num_alleles_with_non_repeat_insertions, 2)
+
+    def test_alu_insertion_on_one_haplotype_leaves_the_other_allele_callable(self):
+        """A heterozygous Alu costs only the haplotype that carries it. The reference haplotype keeps its
+        call, so the locus reports as HEMI rather than being thrown away entirely."""
+        insertion_filter = build_insertion_filter("A", argparse.Namespace())
+        result = self._genotype_alu_insertion_into_poly_a(insertion_filter, genotype="0|1")
+
+        self.assertEqual(result.zygosity, "HEMI")
+        self.assertEqual(result.num_repeats_allele1, 20)
+        self.assertIsNone(result.num_repeats_allele2)
+        self.assertEqual(result.allele1_sequence, "A" * 20)
+        self.assertIsNone(result.allele2_sequence)
+        self.assertEqual(result.num_alleles_with_non_repeat_insertions, 1)
+
+    def test_alu_insertion_is_counted_when_filtering_is_turned_off(self):
+        """--dont-filter-non-repeat-insertions restores the old behavior of counting every inserted base."""
+        result = self._genotype_alu_insertion_into_poly_a(insertion_filter=None)
+
+        self.assertEqual(result.num_repeats_allele1, 20 + len(ALU_INSERTION_SEQUENCE))
+        self.assertEqual(result.num_alleles_with_non_repeat_insertions, 0)
+
+    def test_true_expansion_with_a_different_motif_is_kept(self):
+        """A motif-swap expansion like the ones seen at RFC1 must be counted in full."""
+        import pysam
+
+        reference = "GGCCGT" + "AAAAG" * 11 + "TTGCAC"
+        fasta_path = self._create_fasta({"chr1": reference})
+        vcf_content = (
+            "##fileformat=VCFv4.2\n"
+            f"##contig=<ID=chr1,length={len(reference)}>\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1\n"
+            f"chr1\t6\t.\tT\tT{RFC1_MOTIF_SWAP_INSERTION_SEQUENCE}\t.\tPASS\t.\tGT\t0|1\n")
+        vcf_gz_path = self._create_vcf(vcf_content)
+        if vcf_gz_path is None:
+            self.skipTest("bgzip/tabix unavailable")
+
+        tr_locus = ReferenceTandemRepeat(chrom="chr1", start_0based=6, end_1based=61, repeat_unit="AAAAG")
+        fasta_obj = pyfaidx.Fasta(fasta_path, one_based_attributes=False, as_raw=True)
+        vcf_file = pysam.VariantFile(vcf_gz_path)
+        try:
+            result = genotype_single_locus(
+                tr_locus, vcf_file, fasta_obj,
+                normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True),
+                insertion_filter=build_insertion_filter("AAAAG", argparse.Namespace()))
+        finally:
+            vcf_file.close()
+            fasta_obj.close()
+
+        self.assertEqual(result.zygosity, "HET")
+        self.assertEqual(result.num_repeats_short_allele, 11)
+        self.assertEqual(result.num_repeats_long_allele,
+                         (55 + len(RFC1_MOTIF_SWAP_INSERTION_SEQUENCE)) // 5)
+        self.assertEqual(result.num_alleles_with_non_repeat_insertions, 0)
+
+    def test_lower_case_reference_allele_does_not_shift_the_locus_boundaries(self):
+        """VCFs written against a soft-masked reference (eg. DipCall) give the ref allele in lower case and the
+        alt allele in upper case, which must not change where the locus is trimmed out of the haplotype."""
+        import pysam
+
+        reference = "AAA" + "cag" * 6 + "AAA"
+        fasta_path = self._create_fasta({"chr1": reference})
+        # ref "cagc" -> alt "CAGCAGC" inserts one CAG anchored at 0-based position 12, inside the locus, while
+        # the ref span [12, 16) crosses the locus end at 15. Once both alleles are upper-cased they share a
+        # "CAGC" suffix; comparing them as written finds no shared suffix and drops the inserted repeat.
+        vcf_content = (
+            "##fileformat=VCFv4.2\n"
+            f"##contig=<ID=chr1,length={len(reference)}>\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1\n"
+            "chr1\t13\t.\tcagc\tCAGCAGC\t.\tPASS\t.\tGT\t1|1\n")
+        vcf_gz_path = self._create_vcf(vcf_content)
+        if vcf_gz_path is None:
+            self.skipTest("bgzip/tabix unavailable")
+
+        tr_locus = ReferenceTandemRepeat(chrom="chr1", start_0based=3, end_1based=15, repeat_unit="CAG")
+        fasta_obj = pyfaidx.Fasta(fasta_path, one_based_attributes=False, as_raw=True)
+        vcf_file = pysam.VariantFile(vcf_gz_path)
+        try:
+            result = genotype_single_locus(
+                tr_locus, vcf_file, fasta_obj,
+                normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
+        finally:
+            vcf_file.close()
+            fasta_obj.close()
+
+        self.assertEqual(result.allele1_sequence, "CAGCAGCAGCAGCAG")
+        self.assertEqual(result.num_repeats_allele1, 5)
+        self.assertEqual(result.num_repeats_allele2, 5)
+
+    def test_purity_is_computed_at_the_best_offset_within_the_motif(self):
+        """An allele that starts in the middle of a motif must not be reported as 0% pure."""
+        counts = compute_repeat_counts_from_sequence("AGCAGCAGCAGCAGCAG", "CAG")
+        self.assertAlmostEqual(counts["purity"], 1.0)
+        self.assertTrue(counts["is_pure"])
 
 
 if __name__ == "__main__":

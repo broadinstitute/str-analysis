@@ -69,6 +69,101 @@ def compute_repeat_purity(
     return fraction_pure_bases, distance
 
 
+def compute_best_phase_repeat_purity(
+        nucleotide_sequence,
+        motif,
+        include_partial_repeats=True,
+        distance_metric=DEFAULT_DISTANCE_METRIC,
+        max_motif_length_for_phase_search=500):
+    """Compute the repeat purity of a sequence relative to a motif, trying every rotation of the motif and
+    keeping the best one.
+
+    compute_repeat_purity() compares the sequence to a pure repeat that always starts at the first base of the
+    given motif, so a sequence that happens to start in the middle of a motif scores near zero even when it is a
+    nearly perfect repeat. For example, "AGCAGCAGC" scores 0 against the motif "CAG" but 1 against its "AGC"
+    rotation. This matters for allele sequences, which frequently start mid-motif because of an indel just
+    upstream of the locus, and for catalog loci whose start coordinate isn't motif-phased.
+
+    Args:
+        nucleotide_sequence (str): nucleotide sequence with A, C, G, T
+        motif (str): a repeat motif
+        include_partial_repeats (bool): whether to include any partial repeat at the end of the sequence
+        distance_metric (HAMMING_DISTANCE_METRIC or EDIT_DISTANCE_METRIC): distance metric to use
+        max_motif_length_for_phase_search (int): motifs longer than this are only evaluated at phase 0 to bound
+            the runtime. Loci with motifs that long are expected to already be motif-phased.
+
+    Return:
+        3-tuple:
+            fraction_pure_bases (float): the highest purity across all rotations of the motif, or nan if the
+                sequence is shorter than the motif
+            edit_count (int): the number of edits for that rotation, or None if purity is nan
+            phase (int): the rotation offset that produced the highest purity, so the best-matching motif is
+                motif[phase:] + motif[:phase]
+    """
+    if not motif or len(nucleotide_sequence) < len(motif):
+        return float('nan'), None, 0
+
+    # compute_repeat_purity() builds the pure repeat from the upper-cased motif but compares it to the sequence
+    # as given, so a lower-case sequence would score zero
+    nucleotide_sequence = nucleotide_sequence.upper()
+    motif = motif.upper()
+
+    phases_to_check = 1 if len(motif) > max_motif_length_for_phase_search else len(motif)
+
+    best_purity, best_edit_count, best_phase = float('-inf'), None, 0
+    for phase in range(phases_to_check):
+        rotated_motif = motif[phase:] + motif[:phase]
+        purity, edit_count = compute_repeat_purity(
+            nucleotide_sequence, rotated_motif,
+            include_partial_repeats=include_partial_repeats,
+            distance_metric=distance_metric)
+        if purity != purity:  # nan
+            continue
+        if purity > best_purity:
+            best_purity, best_edit_count, best_phase = purity, edit_count, phase
+
+    if best_purity == float('-inf'):
+        return float('nan'), None, 0
+
+    return best_purity, best_edit_count, best_phase
+
+
+def compute_sequence_periodicity(nucleotide_sequence, max_period=200, max_sequence_length=3000):
+    """Measure how tandem-repetitive a sequence is without knowing its motif or where the motif starts.
+
+    For each period p, this compares the sequence to a copy of itself shifted by p bases and computes the
+    fraction of positions that match. The period with the highest fraction is returned. A tandem repeat of any
+    motif up to max_period bases long scores close to 1 regardless of which base the sequence starts on, while
+    non-repetitive sequence (for example an inserted Alu element) scores near the fraction expected by chance.
+
+    Args:
+        nucleotide_sequence (str): nucleotide sequence with A, C, G, T
+        max_period (int): the largest shift to try, which bounds the largest motif size that can be detected
+        max_sequence_length (int): only the first this many bases are used, to bound the runtime on very long
+            sequences
+
+    Return:
+        2-tuple:
+            period (int): the shift that produced the highest fraction of matching bases, or None if the
+                sequence is too short to evaluate
+            fraction_of_matching_bases (float): the fraction of positions that matched at that period, or 0.0 if
+                the sequence is too short
+    """
+    nucleotide_sequence = nucleotide_sequence[:max_sequence_length].upper()
+    max_period = min(max_period, len(nucleotide_sequence) // 2)
+    if max_period < 1:
+        return None, 0.0
+
+    bases = np.frombuffer(nucleotide_sequence.encode(), dtype=np.uint8)
+    best_period, best_fraction = None, 0.0
+    for period in range(1, max_period + 1):
+        fraction = float(np.mean(bases[period:] == bases[:-period]))
+        if fraction > best_fraction:
+            best_period, best_fraction = period, fraction
+
+    return best_period, best_fraction
+
+
 def compute_motif_purity_for_interval(
         reference_fasta,
         chrom,

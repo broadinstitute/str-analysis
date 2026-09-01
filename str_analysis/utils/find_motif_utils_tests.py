@@ -3,6 +3,8 @@ import unittest
 
 from str_analysis.utils.find_motif_utils import (
     compute_repeat_purity,
+    compute_best_phase_repeat_purity,
+    compute_sequence_periodicity,
     find_highest_purity_motif_length,
     find_highest_purity_motif_length_for_interval,
     _compute_motif_length_quality,
@@ -20,6 +22,65 @@ from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 
 
 class Tests(unittest.TestCase):
+
+    def test_compute_best_phase_repeat_purity(self):
+        # (sequence, motif, expected purity, expected phase)
+        tests = [
+            ("CAGCAGCAGCAG",      "CAG",  1.0,     0),
+            ("AGCAGCAGCAGC",      "CAG",  1.0,     1),
+            ("GCAGCAGCAGCA",      "CAG",  1.0,     2),
+            ("AGCAGCAGCAGCA",     "CAG",  1.0,     1),
+            ("AAAAAAAA",          "A",    1.0,     0),
+            ("CA",                "CTTG", float('nan'), 0),
+        ]
+        for sequence, motif, expected_purity, expected_phase in tests:
+            purity, _, phase = compute_best_phase_repeat_purity(sequence, motif)
+            if expected_purity != expected_purity:
+                self.assertTrue(math.isnan(purity), f"{sequence} vs {motif}")
+            else:
+                self.assertAlmostEqual(purity, expected_purity, msg=f"{sequence} vs {motif}")
+                self.assertEqual(phase, expected_phase, msg=f"{sequence} vs {motif}")
+
+    def test_compute_best_phase_repeat_purity_is_never_worse_than_phase_zero(self):
+        sequence = "AGCAGCAGCACCAGCAGCAG"
+        phase_zero_purity, _ = compute_repeat_purity(sequence, "CAG", include_partial_repeats=True)
+        best_purity, _, phase = compute_best_phase_repeat_purity(sequence, "CAG")
+        self.assertGreaterEqual(best_purity, phase_zero_purity)
+        self.assertEqual(phase, 1)
+
+    def test_compute_best_phase_repeat_purity_only_checks_phase_zero_for_long_motifs(self):
+        motif = "ACGT" * 30  # 120bp
+        sequence = motif[7:] + motif * 2
+        purity_with_search, _, _ = compute_best_phase_repeat_purity(
+            sequence, motif, max_motif_length_for_phase_search=200)
+        purity_without_search, _, phase = compute_best_phase_repeat_purity(
+            sequence, motif, max_motif_length_for_phase_search=10)
+        self.assertAlmostEqual(purity_with_search, 1.0)
+        self.assertEqual(phase, 0)
+        self.assertLess(purity_without_search, purity_with_search)
+
+    def test_compute_sequence_periodicity_of_pure_repeats(self):
+        self.assertEqual(compute_sequence_periodicity("CAG" * 20), (3, 1.0))
+        self.assertEqual(compute_sequence_periodicity("A" * 40), (1, 1.0))
+        # a repeat that starts mid-motif still has the same period
+        self.assertEqual(compute_sequence_periodicity("AG" + "CAG" * 20), (3, 1.0))
+
+    def test_compute_sequence_periodicity_of_non_repetitive_sequence(self):
+        # the first 200bp of a full-length AluY element, which is not a tandem repeat
+        alu = ("GGCCGGGCGCGGTGGCTCACGCCTGTAATCCCAGCACTTTGGGAGGCCGAGGCGGGTGGATCATGAGGTCAGGAGATCGAGACCATCCTGGCTAACAAGG"
+               "TGAAACCCCGTCTCTACTAAAAATACAAAAAATTAGCCGGGCGCGGTGGCGGGCGCCTGTAGTCCCAGCTACTCGGGAGGCTGAGGCAGGAGAATGGCGT")
+        _, fraction = compute_sequence_periodicity(alu)
+        self.assertLess(fraction, 0.6)
+
+    def test_compute_sequence_periodicity_of_sequence_too_short_to_evaluate(self):
+        self.assertEqual(compute_sequence_periodicity("A"), (None, 0.0))
+        self.assertEqual(compute_sequence_periodicity(""), (None, 0.0))
+
+    def test_compute_sequence_periodicity_respects_max_period(self):
+        sequence = "ACGTTGCAAT" * 10  # period 10
+        self.assertEqual(compute_sequence_periodicity(sequence, max_period=10)[0], 10)
+        _, fraction = compute_sequence_periodicity(sequence, max_period=5)
+        self.assertLess(fraction, 1.0)
 
     def test_compute_repeat_purity(self):
         tests = [
