@@ -110,6 +110,14 @@ FILTER_TR_ALLELE_PURITY_IS_TOO_LOW = "purity < {:.2f}"
 TRF_MAX_REPEATS_IN_REFERENCE_THRESHOLD = 3_500  
 TRF_MAX_SPAN_IN_REFERENCE_THRESHOLD = 10_000      # 10Kb
 
+# Thresholds for deciding whether inserted bases belong to a locus tandem repeat, set from a held-out measurement on
+# HG002. They are named rather than written inline because parse_args(), build_insertion_filter()'s fallbacks, and the
+# tests all need the same values, and retuning one copy while missing another would leave the tests green against a
+# threshold the CLI no longer uses.
+DEFAULT_MIN_INSERTION_SIZE_TO_CHECK = 20
+DEFAULT_MIN_INSERTION_PURITY = 0.9
+DEFAULT_MIN_INSERTION_PERIODICITY = 0.55
+
 #FILTER_TR_ALLELE_PARTIAL_REPEAT = "ends in partial repeat"
 
 # Reasons why an inserted sequence at a tandem repeat locus was judged not to be part of the repeat
@@ -278,14 +286,14 @@ def parse_args():
                             "assembly error) gets no call, since there is no way to say how many repeats it carries. "
                             "This option turns that off so that every base between the locus start and end "
                             "coordinates is counted, which is the behavior of earlier versions.")
-    genotype_p.add_argument("--min-insertion-size-to-check", type=int, default=20,
+    genotype_p.add_argument("--min-insertion-size-to-check", type=int, default=DEFAULT_MIN_INSERTION_SIZE_TO_CHECK,
                             help="Insertions shorter than this many base pairs are always accepted as part of the "
                             "repeat. Short insertions rarely inflate a repeat count much, and there aren't enough "
                             "bases in them to tell a tandem repeat apart from random sequence.")
-    genotype_p.add_argument("--min-insertion-purity", type=float, default=0.6,
+    genotype_p.add_argument("--min-insertion-purity", type=float, default=DEFAULT_MIN_INSERTION_PURITY,
                             help="Accept an insertion as part of the repeat if at least this fraction of its bases "
                             "match a pure repeat of the locus motif (trying every starting offset within the motif).")
-    genotype_p.add_argument("--min-insertion-periodicity", type=float, default=0.65,
+    genotype_p.add_argument("--min-insertion-periodicity", type=float, default=DEFAULT_MIN_INSERTION_PERIODICITY,
                             help="Also accept an insertion if at least this fraction of its bases match a copy of "
                             "itself shifted by the best-fitting number of bases. This keeps expansions made up of a "
                             "different motif than the one annotated for the locus (eg. an AAGGG expansion at the "
@@ -1707,9 +1715,9 @@ def build_insertion_filter(motif, args):
 
     return InsertionFilter(
         motif=motif,
-        min_insertion_size_to_check=getattr(args, "min_insertion_size_to_check", 20),
-        min_insertion_purity=getattr(args, "min_insertion_purity", 0.6),
-        min_insertion_periodicity=getattr(args, "min_insertion_periodicity", 0.65),
+        min_insertion_size_to_check=getattr(args, "min_insertion_size_to_check", DEFAULT_MIN_INSERTION_SIZE_TO_CHECK),
+        min_insertion_purity=getattr(args, "min_insertion_purity", DEFAULT_MIN_INSERTION_PURITY),
+        min_insertion_periodicity=getattr(args, "min_insertion_periodicity", DEFAULT_MIN_INSERTION_PERIODICITY),
     )
 
 
@@ -1719,7 +1727,12 @@ def check_if_inserted_sequence_belongs_to_repeat(inserted_sequence, insertion_fi
     An inserted sequence is accepted if any of the following is true:
       1. it is shorter than insertion_filter.min_insertion_size_to_check, since short insertions can't inflate a
          repeat count by much and are too short to tell apart from random sequence
-      2. enough of its bases match a pure repeat of the locus motif, at the best starting offset within the motif
+      2. enough of its bases match a pure repeat of the locus motif, at the best starting offset within the motif.
+         The threshold is high (see DEFAULT_MIN_INSERTION_PURITY) because purity is maximized over every rotation of
+         the motif, so a sequence barely one copy long finds some rotation that fits it. Requiring the insertion to
+         span two motif copies instead was measured and rejected: it lowers the non-repeat base pairs accepted by
+         less than the measurement's own uncertainty, and it discards single-copy VNTR insertions outright, since
+         one copy of a non-repetitive unit has near-perfect purity but no internal periodicity to fall back on
       3. it looks like a tandem repeat of some other motif, which keeps expansions where the expanded motif
          differs from the one annotated for the locus (eg. an AAGGG expansion at the AAAAG repeat in RFC1) as well
          as expansions of large, highly degenerate VNTR units

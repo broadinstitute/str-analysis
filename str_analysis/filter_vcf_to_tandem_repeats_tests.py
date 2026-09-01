@@ -16,6 +16,7 @@ import pyfaidx
 from str_analysis.utils.fasta_utils import create_normalize_chrom_function
 from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele, ReferenceTandemRepeat, \
     GenotypedTandemRepeat, \
+    DEFAULT_MIN_INSERTION_SIZE_TO_CHECK, DEFAULT_MIN_INSERTION_PURITY, DEFAULT_MIN_INSERTION_PERIODICITY, \
     DETECTION_MODE_PURE_REPEATS, DETECTION_MODE_ALLOW_INTERRUPTIONS, DETECTION_MODE_TRF, \
     FILTER_ALLELE_INDEL_WITHOUT_REPEATS, FILTER_TR_ALLELE_NOT_ENOUGH_REPEATS, \
     FILTER_TR_ALLELE_DOESNT_SPAN_ENOUGH_BASE_PAIRS, FILTER_TR_ALLELE_REPEAT_UNIT_TOO_SHORT, \
@@ -38,7 +39,7 @@ from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele
     extract_haplotype_sequences_and_insertions_from_vcf, \
     INSERTION_FILTER_REASON_CONTAINS_NS, INSERTION_FILTER_REASON_NOT_REPEAT_LIKE
 from str_analysis.utils.find_motif_utils import format_motifs_as_sequence_string, \
-    compute_best_phase_repeat_purity
+    compute_best_phase_repeat_purity, compute_sequence_periodicity
 
 
 class TestAllele(unittest.TestCase):
@@ -4003,11 +4004,13 @@ class TestInsertionFiltering(unittest.TestCase):
     """Test the checks that decide whether inserted bases belong to a locus tandem repeat."""
 
     def _insertion_filter(self, motif, **overrides):
+        # Read from the same constants parse_args() uses, so these tests exercise the shipped thresholds rather
+        # than a copy of them that a future retune could leave behind.
         settings = dict(
             motif=motif,
-            min_insertion_size_to_check=20,
-            min_insertion_purity=0.6,
-            min_insertion_periodicity=0.65,
+            min_insertion_size_to_check=DEFAULT_MIN_INSERTION_SIZE_TO_CHECK,
+            min_insertion_purity=DEFAULT_MIN_INSERTION_PURITY,
+            min_insertion_periodicity=DEFAULT_MIN_INSERTION_PERIODICITY,
         )
         settings.update(overrides)
         return InsertionFilter(**settings)
@@ -4023,6 +4026,36 @@ class TestInsertionFiltering(unittest.TestCase):
         """More copies of the locus motif are counted."""
         belongs, reason = check_if_inserted_sequence_belongs_to_repeat(
             "CAG" * 20, self._insertion_filter("CAG"))
+        self.assertTrue(belongs)
+        self.assertIsNone(reason)
+
+    def test_single_copy_vntr_insertion_is_counted(self):
+        """One extra copy of a large VNTR unit is counted, on purity alone.
+
+        Gaining or losing a single repeat unit is the most common form of VNTR variation, and a lone copy of a
+        non-repetitive unit carries no internal periodicity to detect: this 40bp unit scores about 0.35, well
+        under any usable periodicity threshold. Purity is the only signal that can see it, which is why the
+        purity clause must stay available to insertions spanning fewer than two motif copies.
+
+        The inserted copy carries two mismatches against the catalog motif, as a real one would. An exact copy
+        would score purity 1.0 and so be accepted at every threshold up to 1.0, which would leave the test unable
+        to fail no matter how far the purity threshold were raised.
+        """
+        motif = "ACGGTTACGCATTGAGCCTAGGTCATGCAAGTTCCGATAG"
+        inserted_copy = "ACGGTTACGTATTGAGCCTAGGTCGTGCAAGTTCCGATAG"
+        insertion_filter = self._insertion_filter(motif)
+
+        # Read all three thresholds off the filter rather than repeating them, so that retuning any one of them past
+        # this sequence turns the test into a failure instead of quietly changing which clause does the accepting.
+        # The size check comes first because check_if_inserted_sequence_belongs_to_repeat accepts anything shorter
+        # than it outright, before purity or periodicity is consulted.
+        self.assertGreaterEqual(len(inserted_copy), insertion_filter.min_insertion_size_to_check)
+        purity, _, _ = compute_best_phase_repeat_purity(inserted_copy, motif)
+        self.assertGreaterEqual(purity, insertion_filter.min_insertion_purity)
+        _, periodicity = compute_sequence_periodicity(inserted_copy, max_period=min(500, max(100, 3 * len(motif))))
+        self.assertLess(periodicity, insertion_filter.min_insertion_periodicity)
+
+        belongs, reason = check_if_inserted_sequence_belongs_to_repeat(inserted_copy, insertion_filter)
         self.assertTrue(belongs)
         self.assertIsNone(reason)
 
