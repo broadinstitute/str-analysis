@@ -281,8 +281,8 @@ def parse_args():
                                  "don't include them in the output.")
 
     genotype_p.add_argument("--dont-filter-non-repeat-insertions", action="store_true",
-                            help="By default, an allele whose sequence contains an insertion that doesn't look like "
-                            "part of the tandem repeat (eg. an Alu element inserted into a poly-A tract, or an "
+                            help="By default, a locus where either allele contains an insertion that doesn't look "
+                            "like part of the tandem repeat (eg. an Alu element inserted into a poly-A tract, or an "
                             "assembly error) gets no call, since there is no way to say how many repeats it carries. "
                             "This option turns that off so that every base between the locus start and end "
                             "coordinates is counted, which is the behavior of earlier versions.")
@@ -1005,8 +1005,8 @@ class GenotypedTandemRepeat:
             num_repeats_allele2 (int): Number of repeats in allele 2
             allele1_purity (float): Repeat purity for allele 1 (0.0-1.0)
             allele2_purity (float): Repeat purity for allele 2 (0.0-1.0)
-            num_alleles_with_non_repeat_insertions (int): How many of the two alleles were set to no-call
-                because they contained an insertion that isn't part of the tandem repeat
+            num_alleles_with_non_repeat_insertions (int): How many of the two alleles contained an insertion
+                that isn't part of the tandem repeat. Any nonzero value means the whole locus has no call.
         """
         self._tr_locus = tr_locus
         self._overlapping_variants = overlapping_variants if overlapping_variants else []
@@ -1098,8 +1098,8 @@ class GenotypedTandemRepeat:
 
     @property
     def num_alleles_with_non_repeat_insertions(self):
-        """How many of the two alleles were set to no-call because of an insertion that isn't part of the
-        tandem repeat."""
+        """How many of the two alleles contained an insertion that isn't part of the tandem repeat. Any nonzero
+        value means the whole locus was set to no-call."""
         return self._num_alleles_with_non_repeat_insertions
 
     def _purity_ordered_by_num_repeats(self):
@@ -2224,7 +2224,7 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, v
         - No overlapping variants → both alleles equal reference (HOM)
         - Missing genotype on one haplotype → HEMI
         - Multiple unphased variants overlapping → missing genotype
-        - Insertion that isn't part of the tandem repeat → that allele gets no call
+        - Insertion that isn't part of the tandem repeat on either allele → the whole locus gets no call
     """
     chrom = tr_locus.chrom
     start_0based = tr_locus.start_0based
@@ -2248,6 +2248,18 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, v
     haplotype0, haplotype1 = extract_haplotype_sequences_and_insertions_from_vcf(
         chrom, start_0based, end, fasta_obj, variants, verbose=verbose, insertion_filter=insertion_filter
     )
+
+    # An insertion that isn't part of the repeat makes the whole locus a no call, not just the allele carrying it.
+    # Dropping only that allele would leave a genotype indistinguishable from a real hemizygous call, and the
+    # surviving allele would then be reported in both the short and long allele columns.
+    if haplotype0.rejected_insertions or haplotype1.rejected_insertions:
+        if verbose:
+            print(f"  No call at {tr_locus.locus_id}: "
+                  f"{len(haplotype0.rejected_insertions) + len(haplotype1.rejected_insertions)} inserted "
+                  f"sequence(s) are not part of the repeat")
+        haplotype0 = HaplotypeSequences(None, haplotype0.rejected_insertions)
+        haplotype1 = HaplotypeSequences(None, haplotype1.rejected_insertions)
+
     haplotype0_seq, haplotype1_seq = haplotype0.sequence, haplotype1.sequence
 
     if verbose:
@@ -2352,7 +2364,7 @@ def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
 
         if genotyped.num_alleles_with_non_repeat_insertions > 0:
             counters["loci_with_non_repeat_insertions"] += 1
-            counters["alleles_without_a_call_due_to_non_repeat_insertions"] += (
+            counters["alleles_with_non_repeat_insertions"] += (
                 genotyped.num_alleles_with_non_repeat_insertions)
 
         if genotyped.zygosity is None:
@@ -2378,9 +2390,9 @@ def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
         print(f"    HOM: {counters['loci_HOM']:,d}")
         print(f"    HET: {counters['loci_HET']:,d}")
         print(f"    HEMI: {counters['loci_HEMI']:,d}")
-        print(f"  Loci with an insertion that isn't part of the repeat: "
+        print(f"  Loci set to no call because an insertion isn't part of the repeat: "
               f"{counters['loci_with_non_repeat_insertions']:,d} "
-              f"({counters['alleles_without_a_call_due_to_non_repeat_insertions']:,d} alleles without a call)")
+              f"({counters['alleles_with_non_repeat_insertions']:,d} alleles carried such an insertion)")
 
     return genotyped_loci, counters
 

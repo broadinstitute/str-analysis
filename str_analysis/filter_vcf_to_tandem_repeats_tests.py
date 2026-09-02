@@ -4252,17 +4252,20 @@ class TestGenotypingWithInsertionFilter(unittest.TestCase):
         self.assertIsNone(result.repeat_size_long_allele_bp)
         self.assertEqual(result.num_alleles_with_non_repeat_insertions, 2)
 
-    def test_alu_insertion_on_one_haplotype_leaves_the_other_allele_callable(self):
-        """A heterozygous Alu costs only the haplotype that carries it. The reference haplotype keeps its
-        call, so the locus reports as HEMI rather than being thrown away entirely."""
+    def test_alu_insertion_on_one_haplotype_discards_the_whole_genotype(self):
+        """A heterozygous Alu costs the whole locus, not just the haplotype that carries it. Keeping the
+        reference haplotype would report as HEMI, which is indistinguishable from a real hemizygous call and
+        would put the surviving allele in both the short and long allele columns."""
         insertion_filter = build_insertion_filter("A", argparse.Namespace())
         result = self._genotype_alu_insertion_into_poly_a(insertion_filter, genotype="0|1")
 
-        self.assertEqual(result.zygosity, "HEMI")
-        self.assertEqual(result.num_repeats_allele1, 20)
+        self.assertIsNone(result.zygosity)
+        self.assertIsNone(result.num_repeats_allele1)
         self.assertIsNone(result.num_repeats_allele2)
-        self.assertEqual(result.allele1_sequence, "A" * 20)
+        self.assertIsNone(result.allele1_sequence)
         self.assertIsNone(result.allele2_sequence)
+        self.assertIsNone(result.num_repeats_short_allele)
+        self.assertIsNone(result.num_repeats_long_allele)
         self.assertEqual(result.num_alleles_with_non_repeat_insertions, 1)
 
     def test_alu_insertion_is_counted_when_filtering_is_turned_off(self):
