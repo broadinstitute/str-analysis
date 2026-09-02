@@ -4,7 +4,7 @@ This is the input to the sequence-accuracy benchmark, which scores a tool by the
 sequence it reports and the assembly-derived truth allele sequence, rather than by repeat count (which is what
 plot_tool_accuracy_by_allele_size.py measures).
 
-Supported tools: TRGT (v3/v5), ATaRVa, and HipSTR - the three tools in the comparison whose VCF carries an actual
+Supported tools: TRGT (v3/v5), ATaRVa, HipSTR and LongTR - the tools in the comparison whose VCF carries an actual
 allele sequence in REF/ALT.
 
 The output is a {prefix}.allele_sequences.tsv.gz table with one row per VCF record:
@@ -35,7 +35,7 @@ import gzip
 import os
 import re
 
-TOOL_CHOICES = ("TRGTv3", "TRGTv5", "ATaRVa", "HipSTR")
+TOOL_CHOICES = ("TRGTv3", "TRGTv5", "ATaRVa", "HipSTR", "LongTR")
 
 CALLED = "called"
 NO_CALL = "no_call"
@@ -89,7 +89,8 @@ def get_locus_id(tool, chrom, id_field, info_dict):
     """
     if tool in ("TRGTv3", "TRGTv5"):
         return info_dict["TRID"]
-    if tool == "HipSTR":
+    if tool in ("HipSTR", "LongTR"):
+        # both echo the catalog locus id from their regions bed into the ID field
         return id_field
     if tool == "ATaRVa":
         # ATaRVa doesn't echo the catalog's locus id, so rebuild it from the repeat coordinates it does echo

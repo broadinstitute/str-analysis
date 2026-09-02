@@ -41,6 +41,18 @@ def hipstr_record(locus_id, pos_1based, start_1based, end, ref, alt, genotype):
                       _HIPSTR_FORMAT, f"{genotype}:0|0:1.00:30"])
 
 
+# LongTR: a HipSTR fork, so it also echoes the catalog locus id in the ID column and can extend the genotyped region
+# beyond the requested bed interval. Real example (HG002 30x PacBio):
+#   chr1  591734  chr1-591733-591751-A  A(x18)  A(x20),A(x21)  START=591734;END=591751;MOTIF=A;PERIOD=1;BPDIFFS=2,3
+_LONGTR_FORMAT = "GT:GB:Q:PQ:DP"
+
+
+def longtr_record(locus_id, pos_1based, start_1based, end, ref, alt, genotype):
+    return "\t".join([locus_id.split("-")[0], str(pos_1based), locus_id, ref, alt, ".", ".",
+                      f"START={start_1based};END={end};MOTIF=A;PERIOD=1;DP=30",
+                      _LONGTR_FORMAT, f"{genotype}:0|0:1.00:1.00:30"])
+
+
 class Tests(unittest.TestCase):
 
     def test_parse_locus_interval(self):
@@ -60,6 +72,35 @@ class Tests(unittest.TestCase):
         self.assertEqual(
             get_locus_id("ATaRVa", "chr1", ".", parse_info("MOTIF=CTT;START=15796;END=15849")),
             "chr1-15796-15849-CTT")
+        # LongTR echoes the locus id from its regions bed into the ID column, the same way HipSTR does
+        self.assertEqual(get_locus_id("LongTR", "chr1", "chr1-591733-591751-A", {"START": "591734"}),
+                         "chr1-591733-591751-A")
+
+    def test_longtr_alleles(self):
+        # the first record of HG002 30x PacBio's LongTR vcf: REF spans the locus interval exactly, nothing to trim
+        row = extract_allele_sequences_from_vcf_record(
+            longtr_record("chr1-591733-591751-A", 591734, 591734, 591751, "A" * 18, f"{'A' * 20},{'A' * 21}", "1|2"),
+            "LongTR")
+        self.assertEqual(row["LocusId"], "1-591733-591751-A")
+        self.assertEqual(row["AlleleSequence: Allele 1"], "A" * 20)
+        self.assertEqual(row["AlleleSequence: Allele 2"], "A" * 21)
+        self.assertEqual(row["AlleleStatus: Allele 1"], CALLED)
+        self.assertEqual(row["ExtractionStatus"], EXTRACTION_OK)
+
+    def test_longtr_extended_genotyping_region_is_trimmed(self):
+        # LongTR inherits HipSTR's habit of extending the genotyped region past the requested bed interval (21 of the
+        # 239 records in that same file do), so the flanks shared by REF and every ALT are trimmed to the locus.
+        # INFO START is the start of the repeat, so it equals the locus id's start (100 0-based == 101 1-based) and
+        # POS is what carries the 5bp extension. This extractor takes the interval from the locus id and never reads
+        # INFO START, but convert_hipstr_vcf_to_expansion_hunter_json.py trims off INFO START/END, so a fixture that
+        # disagreed with itself would stop the two implementations from being checkable against the same record.
+        row = extract_allele_sequences_from_vcf_record(
+            longtr_record("chr1-100-120-A", 96, 101, 120, "T" * 5 + "A" * 20 + "T" * 5, "T" * 5 + "A" * 18 + "T" * 5,
+                          "0|1"),
+            "LongTR")
+        self.assertEqual(row["AlleleSequence: Allele 1"], "A" * 18)
+        self.assertEqual(row["AlleleSequence: Allele 2"], "A" * 20)
+        self.assertEqual(row["ExtractionStatus"], EXTRACTION_OK)
 
     def test_trgt_padding_base_is_trimmed(self):
         # TRGT emits a leading padding base: POS (591733) is one before the repeat start in TRID (591733 0-based, i.e.
