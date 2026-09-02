@@ -79,6 +79,25 @@ def main():
         json.dump(locus_results, f, indent=4, ignore_nan=True)
 
 
+def trim_allele(allele, left_trim, right_trim):
+    """Trim left_trim bases off the start of an allele and right_trim bases off its end.
+
+    The same number of flanking bases is removed from every allele of a record, which leaves each allele's own
+    length intact. An empty allele (a symbolic ALT, which spans zero bases of the locus) is already in trimmed form.
+
+    Args:
+        allele (str): the allele sequence, or "" for a symbolic allele.
+        left_trim (int): bases to remove from the start.
+        right_trim (int): bases to remove from the end.
+
+    Returns:
+        str: the trimmed allele.
+    """
+    if not allele:
+        return ""
+    return allele[left_trim: len(allele) - right_trim]
+
+
 def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False):
     locus_results = {
         "LocusResults": {},
@@ -93,6 +112,8 @@ def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False):
         line_counter = 0
         locus_coordinates_adjusted_counter = 0
         locus_coordinates_adjusted_became_hom_ref_counter = 0
+        record_does_not_span_locus_counter = 0
+        allele_shorter_than_flanks_counter = 0
         for line in vcf:
             if line.startswith("#"):
                 if line.startswith("#CHROM"):
@@ -124,7 +145,9 @@ def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False):
             locus_id = fields[2]
 
             ref = fields[3]
-            alts = fields[4].split(",")
+            # A symbolic ALT (LongTR writes <DEL>) is an allele that spans zero bases of the locus. Keeping the
+            # literal text would measure it as len("<DEL>") // period repeats, so represent it as what it is.
+            alts = ["" if alt.startswith("<") else alt for alt in fields[4].split(",")]
             alleles = [ref] + alts
 
             info = fields[7]
@@ -154,28 +177,40 @@ def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False):
                 else:
                     short_allele, long_allele = allele2, allele1
 
-                start_changed = pos < start_1based
-                end_changed = pos + len(ref) - 1 > end_1based
-                locus_coordinates_changed = start_changed or end_changed
+                # HipSTR and LongTR both extend the genotyped region past the requested bed interval, so the record
+                # can span more than the locus. The flanking bases are shared by REF and every ALT, so the same
+                # number of bases comes off each end of each allele, which leaves the allele's own length intact.
+                # Slicing to a fixed width instead would truncate every expanded allele back to the reference
+                # length and report it as homozygous reference.
+                left_trim = start_1based - pos
+                right_trim = (pos + len(ref) - 1) - end_1based
+                if left_trim < 0 or right_trim < 0:
+                    # the record doesn't span the whole locus interval, so its alleles can't be trimmed to it
+                    record_does_not_span_locus_counter += 1
+                    continue
+
+                locus_coordinates_changed = left_trim > 0 or right_trim > 0
                 if locus_coordinates_changed:
-                    if start_1based - pos >= end_1based - pos + 1:
-                        raise ValueError(f"{locus_id} VCF row #{line_counter:,d} has start_1based - pos >= "
-                                         f"end_1based - pos + 1: {start_1based - pos} >= {end_1based - pos + 1} where "
-                                         f"start_1based = {start_1based:,d}, "
-                                         f"pos = {pos:,d}, "
-                                         f"end_1based = {end_1based:,d}")
+                    # Check both alleles, not just the shorter one: a symbolic allele is already "" and so always
+                    # sorts first, which would otherwise leave a real allele shorter than the flanks unchecked and
+                    # silently trimmed away to "" (0 repeats).
+                    if any(allele and left_trim + right_trim > len(allele)
+                           for allele in (short_allele, long_allele)):
+                        # an allele shorter than the flanks being removed can't be trimmed to the locus interval
+                        allele_shorter_than_flanks_counter += 1
+                        continue
 
                     locus_coordinates_adjusted_counter += 1
                     print(f"WARNING: {locus_id} VCF row #{line_counter:,d} has " +
-                          (f"pos < start_1based: {pos:,d} < {start_1based:,d}" if start_changed else "") +
-                          (" and " if start_changed and end_changed else "") +
-                          (f"pos + len(ref) - 1 > end_1based: {pos + len(ref) - 1:,d} > {end_1based:,d}" if end_changed else "") + " "
-                          f"Diff: {start_1based - pos}bp on the left, {pos + len(ref) - end_1based + 1}bp on the right. Trimming alleles: "
-                          f"{short_allele} => {short_allele[start_1based - pos : end_1based - pos + 1]} and "
-                          f"{long_allele} => {long_allele[start_1based - pos : end_1based - pos + 1]}")
+                          (f"pos < start_1based: {pos:,d} < {start_1based:,d}" if left_trim > 0 else "") +
+                          (" and " if left_trim > 0 and right_trim > 0 else "") +
+                          (f"pos + len(ref) - 1 > end_1based: {pos + len(ref) - 1:,d} > {end_1based:,d}" if right_trim > 0 else "") + " "
+                          f"Diff: {left_trim}bp on the left, {right_trim}bp on the right. Trimming alleles: "
+                          f"{short_allele} => {trim_allele(short_allele, left_trim, right_trim)} and "
+                          f"{long_allele} => {trim_allele(long_allele, left_trim, right_trim)}")
 
-                    short_allele = short_allele[start_1based - pos : end_1based - pos + 1]
-                    long_allele = long_allele[start_1based - pos : end_1based - pos + 1]
+                    short_allele = trim_allele(short_allele, left_trim, right_trim)
+                    long_allele = trim_allele(long_allele, left_trim, right_trim)
 
                 num_repeats_in_reference = int((end_1based - start_1based + 1) / period)
                 num_repeats1 = int(len(short_allele)/period)
@@ -187,6 +222,10 @@ def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False):
 
                 repeat_unit_candidates = [long_allele[i:i+period] for i in range(0, len(long_allele), period)]
                 repeat_unit_candidates += [short_allele[i:i+period] for i in range(0, len(short_allele), period)]
+                if not repeat_unit_candidates:
+                    # both alleles are symbolic, so the reference allele is the only sequence left to read it from
+                    trimmed_ref = trim_allele(ref, left_trim, right_trim)
+                    repeat_unit_candidates = [trimmed_ref[i:i+period] for i in range(0, len(trimmed_ref), period)]
                 repeat_unit = max(repeat_unit_candidates, key=repeat_unit_candidates.count)
 
                 locus_results["LocusResults"][locus_id] = {
@@ -217,6 +256,10 @@ def process_hipstr_vcf(vcf_path, sample_id=None, skip_hom_ref_loci=False):
             print(f"Adjusted the start position of {locus_coordinates_adjusted_counter:,d} out of {line_counter:,d} ({locus_coordinates_adjusted_counter/line_counter:.2%}) loci.")
         if locus_coordinates_adjusted_became_hom_ref_counter:
             print(f"Adjusted loci that became homozygous reference after coordinate adjustment: {locus_coordinates_adjusted_became_hom_ref_counter:,d} out of {locus_coordinates_adjusted_counter:,d} ({locus_coordinates_adjusted_became_hom_ref_counter/locus_coordinates_adjusted_counter:.2%}) loci.")
+        if record_does_not_span_locus_counter:
+            print(f"Skipped {record_does_not_span_locus_counter:,d} out of {line_counter:,d} ({record_does_not_span_locus_counter/line_counter:.2%}) loci where the vcf record didn't span the whole locus interval.")
+        if allele_shorter_than_flanks_counter:
+            print(f"Skipped {allele_shorter_than_flanks_counter:,d} out of {line_counter:,d} ({allele_shorter_than_flanks_counter/line_counter:.2%}) loci with an allele shorter than the flanking bases being trimmed off.")
 
     return locus_results
 
