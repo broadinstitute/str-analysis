@@ -110,16 +110,8 @@ RUN wget -q https://github.com/microsoft/mimalloc/archive/refs/tags/v${MIMALLOC_
 # ehunter/CMakeLists.txt's `git rev-parse`/`git log` calls can embed the real commit SHA/date into the
 # "Version" field of the output JSON, instead of silently falling back to "unknown" (a zip archive has
 # no .git at all).
-# ExpansionHunter's own CMakeLists downloads Boost from SourceForge, which fails intermittently with an
-# SSL read error ("OpenSSL SSL_read: ... unexpected"). That takes the whole ~90 minute build down, and
-# because the digest-commit job needs every image job to succeed, one such flake blocks publishing the
-# digests for ALL images -- leaving every published image stale until someone re-runs the workflow.
-# Boost's own archive serves the identical tarball, so rewrite that one URL before configuring. Every
-# other dependency in that file already uses a GitHub release URL. There is no URL_HASH to keep in sync.
 RUN git clone --depth 1 https://github.com/bw2/ExpansionHunter.git \
 	&& cd ExpansionHunter \
-	&& sed -i 's|https://downloads.sourceforge.net/project/boost/boost/1.87.0/boost_1_87_0.tar.gz|https://archives.boost.io/release/1.87.0/source/boost_1_87_0.tar.gz|' CMakeLists.txt \
-	&& grep -q 'archives.boost.io' CMakeLists.txt \
 	&& mkdir build \
 	&& cd build \
 	&& cmake .. \
