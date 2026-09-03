@@ -406,9 +406,11 @@ class TRFRunner:
                 interruptions_string_offset = 0
                 for repeat_motif in repeat_sequence_match.group(2).split(" "):
                     if is_continuation:
-                        # TODO fix parsing of 'repeats' list for repeat motif lengths > 65bp
+                        # TRF wraps its alignment lines at 65 characters, so a motif longer than that continues
+                        # on the next line. Append the continuation's bases to the copy they belong to, or the
+                        # 'repeats' list would hold only each motif's first 65 bases.
                         assert " " not in repeat_sequence_match.group(2)  # if the motif doesn't fit on one line, no spaces expected
-                        repeats[-1] += "..."
+                        repeats[-1] += repeat_motif
                     else:
                         repeats.append(repeat_motif)
                     #repeats_and_start_indices.append((repeat_sequence_start_index_0based, motif))

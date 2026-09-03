@@ -7,11 +7,13 @@ import collections
 import os
 import pkgutil
 import shutil
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
 
 import pyfaidx
+import pysam
 
 from str_analysis.utils.fasta_utils import create_normalize_chrom_function
 from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele, ReferenceTandemRepeat, \
@@ -37,7 +39,9 @@ from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele
     InsertionFilter, build_insertion_filter, check_if_inserted_sequence_belongs_to_repeat, \
     find_insertions_that_dont_belong_to_repeat, \
     extract_haplotype_sequences_and_insertions_from_vcf, \
-    INSERTION_FILTER_REASON_CONTAINS_NS, INSERTION_FILTER_REASON_NOT_REPEAT_LIKE
+    INSERTION_FILTER_REASON_CONTAINS_NS, INSERTION_FILTER_REASON_NOT_REPEAT_LIKE, \
+    is_heterozygous_genotype, are_variants_unambiguously_phased, compute_chrom_sort_key, \
+    parse_catalog_bed_file, run_trf_motif_splitting, do_genotype_subcommand
 from str_analysis.utils.find_motif_utils import format_motifs_as_sequence_string, \
     compute_best_phase_repeat_purity, compute_sequence_periodicity
 
@@ -3021,6 +3025,73 @@ chr1\t4\t.\tC\tCCAG\t.\tPASS\t.\tGT\t0|1
             vcf_file.close()
             fasta_obj.close()
 
+    def test_genotypes_unchanged_when_vcf_is_left_normalized(self):
+        """Genotypes must not depend on how the VCF happens to represent a variant.
+
+        The same two haplotypes are given here exactly as dipcall wrote them for HG00738 at chr1:4420277 (one
+        multiallelic record whose REF carries the reference's soft-masking and whose second ALT shares an 18bp
+        prefix and a 28bp suffix with REF) and as `bcftools norm -m - -f ref` rewrites them (one record per ALT,
+        with the second ALT's shared suffix trimmed off). Both must give identical genotypes at the two loci the
+        record overlaps. The reference is hg38 chr1:4420201-4420400, so the (GT)24 locus at chr1:4420232-4420280
+        becomes chr1:32-80 and the record moves from POS 4420277 to POS 77.
+
+        Trimming the shared suffix leaves the second ALT at the leftmost position it can occupy, which is the
+        placement bcftools left-alignment settles on as well, so the split record needs no further shifting. That
+        placement runs the 50bp deletion into the last 3 bases of the GT tract and gives 22 repeats. Trimming the
+        shared prefix first would instead put the deletion 18bp further right, outside the GT locus, and give 24,
+        which is what the code reported for this haplotype before it trimmed alleles when mapping locus boundaries.
+        """
+        import pysam
+        import pyfaidx
+
+        fasta_path = self._create_test_fasta({"chr1": (
+            "CTCAGTTGCCCCCTTCGCAGCTGAATACCAGG"
+            "GTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGT"
+            "ATATATATATATATGTGTGTATATATATATATGTATATATATATATATGTATATATATATATATATATATGTATATATATATATATATATATATGTATA"
+            "AGGCACGAATTCCTAGTGGCT")})
+        if fasta_path is None:
+            self.skipTest("pyfaidx unavailable")
+
+        vcf_header = """##fileformat=VCFv4.2
+##contig=<ID=chr1,length=200>
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1
+"""
+        dipcall_ref = "gtgtatatatatatatatgtgtgtatatatatatatgtatatatatatatatgtatatatatatatatatatatgtata"
+        vcf_as_written_by_dipcall = vcf_header + (
+            f"chr1\t77\t.\t{dipcall_ref}\tG,GTGTATATATATATATATATATATGTATA\t.\tPASS\t.\tGT\t1|2\n")
+        vcf_after_bcftools_norm = vcf_header + (
+            f"chr1\t77\t.\t{dipcall_ref}\tG\t.\tPASS\t.\tGT\t1|0\n"
+            f"chr1\t77\t.\tGTGTATATATATATATATGTGTGTATATATATATATGTATATATATATATA\tG\t.\tPASS\t.\tGT\t0|1\n")
+
+        vcf_gz_paths = [self._create_test_vcf_and_index(vcf_content)
+                        for vcf_content in (vcf_as_written_by_dipcall, vcf_after_bcftools_norm)]
+        if None in vcf_gz_paths:
+            self.skipTest("bgzip/tabix unavailable")
+
+        expected_genotypes = {
+            (32, 80, "GT"): ("HOM", 22, 22, "GT" * 22 + "G", "GT" * 22 + "G"),
+            (79, 94, "TA"): ("HOM", 0, 0, "", ""),
+        }
+        fasta_obj = pyfaidx.Fasta(fasta_path, one_based_attributes=False, as_raw=True)
+        try:
+            for (start_0based, end, repeat_unit), expected in expected_genotypes.items():
+                tr_locus = ReferenceTandemRepeat(
+                    chrom="chr1", start_0based=start_0based, end_1based=end, repeat_unit=repeat_unit)
+                for vcf_gz_path in vcf_gz_paths:
+                    vcf_file = pysam.VariantFile(vcf_gz_path)
+                    try:
+                        result = genotype_single_locus(
+                            tr_locus, vcf_file, fasta_obj,
+                            normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
+                    finally:
+                        vcf_file.close()
+                    self.assertEqual(
+                        (result.zygosity, result.num_repeats_allele1, result.num_repeats_allele2,
+                         result.allele1_sequence, result.allele2_sequence),
+                        expected, f"locus chr1:{start_0based}-{end} genotyped from {vcf_gz_path}")
+        finally:
+            fasta_obj.close()
+
 
 class TestMotifCompositionSplittingMethod(unittest.TestCase):
     """Test motif-splitting-method labeling and the TRF length threshold in motif composition."""
@@ -4351,3 +4422,392 @@ class TestGenotypingWithInsertionFilter(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPhasingAmbiguityRules(unittest.TestCase):
+    """Test which combinations of overlapping variants can be assigned to haplotypes without guessing."""
+
+    def _make_variant(self, gt, phased, phase_set=None):
+        """Build a stub variant record exposing just the sample fields the phasing check reads."""
+        sample = mock.MagicMock()
+        sample.get.side_effect = lambda key: {"GT": gt, "PS": phase_set}.get(key)
+        sample.phased = phased
+        variant = mock.MagicMock()
+        variant.pos = 100
+        variant.samples = [sample]
+        return variant
+
+    def test_is_heterozygous_genotype(self):
+        """Only genotypes naming more than one distinct allele need a phase."""
+        for gt, expected in [((0, 1), True), ((1, 2), True), ((0, 0), False), ((1, 1), False),
+                             ((1,), False), ((None, 1), False), ((None, None), False), (None, False)]:
+            self.assertEqual(is_heterozygous_genotype(gt), expected, f"GT {gt}")
+
+    def test_unphased_homozygous_records_are_not_ambiguous(self):
+        """Homozygous calls put the same allele on both haplotypes, so '/' separators don't matter.
+
+        whatshap and HiPhase phase only heterozygous sites and leave homozygous calls slash-delimited, so
+        rejecting them would lose the genotype at every locus carrying a hom call plus another variant.
+        """
+        variants = [self._make_variant((1, 1), phased=False), self._make_variant((1, 1), phased=False)]
+        self.assertTrue(are_variants_unambiguously_phased(variants))
+
+        variants = [self._make_variant((1, 1), phased=False), self._make_variant((0, 1), phased=True)]
+        self.assertTrue(are_variants_unambiguously_phased(variants))
+
+    def test_single_unphased_heterozygous_variant_is_not_ambiguous(self):
+        """One heterozygous variant gives the same pair of alleles whichever haplotype it goes on."""
+        variants = [self._make_variant((0, 1), phased=False), self._make_variant((1, 1), phased=False)]
+        self.assertTrue(are_variants_unambiguously_phased(variants))
+
+    def test_two_unphased_heterozygous_variants_are_ambiguous(self):
+        """Two heterozygous variants with no phase between them cannot be assigned to haplotypes."""
+        variants = [self._make_variant((0, 1), phased=False), self._make_variant((0, 1), phased=False)]
+        self.assertFalse(are_variants_unambiguously_phased(variants))
+
+    def test_heterozygous_variants_in_different_phase_sets_are_ambiguous(self):
+        """A '0|1' in one phase block says nothing about which haplotype '0|1' means in another block."""
+        variants = [self._make_variant((0, 1), phased=True, phase_set=100),
+                    self._make_variant((1, 0), phased=True, phase_set=300)]
+        self.assertFalse(are_variants_unambiguously_phased(variants))
+
+    def test_heterozygous_variants_in_the_same_phase_set_are_not_ambiguous(self):
+        """Variants sharing a PS value are phased relative to each other."""
+        variants = [self._make_variant((0, 1), phased=True, phase_set=100),
+                    self._make_variant((1, 0), phased=True, phase_set=100)]
+        self.assertTrue(are_variants_unambiguously_phased(variants))
+
+    def test_absent_phase_sets_are_treated_as_one_block(self):
+        """Assembly-based callers such as dipcall phase a whole chromosome and emit no PS at all."""
+        variants = [self._make_variant((0, 1), phased=True), self._make_variant((1, 0), phased=True)]
+        self.assertTrue(are_variants_unambiguously_phased(variants))
+
+
+class TestGenotypeCorrectnessRegressions(unittest.TestCase):
+    """Regression tests for genotype-path bugs that produced wrong output fields."""
+
+    # 10bp flank, then (CAG)x6 at chr1:10-28 (0-based half-open), then 10bp flank
+    REFERENCE_SEQUENCE = "TTTTTTTTTT" + "CAG" * 6 + "AAAAAAAAAA"
+    LOCUS_START_0BASED = 10
+    LOCUS_END = 28
+    LOCUS_MOTIF = "CAG"
+
+    VCF_HEADER = """##fileformat=VCFv4.2
+##contig=<ID=chr1,length=38>
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=PS,Number=1,Type=Integer,Description="Phase set">
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1
+"""
+
+    def setUp(self):
+        self._temp_files = []
+
+    def tearDown(self):
+        for path in self._temp_files:
+            if os.path.exists(path):
+                os.remove(path)
+
+    _create_temp_file = TestGenotypingPipeline._create_temp_file
+    _create_test_vcf_and_index = TestGenotypingPipeline._create_test_vcf_and_index
+    _create_test_fasta = TestGenotypingPipeline._create_test_fasta
+
+    def _genotype(self, vcf_body, motif=None, start_0based=None, end=None):
+        """Genotype the test locus from the given VCF body lines, or skip if the tools aren't installed."""
+        fasta_path = self._create_test_fasta({"chr1": self.REFERENCE_SEQUENCE})
+        if fasta_path is None:
+            self.skipTest("pyfaidx unavailable")
+        vcf_gz_path = self._create_test_vcf_and_index(self.VCF_HEADER + vcf_body)
+        if vcf_gz_path is None:
+            self.skipTest("bgzip/tabix unavailable")
+
+        tr_locus = ReferenceTandemRepeat(
+            chrom="chr1",
+            start_0based=self.LOCUS_START_0BASED if start_0based is None else start_0based,
+            end_1based=self.LOCUS_END if end is None else end,
+            repeat_unit=self.LOCUS_MOTIF if motif is None else motif)
+        fasta_obj = pyfaidx.Fasta(fasta_path, one_based_attributes=False, as_raw=True)
+        vcf_file = pysam.VariantFile(vcf_gz_path)
+        try:
+            return genotype_single_locus(
+                tr_locus, vcf_file, fasta_obj,
+                normalize_chrom=create_normalize_chrom_function(has_chr_prefix=True))
+        finally:
+            vcf_file.close()
+            fasta_obj.close()
+
+    def test_unphased_homozygous_variants_still_genotype(self):
+        """Two hom-alt records written with '/' are unambiguous and must not become a no-call."""
+        result = self._genotype("chr1\t10\t.\tT\tTCAG\t.\tPASS\t.\tGT\t1/1\n"
+                                "chr1\t20\t.\tC\tA\t.\tPASS\t.\tGT\t1/1\n")
+        self.assertEqual(result.zygosity, "HOM")
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (7, 7))
+
+    def test_heterozygous_variants_in_different_phase_sets_return_no_call(self):
+        """Combining phased records from two phase blocks would mispair the haplotypes."""
+        result = self._genotype("chr1\t10\t.\tT\tTCAG\t.\tPASS\t.\tGT:PS\t0|1:100\n"
+                                "chr1\t20\t.\tC\tA\t.\tPASS\t.\tGT:PS\t1|0:300\n")
+        self.assertIsNone(result.zygosity)
+        self.assertIsNone(result.allele1_sequence)
+        self.assertIsNone(result.allele2_sequence)
+
+    def test_heterozygous_variants_in_one_phase_set_genotype(self):
+        """The same two records genotype normally when they share a phase set."""
+        result = self._genotype("chr1\t10\t.\tT\tTCAG\t.\tPASS\t.\tGT:PS\t0|1:100\n"
+                                "chr1\t20\t.\tC\tA\t.\tPASS\t.\tGT:PS\t1|0:100\n")
+        self.assertEqual(result.zygosity, "HET")
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (6, 7))
+
+    def test_ref_allele_mismatch_gives_no_call_rather_than_hemizygous(self):
+        """A VCF ref allele that disagrees with the fasta must not look like a real hemizygous call.
+
+        Reporting only the surviving allele would fill both the short and long allele columns with it, hiding
+        the expansion on the haplotype whose sequence could not be built.
+        """
+        # The fasta has C at position 11, not T, so this record cannot be applied
+        result = self._genotype("chr1\t11\t.\tT\tTCAGCAGCAGCAGCAGCAGCAGCAGCAG\t.\tPASS\t.\tGT\t0|1\n")
+        self.assertIsNone(result.zygosity)
+        self.assertIsNone(result.num_repeats_short_allele)
+        self.assertIsNone(result.num_repeats_long_allele)
+        self.assertEqual(result.num_alleles_with_build_errors, 1)
+
+    def test_flank_insertion_anchored_outside_the_locus_is_not_counted(self):
+        """An insertion whose suffix-trimmed anchor lands in the flank contributes nothing to the locus.
+
+        Its REF span ends exactly at the locus start, but trimming the shared 'T' suffix pulls the inserted
+        base back to position 8, so it must not inflate NumOverlappingVariants or trigger a phasing no-call.
+        """
+        result = self._genotype("chr1\t9\t.\tTT\tTTT\t.\tPASS\t.\tGT\t0|1\n")
+        self.assertEqual(result.num_overlapping_variants, 0)
+        self.assertEqual(result.variant_positions, [])
+        self.assertEqual(result.zygosity, "HOM")
+
+    def test_left_anchored_repeat_insertion_is_still_counted(self):
+        """The neighbouring case, an insertion anchored at the locus start, must still be picked up."""
+        result = self._genotype("chr1\t10\t.\tT\tTCAG\t.\tPASS\t.\tGT\t0|1\n")
+        self.assertEqual(result.num_overlapping_variants, 1)
+        self.assertEqual(result.zygosity, "HET")
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (6, 7))
+
+    def test_fully_deleted_alleles_have_unknown_purity(self):
+        """An allele deleted to an empty sequence has no purity to judge, so IsPureRepeat is unknown."""
+        deleted_ref = self.REFERENCE_SEQUENCE[8:8 + 21]
+        result = self._genotype(f"chr1\t9\t.\t{deleted_ref}\tT\t.\tPASS\t.\tGT\t1|1\n")
+        self.assertEqual((result.allele1_sequence, result.allele2_sequence), ("", ""))
+        self.assertIsNone(result.is_pure_repeat)
+        self.assertIsNone(result.repeat_purity)
+        self.assertEqual(result.to_tsv_dict()["IsPureRepeat"], "")
+
+    def test_purity_columns_match_the_size_columns_when_repeat_counts_tie(self):
+        """Repeat counts are truncated, so alleles differing by 1bp tie on count but not on length.
+
+        The purity columns must then follow the same short/long ordering as the size columns.
+        """
+        # A 1bp insertion on haplotype 0 makes allele1 19bp (purity < 1) and leaves allele2 18bp (purity 1)
+        result = self._genotype("chr1\t12\t.\tA\tAA\t.\tPASS\t.\tGT\t1|0\n")
+        self.assertEqual((len(result.allele1_sequence), len(result.allele2_sequence)), (19, 18))
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (6, 6))
+
+        self.assertEqual(result.repeat_size_short_allele_bp, 18)
+        self.assertEqual(result.repeat_size_long_allele_bp, 19)
+        # The 18bp allele is the pure one, so the short-allele purity must be the higher of the two
+        self.assertEqual(result.repeat_purity_short_allele, result.allele2_purity)
+        self.assertEqual(result.repeat_purity_long_allele, result.allele1_purity)
+
+
+class TestCatalogAndOutputOrdering(unittest.TestCase):
+    """Test catalog validation and the chromosome ordering shared by the genotype output writers."""
+
+    def setUp(self):
+        self._temp_files = []
+
+    def tearDown(self):
+        for path in self._temp_files:
+            if os.path.exists(path):
+                os.remove(path)
+
+    _create_temp_file = TestGenotypingPipeline._create_temp_file
+
+    def test_catalog_with_empty_motif_raises_a_clear_error(self):
+        """A name field with no motif before the first ':' must be rejected, not divided by zero later."""
+        catalog_path = self._create_temp_file("chr1\t10\t28\t:3bp:6.0x:pure_repeats\n", ".bed")
+        with self.assertRaises(ValueError) as raised:
+            parse_catalog_bed_file(catalog_path)
+        self.assertIn("Missing repeat unit", str(raised.exception))
+
+    def test_chromosomes_sort_naturally(self):
+        """chr2 must sort before chr10, and X/Y/M after the numbered chromosomes."""
+        chroms = ["chr10", "chr2", "chrM", "chr1", "chrX", "chrY"]
+        self.assertEqual(sorted(chroms, key=compute_chrom_sort_key),
+                         ["chr1", "chr2", "chr10", "chrX", "chrY", "chrM"])
+
+    def test_unplaced_contigs_stay_grouped(self):
+        """Records from one unplaced contig must stay contiguous, since tabix rejects interleaved blocks."""
+        records = [("chrUn_KI270302v1", 11), ("chr1_KI270706v1_random", 21),
+                   ("chr1_KI270706v1_random", 59), ("chrUn_KI270302v1", 87)]
+        ordered = sorted(records, key=lambda x: (compute_chrom_sort_key(x[0]), x[1]))
+        self.assertEqual([chrom for chrom, _ in ordered],
+                         ["chr1_KI270706v1_random", "chr1_KI270706v1_random",
+                          "chrUn_KI270302v1", "chrUn_KI270302v1"])
+
+
+class TestTRFLongMotifSplitting(unittest.TestCase):
+    """Test that motif composition handles motifs longer than one TRF alignment line."""
+
+    def setUp(self):
+        self._trf_working_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self._trf_working_dir, ignore_errors=True)
+
+    def _split_with_trf(self, sequence, motif_size):
+        """Run the TRF motif splitter on one allele sequence, or skip if TRF isn't installed."""
+        trf_executable_path = shutil.which("trf")
+        if trf_executable_path is None:
+            self.skipTest("trf executable unavailable")
+
+        results = run_trf_motif_splitting(
+            [("chr1-0-100-M$allele1", sequence, motif_size)], trf_executable_path, self._trf_working_dir)
+        self.assertEqual(len(results), 1)
+        _, _, entry, method = results[0]
+        return entry, method
+
+    def _assert_entry_reconstructs_sequence(self, entry, sequence):
+        """The parsed motifs plus prefix and suffix must put the allele back together exactly."""
+        rebuilt = entry["prefix"] + "".join(entry["motifs"]) + entry["suffix"]
+        self.assertEqual(rebuilt, sequence,
+                         f"parsed motifs rebuild {len(rebuilt)}bp but the allele is {len(sequence)}bp")
+
+    def test_motif_longer_than_one_alignment_line_is_not_truncated(self):
+        """TRF wraps its alignment at 65 characters, so a 70bp motif spans two lines per copy.
+
+        Before this was handled, each copy kept only its first 65 bases and the reported motif sequence no
+        longer reconstructed the allele.
+        """
+        motif = "GCTAAGGTCCATTGACCGTAAGCTTGGCCAATCGTTAGGCCATTAGGCCTTAAGGCATCGATTGCAGTTA"
+        self.assertEqual(len(motif), 70)
+        sequence = motif * 5
+
+        entry, method = self._split_with_trf(sequence, len(motif))
+        self.assertEqual(method, MOTIF_DETECTION_METHOD_TRF)
+        self.assertEqual([len(m) for m in entry["motifs"]], [70] * 5)
+        self._assert_entry_reconstructs_sequence(entry, sequence)
+
+    def test_short_motif_still_splits_correctly(self):
+        """The common case of a motif that fits on one alignment line must be unaffected."""
+        sequence = "CAG" * 10 + "CAA" + "CAG" * 5
+
+        entry, method = self._split_with_trf(sequence, 3)
+        self.assertEqual(method, MOTIF_DETECTION_METHOD_TRF)
+        self._assert_entry_reconstructs_sequence(entry, sequence)
+
+
+class TestContributingVariantsVcfOutput(unittest.TestCase):
+    """End-to-end tests for the VCF of variants that contributed to TR genotyping."""
+
+    def setUp(self):
+        self._temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self._temp_dir, ignore_errors=True)
+
+    def _run_genotype_subcommand(self, contigs, catalog_lines, vcf_records):
+        """Run the genotype subcommand with --write-vcf, returning the output VCF path.
+
+        Args:
+            contigs (dict): contig name to reference sequence
+            catalog_lines (list): BED lines for the catalog, without trailing newlines
+            vcf_records (list): VCF body lines, without trailing newlines, already coordinate-sorted
+
+        Returns:
+            str: path to the bgzipped contributing-variants VCF
+        """
+        if shutil.which("bgzip") is None or shutil.which("tabix") is None:
+            self.skipTest("bgzip/tabix unavailable")
+
+        fasta_path = os.path.join(self._temp_dir, "ref.fa")
+        with open(fasta_path, "w") as f:
+            for chrom, sequence in contigs.items():
+                f.write(f">{chrom}\n{sequence}\n")
+        pyfaidx.Fasta(fasta_path)
+
+        catalog_path = os.path.join(self._temp_dir, "catalog.bed")
+        with open(catalog_path, "w") as f:
+            f.write("\n".join(catalog_lines) + "\n")
+
+        header_contigs = "".join(
+            f"##contig=<ID={chrom},length={len(sequence)}>\n" for chrom, sequence in contigs.items())
+        vcf_path = os.path.join(self._temp_dir, "input.vcf")
+        with open(vcf_path, "w") as f:
+            f.write("##fileformat=VCFv4.2\n" + header_contigs +
+                    '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n' +
+                    "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1\n" +
+                    "\n".join(vcf_records) + "\n")
+        subprocess.run(["bgzip", "-f", vcf_path], check=True)
+        subprocess.run(["tabix", "-p", "vcf", vcf_path + ".gz"], check=True)
+
+        args = argparse.Namespace(
+            reference_fasta_path=fasta_path, catalog_bed=catalog_path, input_vcf_path=vcf_path + ".gz",
+            output_prefix=os.path.join(self._temp_dir, "out"), interval=None, verbose=False,
+            show_progress_bar=False, write_vcf=True, write_json=False, add_motif_composition=None,
+            skip_hom_ref_loci=False, dont_filter_non_repeat_insertions=False, trf_executable_path=None)
+        do_genotype_subcommand(args)
+
+        return os.path.join(self._temp_dir, "out.tandem_repeat_contributing_variants.vcf.gz")
+
+    def test_unplaced_contigs_produce_an_indexable_vcf(self):
+        """Records from different unplaced contigs must not interleave, or tabix cannot index the output.
+
+        GRCh38 carries roughly 150 unplaced and alt contigs, so a whole-genome run with --write-vcf hits this
+        whenever two of them contribute variants at interleaving positions.
+        """
+        reference_sequence = "TTTTTTTTTT" + "CAG" * 6 + "AAAAAAAAAA" + "G" * 60
+        output_vcf_path = self._run_genotype_subcommand(
+            contigs={"chr1_KI270706v1_random": reference_sequence, "chrUn_KI270302v1": reference_sequence},
+            catalog_lines=["chr1_KI270706v1_random\t10\t28\tCAG", "chrUn_KI270302v1\t10\t28\tCAG"],
+            vcf_records=[
+                "chr1_KI270706v1_random\t21\t.\tC\tCCAG\t.\tPASS\t.\tGT\t0|1",
+                "chr1_KI270706v1_random\t59\t.\tA\tAT\t.\tPASS\t.\tGT\t0|1",
+                "chrUn_KI270302v1\t11\t.\tC\tCCAG\t.\tPASS\t.\tGT\t0|1",
+                "chrUn_KI270302v1\t87\t.\tG\tGT\t.\tPASS\t.\tGT\t0|1",
+            ])
+
+        self.assertTrue(os.path.exists(output_vcf_path + ".tbi"), "tabix did not produce an index")
+        output_vcf = pysam.VariantFile(output_vcf_path)
+        try:
+            self.assertIsNotNone(output_vcf.index, "the output VCF has no usable index")
+            written_chroms = [record.chrom for record in output_vcf.fetch()]
+        finally:
+            output_vcf.close()
+
+        # Each contig's records must be contiguous
+        self.assertEqual(written_chroms, sorted(written_chroms, key=written_chroms.index))
+
+    def test_missing_filter_is_not_rewritten_as_pass(self):
+        """A FILTER of '.' means filters were not applied, which is not the same claim as PASS."""
+        output_vcf_path = self._run_genotype_subcommand(
+            contigs={"chr1": "TTTTTTTTTT" + "CAG" * 6 + "AAAAAAAAAA"},
+            catalog_lines=["chr1\t10\t28\tCAG"],
+            vcf_records=["chr1\t10\t.\tT\tTCAG\t.\t.\t.\tGT\t0|1"])
+
+        output_vcf = pysam.VariantFile(output_vcf_path)
+        try:
+            records = list(output_vcf.fetch())
+            self.assertEqual(len(records), 1)
+            self.assertEqual(list(records[0].filter.keys()), [])
+        finally:
+            output_vcf.close()
+
+    def test_pass_filter_is_preserved(self):
+        """The neighbouring case, an explicit PASS, must still come through as PASS."""
+        output_vcf_path = self._run_genotype_subcommand(
+            contigs={"chr1": "TTTTTTTTTT" + "CAG" * 6 + "AAAAAAAAAA"},
+            catalog_lines=["chr1\t10\t28\tCAG"],
+            vcf_records=["chr1\t10\t.\tT\tTCAG\t.\tPASS\t.\tGT\t0|1"])
+
+        output_vcf = pysam.VariantFile(output_vcf_path)
+        try:
+            records = list(output_vcf.fetch())
+            self.assertEqual(len(records), 1)
+            self.assertEqual(list(records[0].filter.keys()), ["PASS"])
+        finally:
+            output_vcf.close()

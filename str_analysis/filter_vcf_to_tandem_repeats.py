@@ -47,6 +47,7 @@ import itertools
 import json
 import multiprocessing
 import os
+import shlex
 import tempfile
 
 import intervaltree
@@ -993,6 +994,7 @@ class GenotypedTandemRepeat:
             allele1_purity=None,
             allele2_purity=None,
             num_alleles_with_non_repeat_insertions=0,
+            num_alleles_with_build_errors=0,
         ):
         """Initialize a GenotypedTandemRepeat object.
 
@@ -1007,6 +1009,8 @@ class GenotypedTandemRepeat:
             allele2_purity (float): Repeat purity for allele 2 (0.0-1.0)
             num_alleles_with_non_repeat_insertions (int): How many of the two alleles contained an insertion
                 that isn't part of the tandem repeat. Any nonzero value means the whole locus has no call.
+            num_alleles_with_build_errors (int): How many of the two alleles had variants that couldn't be
+                applied to the reference. Any nonzero value means the whole locus has no call.
         """
         self._tr_locus = tr_locus
         self._overlapping_variants = overlapping_variants if overlapping_variants else []
@@ -1017,6 +1021,7 @@ class GenotypedTandemRepeat:
         self._allele1_purity = allele1_purity
         self._allele2_purity = allele2_purity
         self._num_alleles_with_non_repeat_insertions = num_alleles_with_non_repeat_insertions
+        self._num_alleles_with_build_errors = num_alleles_with_build_errors
 
     # Properties from the underlying TR locus
     @property
@@ -1102,10 +1107,24 @@ class GenotypedTandemRepeat:
         value means the whole locus was set to no-call."""
         return self._num_alleles_with_non_repeat_insertions
 
-    def _purity_ordered_by_num_repeats(self):
-        """Return (short_allele_purity, long_allele_purity) ordered by repeat count so that the values line up
-        with num_repeats_short_allele / num_repeats_long_allele. For HEMI loci (only one allele present), the
-        present allele's purity is used for both. Returns (None, None) if the genotype is missing."""
+    @property
+    def num_alleles_with_build_errors(self):
+        """How many of the two alleles had variants that couldn't be applied to the reference sequence. Any
+        nonzero value means the whole locus was set to no-call."""
+        return self._num_alleles_with_build_errors
+
+    def _purity_in_short_long_order(self):
+        """Return (short_allele_purity, long_allele_purity) ordered so the values line up with the other
+        short/long columns.
+
+        Repeat counts are truncated to whole motifs, so two alleles that differ by less than one motif tie on
+        count while still differing in length. Ordering on count alone would then leave the purity columns
+        paired with the opposite alleles from repeat_size_short_allele_bp / repeat_size_long_allele_bp, so
+        sequence length breaks the tie here the same way it decides the size columns.
+
+        For HEMI loci (only one allele present), the present allele's purity is used for both. Returns
+        (None, None) if the genotype is missing.
+        """
         n1, n2 = self._num_repeats_allele1, self._num_repeats_allele2
         p1, p2 = self._allele1_purity, self._allele2_purity
         if n1 is None and n2 is None:
@@ -1114,17 +1133,17 @@ class GenotypedTandemRepeat:
             return p2, p2
         if n2 is None:
             return p1, p1
-        return (p1, p2) if n1 <= n2 else (p2, p1)
+        return (p1, p2) if (n1, self.allele1_size_bp) <= (n2, self.allele2_size_bp) else (p2, p1)
 
     @property
     def repeat_purity_short_allele(self):
-        """Repeat purity of the allele with fewer repeats (matches num_repeats_short_allele ordering)."""
-        return self._purity_ordered_by_num_repeats()[0]
+        """Repeat purity of the shorter allele (matches the short-allele repeat-count and size columns)."""
+        return self._purity_in_short_long_order()[0]
 
     @property
     def repeat_purity_long_allele(self):
-        """Repeat purity of the allele with more repeats (matches num_repeats_long_allele ordering)."""
-        return self._purity_ordered_by_num_repeats()[1]
+        """Repeat purity of the longer allele (matches the long-allele repeat-count and size columns)."""
+        return self._purity_in_short_long_order()[1]
 
     @property
     def num_repeats_short_allele(self):
@@ -1208,20 +1227,23 @@ class GenotypedTandemRepeat:
 
     @property
     def is_pure_repeat(self):
-        """Whether both alleles are pure repeats (purity > 0.99)."""
-        purity_threshold = 0.99
-        allele1_pure = self._allele1_purity is not None and self._allele1_purity > purity_threshold
-        allele2_pure = self._allele2_purity is not None and self._allele2_purity > purity_threshold
+        """Whether every allele with a defined purity is a pure repeat (purity > 0.99).
 
-        # If both alleles present, both must be pure
-        if self._allele1_sequence is not None and self._allele2_sequence is not None:
-            return allele1_pure and allele2_pure
-        # If only one allele present (HEMI), check that one
-        if self._allele1_sequence is not None:
-            return allele1_pure
-        if self._allele2_sequence is not None:
-            return allele2_pure
-        # Missing genotype
+        An allele counts here only if its purity is defined. An allele deleted down to an empty sequence, or one
+        shorter than a single motif copy, has no purity to judge, so it neither passes nor fails: a locus where
+        no allele has a defined purity returns None (unknown) rather than False.
+        """
+        purity_threshold = 0.99
+
+        # Both alleles present with a defined purity: both must be pure
+        if self._allele1_purity is not None and self._allele2_purity is not None:
+            return self._allele1_purity > purity_threshold and self._allele2_purity > purity_threshold
+        # Only one allele has a defined purity: judge on that one
+        if self._allele1_purity is not None:
+            return self._allele1_purity > purity_threshold
+        if self._allele2_purity is not None:
+            return self._allele2_purity > purity_threshold
+        # Missing genotype, or no allele long enough to have a purity
         return None
 
     @property
@@ -1423,7 +1445,14 @@ def parse_catalog_bed_file(catalog_bed_path, intervals=None, verbose=False):
         name_field_tokens = fields[3].split(":")
         repeat_unit = name_field_tokens[0].upper()
 
-        # Validate that repeat_unit contains only valid DNA bases
+        # Validate that repeat_unit is non-empty and contains only valid DNA bases. An empty name field, or one
+        # that starts with the ":" separator, yields an empty motif that would otherwise pass the DNA-base check
+        # below (the set difference of an empty string is empty) and then divide by zero downstream.
+        if not repeat_unit:
+            raise ValueError(f"Missing repeat unit in {catalog_bed_path} on line {line_num}: the name field "
+                           f"'{fields[3]}' has no motif before the first ':' separator. "
+                           f"Line contents: {line.strip()}")
+
         invalid_bases = set(repeat_unit) - DNA_BASES
         if invalid_bases:
             raise ValueError(f"Invalid repeat unit in {catalog_bed_path} on line {line_num}: "
@@ -1537,19 +1566,24 @@ def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, normalize_c
         return []
 
     # Keep only variants that actually affect the locus: those whose REF span overlaps
-    # [start_0based, end), plus left-anchored insertions whose REF span ends exactly at
-    # start_0based. A variant whose REF span ends at start_0based with no insertion (e.g. a
-    # SNV on the last flank base) is dropped so it cannot perturb the locus or spuriously
-    # trigger the multi-variant phasing-ambiguity check.
+    # [start_0based, end), plus left-anchored insertions that put bases inside the locus even
+    # though their REF span ends exactly at start_0based. A variant whose REF span ends at
+    # start_0based without inserting anything inside the locus (a SNV on the last flank base, or
+    # an insertion whose suffix-trimmed anchor falls back into the flank) is dropped so it cannot
+    # perturb the locus, inflate the overlapping-variant count, or spuriously trigger the
+    # multi-variant phasing-ambiguity check.
     variants = []
     for variant in candidates:
         variant_start_0based = variant.pos - 1
         variant_end_0based = variant_start_0based + len(variant.ref)
         if variant_start_0based >= end:
             continue
-        has_insertion = any(alt is not None and len(alt) > len(variant.ref)
-                            for alt in (variant.alts or []))
-        if variant_end_0based > start_0based or (variant_end_0based == start_0based and has_insertion):
+        if variant_end_0based > start_0based:
+            variants.append(variant)
+            continue
+        if variant_end_0based == start_0based and any(
+                get_inserted_bases_inside_locus(variant.pos, variant.ref, alt, start_0based, end) is not None
+                for alt in (variant.alts or []) if alt is not None):
             variants.append(variant)
 
     # Sort by position
@@ -1582,6 +1616,36 @@ def trim_shared_suffix(ref, alt):
         if common_suffix_length > 0:
             return ref[:-common_suffix_length], alt[:-common_suffix_length]
     return ref, alt
+
+
+def get_inserted_bases_inside_locus(variant_pos_1based, ref, alt, start_0based, end):
+    """Return the bases an alt allele inserts between the locus boundaries, or None if it inserts none there.
+
+    Inserted bases are anchored at the end of the variant's suffix-trimmed reference span, the same convention
+    compute_locus_offset_in_haplotype() uses to decide which bases fall inside the locus. A variant can overlap
+    the locus through its reference span while inserting its bases outside it, and trimming a shared suffix can
+    pull the anchor back into the left flank, so the anchor rather than the variant position decides.
+
+    Args:
+        variant_pos_1based (int): the variant's 1-based position
+        ref (str): the variant's reference allele
+        alt (str): the alt allele to check
+        start_0based (int): locus start position (0-based, inclusive)
+        end (int): locus end position (0-based, exclusive / 1-based inclusive)
+
+    Returns:
+        str: the inserted bases that land inside the locus, or None if this alt inserts none there
+    """
+    trimmed_ref, trimmed_alt = trim_shared_suffix(ref.upper(), alt.upper())
+    inserted_base_count = len(trimmed_alt) - len(trimmed_ref)
+    if inserted_base_count <= 0:
+        return None
+
+    inserted_bases_anchor = variant_pos_1based - 1 + len(trimmed_ref)
+    if not start_0based <= inserted_bases_anchor < end:
+        return None
+
+    return trimmed_alt[-inserted_base_count:]
 
 
 def convert_variants_to_haplotype_sequence(pos_1based, reference_sequence, variants, verbose=False):
@@ -1789,23 +1853,18 @@ def find_insertions_that_dont_belong_to_repeat(variant_list, start_0based, end, 
     """
     rejected_insertions = []
     for variant_pos_1based, variant_ref, variant_alt in variant_list:
-        trimmed_ref, trimmed_alt = trim_shared_suffix(variant_ref.upper(), variant_alt.upper())
-        inserted_base_count = len(trimmed_alt) - len(trimmed_ref)
-        if inserted_base_count <= 0:
+        inserted_sequence = get_inserted_bases_inside_locus(
+            variant_pos_1based, variant_ref, variant_alt, start_0based, end)
+        if inserted_sequence is None:
             continue
 
-        inserted_bases_anchor = variant_pos_1based - 1 + len(trimmed_ref)
-        if not start_0based <= inserted_bases_anchor < end:
-            continue
-
-        inserted_sequence = trimmed_alt[-inserted_base_count:]
         belongs_to_repeat, reason = check_if_inserted_sequence_belongs_to_repeat(
             inserted_sequence, insertion_filter)
         if not belongs_to_repeat:
             rejected_insertions.append((inserted_sequence, reason))
             if verbose:
-                print(f"  The {inserted_base_count:,d} bases inserted at position {variant_pos_1based:,d} are "
-                      f"not part of the repeat ({reason}), so this allele has no call")
+                print(f"  The {len(inserted_sequence):,d} bases inserted at position {variant_pos_1based:,d} "
+                      f"are not part of the repeat ({reason}), so this allele has no call")
 
     return rejected_insertions
 
@@ -1814,7 +1873,8 @@ def find_insertions_that_dont_belong_to_repeat(variant_list, start_0based, end, 
 HaplotypeSequences = collections.namedtuple("HaplotypeSequences", [
     "sequence",             # locus sequence with all variants applied, or None if this allele has no call
     "rejected_insertions",  # (inserted_sequence, reason) for each insertion that isn't part of the repeat
-])
+    "build_error",          # why the variants couldn't be applied to the reference, or None if they applied
+], defaults=(None,))
 
 MISSING_HAPLOTYPE_SEQUENCES = HaplotypeSequences(None, ())
 
@@ -1925,6 +1985,71 @@ def get_haplotype_variant_list(vcf_variants, haplotype, verbose=False):
     return variant_list
 
 
+def is_heterozygous_genotype(gt):
+    """Check whether a genotype carries two different alleles, and so needs phasing to be resolved.
+
+    A genotype that names only one distinct allele puts that allele on every haplotype no matter how the record
+    is phased. That covers homozygous calls (0/0, 1/1), haploid calls (1), and calls where one allele is missing
+    (./1), none of which need a phase.
+
+    Args:
+        gt (tuple): the GT tuple from a pysam sample record, or None if the record has no GT
+
+    Returns:
+        bool: True if the genotype names more than one distinct allele
+    """
+    if gt is None:
+        return False
+
+    return len({allele for allele in gt if allele is not None}) > 1
+
+
+def are_variants_unambiguously_phased(vcf_variants, verbose=False):
+    """Check whether a set of variants overlapping one locus can be split into two haplotypes without guessing.
+
+    Only heterozygous variants need a phase: a homozygous or hom-ref record contributes the same allele to both
+    haplotypes however it is written, and a single heterozygous variant can go on either haplotype, which yields
+    the same pair of allele sequences either way. So the genotype is ambiguous only when two or more
+    heterozygous variants overlap the locus and their relative phase isn't pinned down.
+
+    Two heterozygous variants are pinned down relative to each other only if both are phased AND both belong to
+    the same phase set. Phasing tools such as whatshap and HiPhase split a chromosome into independent phase
+    blocks and tag each with a PS value, and "0|1" in one block says nothing about which physical haplotype
+    "0|1" refers to in another. Assembly-based callers such as dipcall phase the whole chromosome at once and
+    emit no PS at all, which reads here as a single shared phase set.
+
+    Args:
+        vcf_variants (list): list of pysam.VariantRecord objects that overlap the locus
+        verbose (bool): if True, print the reason the genotype is ambiguous
+
+    Returns:
+        bool: True if the variants can be assigned to haplotypes unambiguously
+    """
+    heterozygous_variants = [
+        variant for variant in vcf_variants if is_heterozygous_genotype(variant.samples[0].get("GT"))
+    ]
+    if len(heterozygous_variants) < 2:
+        return True
+
+    for variant in heterozygous_variants:
+        # pysam returns phased=False if GT uses the '/' separator
+        if not variant.samples[0].phased:
+            if verbose:
+                print(f"Multiple heterozygous variants overlap locus and the GT at {variant.pos} is unphased: "
+                      f"returning missing genotype")
+            return False
+
+    phase_sets = {variant.samples[0].get("PS") for variant in heterozygous_variants}
+    if len(phase_sets) > 1:
+        if verbose:
+            print(f"Multiple heterozygous variants overlap locus but belong to different phase sets "
+                  f"({', '.join(str(phase_set) for phase_set in sorted(phase_sets, key=str))}): "
+                  f"returning missing genotype")
+        return False
+
+    return True
+
+
 def extract_haplotype_sequences_and_insertions_from_vcf(chrom, start_0based, end, fasta_obj, vcf_variants,
                                                         verbose=False, insertion_filter=None):
     """Extract diploid haplotype sequences for a genomic locus from VCF variants, optionally rejecting a
@@ -1948,18 +2073,8 @@ def extract_haplotype_sequences_and_insertions_from_vcf(chrom, start_0based, end
         tuple: (HaplotypeSequences, HaplotypeSequences) for haplotype 0 and haplotype 1
     """
     # Check for phasing ambiguity first
-    # If multiple variants overlap AND any GT is unphased, return missing genotype
-    if len(vcf_variants) > 1:
-        for variant in vcf_variants:
-            gt = variant.samples[0].get("GT")
-            if gt is None:
-                continue
-            # pysam returns phased=False if GT uses '/' separator
-            if not variant.samples[0].phased:
-                if verbose:
-                    print(f"Multiple variants overlap locus and GT is unphased at {variant.pos}: "
-                          f"returning missing genotype")
-                return (MISSING_HAPLOTYPE_SEQUENCES, MISSING_HAPLOTYPE_SEQUENCES)
+    if not are_variants_unambiguously_phased(vcf_variants, verbose=verbose):
+        return (MISSING_HAPLOTYPE_SEQUENCES, MISSING_HAPLOTYPE_SEQUENCES)
 
     # Determine the actual region we need to fetch from the reference
     # This may be larger than the locus if variants extend beyond its boundaries
@@ -2019,10 +2134,10 @@ def extract_haplotype_sequences_and_insertions_from_vcf(chrom, start_0based, end
                 haplotype_results.append(HaplotypeSequences(None, tuple(rejected_insertions)))
                 continue
 
-        haplotype_seq = build_locus_sequence_from_variants(
+        haplotype_seq, build_error = build_locus_sequence_from_variants(
             fetch_start, ref_seq, variant_list, start_0based, end, verbose=verbose)
         if haplotype_seq is None:
-            haplotype_results.append(MISSING_HAPLOTYPE_SEQUENCES)
+            haplotype_results.append(HaplotypeSequences(None, (), build_error))
             continue
 
         haplotype_results.append(HaplotypeSequences(haplotype_seq, ()))
@@ -2042,7 +2157,9 @@ def build_locus_sequence_from_variants(fetch_start, ref_seq, variant_list, start
         verbose (bool): if True, print detailed output for debugging
 
     Returns:
-        str: the locus sequence for this haplotype, or None if the variants could not be applied
+        2-tuple (str, str):
+            str: the locus sequence for this haplotype, or None if the variants could not be applied
+            str: why the variants could not be applied, or None if they applied cleanly
     """
     try:
         # pos_1based for convert_variants_to_haplotype_sequence is fetch_start + 1
@@ -2052,14 +2169,14 @@ def build_locus_sequence_from_variants(fetch_start, ref_seq, variant_list, start
     except ValueError as e:
         if verbose:
             print(f"Error converting variants: {e}")
-        return None
+        return None, str(e)
 
     # Trim the haplotype sequence back to the original locus boundaries. We may have built the haplotype over an
     # expanded fetch region to cover variants that extend beyond the locus, so map the genomic locus interval
     # [start_0based, end) to offsets in the output sequence.
     return full_haplotype_seq[
         compute_locus_offset_in_haplotype(start_0based, fetch_start, variant_list):
-        compute_locus_offset_in_haplotype(end, fetch_start, variant_list)]
+        compute_locus_offset_in_haplotype(end, fetch_start, variant_list)], None
 
 
 def extract_haplotype_sequences_from_vcf(chrom, start_0based, end, fasta_obj, vcf_variants, verbose=False):
@@ -2088,12 +2205,14 @@ def extract_haplotype_sequences_from_vcf(chrom, start_0based, end, fasta_obj, vc
     Returns:
         tuple: (haplotype0_seq, haplotype1_seq) where each is:
             - A string containing the haplotype sequence, or
-            - None if the genotype is missing (e.g., due to unphased multiple variants
-              or missing GT field)
+            - None if the genotype is missing (e.g., due to unresolved phasing between
+              multiple heterozygous variants, or a missing GT field)
 
     Notes:
-        - If multiple variants overlap AND any GT is unphased (contains '/' not '|'),
-          returns (None, None) to indicate missing genotype
+        - If two or more heterozygous variants overlap and their relative phase isn't pinned down
+          (any of them unphased, or they span more than one phase set), returns (None, None) to
+          indicate missing genotype. Homozygous records never need a phase, and a single
+          heterozygous variant gives the same pair of alleles whichever haplotype it goes on.
         - Variants whose REF extends beyond locus boundaries are handled by fetching
           an expanded reference region and trimming the result
         - Star alleles ('*') are skipped as they indicate overlap with a deletion
@@ -2223,8 +2342,9 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, v
     Notes:
         - No overlapping variants → both alleles equal reference (HOM)
         - Missing genotype on one haplotype → HEMI
-        - Multiple unphased variants overlapping → missing genotype
+        - Two or more heterozygous variants whose relative phase isn't pinned down → missing genotype
         - Insertion that isn't part of the tandem repeat on either allele → the whole locus gets no call
+        - Variants that can't be applied to the reference on either allele → the whole locus gets no call
     """
     chrom = tr_locus.chrom
     start_0based = tr_locus.start_0based
@@ -2244,7 +2364,8 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, v
         print(f"  Found {len(variants)} overlapping variants")
 
     # Extract haplotype sequences
-    # This handles phasing ambiguity (multiple unphased variants) by returning missing genotypes
+    # This handles phasing ambiguity (unresolved phase between heterozygous variants) by returning
+    # missing genotypes
     haplotype0, haplotype1 = extract_haplotype_sequences_and_insertions_from_vcf(
         chrom, start_0based, end, fasta_obj, variants, verbose=verbose, insertion_filter=insertion_filter
     )
@@ -2257,8 +2378,19 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, v
             print(f"  No call at {tr_locus.locus_id}: "
                   f"{len(haplotype0.rejected_insertions) + len(haplotype1.rejected_insertions)} inserted "
                   f"sequence(s) are not part of the repeat")
-        haplotype0 = HaplotypeSequences(None, haplotype0.rejected_insertions)
-        haplotype1 = HaplotypeSequences(None, haplotype1.rejected_insertions)
+        haplotype0 = HaplotypeSequences(None, haplotype0.rejected_insertions, haplotype0.build_error)
+        haplotype1 = HaplotypeSequences(None, haplotype1.rejected_insertions, haplotype1.build_error)
+
+    # A haplotype whose variants couldn't be applied to the reference (a VCF ref allele that disagrees with the
+    # fasta, a symbolic alt allele, two records phased onto the same haplotype with overlapping ref spans) makes
+    # the whole locus a no call for the same reason: reporting only the surviving allele would look exactly like
+    # a real hemizygous call, and that allele would fill both the short and long allele columns.
+    if haplotype0.build_error or haplotype1.build_error:
+        if verbose:
+            print(f"  No call at {tr_locus.locus_id}: could not build the haplotype sequence "
+                  f"({haplotype0.build_error or haplotype1.build_error})")
+        haplotype0 = HaplotypeSequences(None, haplotype0.rejected_insertions, haplotype0.build_error)
+        haplotype1 = HaplotypeSequences(None, haplotype1.rejected_insertions, haplotype1.build_error)
 
     haplotype0_seq, haplotype1_seq = haplotype0.sequence, haplotype1.sequence
 
@@ -2292,6 +2424,7 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, normalize_chrom=None, v
         allele2_purity=allele2_counts["purity"],
         num_alleles_with_non_repeat_insertions=(
             bool(haplotype0.rejected_insertions) + bool(haplotype1.rejected_insertions)),
+        num_alleles_with_build_errors=(bool(haplotype0.build_error) + bool(haplotype1.build_error)),
     )
 
     if verbose:
@@ -2367,6 +2500,10 @@ def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
             counters["alleles_with_non_repeat_insertions"] += (
                 genotyped.num_alleles_with_non_repeat_insertions)
 
+        if genotyped.num_alleles_with_build_errors > 0:
+            counters["loci_with_haplotype_build_errors"] += 1
+            counters["alleles_with_haplotype_build_errors"] += genotyped.num_alleles_with_build_errors
+
         if genotyped.zygosity is None:
             counters["loci_with_missing_genotype"] += 1
         elif genotyped.zygosity == "HOM":
@@ -2393,6 +2530,9 @@ def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
         print(f"  Loci set to no call because an insertion isn't part of the repeat: "
               f"{counters['loci_with_non_repeat_insertions']:,d} "
               f"({counters['alleles_with_non_repeat_insertions']:,d} alleles carried such an insertion)")
+        print(f"  Loci set to no call because the haplotype sequence couldn't be built: "
+              f"{counters['loci_with_haplotype_build_errors']:,d} "
+              f"({counters['alleles_with_haplotype_build_errors']:,d} alleles failed to build)")
 
     return genotyped_loci, counters
 
@@ -3700,6 +3840,36 @@ def print_tr_stats(tandem_repeat_alleles, title=None):
     print(f"{counters['total']:10,d} total TRs")
 
 
+def compute_chrom_sort_key(chrom):
+    """Return a sort key that orders chromosomes naturally and keeps every contig's records contiguous.
+
+    Sorting on the raw chromosome name puts chr10 before chr2, so the genotype outputs would not be in genomic
+    order. Unplaced, alt and decoy contigs have no natural rank, so they all sort after the standard
+    chromosomes and are then ordered by name. Grouping them by name matters because tabix rejects a VCF whose
+    records for one contig are not contiguous, which is what happens when every unplaced contig shares a rank
+    and the records interleave by position.
+
+    Args:
+        chrom (str): chromosome name, with or without a "chr" prefix
+
+    Returns:
+        tuple: (rank, chrom) ordering key
+    """
+    chrom_without_prefix = chrom[3:] if chrom.startswith("chr") else chrom
+
+    if chrom_without_prefix == "X":
+        return 23, chrom
+    if chrom_without_prefix == "Y":
+        return 24, chrom
+    if chrom_without_prefix in ("M", "MT"):
+        return 25, chrom
+
+    try:
+        return int(chrom_without_prefix), chrom
+    except ValueError:
+        return 100, chrom  # unplaced/alt/decoy contigs sort last, grouped by name
+
+
 def write_genotypes_tsv(genotyped_loci, args, motif_lists_by_locus=None):
     """Write genotyped TR loci to a TSV file.
 
@@ -3731,8 +3901,8 @@ def write_genotypes_tsv(genotyped_loci, args, motif_lists_by_locus=None):
     else:
         filtered_loci = genotyped_loci
 
-    # Sort by genomic position and motif
-    filtered_loci.sort(key=lambda x: (x.chrom, x.start_0based, x.end, x.motif))
+    # Sort by genomic position and motif, ordering chromosomes naturally so this matches the VCF output
+    filtered_loci.sort(key=lambda x: (compute_chrom_sort_key(x.chrom), x.start_0based, x.end, x.motif))
 
     # Construct output filename
     tsv_output_path = f"{args.output_prefix}.tandem_repeat_genotypes.tsv.gz"
@@ -3923,17 +4093,22 @@ def run_trf_motif_splitting(sequences_for_trf, trf_executable_path, trf_working_
         if accepted_records:
             best_record = max(accepted_records, key=lambda x: x.get("alignment_score", 0))
 
-            # Keep the ordered list of motifs from the 'repeats' list, cleaning up dashes and ellipsis
-            # from long motifs
-            motifs = [m.replace("-", "").replace("...", "") for m in best_record.get("repeats", [])]
+            # Keep the ordered list of motifs from the 'repeats' list, dropping the dashes TRF writes where
+            # the allele has a deletion relative to the consensus motif
+            motifs = [m.replace("-", "") for m in best_record.get("repeats", [])]
             motifs = [m for m in motifs if m]
             if motifs:
                 # Keep any bases before the first or after the last detected repeat as prefix/suffix
-                entry = {
+                candidate_entry = {
                     "motifs": motifs,
                     "prefix": sequence[:best_record["start_0based"]],
                     "suffix": sequence[best_record["end_1based"]:],
                 }
+                # Only accept a decomposition that puts back exactly the allele it came from. Anything else
+                # means the parse dropped or duplicated bases, and reporting motifs that don't reconstruct the
+                # allele is worse than falling back to the basic chunking method below.
+                if candidate_entry["prefix"] + "".join(motifs) + candidate_entry["suffix"] == sequence:
+                    entry = candidate_entry
 
         if entry:
             batch_results.append((locus_id, allele_key, entry, MOTIF_DETECTION_METHOD_TRF))
@@ -4060,8 +4235,8 @@ def write_genotypes_json(genotyped_loci, args, motif_lists_by_locus=None):
     else:
         filtered_loci = genotyped_loci
 
-    # Sort by genomic position and motif
-    filtered_loci.sort(key=lambda x: (x.chrom, x.start_0based, x.end, x.motif))
+    # Sort by genomic position and motif, ordering chromosomes naturally so this matches the VCF output
+    filtered_loci.sort(key=lambda x: (compute_chrom_sort_key(x.chrom), x.start_0based, x.end, x.motif))
 
     # Construct output filename
     json_output_path = f"{args.output_prefix}.tandem_repeat_genotypes.json.gz"
@@ -4159,26 +4334,9 @@ def write_genotypes_vcf(genotyped_loci, input_vcf_path, args):
         chrom, pos, ref, alts = variant_key
         variants_to_write.append((chrom, pos, ref, alts, loci))
 
-    # Sort by chromosome and position
-    # Use natural chromosome sort (chr1, chr2, ..., chr10, ...)
-    def chrom_sort_key(x):
-        chrom = x[0]
-        # Strip 'chr' prefix for sorting
-        chrom_num = chrom.replace('chr', '')
-        # Handle X, Y, M chromosomes
-        if chrom_num == 'X':
-            return (23, x[1])
-        elif chrom_num == 'Y':
-            return (24, x[1])
-        elif chrom_num in ('M', 'MT'):
-            return (25, x[1])
-        else:
-            try:
-                return (int(chrom_num), x[1])
-            except ValueError:
-                return (100, x[1])  # Unknown chromosomes at end
-
-    variants_to_write.sort(key=chrom_sort_key)
+    # Sort by chromosome and position, using a natural chromosome sort (chr1, chr2, ..., chr10, ...) that also
+    # keeps each contig's records contiguous, which tabix requires in order to index the file.
+    variants_to_write.sort(key=lambda x: (compute_chrom_sort_key(x[0]), x[1]))
 
     # Write each variant once
     output_variant_count = 0
@@ -4213,12 +4371,11 @@ def write_genotypes_vcf(genotyped_loci, input_vcf_path, args):
         new_record.ref = original_record.ref
         new_record.alts = original_record.alts
         new_record.qual = original_record.qual
-        # Copy all FILTER values from original record
-        if original_record.filter.keys():
-            for filter_key in original_record.filter.keys():
-                new_record.filter.add(filter_key)
-        else:
-            new_record.filter.add("PASS")
+        # Copy all FILTER values from the original record. A record whose FILTER column is "." has no filter
+        # keys, and the VCF spec distinguishes that ("filters not applied") from PASS ("all filters passed"),
+        # so leave the new record's filter set empty rather than asserting PASS.
+        for filter_key in original_record.filter.keys():
+            new_record.filter.add(filter_key)
 
         # Copy all original INFO fields
         for key in original_record.info.keys():
@@ -4250,9 +4407,12 @@ def write_genotypes_vcf(genotyped_loci, input_vcf_path, args):
     output_vcf.close()
     input_vcf.close()
 
-    # Compress with bgzip and index with tabix
-    os.system(f"bgzip -f {vcf_output_path}")
-    os.system(f"tabix -p vcf {vcf_output_path}.gz")
+    # Compress with bgzip and index with tabix. Both exit codes are checked because a silent failure here
+    # would leave an unusable output file behind while the caller reports success.
+    if os.system(f"bgzip -f {shlex.quote(vcf_output_path)}") != 0:
+        raise RuntimeError(f"bgzip failed on {vcf_output_path}")
+    if os.system(f"tabix -p vcf {shlex.quote(vcf_output_path)}.gz") != 0:
+        raise RuntimeError(f"tabix failed on {vcf_output_path}.gz")
 
     if args.verbose:
         print(f"Wrote {output_variant_count:,d} contributing variants to {vcf_output_path}.gz")
