@@ -160,6 +160,14 @@ jobs:
   commit-shas:
     name: commit sha256 digests
     needs: build
+    # Publish the digests of whichever images built, instead of only when every one of them did. The
+    # matrix uses fail-fast: false, so a single flaky image (the ExpansionHunter build downloads several
+    # large third-party tarballs) still leaves the other seven built and pushed to Docker Hub -- but with
+    # a bare `needs: build` this job is skipped, so none of their new digests get committed and every
+    # published image looks stale until someone re-runs the workflow. The "Place updated digest files"
+    # step below already copies only the artifacts that exist, so an image that failed simply keeps its
+    # previous digest.
+    if: ${{ !cancelled() && needs.build.result != 'skipped' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -173,11 +181,17 @@ jobs:
       - name: Place updated digest files
         run: |
           set -euo pipefail
+          missing=""
           for d in docker docker_with_expansion_hunter docker_with_gangstr docker_with_hipstr docker_with_inquistr docker_with_longtr docker_with_trgt docker_with_ensembletr; do
             if [ -f "artifacts/sha256-${d}/sha256_dockerhub.txt" ]; then
               cp "artifacts/sha256-${d}/sha256_dockerhub.txt" "${d}/sha256_dockerhub.txt"
+            else
+              missing="${missing} ${d}"
             fi
           done
+          if [ -n "$missing" ]; then
+            echo "::warning::No digest artifact for:${missing} -- these images did not build, so they keep their previous digest."
+          fi
 
       - name: Commit and push
         run: |
