@@ -55,6 +55,8 @@ jobs:
 
       - name: Decide whether to build
         id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           all='["docker","docker_with_expansion_hunter","docker_with_gangstr","docker_with_hipstr","docker_with_inquistr","docker_with_longtr","docker_with_trgt","docker_with_ensembletr"]'
@@ -74,16 +76,33 @@ jobs:
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Otherwise build only when docker-relevant files changed in the tested commit.
+          # Otherwise build only when docker-relevant files changed since the last image publish.
+          # The range must cover the WHOLE push, not just its final commit: a push can contain several
+          # commits, and diffing ${head}^..${head} judges all of them by the last one. A push whose tip
+          # commit happens to be unrelated (docs, a test tweak) would then skip the build even though an
+          # earlier commit in the same push changed str_analysis/, leaving every published image stale
+          # until some later push happened to end in a relevant commit. So walk back to the commit the
+          # last successful run of this workflow built, and diff from there.
           head='${{ github.event.workflow_run.head_sha }}'
-          if git rev-parse "${head}^" >/dev/null 2>&1; then
+          prev=$(gh api --paginate \
+                   "repos/${GITHUB_REPOSITORY}/actions/workflows/build_docker_images.yml/runs?status=success&branch=main&per_page=20" \
+                   --jq '[.workflow_runs[] | select(.id != ${{ github.run_id }}) | .head_sha] | first' 2>/dev/null | head -n 1 || true)
+          if [ -n "${prev:-}" ] && [ "$prev" != "null" ] && git cat-file -e "${prev}^{commit}" 2>/dev/null \
+              && [ "$prev" != "$head" ] && git merge-base --is-ancestor "$prev" "$head" 2>/dev/null; then
+            base="$prev"
+            echo "Base = commit built by the last successful run ($base)."
+          elif git rev-parse "${head}^" >/dev/null 2>&1; then
             base="${head}^"
+            echo "No usable previous successful run; falling back to $base."
           else
             base=$(git rev-list --max-parents=0 "$head" | tail -n 1)
+            echo "No parent commit; falling back to the root commit $base."
           fi
           echo "Comparing ${base}..${head}"
-          files=$(git diff --name-only "$base" "$head")
-          echo "Changed files:"
+          # This workflow's own digest commits touch docker_with_*/sha256_*.txt. Widening the range above
+          # would otherwise match those every time and make the path filter always true.
+          files=$(git diff --name-only "$base" "$head" | grep -Ev '/sha256_[a-z_]+\.txt$' || true)
+          echo "Changed files (excluding published digest files):"
           echo "$files"
           if echo "$files" | grep -Eq '^(docker/|docker_with_[^/]+/|str_analysis/|requirements\.txt|setup\.py|\.github/workflows/build_docker_images\.yml)'; then
             echo "Docker-relevant changes found: building."
