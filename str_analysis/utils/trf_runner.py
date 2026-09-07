@@ -2,6 +2,7 @@
 
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import traceback
@@ -137,20 +138,35 @@ class TRFRunner:
 
 
     def run_trf_on_fasta_file(self, fasta_file_path, max_period=1000):
-        """Run TRF on a FASTA file and return a generator of records representing the TRF output for the given nucleotide sequence.
-        This code assumes the goal is to find a single repeat that covers all or most of the input sequence.
-        It is not designed to find multiple distict repeat loci within the sequence.
+        """Run TRF on a FASTA file, writing TRF's own output files next to it.
+
+        This does not parse or return anything: call parse_html_results() or parse_dat_results() afterwards to
+        read the records back. The code assumes the goal is to find a single repeat that covers all or most of
+        the input sequence, and is not designed to find multiple distinct repeat loci within it.
 
         Args:
             fasta_file_path (str): path to the FASTA file containing the nucleotide sequence
+            max_period (int): largest period size TRF should report
 
-        Yields:
-            records representing the TRF output for the given nucleotide sequence.
+        Raises:
+            FileNotFoundError: if the FASTA file or the TRF executable cannot be found
         """
         if not os.path.isfile(fasta_file_path):
             raise FileNotFoundError(f"FASTA file not found: {fasta_file_path}")
 
-        command = f"{self.trf_executable_path} "
+        # TRF runs through a shell with its exit code ignored, because the versions in circulation disagree
+        # about what a successful run returns (4.09 exits 1 when it finds repeats and 2 when it finds none,
+        # 4.10 exits 0). That makes a missing or non-executable binary indistinguishable from a run that found
+        # nothing: the caller would silently fall back to basic splitting for every allele, with no error even
+        # under --verbose. So check the binary up front, and resolve it to an absolute path, since the command
+        # below runs with cwd set to the FASTA's directory and a relative path such as "bin/trf" would resolve
+        # here but not there.
+        trf_executable_path = shutil.which(self.trf_executable_path)
+        if not trf_executable_path:
+            raise FileNotFoundError(
+                f"TandemRepeatsFinder executable not found or not executable: {self.trf_executable_path}")
+
+        command = f"{os.path.abspath(trf_executable_path)} "
         command += f"{os.path.basename(fasta_file_path)} "
         command += f"{self.match_score} "
         command += f"{self.mismatch_penalty} "
@@ -432,6 +448,15 @@ class TRFRunner:
 
             if final_consensus_motif is None:
                 final_consensus_motif = consensus_motif
+
+            # TRF prints a period-1 alignment as one unbroken run with no spaces between copies, so the block
+            # above reads the whole run as a single motif. Its own header for that record says "Consensus
+            # size: 1", so use that: emit the single repeated base as the motif and split the run into
+            # one-base copies. Without this a homopolymer allele comes back claiming a motif as long as the
+            # allele, which callers matching on repeat_unit_length reject even though TRF found the repeat.
+            if consensus_size == 1 and len(final_consensus_motif) > 1:
+                final_consensus_motif = final_consensus_motif[0]
+                repeats = [base for repeat_motif in repeats for base in repeat_motif]
 
             results.append({
                 "sequence_name": sequence_name,
