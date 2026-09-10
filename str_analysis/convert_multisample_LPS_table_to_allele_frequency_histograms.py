@@ -29,8 +29,10 @@ interval, vc``), each output row also carries:
 
     VC       = the variation cluster's own span, "{chrom}:{POS}-{END}", when the
                row was genotyped as part of a cluster, or "" for an isolated TR.
-               A cluster is recognized under either catalog convention: STRUC
-               starting with <VC:, or TRID starting with VC:. For a cluster row this
+               A cluster is recognized under any of the catalog conventions in
+               circulation: STRUC starting with <VC, which covers both the bare
+               counter <VC1> and <VC:chrom:start-end>, or TRID starting with
+               VC:. For a cluster row this
                is the same string as Interval; the difference between the two columns
                is that VC is empty for an isolated TR.
 

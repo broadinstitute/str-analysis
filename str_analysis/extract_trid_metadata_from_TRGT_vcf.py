@@ -272,6 +272,7 @@ def main():
     # Not a `with` block: its __exit__ shuts down without cancel_futures, so one worker's
     # failure would still cost the full wall time of every chromosome queued behind it.
     ex = ThreadPoolExecutor(max_workers=args.workers)
+    futures = {}
     try:
         try:
             futures = {
@@ -283,8 +284,12 @@ def main():
                 chrom_results[chrom] = (path, count)
                 print(f"  {chrom}: {count:,d} rows -> {path}")
         finally:
-            # Drops the chromosomes still queued; the ones already running finish.
-            ex.shutdown(wait=True, cancel_futures=True)
+            # Drops the chromosomes still queued; the ones already running finish. Cancelling
+            # each future by hand rather than passing shutdown(cancel_futures=True), which needs
+            # Python 3.9 while setup.py still declares support back to 3.7.
+            for fut in futures:
+                fut.cancel()
+            ex.shutdown(wait=True)
 
         # Concatenate the per-chrom temp files into the tmp output in the same order they were
         # fanned out in, so the output order is the one the module docstring promises.
