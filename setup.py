@@ -58,6 +58,7 @@ setup(
             'make_bamlet = str_analysis.make_bamlet:main',
             'make_minicram_for_expansion_hunter = str_analysis.make_minicram_for_expansion_hunter:main',
             'filter_out_loci_with_Ns_in_flanks = str_analysis.filter_out_loci_with_Ns_in_flanks:main',
+            'extract_trid_metadata_from_TRGT_vcf = str_analysis.extract_trid_metadata_from_TRGT_vcf:main',
         ],
     },
     long_description_content_type="text/markdown",
