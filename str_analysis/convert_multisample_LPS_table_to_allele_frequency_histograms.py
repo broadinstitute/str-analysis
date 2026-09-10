@@ -8,15 +8,31 @@ motif    (example: "A")
 and outputs a per-locus summary table with allele frequency histograms and statistics.
 
 When ``--vcf-trid-metadata-tsv`` is provided (the small TSV produced by
-extract_vcf_interval_metadata.py with columns ``trid, locus_id, motif,
+extract_trid_metadata_from_TRGT_vcf.py with columns ``trid, locus_id, motif,
 interval, vc``), each output row also carries:
 
     LocusId  = the resolved single locus_id (chrom-start-end-motif) for this row
-    Interval = "{chrom}:{vcf_start_0based}-{vcf_end_1based}"  (always set)
+    Interval = the span of the TRGT VCF record whose genotypes this row came from,
+               written as "{chrom}:{vcf_start_0based}-{vcf_end_1based}" with no "chr"
+               prefix. They use the same coordinate convention as the start and end
+               inside a LocusId: 0-based start, exclusive end. For a TR that TRGT
+               genotyped on its own, Interval restates the locus definition from the
+               catalog, and is just the LocusId without the motif:
+
+                   LocusId "1-10000-10108-TAACCC"  ->  Interval "1:10000-10108"
+
+               For a TR genotyped inside a variation cluster, the record spans the
+               whole cluster instead of this one repeat:
+
+                   cluster TRID "VC:1:83829-84031" covers 6 repeats, so the row for
+                   LocusId "1-83911-83922-AG" also gets Interval "1:83829-84031"
+
     VC       = the variation cluster's own span, "{chrom}:{POS}-{END}", when the
                row was genotyped as part of a cluster, or "" for an isolated TR.
                A cluster is recognized under either catalog convention: STRUC
-               starting with <VC:, or TRID starting with VC:.
+               starting with <VC:, or TRID starting with VC:. For a cluster row this
+               is the same string as Interval; the difference between the two columns
+               is that VC is empty for an isolated TR.
 
 These columns disambiguate the rows that share a LocusId because the same
 LocusId was genotyped under multiple TRGT catalog intervals (e.g. once as a
@@ -69,7 +85,7 @@ HEADER_FIELDS = [
 def load_vcf_trid_metadata(tsv_path):
     """Loads the small TRID-metadata TSV into ``(trid, motif) -> chunk``.
 
-    The TSV is produced by ``data-prep/hprc-lps/extract_vcf_interval_metadata.py``
+    The TSV is produced by ``str_analysis/extract_trid_metadata_from_TRGT_vcf.py``
     with columns ``trid, locus_id, motif, interval, vc``. Consecutive rows
     with the same ``(trid, motif, interval, vc)`` come from the same VCF
     record and are grouped into a single chunk
@@ -277,7 +293,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--sample-metadata-tsv", default="https://storage.googleapis.com/tandem-repeat-catalog/1kGP_metadata.tsv", help="Sample ancestry metadata TSV file (local path or URL)")
     parser.add_argument("--input-table", default="hprc-lps_2025-12-06/hprc-lps.txt.gz", help="Combine HPRC LPS dataset")
-    parser.add_argument("--vcf-trid-metadata-tsv", help="Path to a small TSV.gz produced by data-prep/hprc-lps/extract_vcf_interval_metadata.py (columns: trid, locus_id, motif, interval, vc). Required to populate the LocusId/Interval/VC output columns and resolve compound TRIDs.")
+    parser.add_argument("--vcf-trid-metadata-tsv", help="Path to a small TSV.gz produced by str_analysis/extract_trid_metadata_from_TRGT_vcf.py (columns: trid, locus_id, motif, interval, vc). Required to populate the LocusId/Interval/VC output columns and resolve compound TRIDs.")
     parser.add_argument("--no-header", action="store_true", help="If set, assume the first row is data (not a header) and generate synthetic sample names (_s1, _s2, ...)")
     parser.add_argument("--population", choices=["AFR", "AMR", "EAS", "EUR", "SAS"], help="If specified, only process samples from this population")
     parser.add_argument("--sex", choices=["male", "female"], help="If specified, only process samples from this sex")
@@ -413,7 +429,7 @@ def main():
     # doesn't destroy a previous good output file. os.replace promotes it
     # at the end of the function, after the end-of-processing assertion has
     # passed. A try/finally guarantees the .tmp is removed on any failure
-    # path, matching extract_vcf_interval_metadata.py and the purity/methylation
+    # path, matching extract_trid_metadata_from_TRGT_vcf.py and the purity/methylation
     # script's pattern.
     tmp_output_path = output_path + ".tmp"
     print(f"Writing data from {len(sample_ids_to_include_list):,d} samples to {output_path}")
