@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install --no-install-recommends --yes \
     g++ \
     make \
     autoconf \
+    autotools-dev \
     unzip \
     bzip2 \
     zlib1g-dev \
