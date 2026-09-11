@@ -12,7 +12,6 @@ RUN apt-get update && apt-get install --no-install-recommends --yes \
     g++ \
     make \
     autoconf \
-    autotools-dev \
     unzip \
     bzip2 \
     zlib1g-dev \
@@ -102,7 +101,10 @@ WORKDIR /GangSTR-${GANGSTR_VERSION}
 RUN python3 -m pip install --no-cache-dir --upgrade cmake==3.30.5 pip crcmod \
     && install_packages git autoconf automake libtool
 
-RUN mkdir build \
+# GangSTR git-clones htslib fresh, so it has no config.sub / config.guess, but its
+# UPDATE_COMMAND runs plain `autoreconf`. Add -i so autoreconf installs those aux files.
+RUN sed -i 's|UPDATE_COMMAND autoreconf |UPDATE_COMMAND autoreconf -i |' CMakeLists.txt \
+    && mkdir build \
     && cd build \
     && cmake .. \
     && make \
