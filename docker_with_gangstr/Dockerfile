@@ -1,4 +1,4 @@
-FROM bitnami/minideb:bullseye
+FROM bitnami/minideb:bookworm
 
 RUN apt-get update && apt-get install --no-install-recommends --yes \
     ca-certificates \

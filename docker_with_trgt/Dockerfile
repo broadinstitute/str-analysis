@@ -1,4 +1,4 @@
-FROM bitnami/minideb:bullseye
+FROM bitnami/minideb:bookworm
 
 RUN apt-get update && apt-get install --no-install-recommends --yes \
     ca-certificates \
@@ -79,7 +79,7 @@ RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cl
 
 ENV PATH=/google-cloud-sdk/bin:$PATH
 
-# install aws-cli (v1 from bullseye apt) for fast multipart S3 downloads via
+# install aws-cli (v1 from bookworm apt) for fast multipart S3 downloads via
 # `aws s3 cp --no-sign-request`. Used by the HPRC R2 BAM-localization path.
 RUN apt-get update && apt-get install --no-install-recommends --yes awscli \
     && rm -rf /var/lib/apt/lists/*
