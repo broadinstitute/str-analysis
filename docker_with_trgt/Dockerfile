@@ -1,6 +1,6 @@
-FROM bitnami/minideb:bullseye
+FROM bitnami/minideb:bookworm
 
-RUN apt-get -o Acquire::Check-Valid-Until=false update && apt-get install --no-install-recommends --yes \
+RUN apt-get update && apt-get install --no-install-recommends --yes \
     ca-certificates \
     wget \
     curl \
@@ -63,9 +63,10 @@ RUN wget https://github.com/arq5x/bedtools2/releases/download/v${BED_TOOLS_VERSI
 	&& chmod 755 bedtools.static \
 	&& mv bedtools.static /usr/bin/bedtools
 
-# install python3.9
-RUN apt-get -o Acquire::Check-Valid-Until=false update && apt-get install --no-install-recommends --yes python3.9 python3.9-dev python3-distutils \
-	&& curl https://bootstrap.pypa.io/pip/3.9/get-pip.py -o get-pip.py \
+# install python3 (bookworm marks its system python externally managed, which blocks pip)
+RUN apt-get update && apt-get install --no-install-recommends --yes python3 python3-dev python3-distutils \
+	&& rm -f /usr/lib/python3*/EXTERNALLY-MANAGED \
+	&& curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
 	&& python3 get-pip.py \
 	&& rm get-pip.py
 
@@ -79,9 +80,9 @@ RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cl
 
 ENV PATH=/google-cloud-sdk/bin:$PATH
 
-# install aws-cli (v1 from bullseye apt) for fast multipart S3 downloads via
+# install aws-cli (v1 from bookworm apt) for fast multipart S3 downloads via
 # `aws s3 cp --no-sign-request`. Used by the HPRC R2 BAM-localization path.
-RUN apt-get -o Acquire::Check-Valid-Until=false update && apt-get install --no-install-recommends --yes awscli \
+RUN apt-get update && apt-get install --no-install-recommends --yes awscli \
     && rm -rf /var/lib/apt/lists/*
 
 # install TRF
