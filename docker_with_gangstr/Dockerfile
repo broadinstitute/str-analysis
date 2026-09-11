@@ -103,7 +103,11 @@ RUN python3 -m pip install --no-cache-dir --upgrade cmake==3.30.5 pip crcmod \
 
 # GangSTR git-clones htslib fresh, so it has no config.sub / config.guess, but its
 # UPDATE_COMMAND runs plain `autoreconf`. Add -i so autoreconf installs those aux files.
+# The regenerated configure then fails to canonicalize its host, so name it outright;
+# these images are built for linux/amd64 only. Neither sed may mention ${...}, which
+# docker would substitute away before the shell ever sees it.
 RUN sed -i 's|UPDATE_COMMAND autoreconf |UPDATE_COMMAND autoreconf -i |' CMakeLists.txt \
+    && sed -i 's|/htslib/configure #|/htslib/configure --build=x86_64-pc-linux-gnu --host=x86_64-pc-linux-gnu #|' CMakeLists.txt \
     && mkdir build \
     && cd build \
     && cmake .. \
