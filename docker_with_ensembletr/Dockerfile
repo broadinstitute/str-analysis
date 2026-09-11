@@ -1,6 +1,6 @@
-FROM bitnami/minideb:bookworm
+FROM bitnami/minideb:bullseye
 
-RUN apt-get update && apt-get install --no-install-recommends --yes \
+RUN apt-get -o Acquire::Check-Valid-Until=false update && apt-get install --no-install-recommends --yes \
     ca-certificates \
     wget \
     curl \
@@ -67,7 +67,7 @@ RUN wget -q https://github.com/samtools/bcftools/releases/download/${BCFTOOLS_VE
 	&& rm -rf bcftools-${BCFTOOLS_VERSION}
 
 # install python3.9 (python3.9-dev provides Python.h, needed to build EnsembleTR's pgenlib C extension from source)
-RUN apt-get update && apt-get install --no-install-recommends --yes python3.9 python3.9-dev python3-distutils \
+RUN apt-get -o Acquire::Check-Valid-Until=false update && apt-get install --no-install-recommends --yes python3.9 python3.9-dev python3-distutils \
 	&& curl https://bootstrap.pypa.io/pip/3.9/get-pip.py -o get-pip.py \
 	&& python3 get-pip.py \
 	&& rm get-pip.py

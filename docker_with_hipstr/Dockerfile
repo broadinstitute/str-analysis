@@ -1,6 +1,6 @@
-FROM bitnami/minideb:bookworm
+FROM bitnami/minideb:bullseye
 
-RUN apt-get update && apt-get install --no-install-recommends --yes \
+RUN apt-get -o Acquire::Check-Valid-Until=false update && apt-get install --no-install-recommends --yes \
     ca-certificates \
     wget \
     curl \
@@ -61,7 +61,7 @@ RUN wget https://github.com/arq5x/bedtools2/releases/download/v${BED_TOOLS_VERSI
 	&& mv bedtools.static /usr/bin/bedtools
 
 # install python3.9
-RUN apt-get update && apt-get install --no-install-recommends --yes python3.9 python3-distutils \
+RUN apt-get -o Acquire::Check-Valid-Until=false update && apt-get install --no-install-recommends --yes python3.9 python3-distutils \
 	&& curl https://bootstrap.pypa.io/pip/3.9/get-pip.py -o get-pip.py \
 	&& python3 get-pip.py \
 	&& rm get-pip.py
