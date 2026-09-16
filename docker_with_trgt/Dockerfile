@@ -93,11 +93,22 @@ RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1
 RUN python3 -m pip install --no-cache-dir git+https://github.com/bw2/trviz@9068d9abc50ec9b8ba478505d3d19496e1f431b9 pyarrow
 
 
-# install Rust/cargo, build TRGT from source, then remove Rust/cargo
+# install Rust/cargo, build TRGT from source, then remove Rust/cargo.
+#
+# TRGT is pinned to an exact commit rather than tracking the fork's main branch, so that two builds
+# of this Dockerfile produce the same genotyper and a delivered VCF can be traced to the binary that
+# made it. Changing this value busts the cache for the build layer below, which is the point.
+#
+# The clone is deliberately NOT --depth 1: TRGT's build.rs runs `git describe` through vergen to
+# embed the version (e.g. 5.1.0-9171d21), and that needs history and tags. A shallow clone would
+# still build, but the binary would report a bare 5.1.0 with no commit, losing the provenance this
+# pin exists to provide. The repo is small, so a full clone costs little.
+ENV TRGT_COMMIT="9171d21009337bc92343fc148135722338902d9d"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
     && . "$HOME/.cargo/env" \
-    && git clone --depth 1 https://github.com/bw2/trgt.git \
+    && git clone https://github.com/bw2/trgt.git \
     && cd trgt \
+    && git checkout ${TRGT_COMMIT} \
     && cargo build --release \
     && mv target/release/trgt /usr/bin/trgt \
     && chmod 755 /usr/bin/trgt \
