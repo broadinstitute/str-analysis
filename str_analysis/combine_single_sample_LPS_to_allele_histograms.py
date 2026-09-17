@@ -13,6 +13,12 @@ X-95117-95209-GTCACGGCCCGAGACTCCCTCTTCCT	GTCACGGCCCGAGACTCCCTCTTCCT	3
 X-263540-263579-TTTA	TTTA	9
 X-264744-264774-AAAG	AAAG	4
 
+An allele TRGT couldn't measure is written as ".", so "." is a whole no-call, ".,." is a diploid
+call where neither allele was measured, and "2,." one where only one was. A no-call contributes
+nothing. A partial call contributes its measured allele to AllAlleleHistogram, but is left out of
+ShortAlleleHistogram, since which of the sample's two alleles is shorter is unknown, and out of
+HemizygousAlleleHistogram, since the sample isn't hemizygous, it just has one unmeasured allele.
+
 The output table will have the following columns:
 
 LocusId	Motif	AllAlleleHistogram	ShortAlleleHistogram	HemizygousAlleleHistogram	OutlierSampleIds_AllAlleles	OutlierSampleIds_ShortAlleles	OutlierSampleIds_HemizygousAlleles
@@ -115,20 +121,31 @@ def parse_lps_table(
 
             included_line_count += 1
             motif = fields[1]
-            lps = fields[2]
-            lps_values = [int(v) for v in lps.split(",")]
+            # TRGT LPS marks an allele it couldn't measure with ".", so a whole no-call is ".",
+            # a partially called genotype is "8,." and a diploid call where neither allele was
+            # measured is ".,.". Keep whatever was measured and skip the missing alleles.
+            lps_fields = fields[2].split(",")
+            lps_values = [int(v) for v in lps_fields if v != "."]
+            if not lps_values:
+                continue
 
-            is_hemizygous = len(lps_values) == 1
+            # A partial call has one measured allele but is not a hemizygous call, so it can't
+            # tell us which of the sample's two alleles is the shorter one, and it doesn't belong
+            # in the hemizygous histogram. Only its measured allele counts, in the all-allele
+            # histogram.
+            is_partial_call = len(lps_values) < len(lps_fields)
+            is_hemizygous = not is_partial_call and len(lps_values) == 1
             short_allele = min(lps_values)
             long_allele = max(lps_values)
 
             # update trid_to_allele_histogram
             update_histograms(trid, motif, short_allele, trid_to_allele_histogram, trid_to_allele_sample_ids, sample_id, n_outlier_sample_ids)
-            if not is_hemizygous:
+            if len(lps_values) > 1:
                 update_histograms(trid, motif, long_allele, trid_to_allele_histogram, trid_to_allele_sample_ids, sample_id, n_outlier_sample_ids)
 
             # update trid_to_short_allele_histogram
-            update_histograms(trid, motif, short_allele, trid_to_short_allele_histogram, trid_to_short_allele_sample_ids, sample_id, n_outlier_sample_ids)
+            if not is_partial_call:
+                update_histograms(trid, motif, short_allele, trid_to_short_allele_histogram, trid_to_short_allele_sample_ids, sample_id, n_outlier_sample_ids)
 
             # update trid_to_hemizygous_allele_histogram
             if is_hemizygous:
@@ -420,7 +437,12 @@ def main():
         out_f.write("\t".join(header) + "\n")
         out_f2.write("[\n")
         output_row_counter = 0
-        for (trid, motif) in sorted(trid_to_short_allele_histogram.keys()):
+        # Write a row for every locus that got an allele in any of the three histograms. A locus
+        # whose calls were all partial has no short-allele entry, so enumerating only the
+        # short-allele keys would drop it along with the all-allele counts it did record.
+        output_keys = (set(trid_to_allele_histogram) | set(trid_to_short_allele_histogram)
+                       | set(trid_to_hemizygous_allele_histogram))
+        for (trid, motif) in sorted(output_keys):
             all_allele_outliers = convert_sample_ids_to_string(
                 trid_to_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids)
             short_allele_outliers = convert_sample_ids_to_string(

@@ -3,7 +3,12 @@ This script takes a wide-format TSV file with columns:
 
 trid     (example: "10-100000859-100000887-A" or "10-100000859-100000887-A,10-100001413-100001429-T")
 motif    (example: "A")
-<sample1> <sample2> ...  (example: "3,3" meaning two alleles of size 3; "." for no-call)
+<sample1> <sample2> ...  (example: "3,3" meaning two alleles of size 3; "3" for a hemizygous
+         call; "." for a no-call. An allele TRGT couldn't measure is also written as ".", so
+         ".,." is a diploid call where neither allele was measured, and "3,." one where only
+         one was. The measured allele of a partial call still counts toward AlleleSizeHistogram,
+         NumCalledAlleles and the stats derived from them, but that sample is left out of
+         BiallelicHistogram and ShortAllele*, which need a fully observed genotype.)
 
 and outputs a per-locus summary table with allele frequency histograms and statistics.
 
@@ -155,12 +160,17 @@ def _format_decimal(value):
     return round(float(value), 2)
 
 
-def compute_histograms(allele_sizes, alleles_by_sample_id):
+def compute_histograms(allele_sizes, alleles_by_sample_id, partially_called_sample_ids=()):
     """Compute allele size and biallelic histogram strings.
 
     Args:
         allele_sizes: list of allele sizes
         alleles_by_sample_id: dict mapping sample_id to list of allele sizes
+        partially_called_sample_ids: sample ids whose genotype at this locus had at least one
+            allele written as "." in the LPS table. Their called allele still counts in the
+            allele size histogram, but they are left out of the biallelic histogram because a
+            single allele there means a hemizygous call, and doubling a partial call would
+            invent a homozygous genotype that was never observed.
 
     Returns:
         tuple of (allele_size_histogram_str, biallelic_histogram_str), or ("", "") if empty
@@ -170,7 +180,9 @@ def compute_histograms(allele_sizes, alleles_by_sample_id):
 
     allele_counts = collections.Counter(allele_sizes)
     genotype_counts = collections.defaultdict(int)
-    for allele_list in alleles_by_sample_id.values():
+    for sample_id, allele_list in alleles_by_sample_id.items():
+        if sample_id in partially_called_sample_ids:
+            continue
         if len(allele_list) == 1:
             allele_list = allele_list * 2
         genotype_counts[tuple(sorted(allele_list))] += 1
@@ -181,7 +193,8 @@ def compute_histograms(allele_sizes, alleles_by_sample_id):
     )
 
 
-def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval="", vc="", sample_id_to_sex=None):
+def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval="", vc="", sample_id_to_sex=None,
+                partially_called_sample_ids=()):
     """Compute statistics for a group of allele sizes.
 
     Args:
@@ -192,6 +205,11 @@ def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval=""
         interval (str): TRGT interval ``"{chrom}:{vcf_start_0based}-{vcf_end_1based}"`` or ``""``
         vc (str): inner ``<VC:...>`` span or ``""`` for an isolated TR
         sample_id_to_sex (dict): sample_id -> "male"/"female", or None/empty if unavailable
+        partially_called_sample_ids (set): sample ids whose genotype at this locus had at least
+            one allele written as "." in the LPS table. Their called allele still counts in the
+            allele size histogram and the stats computed from it, but they are excluded from
+            BiallelicHistogram and from ShortAllele*, both of which need a fully observed
+            genotype. ShortAllele* is "" when no sample at this locus has one.
 
     Returns:
         dict: a dictionary mapping HEADER_FIELDS keys to values, or None if allele_sizes is empty
@@ -205,6 +223,8 @@ def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval=""
 
     short_alleles = []
     for sample_id, allele_list in alleles_by_sample_id.items():
+        if sample_id in partially_called_sample_ids:
+            continue  # the other allele wasn't called, so which of the two is shorter is unknown
         if len(allele_list) == 1:
             short_alleles.append(allele_list[0])
         elif len(allele_list) == 2:
@@ -212,7 +232,14 @@ def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval=""
         else:
             raise ValueError(f"Found {len(allele_list)} alleles for {sample_id} in {locus_id} {motif}")
 
-    allele_histogram, biallelic_histogram = compute_histograms(allele_sizes, alleles_by_sample_id)
+    allele_histogram, biallelic_histogram = compute_histograms(
+        allele_sizes, alleles_by_sample_id, partially_called_sample_ids)
+
+    # ShortAllele* needs at least one fully observed genotype. Every sample at this locus
+    # having a partial call leaves short_alleles empty, in which case these columns are ""
+    # rather than a statistic computed from half-observed genotypes.
+    short_allele_99th_percentile = _format_decimal(np.percentile(short_alleles, 99)) if short_alleles else ""
+    short_allele_max = int(max(short_alleles)) if short_alleles else ""
 
     # Hemi* columns cover male-only allele sizes at chrX/chrY loci (hemizygous calls),
     # so they aren't diluted by the female diploid calls that ShortAllele*/AlleleSize* mix in for chrX.
@@ -244,8 +271,8 @@ def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval=""
         "Median": _format_decimal(np.median(allele_sizes)),
         "99thPercentile": _format_decimal(np.percentile(allele_sizes, 99)),
         "Max": int(max(allele_sizes)),
-        "ShortAllele99thPercentile": _format_decimal(np.percentile(short_alleles, 99)),
-        "ShortAlleleMax": int(max(short_alleles)),
+        "ShortAllele99thPercentile": short_allele_99th_percentile,
+        "ShortAlleleMax": short_allele_max,
         "HemiAllele99thPercentile": hemi_allele_99th_percentile,
         "HemiAlleleMax": hemi_allele_max,
         "UniqueAlleleLengths": len(set(allele_sizes)),
@@ -502,14 +529,23 @@ def main():
 
             alleles = []
             alleles_by_sample_id = collections.defaultdict(list)
+            partially_called_sample_ids = set()
             stratum_alleles = collections.defaultdict(list)
             stratum_alleles_by_sample_id = collections.defaultdict(lambda: collections.defaultdict(list))
             for sample_id, allele_sizes in zip(header_fields[2:], fields[2:]):
                 if sample_id not in sample_ids_to_include:
                     continue
                 if allele_sizes == ".":
-                    continue
+                    continue  # fast path for a whole-sample no-call; the per-allele check below also covers it
                 for allele_size in allele_sizes.split(","):
+                    # TRGT LPS marks an individual allele it couldn't measure with ".", so a
+                    # partially called diploid genotype looks like "8,." and one where neither
+                    # allele was measured looks like ".,.". Keep whatever was called and skip
+                    # the missing alleles, recording which samples were only partially called so
+                    # the genotype-level columns can leave them out.
+                    if allele_size == ".":
+                        partially_called_sample_ids.add(sample_id)
+                        continue
                     try:
                         allele_size = int(allele_size)
                     except ValueError:
@@ -529,12 +565,14 @@ def main():
                 allele_histogram, biallelic_histogram = compute_histograms(
                     stratum_alleles.get(label, []),
                     stratum_alleles_by_sample_id.get(label, {}),
+                    partially_called_sample_ids,
                 )
                 stratified_columns[f"AlleleSizeHistogram__{label}"] = allele_histogram
                 stratified_columns[f"BiallelicHistogram__{label}"] = biallelic_histogram
 
             for locus_id in chunk_locus_ids:
-                row = compute_row(locus_id, motif, alleles, alleles_by_sample_id, interval=interval, vc=vc, sample_id_to_sex=sample_id_to_sex)
+                row = compute_row(locus_id, motif, alleles, alleles_by_sample_id, interval=interval, vc=vc, sample_id_to_sex=sample_id_to_sex,
+                                  partially_called_sample_ids=partially_called_sample_ids)
                 if row is None:
                     continue
                 key = (row["LocusId"], row["Interval"], row["VC"])
