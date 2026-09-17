@@ -8,7 +8,9 @@ motif    (example: "A")
          ".,." is a diploid call where neither allele was measured, and "3,." one where only
          one was. The measured allele of a partial call still counts toward AlleleSizeHistogram,
          NumCalledAlleles and the stats derived from them, but that sample is left out of
-         BiallelicHistogram and ShortAllele*, which need a fully observed genotype.)
+         BiallelicHistogram and ShortAllele*, which need a fully observed genotype, and out of
+         HemiAllele*, which counts only male samples whose chrX/chrY genotype is a single
+         measured allele.)
 
 and outputs a per-locus summary table with allele frequency histograms and statistics.
 
@@ -208,8 +210,9 @@ def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval=""
         partially_called_sample_ids (set): sample ids whose genotype at this locus had at least
             one allele written as "." in the LPS table. Their called allele still counts in the
             allele size histogram and the stats computed from it, but they are excluded from
-            BiallelicHistogram and from ShortAllele*, both of which need a fully observed
-            genotype. ShortAllele* is "" when no sample at this locus has one.
+            BiallelicHistogram, from ShortAllele*, which need a fully observed genotype, and from
+            HemiAllele*, which needs a genotype known to be hemizygous. ShortAllele* is "" when no
+            sample at this locus has a fully observed genotype.
 
     Returns:
         dict: a dictionary mapping HEADER_FIELDS keys to values, or None if allele_sizes is empty
@@ -241,17 +244,20 @@ def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval=""
     short_allele_99th_percentile = _format_decimal(np.percentile(short_alleles, 99)) if short_alleles else ""
     short_allele_max = int(max(short_alleles)) if short_alleles else ""
 
-    # Hemi* columns cover male-only allele sizes at chrX/chrY loci (hemizygous calls),
-    # so they aren't diluted by the female diploid calls that ShortAllele*/AlleleSize* mix in for chrX.
+    # Hemi* columns cover hemizygous calls at chrX/chrY loci: male samples whose genotype was a
+    # single measured allele. That leaves out a male diploid call in a pseudoautosomal region, and
+    # a partial call, whose second allele just wasn't measured. This way they aren't diluted by the
+    # female diploid calls that ShortAllele*/AlleleSize* mix in for chrX.
     hemi_allele_99th_percentile = ""
     hemi_allele_max = ""
     chrom = locus_id.split("-", 1)[0]
     if sample_id_to_sex and chrom in ("X", "Y"):
         hemi_alleles = [
-            allele_size
+            allele_list[0]
             for sample_id, allele_list in alleles_by_sample_id.items()
             if sample_id_to_sex.get(sample_id) == "male"
-            for allele_size in allele_list
+            and sample_id not in partially_called_sample_ids
+            and len(allele_list) == 1
         ]
         if hemi_alleles:
             hemi_allele_99th_percentile = _format_decimal(np.percentile(hemi_alleles, 99))

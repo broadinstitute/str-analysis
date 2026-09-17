@@ -71,6 +71,28 @@ class Tests(unittest.TestCase):
         self.assertEqual(row["ShortAlleleMax"], "")
         self.assertEqual(row["ShortAllele99thPercentile"], "")
 
+    def test_hemi_allele_columns_count_only_hemizygous_male_calls(self):
+        # s1 is a true hemizygous call, s2 a male partial call, s3 a male diploid call in a
+        # pseudoautosomal region, s4 a female diploid call. Only s1 is hemizygous.
+        row = compute_row("X-1000-1020-CAG", "CAG", [5, 6, 7, 9, 8, 11],
+                          {"s1": [5], "s2": [6], "s3": [7, 9], "s4": [8, 11]},
+                          sample_id_to_sex={"s1": "male", "s2": "male", "s3": "male", "s4": "female"},
+                          partially_called_sample_ids={"s2"})
+
+        self.assertEqual(row["HemiAlleleMax"], 5)
+        self.assertEqual(row["HemiAllele99thPercentile"], 5)
+
+        # every measured allele still counts in the per-allele histogram
+        self.assertEqual(row["AlleleSizeHistogram"], "5x:1,6x:1,7x:1,8x:1,9x:1,11x:1")
+        self.assertEqual(row["NumCalledAlleles"], 6)
+
+    def test_hemi_allele_columns_are_empty_without_a_hemizygous_call(self):
+        row = compute_row("X-1000-1020-CAG", "CAG", [7, 9], {"s1": [7, 9]},
+                          sample_id_to_sex={"s1": "male"})
+
+        self.assertEqual(row["HemiAlleleMax"], "")
+        self.assertEqual(row["HemiAllele99thPercentile"], "")
+
     def test_missing_allele_sizes(self):
         rows = run_converter(
             "1-44835-44876-AAAT\tAAAT\t8,8\t.,.\t8,.\t.\t9,10\n"
