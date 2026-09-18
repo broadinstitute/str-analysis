@@ -103,7 +103,7 @@ RUN python3 -m pip install --no-cache-dir git+https://github.com/bw2/trviz@9068d
 # embed the version (e.g. 5.1.0-9171d21), and that needs history and tags. A shallow clone would
 # still build, but the binary would report a bare 5.1.0 with no commit, losing the provenance this
 # pin exists to provide. The repo is small, so a full clone costs little.
-ENV TRGT_COMMIT="9171d21009337bc92343fc148135722338902d9d"
+ENV TRGT_COMMIT="0e9806e2241c5a44b9b0160aca90b5fe4398aca8"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
     && . "$HOME/.cargo/env" \
     && git clone https://github.com/bw2/trgt.git \
