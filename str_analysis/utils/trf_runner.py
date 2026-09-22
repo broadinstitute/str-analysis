@@ -527,33 +527,41 @@ DEBUG=False
 
 if __name__ == "__main__":
     #seq = "CAG"*2 + "CTG" + "CAG"*10 + "CTG"*2 + "CAG"*100
+    import argparse
     import sys
     import pandas as pd
-    df1 = pd.read_table("~/code/str-analysis/str_analysis/data/tests/CACNA1C_VNTR_sequences.tsv")
-    df2 = pd.read_table("~/code/str-analysis/str_analysis/data/tests/ABCA7_VNTR_sequences.tsv")
+
+    parser = argparse.ArgumentParser(description="Run TRF on every sequence in a table and print a summary of the "
+                                                 "TRF results for each one.")
+    parser.add_argument("--trf-executable-path", required=True, help="Path to the TandemRepeatsFinder (TRF) executable.")
+    parser.add_argument("--sequence-column", required=True, help="Name of the table column that holds the nucleotide "
+                        "sequences, for example CACNA1C_seq.")
+    parser.add_argument("sequences_tsv", help="Path of a TSV with a sample_id column and a sequence column.")
+    args = parser.parse_args()
+
+    df = pd.read_table(args.sequences_tsv)
     html_mode = True
 
-    trf_runner = TRFRunner("~/bin/trf409.macosx",
+    trf_runner = TRFRunner(args.trf_executable_path,
           html_mode=html_mode,
           debug=DEBUG,
           generate_motif_logo_plots=False)
 
-    #for df, column_name in [(df2, "ABCA7_seq")]:
-    for df, column_name in [(df1, "CACNA1C_seq")]:
-        for _, row in df.iterrows():
-            #if row['sample_id'] != "NA18939":
-            #    continue
+    column_name = args.sequence_column
+    for _, row in df.iterrows():
+        #if row['sample_id'] != "NA18939":
+        #    continue
 
-            # run TRF on the sequence
-            seq = row[column_name]
+        # run TRF on the sequence
+        seq = row[column_name]
 
-            #print(f"Running TRF on {len(seq):,d}bp sequence from {column_name}")
-            records = list(trf_runner.run_TRF_on_nucleotide_sequence(nucleotide_sequence=seq))
+        #print(f"Running TRF on {len(seq):,d}bp sequence from {column_name}")
+        records = list(trf_runner.run_TRF_on_nucleotide_sequence(nucleotide_sequence=seq))
 
-            #records = [records[0]]
-            sys.stdout.write(f"{row['sample_id']:<20} {column_name}: found {len(records):,d} TRF results in {len(seq):10,d}bp sequence")
-            for trf_record_i, record in enumerate(records):
-                print(f" "*30 + f"TRF record #{trf_record_i + 1}: score = {record['alignment_score']:6,d}, start_diff = {record['start_0based']}, end_diff = {len(seq) - record['end_1based']}, cov = {(record['end_1based'] - record['start_0based'])/len(seq):0.1%}, motif = {record['repeat_unit']}, motif_size = {record['repeat_unit_length']}")
-                if DEBUG:
-                    print(record)
+        #records = [records[0]]
+        sys.stdout.write(f"{row['sample_id']:<20} {column_name}: found {len(records):,d} TRF results in {len(seq):10,d}bp sequence")
+        for trf_record_i, record in enumerate(records):
+            print(f" "*30 + f"TRF record #{trf_record_i + 1}: score = {record['alignment_score']:6,d}, start_diff = {record['start_0based']}, end_diff = {len(seq) - record['end_1based']}, cov = {(record['end_1based'] - record['start_0based'])/len(seq):0.1%}, motif = {record['repeat_unit']}, motif_size = {record['repeat_unit_length']}")
+            if DEBUG:
+                print(record)
 

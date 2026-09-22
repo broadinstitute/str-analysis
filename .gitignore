@@ -136,3 +136,13 @@ dmypy.json
 # Claude history files
 CLAUDE_HISTORY*.md
 .prompt/
+
+# Local files that were committed by accident in b82f9c7; kept on disk but not tracked
+/str_analysis/variant_catalogs/HG002.STRs.positive_loci.TRGT_repeat_catalog.bed.gz
+/str_analysis/variant_catalogs/HG002.STRs.excluding_homopolymers.positive_loci.TRGT_repeat_catalog.bed.gz
+/str_analysis/make_bamlet_original.py
+/str_analysis/variant_catalogs/gnomAD_STR_update_prep__TODO_list_2026_07_02.html
+/str_analysis/data/known_pathogenic_str_loci_metadata_hg38_hg19.tsv.backup_2022_07_10
+/str_analysis/data/tests/CACNA1C_VNTR_sequences.tsv
+/str_analysis/data/tests/ABCA7_VNTR_sequences.tsv
+/str_analysis/pathogenic_repeats.hg38.bed
