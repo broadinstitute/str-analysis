@@ -36,6 +36,40 @@ def run_converter(lps_table_contents, extra_args=()):
             return [dict(zip(header, line.rstrip("\n").split("\t"))) for line in f]
 
 
+def run_converter_with_trid_metadata(lps_table_contents, trid_metadata_contents):
+    """Run the converter's main() with --vcf-trid-metadata-tsv and return its output rows.
+
+    Args:
+        lps_table_contents (str): contents of a headerless LPS table (trid, motif, sample columns).
+        trid_metadata_contents (str): contents of the TRID metadata TSV, including its header line.
+
+    Returns:
+        list: one dict per output row, mapping column name to the unparsed string value.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        trid_metadata_path = os.path.join(temp_dir, "trid_metadata.tsv")
+        with open(trid_metadata_path, "wt") as f:
+            f.write(trid_metadata_contents)
+
+        return run_converter(lps_table_contents, ["--vcf-trid-metadata-tsv", trid_metadata_path])
+
+
+TRID_METADATA = (
+    "trid\tlocus_id\tmotif\tinterval\tvc\n"
+    "1-44835-44876-AAAT\t1-44835-44876-AAAT\tAAAT\t1:44835-44876\t\n")
+
+# the chrX:149631602-149631762 cluster as the AoU (Danzi) VCF holds it: two records covering the
+# same TCC repeat over the same span, under different TRIDs
+TMEM185A_GENE_NAMED_TRID = ("X-149631602-149631617-TCC,X-149631685-149631694-GCT,TMEM185A_CGCCGT,"
+                            "X-149631729-149631732-CGC")
+TMEM185A_COORDINATE_TRID = ("X-149631602-149631617-TCC,X-149631685-149631694-GCT,"
+                            "X-149631723-149631735-CGCCGT")
+TMEM185A_TRID_METADATA = (
+    "trid\tlocus_id\tmotif\tinterval\tvc\n"
+    f"{TMEM185A_GENE_NAMED_TRID}\tX-149631602-149631617-TCC\tTCC\tX:149631602-149631762\tX:149631602-149631762\n"
+    f"{TMEM185A_COORDINATE_TRID}\tX-149631602-149631617-TCC\tTCC\tX:149631602-149631762\tX:149631602-149631762\n")
+
+
 class Tests(unittest.TestCase):
 
     def test_compute_histograms_excludes_partially_called_samples(self):
@@ -116,6 +150,86 @@ class Tests(unittest.TestCase):
         with self.assertRaises(ValueError):
             run_converter("1-44835-44876-AAAT\tAAAT\t8,8\tNA\n")
 
+    def test_exact_repeat_of_an_lps_row_is_skipped(self):
+        rows = run_converter_with_trid_metadata(
+            "1-44835-44876-AAAT\tAAAT\t8,8\t9,10\n"
+            "1-44835-44876-AAAT\tAAAT\t8,8\t9,10\n",
+            TRID_METADATA)
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["Interval"], "1:44835-44876")
+        self.assertEqual(rows[0]["AlleleSizeHistogram"], "8x:2,9x:1,10x:1")
+
+    def test_different_lps_rows_for_the_same_record_raise(self):
+        with self.assertRaisesRegex(ValueError, "already used by line #1, and the two rows' values differ"):
+            run_converter_with_trid_metadata(
+                "1-44835-44876-AAAT\tAAAT\t8,8\t9,10\n"
+                "1-44835-44876-AAAT\tAAAT\t8,8\t9,11\n",
+                TRID_METADATA)
+
+    def test_trid_metadata_record_without_an_lps_row_raises(self):
+        with self.assertRaisesRegex(ValueError, r"1 VCF records in --vcf-trid-metadata-tsv were never consumed"):
+            run_converter_with_trid_metadata(
+                "1-44835-44876-AAAT\tAAAT\t8,8\t9,10\n",
+                TRID_METADATA + "1-50000-50020-AT\t1-50000-50020-AT\tAT\t1:50000-50020\t\n")
+
+    def test_a_trid_on_two_vcf_records_is_skipped(self):
+        # records 1 and 3 of the AoU (Danzi) VCF share a TRID, with spans 149631602-149631617 and
+        # -149631762, and nothing says which LPS row came from which, so neither is used.
+        trid = TMEM185A_COORDINATE_TRID
+        rows = run_converter_with_trid_metadata(
+            f"{trid}\tTCC\t5,5\t5,6\n"
+            f"{trid}\tTCC\t3,3\t3,3\n"
+            "1-44835-44876-AAAT\tAAAT\t8,8\t9,10\n",
+            "trid\tlocus_id\tmotif\tinterval\tvc\n"
+            f"{trid}\tX-149631602-149631617-TCC\tTCC\tX:149631602-149631617\tX:149631602-149631617\n"
+            f"{trid}\tX-149631602-149631617-TCC\tTCC\tX:149631602-149631762\tX:149631602-149631762\n"
+            "1-44835-44876-AAAT\t1-44835-44876-AAAT\tAAAT\t1:44835-44876\t\n")
+
+        # the unaffected locus is still written
+        self.assertEqual([row["LocusId"] for row in rows], ["1-44835-44876-AAAT"])
+
+    def test_two_vcf_records_covering_one_repeat_each_get_a_row(self):
+        # the AoU (Danzi) VCF covers this repeat twice, under two TRIDs, so the TRID metadata has a
+        # row for each. Only the TRID column tells the two output rows apart.
+        rows = run_converter_with_trid_metadata(
+            f"{TMEM185A_GENE_NAMED_TRID}\tTCC\t5,5\t5,6\n"
+            f"{TMEM185A_COORDINATE_TRID}\tTCC\t5,5\t5,7\n",
+            TMEM185A_TRID_METADATA)
+
+        self.assertEqual([row["LocusId"] for row in rows],
+                         ["X-149631602-149631617-TCC", "X-149631602-149631617-TCC"])
+        self.assertEqual([row["TRID"] for row in rows], [TMEM185A_GENE_NAMED_TRID, TMEM185A_COORDINATE_TRID])
+        self.assertEqual([row["AlleleSizeHistogram"] for row in rows], ["5x:3,6x:1", "5x:3,7x:1"])
+
+    def test_the_same_locus_id_twice_in_one_vcf_record_raises(self):
+        trid = "1-44835-44876-AAAT,1-44835-44876-AAAT"
+        with self.assertRaisesRegex(ValueError, "duplicate output tuple"):
+            run_converter_with_trid_metadata(
+                f"{trid}\tAAAT\t8,8\t9,10\n",
+                "trid\tlocus_id\tmotif\tinterval\tvc\n"
+                f"{trid}\t1-44835-44876-AAAT\tAAAT\t1:44835-44876\t\n"
+                f"{trid}\t1-44835-44876-AAAT\tAAAT\t1:44835-44876\t\n")
+
+    def test_lps_row_missing_from_the_trid_metadata_is_skipped(self):
+        # The AoU record's MOTIFS field listed CGC, which no repeat id in its TRID ends with, so
+        # trgt-lps wrote a CGC row that the TRID metadata has no LocusId for.
+        trid = TMEM185A_COORDINATE_TRID
+        interval = "X:149631602-149631762"
+        rows = run_converter_with_trid_metadata(
+            f"{trid}\tCGC\t2,2\t2,3\n"
+            f"{trid}\tCGCCGT\t2,2\t2,4\n"
+            f"{trid}\tTCC\t5,5\t5,6\n"
+            f"{trid}\tGCT\t3,3\t3,3\n",
+            "trid\tlocus_id\tmotif\tinterval\tvc\n"
+            f"{trid}\tX-149631723-149631735-CGCCGT\tCGCCGT\t{interval}\t{interval}\n"
+            f"{trid}\tX-149631602-149631617-TCC\tTCC\t{interval}\t{interval}\n"
+            f"{trid}\tX-149631685-149631694-GCT\tGCT\t{interval}\t{interval}\n")
+
+        self.assertEqual([row["LocusId"] for row in rows], [
+            "X-149631723-149631735-CGCCGT", "X-149631602-149631617-TCC", "X-149631685-149631694-GCT"])
+        self.assertEqual(rows[0]["AlleleSizeHistogram"], "2x:3,4x:1")
+
     def test_load_vcf_trid_metadata_reads_bgz_file(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             tsv_path = os.path.join(temp_dir, "trid_metadata.tsv.bgz")
@@ -125,7 +239,7 @@ class Tests(unittest.TestCase):
 
             self.assertEqual(
                 load_vcf_trid_metadata(tsv_path),
-                {("1-44835-44876-AAAT", "AAAT"): ("1:44835-44876", "", ["1-44835-44876-AAAT"])})
+                ({("1-44835-44876-AAAT", "AAAT"): ("1:44835-44876", "", ["1-44835-44876-AAAT"])}, set()))
 
 
 if __name__ == "__main__":

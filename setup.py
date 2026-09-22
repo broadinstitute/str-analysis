@@ -68,6 +68,8 @@ setup(
         ('data', ['str_analysis/data/non_ref_motif.offtarget_regions.json.gz', 'str_analysis/data/non_ref_motif.locus_info.json']),
         ('data', glob.glob('str_analysis/data/tests/*.*')),
     ],
+    # the default --known-loci-catalog of extract_trid_metadata_from_TRGT_vcf
+    package_data={"str_analysis": ["variant_catalogs/variant_catalog_without_offtargets.GRCh38.json"]},
     include_package_data=True,
     python_requires=">=3.7",
     license="MIT",

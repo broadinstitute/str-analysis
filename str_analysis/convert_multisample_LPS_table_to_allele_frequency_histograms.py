@@ -43,6 +43,11 @@ interval, vc``), each output row also carries:
                is the same string as Interval; the difference between the two columns
                is that VC is empty for an isolated TR.
 
+    TRID     = the INFO/TRID of that VCF record, copied through from the LPS table.
+               Two records can cover the same repeat over the same span under
+               different TRIDs (e.g. one naming a repeat by gene and one by
+               coordinates), which only this column tells apart.
+
 These columns disambiguate the rows that share a LocusId because the same
 LocusId was genotyped under multiple TRGT catalog intervals (e.g. once as a
 standalone TR and once inside a VC).
@@ -52,11 +57,15 @@ Each LPS row's (trid, motif) key resolves to exactly one chunk of the pre-built
 same VCF record (so a compound TRID with three LocusIds ending in ``-AGAA`` for
 motif ``AGAA`` produces a single chunk containing three locus_ids, all sharing
 the same interval/vc, and the script emits three output rows from the LPS row's
-allele data). A key covering more than one VCF record is rejected outright by
-``load_vcf_trid_metadata`` rather than paired by stream order.
+allele data). A key matching more than one VCF record is left out entirely,
+since nothing in the LPS table says which record a row came from, and its LPS
+rows are skipped with a warning. An LPS row whose key isn't in the metadata has no
+LocusId to attach to, so it is skipped with a warning. A second LPS row for a key
+an earlier row already claimed is an error, unless it repeats that row exactly, in
+which case it carries no new data and is also skipped with a warning.
 
 The script enforces a process-wide uniqueness invariant: no two output rows
-share the same (LocusId, Interval, VC) tuple.
+share the same (LocusId, Interval, VC, TRID) tuple.
 """
 
 import argparse
@@ -73,6 +82,7 @@ HEADER_FIELDS = [
     "Motif",
     "Interval",
     "VC",
+    "TRID",
     "AlleleSizeHistogram",
     "BiallelicHistogram",
     "Min",
@@ -100,38 +110,49 @@ def load_vcf_trid_metadata(tsv_path):
     record and are grouped into a single chunk
     ``(interval, vc, [locus_id, ...])``.
 
+    A ``(trid, motif)`` key can match more than one VCF record, which happens when a variation
+    cluster shares a TRID with a repeat it contains
+    (https://github.com/PacificBiosciences/trgt-lps/issues/5). The LPS table holds one row per
+    record for such a key, and nothing in those rows says which record each came from, so no row
+    can be attached to a record without guessing. Those keys are left out of the returned map and
+    listed in the second returned value, so the caller can skip their LPS rows with a warning.
+
     Args:
         tsv_path: Path to the gzipped or plain TSV.
 
     Returns:
-        ``dict[(trid, motif), (interval, vc, [locus_id, ...])]``.
-
-    Raises:
-        ValueError: if any ``(trid, motif)`` key covers more than one VCF record.
+        tuple: ``(dict[(trid, motif), (interval, vc, [locus_id, ...])], set of the (trid, motif)
+        keys that match more than one VCF record)``.
     """
     opener = gzip.open if str(tsv_path).endswith((".gz", ".bgz")) else open
     metadata = {}
+    multi_record_keys = set()
+    num_records_dropped = 0
     current_key = None
     current_chunk_key = None
     current_locus_ids = None
 
     def flush():
+        nonlocal num_records_dropped
         if current_key is None or current_chunk_key is None:
             return
         interval, vc = current_chunk_key
-        if current_key in metadata:
+        if current_key in multi_record_keys:
+            return
+        if current_key not in metadata:
+            metadata[current_key] = (interval, vc, current_locus_ids)
+            return
+
+        # A second record for this key: which LPS row belongs to which record can't be decided,
+        # so drop the key and let the caller skip its rows.
+        previous_interval, _, _ = metadata.pop(current_key)
+        multi_record_keys.add(current_key)
+        num_records_dropped += 1
+        if num_records_dropped <= 10:
             trid, motif = current_key
-            previous_interval, previous_vc, _ = metadata[current_key]
-            raise ValueError(
-                f"(trid={trid!r}, motif={motif!r}) in {tsv_path} covers more than one VCF "
-                f"record: {previous_interval!r} (vc {previous_vc!r}) and {interval!r} "
-                f"(vc {vc!r}). This is a variation cluster sharing a TRID with a repeat it "
-                f"contains, and which LPS row belongs to which record cannot be recovered "
-                f"from these inputs. Regenerate the VCF and the LPS table with "
-                f"data-prep/hprc-lps/regenerate_unique_trid_vcf_and_lps.sh, then re-extract "
-                f"--vcf-trid-metadata-tsv from the rewritten VCF. "
-                f"See https://github.com/PacificBiosciences/trgt-lps/issues/5")
-        metadata[current_key] = (interval, vc, current_locus_ids)
+            print(f"WARNING: (trid={trid!r}, motif={motif!r}) matches more than one VCF record "
+                  f"({previous_interval!r} and {interval!r}), so no LPS row can be attached to either "
+                  f"one; skipping this key")
 
     with opener(tsv_path, "rt") as f:
         header = next(f).rstrip("\n").split("\t")
@@ -152,7 +173,7 @@ def load_vcf_trid_metadata(tsv_path):
             else:
                 current_locus_ids.append(locus_id)
         flush()
-    return metadata
+    return metadata, multi_record_keys
 
 
 def _format_decimal(value):
@@ -195,8 +216,8 @@ def compute_histograms(allele_sizes, alleles_by_sample_id, partially_called_samp
     )
 
 
-def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval="", vc="", sample_id_to_sex=None,
-                partially_called_sample_ids=()):
+def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval="", vc="", trid="",
+                sample_id_to_sex=None, partially_called_sample_ids=()):
     """Compute statistics for a group of allele sizes.
 
     Args:
@@ -206,6 +227,7 @@ def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval=""
         alleles_by_sample_id (dict): the alleles for the current key by sample id
         interval (str): TRGT interval ``"{chrom}:{vcf_start_0based}-{vcf_end_1based}"`` or ``""``
         vc (str): inner ``<VC:...>`` span or ``""`` for an isolated TR
+        trid (str): the ``INFO/TRID`` of the VCF record this row's genotypes came from
         sample_id_to_sex (dict): sample_id -> "male"/"female", or None/empty if unavailable
         partially_called_sample_ids (set): sample ids whose genotype at this locus had at least
             one allele written as "." in the LPS table. Their called allele still counts in the
@@ -268,6 +290,7 @@ def compute_row(locus_id, motif, allele_sizes, alleles_by_sample_id, interval=""
         "Motif": motif,
         "Interval": interval,
         "VC": vc,
+        "TRID": trid,
         "AlleleSizeHistogram": allele_histogram,
         "BiallelicHistogram": biallelic_histogram,
         "Min": int(min(allele_sizes)),
@@ -451,13 +474,30 @@ def main():
     # --vcf-trid-metadata-tsv is given. Each chunk groups all LocusIds genotyped by one
     # VCF record (same interval/vc, differing locus_id).
     vcf_metadata = {}
+    multi_record_keys = set()
     if args.vcf_trid_metadata_tsv:
         print(f"Loading TRID metadata from {args.vcf_trid_metadata_tsv}")
-        vcf_metadata = load_vcf_trid_metadata(args.vcf_trid_metadata_tsv)
-        print(f"Loaded {len(vcf_metadata):,d} VCF-record chunks, one per unique (trid, motif) key")
+        vcf_metadata, multi_record_keys = load_vcf_trid_metadata(args.vcf_trid_metadata_tsv)
+        print(f"Loaded {len(vcf_metadata):,d} VCF-record chunks, one per unique (trid, motif) key"
+              + (f"; {len(multi_record_keys):,d} of those keys match more than one VCF record"
+                 if multi_record_keys else ""))
 
-    # Process-wide uniqueness check for emitted (LocusId, Interval, VC) tuples.
+    # Process-wide uniqueness check for emitted (LocusId, Interval, VC, TRID) tuples. Two VCF
+    # records covering the same repeat over the same span differ in TRID, so each gets its own row.
     seen_output_keys = set()
+
+    # Counts of skipped LPS rows, each printed as a summary at the end of the run. An LPS row that
+    # is identical to an earlier row with the same (trid, motif), e.g. from the same LPS slice
+    # concatenated twice, or from one VCF record listing the same motif twice in MOTIFS, which makes
+    # trgt-lps write the row twice.
+    num_duplicate_rows_skipped = 0
+    # Every row whose (trid, motif) matches more than one VCF record, e.g. a variation cluster
+    # sharing a TRID with a repeat it contains, where no row can be attributed to a record.
+    num_multi_record_rows_skipped = 0
+    # Rows whose (trid, motif) isn't in the TRID metadata at all, e.g. a motif in MOTIFS that no
+    # repeat id in the TRID ends with, a gene-named repeat id the known loci catalog doesn't define,
+    # or an LPS table and a TRID metadata TSV made from different VCFs.
+    num_rows_missing_from_metadata = 0
 
     # Atomic write: stream into a .tmp path next to the destination so a
     # mid-run exception (malformed cell, end-of-input drain mismatch, etc.)
@@ -504,19 +544,54 @@ def main():
             # represents. If --vcf-trid-metadata-tsv was not provided, fall back to
             # the legacy single-LocusId / empty Interval&VC behavior.
             if args.vcf_trid_metadata_tsv:
-                # Consume by popping, so what is left at the end is exactly the set of VCF
-                # records no LPS row claimed (the drain check below), and a second LPS row
-                # for the same key finds nothing rather than silently reusing the chunk.
-                chunk = vcf_metadata.pop((trid, motif), None)
+                if (trid, motif) in multi_record_keys:
+                    # Several VCF records share this key, so which record this row's values came
+                    # from is unknown and no output row can be written for it.
+                    num_multi_record_rows_skipped += 1
+                    if num_multi_record_rows_skipped <= 10:
+                        print(f"WARNING: skipping line #{line_number + 1}: (trid={trid!r}, "
+                              f"motif={motif!r}) matches more than one VCF record")
+                    continue
+
+                chunk = vcf_metadata.get((trid, motif))
                 if chunk is None:
-                    raise ValueError(
-                        f"Line #{line_number + 1}: no unconsumed VCF record for "
-                        f"(trid={trid!r}, motif={motif!r}) in --vcf-trid-metadata-tsv. Either the "
-                        f"key is absent from the TRID metadata TSV, or an earlier LPS row already "
-                        f"claimed its one record. Both mean the LPS table and "
-                        f"--vcf-trid-metadata-tsv were not derived from the same VCF."
-                    )
-                interval, vc, chunk_locus_ids = chunk
+                    # There's no LocusId to attach this row's values to, so skip it. See the summary
+                    # warning at the end for the usual causes.
+                    num_rows_missing_from_metadata += 1
+                    if num_rows_missing_from_metadata <= 10:
+                        print(f"WARNING: skipping line #{line_number + 1}: (trid={trid!r}, "
+                              f"motif={motif!r}) is not in --vcf-trid-metadata-tsv")
+                    continue
+
+                # The first LPS row for a VCF record claims it by replacing the record's
+                # (interval, vc, locus_ids) entry with the row's line number and a hash of the line.
+                # The record's own fields are only needed this once, so replacing them frees more
+                # memory than the claim takes, and memory shrinks as rows are read. A later row with
+                # the same key is then either an exact repeat (skipped with a warning) or a different
+                # row competing for the same record (an error). Entries never replaced are the
+                # records no LPS row claimed, which the drain check below looks for.
+                if len(chunk) == 3:
+                    interval, vc, chunk_locus_ids = chunk
+                    vcf_metadata[(trid, motif)] = (line_number + 1, hash(line.strip()))
+                else:
+                    claiming_line_number, claiming_line_hash = chunk
+                    if hash(line.strip()) != claiming_line_hash:
+                        raise ValueError(
+                            f"Line #{line_number + 1}: (trid={trid!r}, motif={motif!r}) was already "
+                            f"used by line #{claiming_line_number}, and the two rows' values differ. "
+                            f"The LPS table has two different rows for one record in "
+                            f"--vcf-trid-metadata-tsv, so which one belongs to that record is "
+                            f"unknown. This usually means the LPS table was made from a VCF with "
+                            f"duplicate TRIDs, and the TRID metadata TSV from a deduplicated copy of "
+                            f"it. Regenerate both from the same VCF."
+                        )
+                    # An exact repeat of the row that already claimed this record, e.g. from
+                    # concatenating the same LPS slice twice, carries no new data, so skip it.
+                    num_duplicate_rows_skipped += 1
+                    if num_duplicate_rows_skipped <= 10:
+                        print(f"WARNING: skipping line #{line_number + 1}: it repeats line "
+                              f"#{claiming_line_number} for (trid={trid!r}, motif={motif!r}) exactly")
+                    continue
             else:
                 # Without the TRID metadata TSV the TRID has to double as the LocusId, which only
                 # works when it already is one. A compound TRID lists several, and a variation
@@ -577,18 +652,19 @@ def main():
                 stratified_columns[f"BiallelicHistogram__{label}"] = biallelic_histogram
 
             for locus_id in chunk_locus_ids:
-                row = compute_row(locus_id, motif, alleles, alleles_by_sample_id, interval=interval, vc=vc, sample_id_to_sex=sample_id_to_sex,
+                row = compute_row(locus_id, motif, alleles, alleles_by_sample_id, interval=interval, vc=vc, trid=trid,
+                                  sample_id_to_sex=sample_id_to_sex,
                                   partially_called_sample_ids=partially_called_sample_ids)
                 if row is None:
                     continue
-                key = (row["LocusId"], row["Interval"], row["VC"])
+                row.update(stratified_columns)
+                key = (row["LocusId"], row["Interval"], row["VC"], row["TRID"])
                 if key in seen_output_keys:
                     raise ValueError(
                         f"Line #{line_number + 1}: duplicate output tuple "
-                        f"(LocusId={key[0]!r}, Interval={key[1]!r}, VC={key[2]!r})"
+                        f"(LocusId={key[0]!r}, Interval={key[1]!r}, VC={key[2]!r}, TRID={key[3]!r})"
                     )
                 seen_output_keys.add(key)
-                row.update(stratified_columns)
                 if args.output_format == "JSON":
                     if not json_first_row:
                         outfile.write(",\n")
@@ -602,21 +678,21 @@ def main():
             outfile.write("\n]\n")
 
      # End-of-processing assertion: every VCF record must have been claimed by an LPS
-     # row. Whatever is still in the map describes records the LPS table doesn't have,
-     # which means the two inputs came from different VCFs.
+     # row. An entry still holding (interval, vc, locus_ids) rather than a claiming line number
+     # and hash describes a record the LPS table doesn't have, which means the two inputs came
+     # from different VCFs.
      #
      # Skip the check when --num-loci is in effect: the main loop intentionally
      # breaks early, so leftover records are expected and not a sign of mismatch.
-     if args.vcf_trid_metadata_tsv and args.num_loci is None and vcf_metadata:
-         # Reached only when records went unclaimed; an empty map instead means every
-         # record was consumed, which is the success case.
-         examples = list(vcf_metadata)[:3]
-         raise ValueError(
-             f"{len(vcf_metadata):,d} VCF records in --vcf-trid-metadata-tsv were "
-             f"never consumed by an LPS row (e.g. {examples!r}). The two "
-             f"inputs are out of sync; re-extract --vcf-trid-metadata-tsv from "
-             f"the same VCF the LPS table was generated from."
-         )
+     if args.vcf_trid_metadata_tsv and args.num_loci is None:
+         unclaimed_keys = [key for key, chunk in vcf_metadata.items() if len(chunk) == 3]
+         if unclaimed_keys:
+             raise ValueError(
+                 f"{len(unclaimed_keys):,d} VCF records in --vcf-trid-metadata-tsv were "
+                 f"never consumed by an LPS row (e.g. {unclaimed_keys[:3]!r}). The two "
+                 f"inputs are out of sync; re-extract --vcf-trid-metadata-tsv from "
+                 f"the same VCF the LPS table was generated from."
+             )
 
      # Atomic promote: only if the run succeeded (no exception, drain check passed).
      os.replace(tmp_output_path, output_path)
@@ -630,6 +706,20 @@ def main():
                 os.remove(tmp_output_path)
             except OSError:
                 pass
+    if num_duplicate_rows_skipped:
+        print(f"WARNING: skipped {num_duplicate_rows_skipped:,d} LPS rows that exactly repeated an earlier "
+              f"row with the same (trid, motif)")
+    if num_multi_record_rows_skipped:
+        print(f"WARNING: skipped {num_multi_record_rows_skipped:,d} LPS rows for (trid, motif) keys that "
+              f"match more than one VCF record. The LPS table doesn't say which record each of its rows "
+              f"came from, so those loci are left out of this output")
+    if num_rows_missing_from_metadata:
+        print(f"WARNING: skipped {num_rows_missing_from_metadata:,d} LPS rows whose (trid, motif) is not in "
+              f"--vcf-trid-metadata-tsv. extract_trid_metadata_from_TRGT_vcf.py writes no metadata row "
+              f"when a VCF record's MOTIFS field lists a motif that doesn't end any repeat id in its "
+              f"TRID, for example an extra motif, or a gene-named id such as TMEM185A_CGCCGT, whose "
+              f"locus is then missing from this output. It also happens when the two inputs came "
+              f"from different VCFs.")
     print(f"Wrote {rows_written:9,d} rows to {output_path}")
 
 if __name__ == "__main__":
