@@ -1,6 +1,7 @@
 import unittest
 
 import collections
+import pysam
 import random
 random.seed(0)
 
@@ -9,8 +10,38 @@ from str_analysis.parse_motif_composition import (
     LocusParser,
     _parse_motif_ids_from_processed_sequence,
     _is_nucleotide_sequence,
+    get_read_sequence_within_interval,
     parse_motif_composition_from_alignment_file,
 )
+
+
+def _make_test_header():
+    return pysam.AlignmentHeader.from_dict({
+        "HD": {"VN": "1.6", "SO": "coordinate"},
+        "SQ": [{"SN": "chrA", "LN": 1000}, {"SN": "chrB", "LN": 1000}],
+    })
+
+
+def _make_read(header, name, contig_index, start, cigarstring, sequence, flag=0):
+    """Returns a pysam.AlignedSegment with MAPQ 60 and base quality 40 at every base."""
+    read = pysam.AlignedSegment(header)
+    read.query_name = name
+    read.flag = flag
+    read.reference_id = contig_index
+    read.reference_start = start
+    read.mapping_quality = 60
+    read.cigarstring = cigarstring
+    read.query_sequence = sequence
+    read.query_qualities = pysam.qualitystring_to_array("I" * len(sequence))
+    return read
+
+
+def _write_indexed_bam(bam_path, header, reads):
+    """Writes the given reads, which must already be in coordinate order, to an indexed BAM file."""
+    with pysam.AlignmentFile(bam_path, "wb", header=header) as bam:
+        for read in reads:
+            bam.write(read)
+    pysam.index(bam_path)
 
 
 class LocusParserTest(unittest.TestCase):
@@ -678,3 +709,100 @@ class TestParseMotifCompositionFromAlignmentFile(unittest.TestCase):
             # Check that verbose output was produced
             self.assertIn("Parsed motif sequence", output)
             self.assertIn("Observed motif frequencies", output)
+
+    def test_supplementary_alignments_are_skipped(self):
+        """A read with a primary record in one counted region and a supplementary record in another is counted
+        once, and supplementary records add no read depth to counted or other regions."""
+        import tempfile
+        import os
+
+        header = _make_test_header()
+        sequence = "CAG" * 10
+
+        # in coordinate order. read1's primary is on chrA and its supplementary is on chrB, like a CACNA1C VNTR read
+        # with a supplementary alignment on the decoy. read3 has only a supplementary record in the other region.
+        reads = [
+            _make_read(header, "read1", 0, 100, "30M", sequence),
+            _make_read(header, "read1", 1, 200, "30M", sequence, flag=2048),
+            _make_read(header, "read2", 1, 500, "30M", sequence),
+            _make_read(header, "read3", 1, 505, "30M", sequence, flag=2048),
+        ]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bam_path = os.path.join(tmpdir, "test.bam")
+            _write_indexed_bam(bam_path, header, reads)
+
+            result = parse_motif_composition_from_alignment_file(
+                input_sequence_or_path=bam_path,
+                motif_frequency_dict={"CAG": 10},
+                counted_region_list=["chrA:90-140", "chrB:190-240"],
+                other_region_list=["chrB:490-540"],
+                output_prefix=os.path.join(tmpdir, "test_output"),
+                output_format="JSON",
+            )
+
+        self.assertEqual(result["motif_frequency"], "[CAG]:10")
+        self.assertAlmostEqual(result["read_depth_counted_region_chrA:90-140"], 30 / 50)
+        self.assertAlmostEqual(result["read_depth_counted_region_chrB:190-240"], 0)
+        self.assertAlmostEqual(result["read_depth_other_region_chrB:490-540"], 30 / 50)
+
+    def test_read_crossing_an_interval_edge_is_counted_within_the_interval(self):
+        """A read that crosses the edge of a counted interval contributes only the motifs inside the interval."""
+        import tempfile
+        import os
+
+        header = _make_test_header()
+
+        # the read covers chrA:100-130, and the counted interval starts 9 bases (3 CAG units) into it
+        reads = [_make_read(header, "read1", 0, 100, "30M", "CAG" * 10)]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bam_path = os.path.join(tmpdir, "test.bam")
+            _write_indexed_bam(bam_path, header, reads)
+
+            result = parse_motif_composition_from_alignment_file(
+                input_sequence_or_path=bam_path,
+                motif_frequency_dict={"CAG": 10},
+                counted_region_list=["chrA:109-140"],
+                output_prefix=os.path.join(tmpdir, "test_output"),
+                output_format="JSON",
+            )
+
+        self.assertEqual(result["motif_frequency"], "[CAG]:7")
+        self.assertEqual(result["motif_pair_frequency"], "[CAG][CAG]:6")
+
+
+class TestGetReadSequenceWithinInterval(unittest.TestCase):
+    """Every test uses the interval chrA:100-110."""
+
+    def _get_sequence_within_interval(self, start, cigarstring, sequence):
+        read = _make_read(_make_test_header(), "read1", 0, start, cigarstring, sequence)
+        return get_read_sequence_within_interval(read, 100, 110)
+
+    def test_read_inside_interval_is_returned_whole_with_soft_clips(self):
+        self.assertEqual(self._get_sequence_within_interval(102, "2S4M2S", "GG" + "ACGT" + "TT"), "GGACGTTT")
+
+    def test_read_crossing_left_edge_keeps_soft_clip_inside_interval(self):
+        # aligned to 97-101: AAA before the interval, CA inside it, then a soft clip on the interval side
+        self.assertEqual(self._get_sequence_within_interval(97, "2S5M3S", "TT" + "AAACA" + "GGG"), "CA" + "GGG")
+
+    def test_read_crossing_right_edge_keeps_soft_clip_inside_interval(self):
+        # aligned to 107-111: CAG inside the interval, TT after it
+        self.assertEqual(self._get_sequence_within_interval(107, "3S5M2S", "GGG" + "CAGTT" + "AA"), "GGG" + "CAG")
+
+    def test_read_spanning_interval_drops_flanks_and_soft_clips(self):
+        self.assertEqual(
+            self._get_sequence_within_interval(98, "2S14M2S", "GG" + "TT" + "CAGCAGCAGC" + "TT" + "GG"), "CAGCAGCAGC")
+
+    def test_insertions_at_both_edges_are_kept(self):
+        # a CAG insertion between positions 99 and 100, and an A insertion between positions 109 and 110
+        self.assertEqual(
+            self._get_sequence_within_interval(98, "2M3I10M1I2M", "TT" + "CAG" + "CAGCAGCAGC" + "A" + "TT"),
+            "CAG" + "CAGCAGCAGC" + "A")
+
+    def test_deletion_across_left_edge(self):
+        # aligned to 96-98, then positions 99-102 are deleted, then aligned to 103-107
+        self.assertEqual(self._get_sequence_within_interval(96, "3M4D5M", "TTT" + "CAGCA"), "CAGCA")
+
+    def test_read_outside_interval_returns_empty_sequence(self):
+        self.assertEqual(self._get_sequence_within_interval(50, "5M", "CAGCA"), "")

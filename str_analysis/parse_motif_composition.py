@@ -323,6 +323,36 @@ class LocusParser:
         return ",".join(items)
 
 
+def get_read_sequence_within_interval(read, start_0based, end_1based):
+    """Returns the part of a read's sequence that lies inside the given reference interval.
+
+    Bases aligned before the interval or after it are cut off, along with any soft clip beyond them. Kept are the
+    bases aligned inside the interval, insertions between them or at either edge of the interval (aligners shift
+    an insertion in a repeat to the repeat's left edge), and a soft clip on a side where the alignment ends inside
+    the interval, since such a clip is likely more repeat sequence the aligner could not align (eg. RFC1 AAGGG
+    reads clipped against the reference's AAAAG repeat). So a read whose aligned bases all lie inside the interval
+    is returned whole, including its soft clips.
+
+    Args:
+        read (pysam.AlignedSegment): a mapped read with a query sequence
+        start_0based (int): interval start (0-based, inclusive)
+        end_1based (int): interval end (exclusive)
+
+    Returns:
+        str: the read's sequence within the interval. Empty if no part of the read lies inside it.
+    """
+    query_start = 0
+    query_end = len(read.query_sequence)
+    for query_pos, reference_pos in read.get_aligned_pairs(matches_only=True):
+        if reference_pos < start_0based:
+            query_start = query_pos + 1
+        elif reference_pos >= end_1based:
+            query_end = query_pos
+            break
+
+    return read.query_sequence[query_start:query_end]
+
+
 def _resolve_chrom(chrom, interval, normalized_to_reference_name, input_path):
     """Returns the reference name from the alignment file's header that matches the given chromosome name,
     regardless of which naming convention ("9" vs "chr9") the interval was specified with.
@@ -364,9 +394,11 @@ def parse_motif_composition_from_alignment_file(
         motif_frequency_dict (dict): dictionary of population motif frequencies at this locus (such as from T2T assemblies)
         reference_fasta_path (str): reference fasta for parsing a CRAM file
         alignment_index_file_path (str): reference index file path
-        counted_region_list (list): list of genomic intervals to extract from the input BAM/CRAM file
+        counted_region_list (list): list of genomic intervals to extract from the input BAM/CRAM file. Motifs are
+            counted in the part of each read that lies inside an interval (see get_read_sequence_within_interval).
         other_region_list (list): list of genomic intervals to extract from the input BAM/CRAM file for control region normalization
-        include_low_quality_alignments (bool): whether to count low quality alignments (those with MAPQ < 3)
+        include_low_quality_alignments (bool): whether to count low quality alignments (those with MAPQ < 3).
+            Supplementary alignments are always skipped, for both motif counts and read depth.
         check_reverse_complement (bool): whether to check the reverse complement of the input sequence
         output_prefix (str): output path prefix
         output_format (str): output file format ("JSON" or "TSV")
@@ -417,7 +449,10 @@ def parse_motif_composition_from_alignment_file(
             locus_width = end_1based - start_0based
             read_iterator = input_file.fetch(chrom, start_0based, end_1based)
             for read in read_iterator:
-                if not read.is_mapped or not read.query_alignment_sequence or (
+                # skip supplementary records so that each read is counted once, through its primary record. At
+                # CACNA1C, most VNTR reads have a primary alignment on chr12 and a supplementary one on the
+                # chrUn_KN707670v1_decoy copy, so fetching both intervals counted about 30% of reads twice.
+                if not read.is_mapped or read.is_supplementary or not read.query_alignment_sequence or (
                         not include_low_quality_alignments and read.mapq < MIN_MAPQ):
                     continue
 
@@ -425,12 +460,10 @@ def parse_motif_composition_from_alignment_file(
                 read_bases_aligned_within_interval = min(end_1based, read.reference_end) - max(start_0based, read.reference_start)
                 interval_read_depth_dict[interval_key] += read_bases_aligned_within_interval
 
-                if read_bases_aligned_within_interval < read.reference_end - read.reference_start:
-                    # don't count motifs in a read unless all of its aligned bases are within the locus interval
-                    continue
-
                 locus_parser.convert_nucleotide_seq_to_motif_seq(
-                    read.query_sequence,   # process the entire sequence include soft-clips (eg. RFC1)
+                    # count motifs only in the part of the read inside the locus interval, including soft clips
+                    # on the interval side of the alignment (eg. RFC1)
+                    get_read_sequence_within_interval(read, start_0based, end_1based),
                     check_reverse_complement=True,
                     record_reference_motif_counts=True,
                     record_novel_motif_counts=True,
@@ -456,7 +489,9 @@ def parse_motif_composition_from_alignment_file(
                     # here understated the depth these regions are used to normalize by, while the output still
                     # reported low-quality alignments as included. Unlike that loop this one does not also require
                     # read.query_alignment_sequence -- depth is summed from reference spans, never from the sequence.
-                    if not read.is_mapped or (not include_low_quality_alignments and read.mapq < MIN_MAPQ):
+                    # Supplementary records are skipped here too, as in the counted-region loop above.
+                    if not read.is_mapped or read.is_supplementary or (
+                            not include_low_quality_alignments and read.mapq < MIN_MAPQ):
                         continue
 
                     bases_within_locus = min(end_1based, read.reference_end) - max(start_0based, read.reference_start)  # total number of aligned bases in this read that overlap the interval
