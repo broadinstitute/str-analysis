@@ -5,7 +5,8 @@ import tempfile
 import unittest
 from unittest import mock
 
-from str_analysis.combine_single_sample_LPS_to_allele_histograms import main, parse_lps_table
+from str_analysis.combine_single_sample_LPS_to_allele_histograms import (
+    get_lps_filename_prefix, main, parse_lps_table)
 
 
 def parse_lps_table_contents(contents, n_outlier_sample_ids=10):
@@ -127,6 +128,15 @@ class Tests(unittest.TestCase):
     def test_non_integer_allele_size_raises(self):
         with self.assertRaises(ValueError):
             parse_lps_table_contents("trid\tmotif\tsample1\n1-44835-44876-AAAT\tAAAT\tNA\n")
+
+    def test_get_lps_filename_prefix_strips_gz_and_bgz(self):
+        for filename in ["HG00096.lps.tsv", "HG00096.lps.tsv.gz", "HG00096.lps.tsv.bgz",
+                         "HG00096.repeat_counts.txt.bgz"]:
+            self.assertEqual(get_lps_filename_prefix(f"/data/{filename}"), "HG00096", filename)
+
+    def test_get_lps_filename_prefix_only_strips_suffixes_that_start_with_a_dot(self):
+        self.assertEqual(get_lps_filename_prefix("/data/sample_lps.tsv"), "sample_lps")
+        self.assertEqual(get_lps_filename_prefix("/data/sample_tsv"), "sample_tsv")
 
 
 if __name__ == "__main__":

@@ -109,7 +109,7 @@ def load_vcf_trid_metadata(tsv_path):
     Raises:
         ValueError: if any ``(trid, motif)`` key covers more than one VCF record.
     """
-    opener = gzip.open if str(tsv_path).endswith(".gz") else open
+    opener = gzip.open if str(tsv_path).endswith((".gz", ".bgz")) else open
     metadata = {}
     current_key = None
     current_chunk_key = None

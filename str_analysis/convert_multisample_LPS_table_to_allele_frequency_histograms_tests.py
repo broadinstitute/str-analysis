@@ -5,7 +5,7 @@ import unittest
 from unittest import mock
 
 from str_analysis.convert_multisample_LPS_table_to_allele_frequency_histograms import (
-    compute_histograms, compute_row, main)
+    compute_histograms, compute_row, load_vcf_trid_metadata, main)
 
 
 def run_converter(lps_table_contents, extra_args=()):
@@ -115,6 +115,17 @@ class Tests(unittest.TestCase):
     def test_non_integer_allele_size_still_raises(self):
         with self.assertRaises(ValueError):
             run_converter("1-44835-44876-AAAT\tAAAT\t8,8\tNA\n")
+
+    def test_load_vcf_trid_metadata_reads_bgz_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tsv_path = os.path.join(temp_dir, "trid_metadata.tsv.bgz")
+            with gzip.open(tsv_path, "wt") as f:
+                f.write("trid\tlocus_id\tmotif\tinterval\tvc\n"
+                        "1-44835-44876-AAAT\t1-44835-44876-AAAT\tAAAT\t1:44835-44876\t\n")
+
+            self.assertEqual(
+                load_vcf_trid_metadata(tsv_path),
+                {("1-44835-44876-AAAT", "AAAT"): ("1:44835-44876", "", ["1-44835-44876-AAAT"])})
 
 
 if __name__ == "__main__":

@@ -60,7 +60,7 @@ def convert_counts_to_histogram_string(allele_counts):
 
 
 def get_lps_filename_prefix(lps_table_path):
-    return re.sub("(.lps|.repeat_counts)?(.txt|.tsv)(.gz)?$", "", os.path.basename(lps_table_path))
+    return re.sub(r"(\.lps|\.repeat_counts)?(\.txt|\.tsv)(\.gz|\.bgz)?$", "", os.path.basename(lps_table_path))
 
 
 def parse_lps_table(
