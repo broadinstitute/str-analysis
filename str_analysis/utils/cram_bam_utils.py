@@ -11,6 +11,8 @@ import tempfile
 from google.cloud import storage
 
 from str_analysis.utils import file_utils
+# Re-exported so the modules that have always imported normalize_chromosome_name from here keep working.
+from str_analysis.utils.fasta_utils import normalize_chromosome_name
 from str_analysis.utils.file_utils import (
 	open_file, get_file_size, get_byte_range_from_google_storage, get_local_copy_path)
 
@@ -167,13 +169,6 @@ def parse_crai_index(crai_path, cram_path, eof_container_length=len(CRAM_EOF_CON
 			interval.data.end = interval.data.start + container_sizes[interval.data.start]
 
 	return end_of_cram_header_byte_offset, interval_trees
-
-
-def normalize_chromosome_name(chrom):
-	chrom = re.sub("^chr", "", chrom).upper()
-	if chrom == "MT":
-		chrom = "M"
-	return chrom
 
 
 class IntervalReader:

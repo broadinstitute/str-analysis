@@ -1,3 +1,4 @@
+import re
 
 REFERENCE_CACHE = {}
 
@@ -74,6 +75,25 @@ def get_chromosome_sizes(fasta_path):
             size = int(fields[1])
             chrom_size_lookup[chrom] = size
     return chrom_size_lookup
+
+
+def normalize_chromosome_name(chrom):
+    """Reduce a contig name to a form that is the same in every naming convention.
+
+    References and callsets disagree about the "chr" prefix, and about whether the mitochondrion is called
+    M or MT, so the same contig arrives spelled several different ways. Mapping both differences away gives
+    a key that can be used to look up whatever spelling a particular file uses.
+
+    Args:
+        chrom (str): the contig name to normalize
+
+    Returns:
+        str: the normalized name, without a "chr" prefix and with MT written as M
+    """
+    chrom = re.sub("^chr", "", chrom).upper()
+    if chrom == "MT":
+        chrom = "M"
+    return chrom
 
 
 def create_normalize_chrom_function(has_chr_prefix=False):
