@@ -154,7 +154,7 @@ def process_vcf_line(line, sample_id, args, sample_metadata_row, variant_columns
     fields = line.rstrip('\n').split('\t')
     chrom = fields[0]
     start_1based = int(fields[1])
-    ref_seq = fields[3]
+    ref_allele = fields[3]
     alt_seq = fields[4]
     info = fields[7]
 
@@ -268,7 +268,7 @@ def process_vcf_line(line, sample_id, args, sample_metadata_row, variant_columns
         }
 
         if not args.dont_output_REF_ALT_fields:
-            row["Ref"] = ref_seq
+            row["Ref"] = ref_allele
             row["Alt"] = alt_seq
 
         row["AP"] = genotype_dict.get("AP", "")
@@ -315,7 +315,7 @@ def process_vcf_line(line, sample_id, args, sample_metadata_row, variant_columns
                     "GenotypeConfidenceInterval": genotype_ci,
                 }
                 if not args.dont_output_REF_ALT_fields:
-                    allele_row["Ref"] = ref_seq
+                    allele_row["Ref"] = ref_allele
                     allele_row["Alt"] = alt_seq
                 allele_row["AP"] = genotype_dict.get("AP", "")
                 allele_row["AM"] = genotype_dict.get("AM", "")
