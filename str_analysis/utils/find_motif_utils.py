@@ -128,6 +128,39 @@ def compute_best_phase_repeat_purity(
     return best_purity, best_edit_count, best_phase
 
 
+def compute_partial_copy_purity(nucleotide_sequence, motif):
+    """Score a sequence shorter than the motif against the best-matching stretch of that motif.
+
+    compute_best_phase_repeat_purity() returns nan when the sequence is shorter than the motif, because it
+    compares against whole rotations. A sequence that is a fragment of one motif copy still matches the motif
+    perfectly over its own length, so it is scored here by sliding it along motif+motif (which covers every
+    starting offset, including a fragment that wraps past the end of the motif) and keeping the best fraction
+    of matching bases.
+
+    Args:
+        nucleotide_sequence (str): nucleotide sequence with A, C, G, T, shorter than the motif
+        motif (str): a repeat motif
+
+    Return:
+        float: the highest fraction of matching bases across all starting offsets, or nan if either argument
+            is empty or the sequence is not shorter than the motif
+    """
+    if not nucleotide_sequence or not motif or len(nucleotide_sequence) >= len(motif):
+        return float('nan')
+
+    nucleotide_sequence = nucleotide_sequence.upper()
+    doubled_motif = (motif + motif).upper()
+
+    best_matching_base_count = 0
+    for offset in range(len(motif)):
+        window = doubled_motif[offset:offset + len(nucleotide_sequence)]
+        matching_base_count = sum(1 for a, b in zip(nucleotide_sequence, window) if a == b)
+        if matching_base_count > best_matching_base_count:
+            best_matching_base_count = matching_base_count
+
+    return best_matching_base_count / len(nucleotide_sequence)
+
+
 def compute_sequence_periodicity(nucleotide_sequence, max_period=200, max_sequence_length=3000):
     """Measure how tandem-repetitive a sequence is without knowing its motif or where the motif starts.
 
