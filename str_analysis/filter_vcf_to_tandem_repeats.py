@@ -347,15 +347,15 @@ def parse_args():
     genotype_p.add_argument("--show-progress-bar", help="Show a progress bar in the terminal when processing variants.", action="store_true")
     genotype_p.add_argument("--write-vcf", help="Output a VCF file with the subset of variants that contributed to TR genotyping.", action="store_true")
     genotype_p.add_argument("--write-json", help="Output a JSON file containing all genotyped TR loci.", action="store_true")
-    genotype_p.add_argument("--add-motif-composition", choices=["basic", "trf", "trviz"],
+    genotype_p.add_argument("--add-motif-composition", choices=["trviz", "trf", "basic"],
                             help="Add the parsed motif sequence for each allele to the output (eg. '[CAG][CAG][CCG][CAG]'). "
-                            "'basic' naively splits the allele sequence into subsequences the size of the annotated motif, "
-                            "while 'trf' uses TandemRepeatsFinder for more flexible detection that allows for insertions or deletions within "
-                            "the repeat sequence. 'trviz' aligns the allele sequence to the annotated motif using the "
+                            "'trviz' (recommended) aligns the allele sequence to the annotated motif using the "
                             "decomposition algorithm from the trviz python library (which must be installed separately "
-                            "with 'pip3 install trviz'), and so also allows for insertions or deletions within the repeat "
-                            "sequence. The motif sequence is added to both the TSV and JSON outputs, while per-allele "
-                            "motif counts are added to the JSON output only.")
+                            "with 'pip3 install trviz'), and so allows for insertions or deletions within the repeat "
+                            "sequence. 'trf' uses TandemRepeatsFinder for more flexible detection that also allows for "
+                            "insertions or deletions within the repeat sequence, while 'basic' naively splits the allele "
+                            "sequence into subsequences the size of the annotated motif. The motif sequence is added to "
+                            "both the TSV and JSON outputs, while per-allele motif counts are added to the JSON output only.")
     genotype_p.add_argument("--trf-executable-path", help="Path to the TandemRepeatsFinder (TRF) executable. "
                             "Required if --add-motif-composition trf is specified.")
     genotype_p.add_argument("--min-allele-length-for-trf-motif-splitting", type=int, default=12,
