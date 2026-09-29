@@ -3445,6 +3445,14 @@ class TestMotifCompositionSplittingMethod(unittest.TestCase):
         self.assertEqual(method, MOTIF_DETECTION_METHOD_BASIC_SPLIT)
         self.assertEqual(build_trviz_motif_entry("", "CAG", decomposer), (None, None))
 
+    def test_trviz_falls_back_to_basic_split_for_a_degenerate_motif(self):
+        """trviz also rejects a motif with bases other than A, C, G and T, such as the GCN motif of a
+        polyalanine repeat in the TRExplorer catalog, so those alleles use the basic method too."""
+        decomposer = self._make_trviz_decomposer()
+        entry, method = build_trviz_motif_entry("GCAGCCGCG", "GCN", decomposer)
+        self.assertEqual(entry, build_basic_split_motif_entry("GCAGCCGCG", 3))
+        self.assertEqual(method, MOTIF_DETECTION_METHOD_BASIC_SPLIT)
+
     def test_trviz_method_labels_both_alleles(self):
         """compute_motif_composition trviz path labels each allele 'trviz', None for a missing allele."""
         self._make_trviz_decomposer()

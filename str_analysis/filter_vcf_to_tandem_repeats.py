@@ -5127,15 +5127,16 @@ def build_trviz_motif_entry(sequence, motif, decomposer):
 
     Returns:
         2-tuple (dict, str): A parsed-motif entry {"motifs": [...], "prefix": str, "suffix": str} and the method
-            that produced it. Sequences containing bases other than A, C, G or T, which trviz rejects, fall back
-            on the basic chunking method. Returns (None, None) if the sequence is empty. For example,
+            that produced it. Sequences or motifs containing bases other than A, C, G or T (eg. the degenerate
+            GCN motif of a polyalanine repeat), which trviz rejects, fall back on the basic chunking method.
+            Returns (None, None) if the sequence is empty. For example,
             "AGCAGCAGCA" with motif "CAG" returns
             ({"motifs": ["CAG", "CAG"], "prefix": "AG", "suffix": "CA"}, "trviz") which renders as
             "AG[CAG][CAG]CA".
     """
     if not sequence:
         return None, None
-    if not set(sequence.upper()) <= set("ACGT"):
+    if not set(sequence.upper()) <= set("ACGT") or not set(motif.upper()) <= set("ACGT"):
         return build_basic_split_motif_entry(sequence, len(motif)), MOTIF_DETECTION_METHOD_BASIC_SPLIT
 
     pieces = []
