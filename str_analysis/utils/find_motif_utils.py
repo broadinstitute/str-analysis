@@ -17,7 +17,8 @@ def compute_repeat_purity(
         nucleotide_sequence,
         motif,
         include_partial_repeats=False,
-        distance_metric=DEFAULT_DISTANCE_METRIC):
+        distance_metric=DEFAULT_DISTANCE_METRIC,
+        score_cutoff=None):
     """This method generates a sequence of pure repeats of the given motif (with length equal to the length of the input
     nucleotide sequence), and then computes the number of substitutions (ie. interruptions) in the given nucleotide
     sequence, compared to the synthetic pure repeat sequence. If the nucleotide sequence length is not an
@@ -30,6 +31,11 @@ def compute_repeat_purity(
         include_partial_repeats (bool): whether to include any partial repeat at the end of the sequence in the
             calculation. If False, only complete repeats will be included.
         distance_metric (HAMMING_DISTANCE_METRIC or EDIT_DISTANCE_METRIC): distance metric to use
+        score_cutoff (int): optional. If the distance turns out to be larger than this, the computation stops
+            early and reports a distance of score_cutoff + 1, which is at most the true distance, so the
+            purity computed from it is only an upper bound on the true purity. This is
+            for callers that only care whether the result beats a distance they already have, since the edit
+            distance of two long sequences is expensive to compute in full.
 
     Return:
         2-tuple:
@@ -53,10 +59,11 @@ def compute_repeat_purity(
         nucleotide_sequence = nucleotide_sequence[:len(pure_sequence)]
 
     if distance_metric == HAMMING_DISTANCE_METRIC:
-        distance = Hamming.distance(pure_sequence, nucleotide_sequence)
+        distance = Hamming.distance(pure_sequence, nucleotide_sequence, score_cutoff=score_cutoff)
     elif distance_metric == EDIT_DISTANCE_METRIC:
         # https://rapidfuzz.github.io/Levenshtein/levenshtein.html#distance
-        distance = Levenshtein.distance(pure_sequence, nucleotide_sequence, weights=(1, 1, 1))
+        distance = Levenshtein.distance(pure_sequence, nucleotide_sequence, weights=(1, 1, 1),
+                                        score_cutoff=score_cutoff)
     else:
         raise ValueError("Unknown distance metric {}".format(distance_metric))
 
@@ -112,11 +119,19 @@ def compute_best_phase_repeat_purity(
 
     best_purity, best_edit_count, best_phase = float('-inf'), None, 0
     for phase in range(phases_to_check):
+        if best_edit_count == 0:
+            # No rotation can beat an exact match, and a tie wouldn't replace the earlier phase anyway
+            break
         rotated_motif = motif[phase:] + motif[:phase]
+        # Every rotation is compared over the same number of bases, so only a rotation with a strictly smaller
+        # distance can beat the best one so far. Telling compute_repeat_purity() that lets it stop early on
+        # rotations that can't, which matters for long alleles: the edit distance of two 19kb sequences takes
+        # ~8ms to compute in full, and a 170bp motif has 170 rotations to check.
         purity, edit_count = compute_repeat_purity(
             nucleotide_sequence, rotated_motif,
             include_partial_repeats=include_partial_repeats,
-            distance_metric=distance_metric)
+            distance_metric=distance_metric,
+            score_cutoff=None if best_edit_count is None else best_edit_count - 1)
         if purity != purity:  # nan
             continue
         if purity > best_purity:

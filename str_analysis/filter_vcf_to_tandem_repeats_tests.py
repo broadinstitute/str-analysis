@@ -3540,6 +3540,44 @@ class TestRepeatCounting(unittest.TestCase):
         self.assertAlmostEqual(result["purity"], 11 / 12)
         self.assertFalse(result["is_pure"])
 
+    def test_edit_distance_purity_is_skipped_above_max_allele_length(self):
+        """Alleles longer than the cap get no edit-distance purity, while the other fields are unaffected."""
+        sequence = "CAGCAACAGCAG"  # 12bp, one substitution
+        below_cap = compute_repeat_counts_from_sequence(sequence, "CAG", max_allele_length_for_edit_distance_purity=12)
+        self.assertAlmostEqual(below_cap["purity_via_edit_distance"], 11 / 12)
+
+        above_cap = compute_repeat_counts_from_sequence(sequence, "CAG", max_allele_length_for_edit_distance_purity=11)
+        self.assertIsNone(above_cap["purity_via_edit_distance"])
+        self.assertEqual(above_cap["num_repeats"], 4)
+        self.assertEqual(above_cap["repeat_size_bp"], 12)
+        self.assertAlmostEqual(above_cap["purity"], 11 / 12)
+        self.assertFalse(above_cap["is_pure"])
+
+    def test_locus_edit_distance_purity_is_empty_when_one_present_allele_is_over_the_cap(self):
+        """A capped allele is present, not absent, so the locus-level value can't fall back to the other allele."""
+        from str_analysis.filter_vcf_to_tandem_repeats import GenotypedTandemRepeat, ReferenceTandemRepeat
+        tr_locus = ReferenceTandemRepeat("chr1", 100, 112, "CAG")
+        one_allele_capped = GenotypedTandemRepeat(
+            tr_locus, allele1_sequence="CAG" * 4, allele2_sequence="CAG" * 4000,
+            num_repeats_allele1=4, num_repeats_allele2=4000,
+            allele1_purity=1.0, allele2_purity=0.8,
+            allele1_purity_via_edit_distance=1.0, allele2_purity_via_edit_distance=None)
+        self.assertIsNone(one_allele_capped.repeat_purity_via_edit_distance)
+        self.assertEqual(one_allele_capped.to_tsv_dict()["RepeatPurityViaEditDistance"], "")
+        # The per-allele columns still report what was computed
+        self.assertEqual(one_allele_capped.to_tsv_dict()["RepeatPurityViaEditDistanceShortAllele"], "1.0000")
+        self.assertEqual(one_allele_capped.to_tsv_dict()["RepeatPurityViaEditDistanceLongAllele"], "")
+        # The position-by-position purity is unaffected
+        self.assertAlmostEqual(one_allele_capped.repeat_purity, 0.8)
+
+        # A genuinely absent allele (HEMI) still falls back to the one present
+        one_allele_absent = GenotypedTandemRepeat(
+            tr_locus, allele1_sequence="CAG" * 4, allele2_sequence=None,
+            num_repeats_allele1=4, num_repeats_allele2=None,
+            allele1_purity=1.0, allele2_purity=None,
+            allele1_purity_via_edit_distance=1.0, allele2_purity_via_edit_distance=None)
+        self.assertAlmostEqual(one_allele_absent.repeat_purity_via_edit_distance, 1.0)
+
     def test_count_repeats_vntr(self):
         """Test counting repeats with a longer VNTR motif."""
         # AAGGG repeat (5bp motif): AAGGGAAGGGAAGGG = 3 complete repeats
@@ -4332,6 +4370,72 @@ chr1\t34\t.\tC\tT\t.\tPASS\t.\tGT\t0/1
         self.assertEqual(int(row["NumOverlappingVariants"]), 2)
         # The no-call must come from the unresolved phasing, not from a haplotype that failed to build
         self.assertEqual(row["NoCallReason"], NO_CALL_REASON_AMBIGUOUS_PHASING)
+
+    def test_genotype_with_multiple_worker_processes_matches_single_process(self):
+        """--threads > 1 must produce exactly the same TSV, in the same order, as a single-process run."""
+        import gzip
+
+        reference_seq = (
+            "A" * 100 + "CAG" * 8 +      # chr1:100-124  het expansion
+            "T" * 76 + "AT" * 9 +        # chr1:200-218  hom ref, no variant
+            "G" * 82 + "CTG" * 9 +       # chr1:300-327  het contraction
+            "C" * 73 + "AAGGG" * 6 +     # chr1:400-430  hom expansion
+            "A" * 70 + "GCC" * 6 +       # chr1:500-518  hom ref, no variant
+            "T" * 82 + "CAG" * 12 +      # chr1:600-636  one variant per haplotype
+            "G" * 64
+        )
+        fasta_path = self._create_test_fasta({"chr1": reference_seq})
+        if fasta_path is None:
+            self.skipTest("pyfaidx unavailable")
+
+        bed_gz_path = self._create_test_bed_and_index(
+            "chr1\t100\t124\tCAG\nchr1\t200\t218\tAT\nchr1\t300\t327\tCTG\n"
+            "chr1\t400\t430\tAAGGG\nchr1\t500\t518\tGCC\nchr1\t600\t636\tCAG\n")
+        if bed_gz_path is None:
+            self.skipTest("bgzip/tabix unavailable")
+
+        vcf_gz_path = self._create_test_vcf_and_index("""##fileformat=VCFv4.2
+##contig=<ID=chr1,length=700>
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1
+chr1\t101\t.\tC\tCCAGCAG\t.\tPASS\t.\tGT\t0|1
+chr1\t301\t.\tCTGC\tC\t.\tPASS\t.\tGT\t1|0
+chr1\t401\t.\tA\tAAGGGA\t.\tPASS\t.\tGT\t1|1
+chr1\t601\t.\tC\tCAGCAGCAG\t.\tPASS\t.\tGT\t1|0
+chr1\t619\t.\tC\tCAG\t.\tPASS\t.\tGT\t0|1
+""")
+        if vcf_gz_path is None:
+            self.skipTest("bgzip/tabix unavailable")
+
+        self._temp_dir = tempfile.mkdtemp()
+
+        from str_analysis import filter_vcf_to_tandem_repeats
+        tsv_contents = {}
+        # Lower the minimum chunk size so these 6 loci are split into several chunks that the two worker
+        # processes genotype out of lockstep, which is the case where an ordering or merging bug would show.
+        with mock.patch.object(filter_vcf_to_tandem_repeats, "MIN_LOCI_PER_GENOTYPING_CHUNK", 2):
+            for num_threads in (1, 2):
+                output_prefix = os.path.join(self._temp_dir, f"threads_{num_threads}")
+                filter_vcf_to_tandem_repeats.do_genotype_subcommand(argparse.Namespace(
+                    reference_fasta_path=fasta_path,
+                    catalog_bed=bed_gz_path,
+                    input_vcf_path=vcf_gz_path,
+                    input_vcf_prefix="test",
+                    output_prefix=output_prefix,
+                    interval=None,
+                    verbose=False,
+                    show_progress_bar=False,
+                    write_vcf=False,
+                    write_json=False,
+                    add_motif_composition=None,
+                    trf_executable_path=None,
+                    threads=num_threads,
+                ))
+                with gzip.open(f"{output_prefix}.tandem_repeat_genotypes.tsv.gz", "rt") as f:
+                    tsv_contents[num_threads] = f.read()
+
+        self.assertEqual(len(tsv_contents[1].splitlines()), 7, "Should have a header + 6 genotyped loci")
+        self.assertEqual(tsv_contents[2], tsv_contents[1])
 
 
 class TestWriteFunctions(unittest.TestCase):

@@ -42,6 +42,7 @@ import argparse
 import collections
 import configargparse
 import datetime
+import functools
 import gzip
 import importlib.util
 import itertools
@@ -132,6 +133,11 @@ TRF_MAX_SPAN_IN_REFERENCE_THRESHOLD = 10_000      # 10Kb
 DEFAULT_MIN_INSERTION_SIZE_TO_CHECK = 20
 DEFAULT_MIN_INSERTION_PURITY = 0.9
 DEFAULT_MIN_INSERTION_PERIODICITY = 0.55
+
+# The edit distance between an allele and a pure repeat of the same length costs O(length^2), and the phase
+# search computes it once per motif rotation, so a 19kb allele at a 170bp-motif locus took several seconds. The
+# resulting purity is only an output annotation, so above this length it is left missing instead.
+DEFAULT_MAX_ALLELE_LENGTH_FOR_EDIT_DISTANCE_PURITY = 10_000
 
 #FILTER_TR_ALLELE_PARTIAL_REPEAT = "ends in partial repeat"
 
@@ -362,9 +368,18 @@ def parse_args():
                             help="Only used with --add-motif-composition trf. Allele sequences shorter than "
                             "max(this value, 2 * motif_size) are split into motifs using the basic splitting method "
                             "rather than running TandemRepeatsFinder (TRF).")
+    genotype_p.add_argument("--max-allele-length-for-edit-distance-purity", type=int,
+                            default=DEFAULT_MAX_ALLELE_LENGTH_FOR_EDIT_DISTANCE_PURITY,
+                            help="Alleles longer than this many base pairs get an empty RepeatPurityViaEditDistance "
+                                 "value, since the edit distance to a pure repeat is expensive to compute for long "
+                                 "sequences. The position-by-position RepeatPurity is still computed for them.")
     genotype_p.add_argument("-t", "--trf-threads", default=max(1, multiprocessing.cpu_count() - 2), type=int,
                             help="Only used with --add-motif-composition trf. Number of TandemRepeatsFinder (TRF) "
                             "instances to run in parallel (one per thread) when splitting allele sequences into motifs.")
+    genotype_p.add_argument("--threads", default=1, type=int,
+                            help="Number of worker processes to use for genotyping loci. The catalog is split into "
+                                 "chunks of loci that are genotyped in parallel, and the output is the same as with "
+                                 "a single thread.")
     genotype_p.add_argument("--skip-hom-ref-loci", action="store_true",
                             help="Skip loci that were genotyped as homozygous reference, meaning no variant "
                                  "overlapped them, and don't include them in the output. Loci that got no "
@@ -410,6 +425,8 @@ def parse_args():
         if args.add_motif_composition == "trviz" and importlib.util.find_spec("trviz") is None:
             p.error("--add-motif-composition trviz requires the trviz python library. Install it with "
                     "'pip3 install trviz'")
+        if args.threads < 1:
+            p.error(f"--threads must be at least 1, not {args.threads}")
 
     if args.subcommand == "catalog" or args.subcommand == "genotype":
         args.input_vcf_prefix = re.sub(".vcf(.gz|.bgz)?$", "", os.path.basename(args.input_vcf_path))
@@ -1429,7 +1446,13 @@ class GenotypedTandemRepeat:
 
     @property
     def repeat_purity_via_edit_distance(self):
-        """Overall edit-distance repeat purity (minimum of both alleles, or the one present)."""
+        """Overall edit-distance repeat purity (minimum of both alleles, or the one present), or None if it
+        wasn't computed for an allele that is present (see --max-allele-length-for-edit-distance-purity)."""
+        # An allele that has a position-by-position purity but no edit-distance purity was skipped for being
+        # too long, not absent, so the other allele's value can't stand in as the minimum over both.
+        if ((self._allele1_purity is not None and self._allele1_purity_via_edit_distance is None)
+                or (self._allele2_purity is not None and self._allele2_purity_via_edit_distance is None)):
+            return None
         return min_with_None_check(self._allele1_purity_via_edit_distance, self._allele2_purity_via_edit_distance)
 
     def to_tsv_dict(self, motif_lists=None):
@@ -2977,7 +3000,8 @@ def extract_haplotype_sequences_from_vcf(chrom, start_0based, end, fasta_obj, vc
     return tuple(haplotype_result.sequence for haplotype_result in haplotype_results)
 
 
-def compute_repeat_counts_from_sequence(sequence, repeat_unit):
+def compute_repeat_counts_from_sequence(sequence, repeat_unit,
+                                        max_allele_length_for_edit_distance_purity=DEFAULT_MAX_ALLELE_LENGTH_FOR_EDIT_DISTANCE_PURITY):
     """Compute repeat count and purity metrics from a haplotype sequence.
 
     Given a haplotype sequence and a repeat unit (motif), this function calculates
@@ -2997,6 +3021,8 @@ def compute_repeat_counts_from_sequence(sequence, repeat_unit):
         sequence (str): The haplotype sequence to analyze. Can be None for missing
             genotypes.
         repeat_unit (str): The expected repeat unit/motif (e.g., "CAG", "AAGGG").
+        max_allele_length_for_edit_distance_purity (int): purity_via_edit_distance is left as None for
+            sequences longer than this, since the edit distance costs O(length^2) per motif rotation.
 
     Returns:
         dict: A dictionary with the following keys:
@@ -3005,7 +3031,8 @@ def compute_repeat_counts_from_sequence(sequence, repeat_unit):
             - purity (float or None): Fraction of bases matching pure repeat pattern
                 (0.0 to 1.0)
             - purity_via_edit_distance (float or None): (length - edit distance to a pure repeat of the
-                same length) / length (0.0 to 1.0)
+                same length) / length (0.0 to 1.0), or None if the sequence is longer than
+                max_allele_length_for_edit_distance_purity
             - is_pure (bool or None): True if purity > 0.99, indicating essentially
                 no interruptions
 
@@ -3053,8 +3080,11 @@ def compute_repeat_counts_from_sequence(sequence, repeat_unit):
     # starting offset within the motif since an allele often starts in the middle of a motif (eg. after a 1bp
     # deletion just upstream of the locus, "CAGCAGCAG" becomes "AGCAGCAG").
     purity, _, _ = compute_best_phase_repeat_purity(sequence, repeat_unit, include_partial_repeats=True)
-    purity_via_edit_distance, _, _ = compute_best_phase_repeat_purity(
-        sequence, repeat_unit, include_partial_repeats=True, distance_metric=EDIT_DISTANCE_METRIC)
+    if len(sequence) > max_allele_length_for_edit_distance_purity:
+        purity_via_edit_distance = None
+    else:
+        purity_via_edit_distance, _, _ = compute_best_phase_repeat_purity(
+            sequence, repeat_unit, include_partial_repeats=True, distance_metric=EDIT_DISTANCE_METRIC)
 
     # Handle NaN purity (can occur if sequence is shorter than motif)
     if purity != purity:  # NaN check
@@ -3082,7 +3112,8 @@ OverlappingVariant = collections.namedtuple("OverlappingVariant", ["chrom", "pos
 
 def genotype_single_locus(tr_locus, vcf_file, fasta_obj, verbose=False, insertion_filter=None,
                           vcf_contig_lookup=None, fasta_contig_lookup=None, par_regions=None,
-                          sex_chromosome_ploidy=None):
+                          sex_chromosome_ploidy=None,
+                          max_allele_length_for_edit_distance_purity=DEFAULT_MAX_ALLELE_LENGTH_FOR_EDIT_DISTANCE_PURITY):
     """Genotype a single tandem repeat locus using VCF variants.
 
     This function takes a TR locus from a catalog, fetches any overlapping VCF variants,
@@ -3108,6 +3139,8 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, verbose=False, insertio
             detect_sex_chromosome_ploidy), or None to treat both as diploid. At a haploid locus a genotype that
             names only one allele is reported as HEMI rather than as a no call, and so is a locus whose two
             haplotypes come out identical.
+        max_allele_length_for_edit_distance_purity (int): alleles longer than this get no edit-distance purity
+            (see compute_repeat_counts_from_sequence)
 
     Returns:
         GenotypedTandemRepeat: A genotyped locus object containing:
@@ -3281,8 +3314,10 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, verbose=False, insertio
             print(f"  Haplotype 1: missing")
 
     # Compute repeat counts for each haplotype that has a call
-    allele1_counts = compute_repeat_counts_from_sequence(haplotype0_seq, repeat_unit)
-    allele2_counts = compute_repeat_counts_from_sequence(haplotype1_seq, repeat_unit)
+    allele1_counts = compute_repeat_counts_from_sequence(
+        haplotype0_seq, repeat_unit, max_allele_length_for_edit_distance_purity)
+    allele2_counts = compute_repeat_counts_from_sequence(
+        haplotype1_seq, repeat_unit, max_allele_length_for_edit_distance_purity)
 
     if verbose:
         print(f"  Allele 1 counts: {allele1_counts}")
@@ -3315,65 +3350,31 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, verbose=False, insertio
     return genotyped
 
 
-def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
-    """Genotype all tandem repeat loci from a catalog using VCF variants.
+def genotype_loci_using_open_files(loci, vcf_file, fasta_obj, args, vcf_contig_lookup, fasta_contig_lookup,
+                                   par_regions, sex_chromosome_ploidy):
+    """Genotype a list of tandem repeat loci using already-open VCF and reference fasta handles.
 
-    This function iterates through all TR loci in the catalog, genotypes each
-    one using the VCF variants, and collects statistics about the genotyping
-    results.
+    This is the per-locus loop shared by the single-process and multi-process paths of genotype_all_loci().
 
     Args:
-        catalog_loci (list): List of ReferenceTandemRepeat objects from the catalog
-        vcf_path (str): Path to the single-sample VCF file
+        loci (iterable): ReferenceTandemRepeat objects to genotype, in the order their results should be returned
+        vcf_file (pysam.VariantFile): the open single-sample VCF
         fasta_obj (pyfaidx.Fasta): Reference genome fasta object (with one_based_attributes=False)
-        args: Argument namespace with optional attributes:
-            - verbose (bool): If True, print detailed logging
-            - show_progress_bar (bool): If True, display progress bar
+        args: Argument namespace (see genotype_all_loci)
+        vcf_contig_lookup (dict): the VCF's contig names indexed by build_contig_name_lookup
+        fasta_contig_lookup (dict): the reference's contig names indexed by build_contig_name_lookup
+        par_regions (dict): pseudoautosomal regions from get_PAR_region_coordinates
+        sex_chromosome_ploidy (dict): result of detect_sex_chromosome_ploidy, or None if no locus is on chrX/chrY
 
     Returns:
         tuple: (list, dict) containing:
-            - List of GenotypedTandemRepeat objects for all loci
-            - Dictionary of counters with genotyping statistics
-
-    Notes:
-        Memory usage scales with the number of loci. For very large catalogs
-        (millions of loci), consider filtering to specific regions with -L.
+            - List of GenotypedTandemRepeat objects, one per input locus, in input order
+            - Dictionary of counters with genotyping statistics for these loci
     """
-    # Get optional args with defaults
     verbose = getattr(args, 'verbose', False)
-    show_progress_bar = getattr(args, 'show_progress_bar', False)
-
-    # Open VCF file once for all loci
-    vcf_file, sample_name, vcf_contig_lookup = open_vcf_for_genotyping(vcf_path)
-
-    # Index the reference's contig names once as well. Both lookups exist so that a "chr1" catalog can be
-    # genotyped against a "1"-named VCF or reference, and a chrM locus against an MT-named one, without
-    # re-deriving the spelling for every one of the catalog's millions of loci.
-    fasta_contig_lookup = build_contig_name_lookup(fasta_obj.keys())
-    par_regions = get_PAR_region_coordinates(fasta_obj, fasta_contig_lookup)
-
-    # Detection scans every non-PAR chrX and chrY record in the VCF, so it is skipped when no locus being
-    # genotyped (after -L) is on either chromosome, since its result would go unused.
-    if any(normalize_chromosome_name(tr_locus.chrom) in ("X", "Y") for tr_locus in catalog_loci):
-        sex_chromosome_ploidy = detect_sex_chromosome_ploidy(vcf_file, vcf_contig_lookup, par_regions)
-    else:
-        sex_chromosome_ploidy = None
-
-    if verbose:
-        print(f"Genotyping {len(catalog_loci):,d} TR loci using variants from sample: {sample_name}")
-
-    # Initialize counters for statistics
     counters = collections.defaultdict(int)
-    counters["total_loci"] = len(catalog_loci)
-
-    # Set up progress bar if requested
-    loci_iterator = catalog_loci
-    if show_progress_bar:
-        loci_iterator = tqdm.tqdm(catalog_loci, unit=" loci", unit_scale=True)
-
-    # Genotype each locus
     genotyped_loci = []
-    for tr_locus in loci_iterator:
+    for tr_locus in loci:
         genotyped_locus = genotype_single_locus(
             tr_locus,
             vcf_file,
@@ -3384,6 +3385,8 @@ def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
             fasta_contig_lookup=fasta_contig_lookup,
             par_regions=par_regions,
             sex_chromosome_ploidy=sex_chromosome_ploidy,
+            max_allele_length_for_edit_distance_purity=getattr(
+                args, "max_allele_length_for_edit_distance_purity", DEFAULT_MAX_ALLELE_LENGTH_FOR_EDIT_DISTANCE_PURITY),
         )
         genotyped_loci.append(genotyped_locus)
 
@@ -3413,6 +3416,133 @@ def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
             counters["loci_HET"] += 1
         elif genotyped_locus.zygosity == "HEMI":
             counters["loci_HEMI"] += 1
+
+    return genotyped_loci, counters
+
+
+def genotype_loci_chunk_in_worker_process(loci_chunk, vcf_path, reference_fasta_path, args, par_regions,
+                                          sex_chromosome_ploidy):
+    """Genotype one chunk of catalog loci inside a multiprocessing.Pool worker.
+
+    Open pysam and pyfaidx handles can't be sent to another process, so each chunk opens its own. The chunks
+    are large enough (see MIN_LOCI_PER_GENOTYPING_CHUNK and NUM_GENOTYPING_CHUNKS_PER_WORKER_PROCESS) that the
+    two opens cost a negligible fraction of the chunk's genotyping time.
+
+    Args:
+        loci_chunk (list): ReferenceTandemRepeat objects to genotype
+        vcf_path (str): Path to the single-sample VCF file
+        reference_fasta_path (str): Path to the reference genome fasta
+        args: Argument namespace (see genotype_all_loci)
+        par_regions (dict): pseudoautosomal regions from get_PAR_region_coordinates
+        sex_chromosome_ploidy (dict): result of detect_sex_chromosome_ploidy, or None. It is computed once in
+            the parent process since it requires scanning every chrX and chrY record in the VCF.
+
+    Returns:
+        tuple: (list, dict) as returned by genotype_loci_using_open_files()
+    """
+    vcf_file, _, vcf_contig_lookup = open_vcf_for_genotyping(vcf_path)
+    fasta_obj = pyfaidx.Fasta(reference_fasta_path, one_based_attributes=False, as_raw=True)
+    try:
+        return genotype_loci_using_open_files(
+            loci_chunk, vcf_file, fasta_obj, args, vcf_contig_lookup, build_contig_name_lookup(fasta_obj.keys()),
+            par_regions, sex_chromosome_ploidy)
+    finally:
+        vcf_file.close()
+        fasta_obj.close()
+
+
+# How the catalog is split across worker processes when --threads > 1. Each chunk reopens the VCF and the
+# reference fasta (roughly 50ms), so chunks must be large enough to make that negligible, while several chunks
+# per worker let Pool.imap hand out work dynamically so one slow chunk doesn't leave the other workers idle.
+NUM_GENOTYPING_CHUNKS_PER_WORKER_PROCESS = 4
+MIN_LOCI_PER_GENOTYPING_CHUNK = 1000
+
+
+def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
+    """Genotype all tandem repeat loci from a catalog using VCF variants.
+
+    This function iterates through all TR loci in the catalog, genotypes each
+    one using the VCF variants, and collects statistics about the genotyping
+    results.
+
+    Args:
+        catalog_loci (list): List of ReferenceTandemRepeat objects from the catalog
+        vcf_path (str): Path to the single-sample VCF file
+        fasta_obj (pyfaidx.Fasta): Reference genome fasta object (with one_based_attributes=False)
+        args: Argument namespace with optional attributes:
+            - verbose (bool): If True, print detailed logging
+            - show_progress_bar (bool): If True, display progress bar
+            - threads (int): Number of worker processes. With more than 1, the loci are genotyped in chunks
+              by a multiprocessing.Pool. The results are the same in either case, and in catalog order.
+
+    Returns:
+        tuple: (list, dict) containing:
+            - List of GenotypedTandemRepeat objects for all loci
+            - Dictionary of counters with genotyping statistics
+
+    Notes:
+        Memory usage scales with the number of loci. For very large catalogs
+        (millions of loci), consider filtering to specific regions with -L.
+    """
+    # Get optional args with defaults
+    verbose = getattr(args, 'verbose', False)
+    show_progress_bar = getattr(args, 'show_progress_bar', False)
+    num_threads = getattr(args, 'threads', 1)
+
+    # Open VCF file once for all loci
+    vcf_file, sample_name, vcf_contig_lookup = open_vcf_for_genotyping(vcf_path)
+
+    # Index the reference's contig names once as well. Both lookups exist so that a "chr1" catalog can be
+    # genotyped against a "1"-named VCF or reference, and a chrM locus against an MT-named one, without
+    # re-deriving the spelling for every one of the catalog's millions of loci.
+    fasta_contig_lookup = build_contig_name_lookup(fasta_obj.keys())
+    par_regions = get_PAR_region_coordinates(fasta_obj, fasta_contig_lookup)
+
+    # Detection scans every non-PAR chrX and chrY record in the VCF, so it is skipped when no locus being
+    # genotyped (after -L) is on either chromosome, since its result would go unused.
+    if any(normalize_chromosome_name(tr_locus.chrom) in ("X", "Y") for tr_locus in catalog_loci):
+        sex_chromosome_ploidy = detect_sex_chromosome_ploidy(vcf_file, vcf_contig_lookup, par_regions)
+    else:
+        sex_chromosome_ploidy = None
+
+    if verbose:
+        print(f"Genotyping {len(catalog_loci):,d} TR loci using variants from sample: {sample_name}"
+              + (f" with {num_threads} worker processes" if num_threads > 1 else ""))
+
+    # Initialize counters for statistics
+    counters = collections.defaultdict(int)
+    counters["total_loci"] = len(catalog_loci)
+
+    if num_threads == 1:
+        loci_iterator = catalog_loci
+        if show_progress_bar:
+            loci_iterator = tqdm.tqdm(catalog_loci, unit=" loci", unit_scale=True)
+        genotyped_loci, chunk_counters = genotype_loci_using_open_files(
+            loci_iterator, vcf_file, fasta_obj, args, vcf_contig_lookup, fasta_contig_lookup, par_regions,
+            sex_chromosome_ploidy)
+        for key, value in chunk_counters.items():
+            counters[key] += value
+    else:
+        chunk_size = max(MIN_LOCI_PER_GENOTYPING_CHUNK,
+                         math.ceil(len(catalog_loci) / (num_threads * NUM_GENOTYPING_CHUNKS_PER_WORKER_PROCESS)))
+        loci_chunks = [catalog_loci[i:i + chunk_size] for i in range(0, len(catalog_loci), chunk_size)]
+        genotype_chunk = functools.partial(
+            genotype_loci_chunk_in_worker_process,
+            vcf_path=vcf_path, reference_fasta_path=fasta_obj.filename, args=args, par_regions=par_regions,
+            sex_chromosome_ploidy=sex_chromosome_ploidy)
+        progress_bar = tqdm.tqdm(total=len(catalog_loci), unit=" loci", unit_scale=True) if show_progress_bar else None
+        genotyped_loci = []
+        # Pool.imap returns the chunks in the order they were submitted, which keeps the output in catalog order
+        # and lets each finished chunk be consumed as soon as it arrives rather than after the whole pool is done.
+        with multiprocessing.Pool(min(num_threads, len(loci_chunks))) as pool:
+            for chunk_genotyped_loci, chunk_counters in pool.imap(genotype_chunk, loci_chunks):
+                genotyped_loci.extend(chunk_genotyped_loci)
+                for key, value in chunk_counters.items():
+                    counters[key] += value
+                if progress_bar is not None:
+                    progress_bar.update(len(chunk_genotyped_loci))
+        if progress_bar is not None:
+            progress_bar.close()
 
     # Close VCF file
     vcf_file.close()

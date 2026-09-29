@@ -48,6 +48,58 @@ class Tests(unittest.TestCase):
         self.assertGreaterEqual(best_purity, phase_zero_purity)
         self.assertEqual(phase, 1)
 
+    def test_compute_best_phase_repeat_purity_early_exit_matches_full_search(self):
+        # The phase search tells compute_repeat_purity() to stop early on rotations that can't beat the best
+        # distance so far. That must never change which phase wins or its purity, so compare it against a plain
+        # search over every rotation on sequences with substitutions and indels, under both metrics.
+        import random
+        rng = random.Random(1)
+        motifs = ["CAG", "AAGGG", "CTTG", "ACGTACGTAC", "A", "TCATCACAAAGAAGTTTCTGAGAATG"]
+        for motif in motifs:
+            for _ in range(30):
+                num_repeats = rng.randint(1, 40)
+                sequence = list((motif * num_repeats)[rng.randint(0, len(motif) - 1):])
+                for _ in range(rng.randint(0, 4)):
+                    if not sequence:
+                        break
+                    i = rng.randrange(len(sequence))
+                    edit = rng.choice(["substitute", "insert", "delete"])
+                    if edit == "substitute":
+                        sequence[i] = rng.choice("ACGT")
+                    elif edit == "insert":
+                        sequence.insert(i, rng.choice("ACGT"))
+                    else:
+                        del sequence[i]
+                sequence = "".join(sequence)
+                for distance_metric in (HAMMING_DISTANCE_METRIC, EDIT_DISTANCE_METRIC):
+                    for include_partial_repeats in (True, False):
+                        expected = (float('nan'), None, 0)
+                        if len(sequence) >= len(motif):
+                            per_phase = [compute_repeat_purity(
+                                sequence, motif[phase:] + motif[:phase], include_partial_repeats=include_partial_repeats,
+                                distance_metric=distance_metric) for phase in range(len(motif))]
+                            best_phase = max(range(len(motif)), key=lambda phase: (per_phase[phase][0], -phase))
+                            expected = per_phase[best_phase] + (best_phase,)
+                        actual = compute_best_phase_repeat_purity(
+                            sequence, motif, include_partial_repeats=include_partial_repeats, distance_metric=distance_metric)
+                        msg = f"{sequence} vs {motif} ({distance_metric}, partial={include_partial_repeats})"
+                        if expected[0] != expected[0]:
+                            self.assertTrue(math.isnan(actual[0]), msg)
+                        else:
+                            self.assertEqual(actual, expected, msg)
+
+    def test_compute_repeat_purity_score_cutoff(self):
+        # 2 substitutions in 12 bases
+        sequence = "CAGCAACAGCAA"
+        self.assertEqual(compute_repeat_purity(sequence, "CAG", include_partial_repeats=True), (10 / 12, 2))
+        # A cutoff at or above the true distance leaves the result unchanged
+        self.assertEqual(compute_repeat_purity(sequence, "CAG", include_partial_repeats=True, score_cutoff=2), (10 / 12, 2))
+        # A cutoff below it reports cutoff + 1, under either metric
+        self.assertEqual(compute_repeat_purity(sequence, "CAG", include_partial_repeats=True, score_cutoff=1), (10 / 12, 2))
+        self.assertEqual(compute_repeat_purity(sequence, "CAG", include_partial_repeats=True, score_cutoff=0), (11 / 12, 1))
+        self.assertEqual(compute_repeat_purity(
+            sequence, "CAG", include_partial_repeats=True, score_cutoff=0, distance_metric=EDIT_DISTANCE_METRIC), (11 / 12, 1))
+
     def test_compute_best_phase_repeat_purity_only_checks_phase_zero_for_long_motifs(self):
         motif = "ACGT" * 30  # 120bp
         sequence = motif[7:] + motif * 2
