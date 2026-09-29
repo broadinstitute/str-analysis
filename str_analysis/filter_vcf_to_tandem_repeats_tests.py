@@ -4490,6 +4490,19 @@ class TestWriteFunctions(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             run_shell_command("false")
 
+    def test_write_genotypes_tsv_and_json_raises_when_the_json_writer_process_fails(self):
+        """With --threads > 1 the JSON is written by a child process, whose failure must not go unnoticed."""
+        from str_analysis import filter_vcf_to_tandem_repeats
+        args = argparse.Namespace(write_json=True, threads=2)
+        # The child's traceback is expected, so it is kept out of the test output
+        with mock.patch.object(filter_vcf_to_tandem_repeats, "write_genotypes_tsv") as mock_write_tsv, \
+                mock.patch.object(filter_vcf_to_tandem_repeats, "write_genotypes_json",
+                                  side_effect=ValueError("simulated JSON writer failure")), \
+                contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(RuntimeError):
+                filter_vcf_to_tandem_repeats.write_genotypes_tsv_and_json([], args)
+        mock_write_tsv.assert_called_once()
+
     def test_write_tsv_with_reference_tandem_repeat(self):
         """Test write_tsv doesn't crash with ReferenceTandemRepeat objects.
 

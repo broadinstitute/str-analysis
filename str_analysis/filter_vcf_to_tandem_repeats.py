@@ -5500,6 +5500,36 @@ def write_genotypes_json(genotyped_loci, args, motif_lists_by_locus=None):
     return json_output_path
 
 
+def write_genotypes_tsv_and_json(genotyped_loci, args, motif_lists_by_locus=None):
+    """Write the genotype TSV, and the genotype JSON if args.write_json is set.
+
+    With args.threads > 1 the JSON is written by a forked child process at the same time as the TSV, since
+    formatting millions of records is pure Python work that threads could not overlap. The forked child reads the
+    parent's genotyped_loci without copying them up front, although the pages it touches do get copied.
+
+    Args:
+        genotyped_loci (list): List of GenotypedTandemRepeat objects
+        args (argparse.Namespace): Command-line arguments, as needed by write_genotypes_tsv and
+            write_genotypes_json, plus write_json (bool) and optionally threads (int)
+        motif_lists_by_locus (dict): Optional motif composition, as returned by compute_motif_composition
+
+    Raises:
+        RuntimeError: if the child process that writes the JSON fails
+    """
+    if args.write_json and getattr(args, "threads", 1) > 1:
+        json_writer_process = multiprocessing.get_context("fork").Process(
+            target=write_genotypes_json, args=(genotyped_loci, args, motif_lists_by_locus))
+        json_writer_process.start()
+        write_genotypes_tsv(genotyped_loci, args, motif_lists_by_locus)
+        json_writer_process.join()
+        if json_writer_process.exitcode != 0:
+            raise RuntimeError(f"Writing the JSON output failed with exit code {json_writer_process.exitcode}")
+    else:
+        write_genotypes_tsv(genotyped_loci, args, motif_lists_by_locus)
+        if args.write_json:
+            write_genotypes_json(genotyped_loci, args, motif_lists_by_locus)
+
+
 def write_genotypes_vcf(genotyped_loci, input_vcf_path, args):
     """Write contributing variants to a VCF file with TR annotation.
 
@@ -5718,12 +5748,8 @@ def do_genotype_subcommand(args):
     if motif_lists_by_locus is None:
         motif_lists_by_locus = compute_motif_composition(genotyped_loci, args)
 
-    # Write TSV output
-    write_genotypes_tsv(genotyped_loci, args, motif_lists_by_locus)
-
-    # Write JSON output if requested
-    if args.write_json:
-        write_genotypes_json(genotyped_loci, args, motif_lists_by_locus)
+    # Write the TSV output, and the JSON output if requested
+    write_genotypes_tsv_and_json(genotyped_loci, args, motif_lists_by_locus)
 
     # Write VCF output if requested
     if args.write_vcf:
