@@ -3438,17 +3438,24 @@ def genotype_loci_chunk_in_worker_process(loci_chunk, vcf_path, reference_fasta_
             the parent process since it requires scanning every chrX and chrY record in the VCF.
 
     Returns:
-        tuple: (list, dict) as returned by genotype_loci_using_open_files()
+        tuple: (list, dict, dict or None) containing the genotyped loci and counters as returned by
+            genotype_loci_using_open_files(), and the chunk's motif composition as returned by
+            compute_motif_composition() if args.add_motif_composition is one of
+            MOTIF_COMPOSITION_METHODS_COMPUTED_PER_GENOTYPING_CHUNK, or None otherwise.
     """
     vcf_file, _, vcf_contig_lookup = open_vcf_for_genotyping(vcf_path)
     fasta_obj = pyfaidx.Fasta(reference_fasta_path, one_based_attributes=False, as_raw=True)
     try:
-        return genotype_loci_using_open_files(
+        genotyped_loci, counters = genotype_loci_using_open_files(
             loci_chunk, vcf_file, fasta_obj, args, vcf_contig_lookup, build_contig_name_lookup(fasta_obj.keys()),
             par_regions, sex_chromosome_ploidy)
     finally:
         vcf_file.close()
         fasta_obj.close()
+
+    if getattr(args, "add_motif_composition", None) in MOTIF_COMPOSITION_METHODS_COMPUTED_PER_GENOTYPING_CHUNK:
+        return genotyped_loci, counters, compute_motif_composition(genotyped_loci, args)
+    return genotyped_loci, counters, None
 
 
 # How the catalog is split across worker processes when --threads > 1. Each chunk reopens the VCF and the
@@ -3456,6 +3463,11 @@ def genotype_loci_chunk_in_worker_process(loci_chunk, vcf_path, reference_fasta_
 # per worker let Pool.imap hand out work dynamically so one slow chunk doesn't leave the other workers idle.
 NUM_GENOTYPING_CHUNKS_PER_WORKER_PROCESS = 4
 MIN_LOCI_PER_GENOTYPING_CHUNK = 1000
+
+# --add-motif-composition methods that run inside each genotyping worker process, on that worker's chunk of loci,
+# so that they are parallelized by --threads too. "trf" is left out because it already runs --trf-threads TRF
+# processes in parallel, and running it per worker would multiply that number by --threads.
+MOTIF_COMPOSITION_METHODS_COMPUTED_PER_GENOTYPING_CHUNK = {"basic", MOTIF_DETECTION_METHOD_TRVIZ}
 
 
 def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
@@ -3474,11 +3486,16 @@ def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
             - show_progress_bar (bool): If True, display progress bar
             - threads (int): Number of worker processes. With more than 1, the loci are genotyped in chunks
               by a multiprocessing.Pool. The results are the same in either case, and in catalog order.
+            - add_motif_composition (str or None): if one of MOTIF_COMPOSITION_METHODS_COMPUTED_PER_GENOTYPING_CHUNK,
+              the motif composition is computed here too, by the same worker processes as the genotyping.
 
     Returns:
-        tuple: (list, dict) containing:
+        tuple: (list, dict, dict or None) containing:
             - List of GenotypedTandemRepeat objects for all loci
             - Dictionary of counters with genotyping statistics
+            - Motif composition of all loci as returned by compute_motif_composition(), or None if
+              args.add_motif_composition is not one of MOTIF_COMPOSITION_METHODS_COMPUTED_PER_GENOTYPING_CHUNK
+              (in which case the caller computes it, if requested)
 
     Notes:
         Memory usage scales with the number of loci. For very large catalogs
@@ -3522,6 +3539,9 @@ def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
             sex_chromosome_ploidy)
         for key, value in chunk_counters.items():
             counters[key] += value
+        motif_lists_by_locus = None
+        if getattr(args, "add_motif_composition", None) in MOTIF_COMPOSITION_METHODS_COMPUTED_PER_GENOTYPING_CHUNK:
+            motif_lists_by_locus = compute_motif_composition(genotyped_loci, args)
     else:
         chunk_size = max(MIN_LOCI_PER_GENOTYPING_CHUNK,
                          math.ceil(len(catalog_loci) / (num_threads * NUM_GENOTYPING_CHUNKS_PER_WORKER_PROCESS)))
@@ -3532,13 +3552,19 @@ def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
             sex_chromosome_ploidy=sex_chromosome_ploidy)
         progress_bar = tqdm.tqdm(total=len(catalog_loci), unit=" loci", unit_scale=True) if show_progress_bar else None
         genotyped_loci = []
+        motif_lists_by_locus = (
+            {} if getattr(args, "add_motif_composition", None) in MOTIF_COMPOSITION_METHODS_COMPUTED_PER_GENOTYPING_CHUNK
+            else None)
         # Pool.imap returns the chunks in the order they were submitted, which keeps the output in catalog order
         # and lets each finished chunk be consumed as soon as it arrives rather than after the whole pool is done.
         with multiprocessing.Pool(min(num_threads, len(loci_chunks))) as pool:
-            for chunk_genotyped_loci, chunk_counters in pool.imap(genotype_chunk, loci_chunks):
+            for chunk_genotyped_loci, chunk_counters, chunk_motif_lists_by_locus in pool.imap(
+                    genotype_chunk, loci_chunks):
                 genotyped_loci.extend(chunk_genotyped_loci)
                 for key, value in chunk_counters.items():
                     counters[key] += value
+                if chunk_motif_lists_by_locus is not None:
+                    motif_lists_by_locus.update(chunk_motif_lists_by_locus)
                 if progress_bar is not None:
                     progress_bar.update(len(chunk_genotyped_loci))
         if progress_bar is not None:
@@ -3576,7 +3602,7 @@ def genotype_all_loci(catalog_loci, vcf_path, fasta_obj, args):
                 print(f"    {counters['alleles_with_haplotype_build_errors']:10,d}  had variants that "
                       f"couldn't be applied to the reference")
 
-    return genotyped_loci, counters
+    return genotyped_loci, counters, motif_lists_by_locus
 
 
 def do_catalog_subcommand(args):
@@ -5454,17 +5480,18 @@ def write_genotypes_json(genotyped_loci, args, motif_lists_by_locus=None):
     # Construct output filename
     json_output_path = f"{args.output_prefix}.tandem_repeat_genotypes.json.gz"
 
-    # Build list of JSON records
-    json_records = []
-    for locus in filtered_loci:
-        json_dict = locus.to_json_dict(
-            motif_lists=motif_lists_by_locus.get(locus.locus_id) if motif_lists_by_locus else None,
-        )
-        json_records.append(json_dict)
-
-    # Write to gzip file
+    # Write the records one at a time rather than building the whole list first, since for a catalog with millions
+    # of loci that list is the largest object in memory. The text is identical to json.dump(list, f, indent=2):
+    # each record is indented one level inside the enclosing list, and an empty list is written as "[]".
     with gzip.open(json_output_path, "wt") as f:
-        json.dump(json_records, f, indent=2)
+        f.write("[")
+        for i, locus in enumerate(filtered_loci):
+            json_dict = locus.to_json_dict(
+                motif_lists=motif_lists_by_locus.get(locus.locus_id) if motif_lists_by_locus else None,
+            )
+            f.write(",\n  " if i > 0 else "\n  ")
+            f.write(json.dumps(json_dict, indent=2).replace("\n", "\n  "))
+        f.write("\n]" if filtered_loci else "]")
 
     if args.verbose:
         print(f"Wrote {len(filtered_loci):,d} genotyped TR loci to {json_output_path}")
@@ -5678,16 +5705,17 @@ def do_genotype_subcommand(args):
         return
 
     # Genotype all loci
-    genotyped_loci, counters = genotype_all_loci(
+    genotyped_loci, counters, motif_lists_by_locus = genotype_all_loci(
         catalog_loci,
         args.input_vcf_path,
         fasta_obj,
         args,
     )
 
-    # Parse each allele sequence into an ordered list of motifs if requested. This is computed once and shared
-    # by both the TSV and JSON outputs.
-    motif_lists_by_locus = compute_motif_composition(genotyped_loci, args)
+    # Parse each allele sequence into an ordered list of motifs if requested, unless genotype_all_loci already did
+    # so in its worker processes. This is computed once and shared by both the TSV and JSON outputs.
+    if motif_lists_by_locus is None:
+        motif_lists_by_locus = compute_motif_composition(genotyped_loci, args)
 
     # Write TSV output
     write_genotypes_tsv(genotyped_loci, args, motif_lists_by_locus)

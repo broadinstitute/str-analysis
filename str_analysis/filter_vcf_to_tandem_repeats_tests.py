@@ -4372,8 +4372,11 @@ chr1\t34\t.\tC\tT\t.\tPASS\t.\tGT\t0/1
         self.assertEqual(row["NoCallReason"], NO_CALL_REASON_AMBIGUOUS_PHASING)
 
     def test_genotype_with_multiple_worker_processes_matches_single_process(self):
-        """--threads > 1 must produce exactly the same TSV, in the same order, as a single-process run."""
+        """--threads > 1 must produce exactly the same TSV and JSON, in the same order, as a single-process run,
+        including the motif composition columns that the worker processes compute for their own chunks."""
         import gzip
+        import importlib.util
+        import json
 
         reference_seq = (
             "A" * 100 + "CAG" * 8 +      # chr1:100-124  het expansion
@@ -4410,32 +4413,49 @@ chr1\t619\t.\tC\tCAG\t.\tPASS\t.\tGT\t0|1
         self._temp_dir = tempfile.mkdtemp()
 
         from str_analysis import filter_vcf_to_tandem_repeats
-        tsv_contents = {}
+        motif_composition_methods = [None, "basic"]
+        if importlib.util.find_spec("trviz") is not None:
+            motif_composition_methods.append("trviz")
+
         # Lower the minimum chunk size so these 6 loci are split into several chunks that the two worker
         # processes genotype out of lockstep, which is the case where an ordering or merging bug would show.
         with mock.patch.object(filter_vcf_to_tandem_repeats, "MIN_LOCI_PER_GENOTYPING_CHUNK", 2):
-            for num_threads in (1, 2):
-                output_prefix = os.path.join(self._temp_dir, f"threads_{num_threads}")
-                filter_vcf_to_tandem_repeats.do_genotype_subcommand(argparse.Namespace(
-                    reference_fasta_path=fasta_path,
-                    catalog_bed=bed_gz_path,
-                    input_vcf_path=vcf_gz_path,
-                    input_vcf_prefix="test",
-                    output_prefix=output_prefix,
-                    interval=None,
-                    verbose=False,
-                    show_progress_bar=False,
-                    write_vcf=False,
-                    write_json=False,
-                    add_motif_composition=None,
-                    trf_executable_path=None,
-                    threads=num_threads,
-                ))
-                with gzip.open(f"{output_prefix}.tandem_repeat_genotypes.tsv.gz", "rt") as f:
-                    tsv_contents[num_threads] = f.read()
+            for add_motif_composition in motif_composition_methods:
+                tsv_contents = {}
+                json_contents = {}
+                for num_threads in (1, 2):
+                    output_prefix = os.path.join(self._temp_dir, f"{add_motif_composition}_threads_{num_threads}")
+                    filter_vcf_to_tandem_repeats.do_genotype_subcommand(argparse.Namespace(
+                        reference_fasta_path=fasta_path,
+                        catalog_bed=bed_gz_path,
+                        input_vcf_path=vcf_gz_path,
+                        input_vcf_prefix="test",
+                        output_prefix=output_prefix,
+                        interval=None,
+                        verbose=False,
+                        show_progress_bar=False,
+                        write_vcf=False,
+                        write_json=True,
+                        add_motif_composition=add_motif_composition,
+                        trf_executable_path=None,
+                        threads=num_threads,
+                    ))
+                    with gzip.open(f"{output_prefix}.tandem_repeat_genotypes.tsv.gz", "rt") as f:
+                        tsv_contents[num_threads] = f.read()
+                    with gzip.open(f"{output_prefix}.tandem_repeat_genotypes.json.gz", "rt") as f:
+                        json_contents[num_threads] = f.read()
 
-        self.assertEqual(len(tsv_contents[1].splitlines()), 7, "Should have a header + 6 genotyped loci")
-        self.assertEqual(tsv_contents[2], tsv_contents[1])
+                self.assertEqual(len(tsv_contents[1].splitlines()), 7, "Should have a header + 6 genotyped loci")
+                self.assertEqual(tsv_contents[2], tsv_contents[1], add_motif_composition)
+                self.assertEqual(json_contents[2], json_contents[1], add_motif_composition)
+                # The JSON is written one record at a time, and must read back as the same text that
+                # json.dump(records, f, indent=2) writes
+                self.assertEqual(json_contents[1], json.dumps(json.loads(json_contents[1]), indent=2))
+                if add_motif_composition:
+                    header = tsv_contents[1].splitlines()[0].split("\t")
+                    motif_sequences = [row.split("\t")[header.index("Allele1MotifSequence")]
+                                       for row in tsv_contents[1].splitlines()[1:]]
+                    self.assertTrue(all(motif_sequences), f"{add_motif_composition}: {motif_sequences}")
 
 
 class TestWriteFunctions(unittest.TestCase):
@@ -5610,7 +5630,7 @@ class TestGenotypeCorrectnessRegressions(unittest.TestCase):
                 with mock.patch("str_analysis.filter_vcf_to_tandem_repeats.detect_sex_chromosome_ploidy",
                                 return_value={"X": 2, "Y": 0}) as mock_detect, \
                         contextlib.redirect_stdout(io.StringIO()):
-                    genotyped_loci, _ = genotype_all_loci([tr_locus], vcf_gz_path, fasta_obj, argparse.Namespace())
+                    genotyped_loci, _, _ = genotype_all_loci([tr_locus], vcf_gz_path, fasta_obj, argparse.Namespace())
                 self.assertEqual(mock_detect.called, is_detection_expected, chrom)
                 self.assertEqual(len(genotyped_loci), 1, chrom)
         finally:
