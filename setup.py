@@ -41,6 +41,7 @@ setup(
         'console_scripts': [
             'call_non_ref_motifs = str_analysis.call_non_ref_motifs:main',
             'filter_vcf_to_STR_variants = str_analysis.filter_vcf_to_STR_variants:main',
+            'filter_vcf_to_tandem_repeats = str_analysis.filter_vcf_to_tandem_repeats:main',
             'add_adjacent_loci_to_expansion_hunter_catalog = str_analysis.add_adjacent_loci_to_expansion_hunter_catalog:main',
             'split_adjacent_loci_in_expansion_hunter_catalog = str_analysis.split_adjacent_loci_in_expansion_hunter_catalog:main',
             'check_trios_for_mendelian_violations = str_analysis.check_trios_for_mendelian_violations:main',

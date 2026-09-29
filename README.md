@@ -70,7 +70,7 @@ docker run -it weisburd/str-analysis:latest
 
 ## TRGT and LPS Processing
 
-- **combine_single_sample_lps_to_allele_histograms** - Takes one or more tables of LPS (likelihood per sample) scores and combines them into per-locus allele histograms. Useful for aggregating genotype data across large cohorts.
+- **combine_single_sample_LPS_to_allele_histograms** - Takes one or more tables of LPS (likelihood per sample) scores and combines them into per-locus allele histograms. Useful for aggregating genotype data across large cohorts.
 - **convert_multisample_LPS_table_to_allele_frequency_histograms** - Takes a wide-format TSV of multisample LPS genotypes (one column per sample, allele sizes as comma-separated pairs) and outputs a per-locus summary table with allele frequency histograms and statistics (min, max, mean, median, mode, stdev, percentiles).
 
 ---
@@ -99,8 +99,8 @@ docker run -it weisburd/str-analysis:latest
 
 ## gnomAD STR Data Generation
 
-- **generate_gnomad_json** - Generates gnomAD-formatted tables and JSON files with readviz metadata. Used to combine the gnomAD STR calls into the files available for [download on the gnomAD website](https://gnomad.broadinstitute.org/downloads#v3-short-tandem-repeats).
-- **generate_gnomad_v2_json** - Generates gnomAD v2 format output (legacy version).
+- **generate_gnomad_v2_json** - Generates gnomAD-formatted tables and JSON files with readviz metadata. Used to combine the gnomAD STR calls into the files available for [download on the gnomAD website](https://gnomad.broadinstitute.org/downloads#v3-short-tandem-repeats). This is the current version of *generate_gnomad_json*.
+- **generate_gnomad_json** - Original version of *generate_gnomad_v2_json* (legacy, no longer updated).
 
 ---
 
