@@ -3,7 +3,7 @@
 
 This script takes a BAM or CRAM file and determines which motifs are present
 at known disease-associated STR loci where non-reference 
-motifs are seen in the population (RFC1, BEAN1, DAB1, EIF4A3, MARCHF6, RAPGEF2, SAMD12, STARD7, TNRC6A, YEATS2).  
+motifs are seen in the population (RFC1, BEAN1, DAB1, EIF4A3, MARCHF6, RAI1, RAPGEF2, SAMD12, STARD7, TNRC6A, YEATS2).  
 It's main output is a TSV file with a "call" field that indicates whether known pathogenic motifs
 were detected in a given sample. We have found this script to be useful for diagnosing pathogenic RFC1 expansions
 in rare disease cohorts. Its utility for other loci remains to be seen.
@@ -18,7 +18,7 @@ It can also run REViewer to generate read visualization images for the Expansion
 # basic command 
 call_non_ref_motifs -r hg38.fasta -g 38 sample1.cram --known-loci --locus RFC1 
 
-# run ExpansionHunter and REViewer on all 9 loci with known non-ref pathogenic motifs
+# run ExpansionHunter and REViewer on all 11 loci with known non-ref pathogenic motifs
 call_non_ref_motifs -r hg38.fasta -g 38 --run-expansion-hunter --run-reviewer sample1.cram --known-loci
 
 # for 2 specific loci, run ExpansionHunter and REViewer + provide an existing ExpansionHunterDenovo profile
@@ -94,11 +94,20 @@ optional arguments:
                         output only when this script calls a sample as having
                         PATHOGENIC MOTIF / PATHOGENIC MOTIF. --run-expansion-
                         hunter must also be specified.
-  --all-loci            Generate calls for all these loci: RFC1, BEAN1, DAB1,
-                        MARCHF6, RAPGEF2, SAMD12, STARD7, TNRC6A, YEATS2
-  -l {RFC1,BEAN1,DAB1,MARCHF6,RAPGEF2,SAMD12,STARD7,TNRC6A,YEATS2}, --locus {RFC1,BEAN1,DAB1,MARCHF6,RAPGEF2,SAMD12,STARD7,TNRC6A,YEATS2}
-                        Generate calls for this specific locus. This argument
-                        can be specified more than once to call multiple loci.
+  --variant-catalog VARIANT_CATALOG
+                        Path of ExpansionHunter variant catalog file. This
+                        script will check for non-reference motifs at all of
+                        these loci. This can be a local path or a gs:// path.
+                        Mutually exclusive with --known-loci; one is required.
+  --known-loci          Generate calls for loci known to have non-reference
+                        motifs: RFC1, BEAN1, DAB1, EIF4A3, MARCHF6, RAI1,
+                        RAPGEF2, SAMD12, STARD7, TNRC6A, YEATS2
+  -l LOCUS, --locus LOCUS
+                        Generate calls for this specific locus id. This
+                        argument can be specified more than once to call
+                        multiple loci.
+  --output-format {TSV,JSON}
+                        Output format. Default: TSV.
   -v, --verbose         Print detailed log messages.
 ```
 
