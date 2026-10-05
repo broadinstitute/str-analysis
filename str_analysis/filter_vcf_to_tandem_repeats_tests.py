@@ -37,6 +37,7 @@ from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele
     check_if_tandem_repeat_allele_failed_filters, compute_repeat_unit_id, are_repeat_units_similar, \
     need_to_reprocess_allele_with_extended_flanking_sequence, \
     open_vcf_for_genotyping, get_overlapping_vcf_variants, build_contig_name_lookup, \
+    get_insertion_that_slides_into_locus_start, move_insertions_that_slide_into_locus_to_its_start, \
     convert_variants_to_haplotype_sequence, extract_haplotype_sequences_from_vcf, \
     compute_locus_start_and_end_offsets_in_haplotype, \
     compute_repeat_counts_from_sequence, genotype_single_locus, genotype_all_loci, write_tsv, \
@@ -6544,6 +6545,67 @@ class TestContributingVariantsVcfOutput(unittest.TestCase):
             self.assertEqual(list(records[0].filter.keys()), ["PASS"])
         finally:
             output_vcf.close()
+
+
+class TestInsertionsThatSlideIntoTheLocusStart(unittest.TestCase):
+    """An expansion that left-alignment placed a few bases before the locus, through bases that match part of a
+    motif copy, belongs to the locus. This is how DipCall writes the FXN, NOP56 and C9ORF72 expansions."""
+
+    # FXN-like: a run of A's, then (GAA)x6 at [12, 30), then flank. Inserting GAAGAA at the locus start left-aligns
+    # to an AAGAAG insertion after the last T, 2 bases before the locus.
+    REFERENCE_SEQUENCE = "TTTTTTTTTTAA" + "GAA" * 6 + "CCCCCCCCCC"
+    LOCUS_START_0BASED = 12
+    LOCUS_END = 30
+    LOCUS_MOTIF = "GAA"
+
+    VCF_HEADER = TestGenotypeCorrectnessRegressions.VCF_HEADER
+
+    setUp = TestGenotypeCorrectnessRegressions.setUp
+    tearDown = TestGenotypeCorrectnessRegressions.tearDown
+    _create_temp_file = TestGenotypingPipeline._create_temp_file
+    _create_test_vcf_and_index = TestGenotypingPipeline._create_test_vcf_and_index
+    _create_test_fasta = TestGenotypingPipeline._create_test_fasta
+    _genotype = TestGenotypeCorrectnessRegressions._genotype
+
+    def test_fxn_like_expansion_two_bases_before_the_locus_is_counted(self):
+        result = self._genotype("chr1\t10\t.\tT\tTAAGAAG\t.\tPASS\t.\tGT\t0|1\n")
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (6, 8))
+
+    def test_insertion_that_is_not_whole_motif_copies_is_left_in_the_flank(self):
+        result = self._genotype("chr1\t10\t.\tT\tTAAGAAGA\t.\tPASS\t.\tGT\t0|1\n")
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (6, 6))
+
+    def test_insertion_that_is_not_the_motif_is_left_in_the_flank(self):
+        # AACAAC crosses the AA just like AAGAAG does, but as read from the locus start it is CAACAA, not GAA copies
+        result = self._genotype("chr1\t10\t.\tT\tTAACAAC\t.\tPASS\t.\tGT\t0|1\n")
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (6, 6))
+
+    def test_rotation_of_the_inserted_bases(self):
+        # C9ORF72-like: GCCCC before a GGCCCC tract lets GGCCCCGGCCCC left-align 5 bases to GCCCCGGCCCCG
+        self.assertEqual(get_insertion_that_slides_into_locus_start(10, "C", "CGCCCCGGCCCCG", 15, "GGCCCC", "AGCCCC"),
+                         "GGCCCCGGCCCC")
+
+    def test_slightly_impure_copy_is_accepted(self):
+        # NOP56-like: one of the two inserted GGCCTG copies reads AGCCTG, 11 of 12 bases pure
+        self.assertEqual(get_insertion_that_slides_into_locus_start(10, "A", "AGAGCCTGGGCCT", 11, "GGCCTG", "AG"),
+                         "AGCCTGGGCCTG")
+
+    def test_slide_of_a_whole_motif_copy_or_more_is_rejected(self):
+        self.assertIsNone(get_insertion_that_slides_into_locus_start(9, "T", "TAAGAAG", 12, "GAA", "AAA"))
+
+    def test_bases_crossed_must_repeat_the_inserted_bases(self):
+        self.assertIsNone(get_insertion_that_slides_into_locus_start(10, "T", "TAAGAAG", 12, "GAA", "AC"))
+
+    def test_insertion_is_not_moved_across_another_variant_on_the_haplotype(self):
+        reference_sequence = "TTTTTTTTTTAA" + "GAA" * 6
+        variant_list = [(10, "T", "TAAGAAG"), (12, "A", "C")]
+        self.assertEqual(move_insertions_that_slide_into_locus_to_its_start(
+            variant_list, 12, "GAA", 0, reference_sequence), variant_list)
+
+    def test_insertion_is_moved_to_the_base_before_the_locus(self):
+        reference_sequence = "TTTTTTTTTTAA" + "GAA" * 6
+        self.assertEqual(move_insertions_that_slide_into_locus_to_its_start(
+            [(10, "T", "TAAGAAG")], 12, "GAA", 0, reference_sequence), [(12, "A", "AGAAGAA")])
 
 
 if __name__ == "__main__":

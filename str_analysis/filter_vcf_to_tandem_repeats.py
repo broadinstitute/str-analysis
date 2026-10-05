@@ -134,6 +134,13 @@ DEFAULT_MIN_INSERTION_SIZE_TO_CHECK = 20
 DEFAULT_MIN_INSERTION_PURITY = 0.9
 DEFAULT_MIN_INSERTION_PERIODICITY = 0.55
 
+# An insertion that left-alignment placed a few bases before a locus counts toward the locus only if it is a whole
+# number of motif copies at least this pure (see get_insertion_that_slides_into_locus_start). Measured on HG01258
+# against ExpansionHunter calls at the loci whose truth the rule changes: with at least 10 reads spanning the repeat,
+# 251 moved toward ExpansionHunter's call and 48 away. Requiring exact copies cut that to 183 and 15 but left the
+# NOP56 expansion (an inserted AGCCTG copy at the GGCCTG repeat) uncounted.
+MIN_MOTIF_PURITY_OF_INSERTION_THAT_SLIDES_INTO_LOCUS = 0.9
+
 # The edit distance between an allele and a pure repeat of the same length costs O(length^2), and the phase
 # search computes it once per motif rotation, so a 19kb allele at a 170bp-motif locus took several seconds. The
 # resulting purity is only an output annotation, so above this length it is left missing instead.
@@ -2169,7 +2176,134 @@ def does_variant_change_the_locus(variant, start_0based, end, repeat_unit=None):
                for alt in called_alts)
 
 
-def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, repeat_unit=None):
+def get_insertion_that_slides_into_locus_start(variant_pos_1based, ref, alt, start_0based, repeat_unit,
+                                               reference_bases_before_start):
+    """Return an insertion's bases as they read once slid right to the locus start, if it is an insertion that
+    left-alignment placed a few bases before the locus but that belongs to it.
+
+    A catalog interval starts at a whole copy of the motif, so the reference bases just before it can still match
+    part of a copy: FXN's GAA tract follows a run of A's, and C9ORF72's GGCCCC tract follows a C. Left-alignment
+    slides an expansion of the tract back through those bases, so DipCall writes the FXN expansion GAAGAA as an
+    AAGAAG insertion 2 bases before the locus. Inserting the same bases at the locus start gives the identical
+    haplotype, so the insertion belongs to the locus.
+
+    Only a slide of fewer bases than one motif copy is accepted: the bases it crosses are then a partial copy that
+    the catalog boundary left out, while a longer slide crosses at least a whole copy of the inserted sequence's
+    period, which is more likely a neighbouring repeat that the insertion belongs to instead. The inserted bases
+    must also be a whole number of motif copies, at least MIN_MOTIF_PURITY_OF_INSERTION_THAT_SLIDES_INTO_LOCUS
+    pure against the motif at its best-matching rotation. Without that, a slide of a base or two, which random sequence allows about
+    half the time, assigned unrelated insertions to the locus.
+
+    Args:
+        variant_pos_1based (int): the variant's 1-based position
+        ref (str): the variant's reference allele
+        alt (str): the alt allele to test
+        start_0based (int): locus start position (0-based, inclusive)
+        repeat_unit (str): the locus motif, or None
+        reference_bases_before_start (str): upper-case reference bases ending just before start_0based, at least
+            len(repeat_unit) - 1 of them, or None
+
+    Returns:
+        str: the inserted bases rotated to how they read when inserted at start_0based, or None if this alt is
+            not an insertion that slides into the locus start
+    """
+    if not repeat_unit or not reference_bases_before_start:
+        return None
+
+    trimmed_ref, trimmed_alt = trim_shared_suffix(ref.upper(), alt.upper())
+    if len(trimmed_alt) <= len(trimmed_ref) or not trimmed_alt.startswith(trimmed_ref):
+        return None
+
+    inserted_bases = trimmed_alt[len(trimmed_ref):]
+    if len(inserted_bases) % len(repeat_unit) != 0:
+        return None
+
+    slide_distance = start_0based - (variant_pos_1based - 1 + len(trimmed_ref))
+    if not 0 < slide_distance < len(repeat_unit) or slide_distance > len(reference_bases_before_start):
+        return None
+
+    # Sliding one base right is possible when the reference base after the insertion equals the first inserted
+    # base, and rotates that base to the end, so the bases crossed must repeat the inserted sequence.
+    bases_crossed = reference_bases_before_start[len(reference_bases_before_start) - slide_distance:]
+    if any(base != inserted_bases[i % len(inserted_bases)] for i, base in enumerate(bases_crossed)):
+        return None
+
+    rotation = slide_distance % len(inserted_bases)
+    inserted_bases_at_start = inserted_bases[rotation:] + inserted_bases[:rotation]
+    purity, _, _ = compute_best_phase_repeat_purity(inserted_bases_at_start, repeat_unit.upper())
+    if not purity >= MIN_MOTIF_PURITY_OF_INSERTION_THAT_SLIDES_INTO_LOCUS:  # also rejects nan
+        return None
+
+    return inserted_bases_at_start
+
+
+def does_variant_insert_bases_that_slide_into_locus_start(variant, start_0based, repeat_unit,
+                                                          reference_bases_before_start):
+    """Whether one of the alleles a record's sample carries is an insertion that slides into the locus start (see
+    get_insertion_that_slides_into_locus_start).
+
+    Args:
+        variant (pysam.VariantRecord): the record to test
+        start_0based (int): locus start position (0-based, inclusive)
+        repeat_unit (str): the locus motif, or None
+        reference_bases_before_start (str): see get_insertion_that_slides_into_locus_start
+
+    Returns:
+        bool: True if a carried alt allele slides into the locus start
+    """
+    called_alts = get_called_alt_alleles(variant)
+    if called_alts is None:
+        called_alts = [alt for alt in variant.alleles[1:] if alt is not None and alt != "*"]
+
+    return any(get_insertion_that_slides_into_locus_start(
+        variant.pos, variant.ref, alt, start_0based, repeat_unit, reference_bases_before_start) is not None
+        for alt in called_alts)
+
+
+def move_insertions_that_slide_into_locus_to_its_start(variant_list, start_0based, repeat_unit,
+                                                       fetched_reference_sequence_start, reference_sequence):
+    """Rewrite each insertion in a haplotype's variants that slides into the locus start (see
+    get_insertion_that_slides_into_locus_start) as the equivalent insertion anchored on the base just before the
+    locus, which is where the rest of the genotyping code expects a left-anchored insertion of the locus.
+
+    An insertion is left where it is if another variant on the haplotype touches the bases it would slide across,
+    since the slide is only equivalent when those bases are the reference.
+
+    Args:
+        variant_list (list): (pos_1based, ref, alt) tuples for one haplotype, sorted by position
+        start_0based (int): locus start position (0-based, inclusive)
+        repeat_unit (str): the locus motif, or None
+        fetched_reference_sequence_start (int): 0-based genomic start of reference_sequence
+        reference_sequence (str): upper-case reference sequence covering the variants and the locus
+
+    Returns:
+        list: the (pos_1based, ref, alt) tuples with those insertions moved, sorted by position
+    """
+    if not repeat_unit or start_0based - 1 < fetched_reference_sequence_start:
+        return variant_list
+
+    reference_bases_before_start = reference_sequence[:start_0based - fetched_reference_sequence_start]
+    anchor_base = reference_sequence[start_0based - 1 - fetched_reference_sequence_start]
+    moved_variant_list = list(variant_list)
+    for i, (variant_pos_1based, variant_ref, variant_alt) in enumerate(variant_list):
+        inserted_bases = get_insertion_that_slides_into_locus_start(
+            variant_pos_1based, variant_ref, variant_alt, start_0based, repeat_unit, reference_bases_before_start)
+        if inserted_bases is None:
+            continue
+
+        trimmed_ref, _ = trim_shared_suffix(variant_ref, variant_alt)
+        insertion_point = variant_pos_1based - 1 + len(trimmed_ref)
+        if any(other_pos_1based - 1 < start_0based and other_pos_1based - 1 + len(other_ref) > insertion_point
+               for j, (other_pos_1based, other_ref, _) in enumerate(variant_list) if j != i):
+            continue
+
+        moved_variant_list[i] = (start_0based, anchor_base, anchor_base + inserted_bases)
+
+    return sorted(moved_variant_list, key=lambda variant: variant[0])
+
+
+def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, repeat_unit=None, fasta_obj=None,
+                                 fasta_chrom=None):
     """Fetch VCF variants that overlap a genomic interval and can change a haplotype there.
 
     Args:
@@ -2178,6 +2312,10 @@ def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, repeat_unit
         start_0based (int): Start position (0-based, inclusive)
         end (int): End position (0-based, exclusive / 1-based inclusive)
         repeat_unit (str): the locus motif (see does_alt_allele_change_bases_inside_locus), or None
+        fasta_obj (pyfaidx.Fasta): the reference, used to recognize insertions that left-alignment placed a few
+            bases before the locus but that belong to it (see get_insertion_that_slides_into_locus_start), or
+            None to skip that check
+        fasta_chrom (str): chrom spelled the way fasta_obj spells it
 
     Returns:
         list: List of pysam.VariantRecord objects sorted by position
@@ -2186,19 +2324,28 @@ def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, repeat_unit
         The tabix index keys each record by its REF span [POS, POS+len(REF)), so a plain
         fetch(start_0based, end) returns variants whose REF extends into the locus (e.g.
         deletions anchored in the left flank) but NOT insertions. A normalized (left-aligned)
-        repeat-unit insertion anchors to the base immediately before the tract, i.e. its REF
-        span is [start_0based - 1, start_0based), which does not overlap [start_0based, end)
-        even though the inserted bases belong to the locus. To catch these, the fetch window
-        is widened one base to the left and the returned records are filtered back down to
-        those that actually affect the locus.
+        repeat-unit insertion anchors to the base immediately before the tract when that base can't
+        continue the repeat, i.e. its REF span is [start_0based - 1, start_0based), which does not
+        overlap [start_0based, end) even though the inserted bases belong to the locus. When the bases
+        before the tract do match part of a copy, left-alignment anchors the insertion up to
+        len(repeat_unit) - 1 bases further left. To catch both, the fetch window is widened that far
+        to the left and the returned records are filtered back down to those that actually affect the locus.
     """
+    left_window_size = max(1, len(repeat_unit) if repeat_unit else 1)
     try:
-        # pysam fetch uses 0-based half-open coordinates. Widen the window one base to the
-        # left so left-anchored insertions (REF span ending exactly at start_0based) are seen.
-        candidates = list(vcf_file.fetch(chrom, max(0, start_0based - 1), end))
+        # pysam fetch uses 0-based half-open coordinates.
+        candidates = list(vcf_file.fetch(chrom, max(0, start_0based - left_window_size), end))
     except ValueError:
         # Chromosome not found in VCF - return empty list
         return []
+
+    reference_bases_before_start = None
+    if fasta_obj is not None and any(variant.pos - 1 + len(variant.ref) < start_0based for variant in candidates):
+        try:
+            reference_bases_before_start = str(fasta_obj[fasta_chrom or chrom][
+                max(0, start_0based - left_window_size):start_0based]).upper()
+        except KeyError:
+            reference_bases_before_start = None
 
     # Keep only variants that actually affect the locus: those whose REF span overlaps
     # [start_0based, end), plus left-anchored insertions that put bases inside the locus even
@@ -2210,7 +2357,9 @@ def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, repeat_unit
     # same reasons, as are records whose called allele changes nothing inside the locus even though its
     # reference span reaches into it (see does_variant_change_the_locus).
     variants = [variant for variant in candidates
-                if does_variant_change_the_locus(variant, start_0based, end, repeat_unit)]
+                if does_variant_change_the_locus(variant, start_0based, end, repeat_unit)
+                or does_variant_insert_bases_that_slide_into_locus_start(
+                    variant, start_0based, repeat_unit, reference_bases_before_start)]
 
     # Sort by position
     variants.sort(key=lambda v: v.pos)
@@ -2882,6 +3031,9 @@ def extract_haplotype_sequences_and_insertions_from_vcf(chrom, start_0based, end
             haplotype_results.append(MISSING_HAPLOTYPE_SEQUENCES)
             continue
 
+        variant_list = move_insertions_that_slide_into_locus_to_its_start(
+            variant_list, start_0based, repeat_unit, fetched_reference_sequence_start, reference_sequence)
+
         # If no variants affect this haplotype, use reference sequence
         if not variant_list:
             # Return just the locus portion, not the expanded fetch region
@@ -3175,7 +3327,9 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, verbose=False, insertio
     # Fetch overlapping VCF variants under whatever name this VCF gives the contig. A contig the VCF simply
     # does not have yields no variants, which is the same answer as a contig it called and found nothing on.
     vcf_chrom = vcf_contig_lookup.get(normalize_chromosome_name(chrom), chrom) if vcf_contig_lookup else chrom
-    variants = get_overlapping_vcf_variants(vcf_file, vcf_chrom, start_0based, end, repeat_unit)
+    fasta_chrom = fasta_contig_lookup.get(normalize_chromosome_name(chrom), chrom) if fasta_contig_lookup else chrom
+    variants = get_overlapping_vcf_variants(vcf_file, vcf_chrom, start_0based, end, repeat_unit,
+                                            fasta_obj=fasta_obj, fasta_chrom=fasta_chrom)
 
     if verbose:
         print(f"  Found {len(variants)} overlapping variants")
