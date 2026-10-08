@@ -1,1 +1,1 @@
-weisburd/str-analysis-with-gangstr@sha256:cb6e31ab1eb4d33ca140f7ec9b3446bd2bfa167374b94c56e1509d4aa7fb73fe
+weisburd/str-analysis-with-gangstr@sha256:124b80c4392a486127d88e9264efd9d3237a8592161b33b67491e59ddebbd96f
