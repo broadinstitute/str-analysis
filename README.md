@@ -1,21 +1,33 @@
 <a href="https://github.com/broadinstitute/str-analysis/actions/workflows/test.yml"><img src="https://github.com/broadinstitute/str-analysis/actions/workflows/test.yml/badge.svg" align="right" alt="unit tests"></a>
 <a href="https://github.com/broadinstitute/str-analysis/actions/workflows/build_docker_images.yml"><img src="https://github.com/broadinstitute/str-analysis/actions/workflows/build_docker_images.yml/badge.svg" align="right" alt="docker images"></a>
 
+
+This repo contains scripts and utilities for analyzing tandem repeats (TRs).
+
+
 Latest docker images:
 
 ```
-weisburd/str-analysis@sha256:76b259c37425eea7e60b7368f7d9d3cca73f2ae9afb59525d7bf2af8cafd081f
-weisburd/str-analysis-with-expansion-hunter@sha256:10b3d26b5ae8b886688fb82bc65cf6e1bcaa3452b58c92ba3f188a0e1b7cdf0e
-weisburd/str-analysis-with-trgt@sha256:82c6937f2551fea4f18988f223be7781b093188fada43f172c7a45542d5423c2
-weisburd/str-analysis-with-atarva@sha256:5ece3194874fb3dd1ae76612c5c5676a7f7806b3909aa446844401ef24c90218
-weisburd/str-analysis-with-inquistr@sha256:40671ba32271bfd6f6eb73a991f1664ecf5c0f84c8f58890c3ec541cfd4dae84
-weisburd/str-analysis-with-hipstr@sha256:ffebe503c0fb44939aae6c715267553ec4df0176cce8219d57ed107be964ce60
-weisburd/str-analysis-with-gangstr@sha256:9ff6735023a90a1e46fcf4f7aa52dca7848f23c1a9b821944e02cf54a9b82705
-weisburd/str-analysis-with-ensembletr@sha256:2f35d2e8aed73b2e677cddc006ec0b02b0a2545df4118fb2fa15eb287161261e
-weisburd/str-analysis-with-longtr@sha256:434b7a9fb5ac93c85abdaf8fd1e3a1bc24bb108fbecd6c00f244f0b007ef680f
+str-analysis python scripts:
+   weisburd/str-analysis@sha256:76b259c37425eea7e60b7368f7d9d3cca73f2ae9afb59525d7bf2af8cafd081f
+scripts + ExpansionHunter:
+   weisburd/str-analysis-with-expansion-hunter@sha256:10b3d26b5ae8b886688fb82bc65cf6e1bcaa3452b58c92ba3f188a0e1b7cdf0e
+scripts + TRGT:
+   weisburd/str-analysis-with-trgt@sha256:82c6937f2551fea4f18988f223be7781b093188fada43f172c7a45542d5423c2
+scripts + Atarva:
+   weisburd/str-analysis-with-atarva@sha256:5ece3194874fb3dd1ae76612c5c5676a7f7806b3909aa446844401ef24c90218
+scripts + Inquistr:
+   weisburd/str-analysis-with-inquistr@sha256:40671ba32271bfd6f6eb73a991f1664ecf5c0f84c8f58890c3ec541cfd4dae84
+scripts + HipSTR:
+   weisburd/str-analysis-with-hipstr@sha256:ffebe503c0fb44939aae6c715267553ec4df0176cce8219d57ed107be964ce60
+scripts + GangSTR:
+   weisburd/str-analysis-with-gangstr@sha256:9ff6735023a90a1e46fcf4f7aa52dca7848f23c1a9b821944e02cf54a9b82705
+scripts + EnsemblTR:
+   weisburd/str-analysis-with-ensembletr@sha256:2f35d2e8aed73b2e677cddc006ec0b02b0a2545df4118fb2fa15eb287161261e
+scripts + LongTR:
+   weisburd/str-analysis-with-longtr@sha256:434b7a9fb5ac93c85abdaf8fd1e3a1bc24bb108fbecd6c00f244f0b007ef680f
 ```
 
-This repo contains scripts and utilities for analyzing tandem repeats (TRs).
 
 ## Installation
 
