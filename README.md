@@ -1,11 +1,10 @@
 <a href="https://github.com/broadinstitute/str-analysis/actions/workflows/test.yml"><img src="https://github.com/broadinstitute/str-analysis/actions/workflows/test.yml/badge.svg" align="right" alt="unit tests"></a>
 <a href="https://github.com/broadinstitute/str-analysis/actions/workflows/build_docker_images.yml"><img src="https://github.com/broadinstitute/str-analysis/actions/workflows/build_docker_images.yml/badge.svg" align="right" alt="docker images"></a>
+<br />
 
+This repo contains scripts and utilities for analyzing tandem repeats (TRs).  
 
-This repo contains scripts and utilities for analyzing tandem repeats (TRs).
-
-
-Latest docker images:
+The latest docker images:
 
 ```
 str-analysis python scripts:
@@ -27,6 +26,7 @@ scripts + EnsemblTR:
 scripts + LongTR:
    weisburd/str-analysis-with-longtr@sha256:434b7a9fb5ac93c85abdaf8fd1e3a1bc24bb108fbecd6c00f244f0b007ef680f
 ```
+---
 
 
 ## Installation
