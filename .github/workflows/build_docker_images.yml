@@ -1,7 +1,8 @@
 name: build docker images
 
 # Rebuilds all str-analysis docker images in parallel and pushes them to Docker Hub.
-# After the builds finish, the updated sha256_dockerhub.txt digest files are committed back to the repo.
+# After the builds finish, the updated sha256_dockerhub.txt digest files are committed back to the repo,
+# along with the image digests listed at the top of README.md.
 #
 # This workflow does NOT run directly on push. Instead it runs after the "unit tests" workflow
 # completes, and only proceeds when that run (a) succeeded, (b) was triggered by a push to main, and
@@ -194,19 +195,33 @@ jobs:
             echo "::warning::No digest artifact for:${missing} -- these images did not build, so they keep their previous digest."
           fi
 
+      - name: Update the docker image digests at the top of README.md
+        run: |
+          set -euo pipefail
+          for f in */sha256_dockerhub.txt; do
+            descriptor=$(cat "$f")
+            if ! echo "$descriptor" | grep -qE '^weisburd/[a-z0-9-]+@sha256:[0-9a-f]{64}$'; then
+              echo "::warning::${f} does not hold a valid image digest (${descriptor}), so README.md keeps its previous digest for this image."
+              continue
+            fi
+            DESCRIPTOR="$descriptor" IMAGE="${descriptor%@*}" \
+              perl -pi -e 's|\Q$ENV{IMAGE}\E\@sha256:[0-9a-f]{64}|$ENV{DESCRIPTOR}|' README.md
+          done
+
       - name: Commit and push
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add */sha256_dockerhub.txt
+          git add */sha256_dockerhub.txt README.md
           if git diff --cached --quiet; then
             echo "No sha256 changes to commit"
             exit 0
           fi
           git commit -m "Update docker image sha256 digests [skip ci]"
           # Another commit may land on main during the multi-minute build, making a bare push a
-          # non-fast-forward (or a digest conflict if a concurrent build updated the same digest file).
+          # non-fast-forward (or a digest conflict if a concurrent build updated the same digest file or
+          # README.md digest line).
           # Try to push; on failure, rebase our commit onto the latest main — taking our freshly-built
           # digests on conflict (-X theirs) — and retry. Always abort any half-finished rebase first, so a
           # prior conflict can't leave the tree with unmerged files and wedge every later attempt.
