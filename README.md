@@ -13,15 +13,15 @@ scripts + ExpansionHunter:
    weisburd/str-analysis-with-expansion-hunter@sha256:2ad27951d9d5266c31e0f98e0c23b6a8650e9638ae106f773e1b8fc52ab631ea
 scripts + TRGT:
    weisburd/str-analysis-with-trgt@sha256:732874e809f8b570488a4bd9a9b05f4d37f464b22ae7e1cad1e77b2ae5477451
-scripts + Atarva:
+scripts + ATaRVa:
    weisburd/str-analysis-with-atarva@sha256:9a7468d482ec7936459d08a24b6f069c5bd22b0163685170a53ec8c9c946b873
-scripts + Inquistr:
+scripts + inquiSTR:
    weisburd/str-analysis-with-inquistr@sha256:49fefac9114bae9348d818928cf358d9786447d4ad3bb77351c575e30b8efac6
 scripts + HipSTR:
    weisburd/str-analysis-with-hipstr@sha256:d54edcdfee84e661df10e5b81361766c5e3844dd21949f1067d3061b39ebfa24
 scripts + GangSTR:
    weisburd/str-analysis-with-gangstr@sha256:12e99aac0d3da129b6a48521f78f42ed7a0eb779a61b9adb2378d7e12204700d
-scripts + EnsemblTR:
+scripts + EnsembleTR:
    weisburd/str-analysis-with-ensembletr@sha256:18fe812358cc9b7eafac9160389c2e2dc73f8b34a47a493e145962125a9cc98e
 scripts + LongTR:
    weisburd/str-analysis-with-longtr@sha256:b29f879e62f849b6bb66be2c10d9872bb99d11721c767fc23c48d13839c37db4
@@ -37,7 +37,7 @@ To install the latest version using pip, run:
 python3 -m pip install --upgrade str-analysis@git+https://github.com/broadinstitute/str-analysis
 ```
 
-or use the docker image (though it may not have the latest version of the code):
+or use the docker image:
 
 ```
 docker run -it weisburd/str-analysis:latest
@@ -60,7 +60,7 @@ docker run -it weisburd/str-analysis:latest
 ## Variant Filtering & Detection
 
 - **call_non_ref_motifs** - Takes a BAM/CRAM file and, optionally, an ExpansionHunter variant catalog. For each locus, determines which STR motifs are supported by reads overlapping that locus before running ExpansionHunter on the detected motif(s). Useful for detecting non-reference pathogenic motifs (e.g., RFC1). ([docs](https://github.com/broadinstitute/str-analysis/blob/main/docs/call_non_ref_motifs.md))
-- **filter_vcf_to_tandem_repeats** - Replaces & supersedes *filter_vcf_to_STR_variants*. This script takes a VCF (from short-read, long-read, or assembly-based callers - it just has to have full REF and ALT sequences) and filters it to insertions and deletions that represent tandem repeat expansions or contractions. It uses both brute-force k-mer search for perfect repeats and TandemRepeatFinder for imperfect repeats, thereby improving detection of VNTRs. It includes 3 subcommands: catalog, merge, genotype (intended to be run in this order). The `catalog` subcommand takes a VCF and a reference FASTA (no TR catalog needed) and detects which insertions and deletions are actually tandem repeat expansions or contractions. It then outputs a BED file of the reference repeat intervals and motifs (a TR catalog) based on what it detected in the VCF. `merge` (optionally) combines two or more catalogs into a single catalog using some simple heuristics to partially deduplicate redundant entries. The `genotype` subcommand takes a VCF (not necessarily the same one), a TR catalog BED file and a reference FASTA, and then outputs the diploid TR genotypes at each locus in the catalog derived from the insertion and deletion genotypes in the VCF. 
+- **filter_vcf_to_tandem_repeats** - Replaces & supersedes *filter_vcf_to_STR_variants*. This script takes a VCF (from short-read, long-read, or assembly-based callers - it just has to have full REF and ALT sequences) and filters it to insertions and deletions that represent tandem repeat expansions or contractions. It uses both brute-force k-mer search for perfect repeats and Tandem Repeats Finder (TRF) for imperfect repeats, thereby improving detection of VNTRs. It includes 3 subcommands: catalog, merge, genotype (intended to be run in this order). The `catalog` subcommand takes a VCF and a reference FASTA (no TR catalog needed) and detects which insertions and deletions are actually tandem repeat expansions or contractions. It then outputs a BED file of the reference repeat intervals and motifs (a TR catalog) based on what it detected in the VCF. `merge` (optionally) combines two or more catalogs into a single catalog using some simple heuristics to partially deduplicate redundant entries. The `genotype` subcommand takes a VCF (not necessarily the same one), a TR catalog BED file and a reference FASTA, and then outputs the diploid TR genotypes at each locus in the catalog derived from the insertion and deletion genotypes in the VCF. 
 - **filter_vcf_to_STR_variants** - Original version of the above tool. Takes a single-sample VCF file and filters it to the INS/DEL variants that represent tandem repeat expansions or contractions by performing brute-force k-mer search on each variant's inserted or deleted bases. This tool was a core part of [Weisburd, B., Tiao, G. & Rehm, H. L. Insights from a genome-wide truth set of tandem repeat variation. (2023)](https://www.biorxiv.org/content/10.1101/2023.05.05.539588v1)
 - **parse_motif_composition** - Simple algorithm that takes a table of motifs known to occur at a particular VNTR or STR locus with motif variability (such as CACNA1C or RFC1), and also takes a BAM/CRAM data file, and then computes the observed frequency of these motifs in the reads aligned to this locus.
 
@@ -71,7 +71,7 @@ docker run -it weisburd/str-analysis:latest
 - **merge_loci** - Takes one or more STR catalogs and combines them into a single catalog while removing duplicates based on overlap and repeat motif.
 - **annotate_and_filter_str_catalog** - Takes an STR catalog and annotates loci based on their overlap with genes and known disease-associated STRs. Allows filtering by motif size, gene region, and various other criteria.
 - **compute_catalog_stats** - Takes an annotated catalog output by *annotate_and_filter_str_catalog* and computes various summary statistics.
-- **add_offtarget_regions** - Takes an ExpansionHunter variant catalog and adds a list of off-target regions to each locus definition by querying a database of off-target regions precomputed for each TR motif. This database was generated by using wgsim to simulate fully-repetitive reads for each motif, and then recording where these reads mapped on hg19 and hg38 after aligning them using bwa.
+- **add_offtarget_regions** - Takes an ExpansionHunter variant catalog and adds a list of off-target regions to each locus definition by querying a database of off-target regions precomputed for each TR motif. This database was generated by using wgsim to simulate fully repetitive reads for each motif, and then recording where these reads mapped on hg19 and hg38 after aligning them using bwa.
 - **add_adjacent_loci_to_expansion_hunter_catalog** - Takes an ExpansionHunter variant catalog and a BED file containing all simple repeats in the reference genome. Outputs a new catalog with updated LocusStructures and ReferenceRegions that include any adjacent repeats found near each locus.
 - **split_adjacent_loci_in_expansion_hunter_catalog** - Splits loci with adjacent repeats back into separate loci.
 - **filter_out_loci_with_Ns_in_flanks** - Removes loci from an ExpansionHunter catalog if their flanks contain enough Ns to trigger an ExpansionHunter error.
@@ -97,7 +97,7 @@ docker run -it weisburd/str-analysis:latest
 
 ## TRGT and LPS Processing
 
-- **combine_single_sample_LPS_to_allele_histograms** - Takes one or more tables of LPS (likelihood per sample) scores and combines them into per-locus allele histograms. Useful for aggregating genotype data across large cohorts.
+- **combine_single_sample_LPS_to_allele_histograms** - Takes one or more tables of LPS (longest pure segment) scores and combines them into per-locus allele histograms. Useful for aggregating genotype data across large cohorts.
 - **convert_multisample_LPS_table_to_allele_frequency_histograms** - Takes a wide-format TSV of multisample LPS genotypes (one column per sample, allele sizes as comma-separated pairs) and outputs a per-locus summary table with allele frequency histograms and statistics (min, max, mean, median, mode, stdev, percentiles).
 
 ---
@@ -112,15 +112,15 @@ docker run -it weisburd/str-analysis:latest
 
 ## Read Extraction
 
-- **make_bamlet** - Optimized version of ExpansionHunterDenovo's make-bamlet.py. For a given STR region, extracts all relevant reads from a BAM or CRAM file into a much smaller BAMlet which can be used as input to ExpansionHunter instead of the full BAM/CRAM but yield the same genotype. Reduces I/O operations for better performance.
-- **make_minicram_for_expansion_hunter** - Extracts minimal CRAM subset needed for ExpansionHunter genotyping.
+- **make_bamlet** - Optimized version of ExpansionHunterDenovo's make-bamlet.py. For a given STR region, extracts all relevant reads from a BAM or CRAM file into a much smaller BAMlet which can be used as input to ExpansionHunter instead of the full BAM/CRAM but still yields the same genotype. Reduces I/O operations for better performance.
+- **make_minicram_for_expansion_hunter** - Extracts the minimal CRAM subset needed for ExpansionHunter genotyping.
 - **print_reads** - Extracts reads from CRAM/BAM files overlapping genomic intervals (lightweight alternative to GATK PrintReads).
 
 ---
 
 ## Simulation
 
-- **simulate_str_expansions** - Uses [wgsim](https://github.com/hammer/wgsim) to generate BAM files with simulated read data containing STR expansions at a given locus, with specified number of repeats, motif, zygosity, etc.
+- **simulate_str_expansions** - Uses [wgsim](https://github.com/hammer/wgsim) to generate BAM files with simulated read data containing STR expansions at a given locus, with a specified number of repeats, motif, zygosity, etc.
 
 ---
 
@@ -135,7 +135,7 @@ docker run -it weisburd/str-analysis:latest
 
 - **convert_bed_to_expansion_hunter_catalog** - Converts BED files to ExpansionHunter variant catalog JSON format.
 - **convert_expansion_hunter_catalog_to_bed** - Converts ExpansionHunter variant catalogs to BED format.
-- **convert_dat_to_bed** - Converts Tandem Repeat Finder (TRF) `.dat` output files to BED format.
+- **convert_dat_to_bed** - Converts Tandem Repeats Finder (TRF) `.dat` output files to BED format.
 - **convert_expansion_hunter_catalog_to_gangstr_spec** - Converts ExpansionHunter catalogs to GangSTR spec format.
 - **convert_gangstr_spec_to_expansion_hunter_catalog** - Converts GangSTR spec to ExpansionHunter variant catalog.
 - **convert_gangstr_vcf_to_expansion_hunter_json** - Converts GangSTR VCF output to ExpansionHunter JSON format.
@@ -145,6 +145,6 @@ docker run -it weisburd/str-analysis:latest
 - **convert_trgt_catalog_to_expansion_hunter_catalog** - Converts TRGT repeat catalog BED files to ExpansionHunter variant catalog JSON format.
 - **convert_trgt_vcf_to_expansion_hunter_json** - Converts TRGT VCF output to ExpansionHunter JSON format.
 - **convert_expansion_hunter_catalog_to_longtr_format** - Converts ExpansionHunter catalogs to LongTR format.
-- **convert_expansion_hunter_catalog_to_vamos_catalog** - Converts ExpansionHunter catalogs to VAMOS catalog format.
+- **convert_expansion_hunter_catalog_to_vamos_catalog** - Converts ExpansionHunter catalogs to vamos catalog format.
 - **convert_straglr_bed_to_expansion_hunter_json** - Converts Straglr BED output to ExpansionHunter JSON format.
 - **convert_strling_calls_to_expansion_hunter_json** - Converts STRling calls to ExpansionHunter JSON format.
