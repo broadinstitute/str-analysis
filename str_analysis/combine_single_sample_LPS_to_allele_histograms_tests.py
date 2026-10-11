@@ -56,15 +56,50 @@ def run_main(contents):
         with open(input_path, "wt") as f:
             f.write(contents)
 
-        output_prefix = os.path.join(temp_dir, "out")
-        argv = ["combine_single_sample_LPS_to_allele_histograms",
-                "--use-sample-id-from-header", "-o", output_prefix, input_path]
-        with mock.patch("sys.argv", argv):
-            main()
+        return combine_tables([input_path], os.path.join(temp_dir, "out"))
 
-        with gzip.open(f"{output_prefix}.tsv.gz", "rt") as f:
-            header = next(f).rstrip("\n").split("\t")
-            return [dict(zip(header, line.rstrip("\n").split("\t"))) for line in f]
+
+def combine_tables(input_paths, output_prefix):
+    """Run the script end to end on the given input tables and return its output rows.
+
+    Args:
+        input_paths (list): paths of single-sample LPS tables or of combined histogram tables written by this script.
+        output_prefix (str): output path prefix, so the output table is written to {output_prefix}.tsv.gz.
+
+    Returns:
+        list: one dict per output row, mapping column name to the unparsed string value.
+    """
+    argv = ["combine_single_sample_LPS_to_allele_histograms",
+            "--use-sample-id-from-header", "-o", output_prefix] + input_paths
+    with mock.patch("sys.argv", argv):
+        main()
+
+    with gzip.open(f"{output_prefix}.tsv.gz", "rt") as f:
+        header = next(f).rstrip("\n").split("\t")
+        return [dict(zip(header, line.rstrip("\n").split("\t"))) for line in f]
+
+
+def combine_single_locus_samples_into_shard(temp_dir, shard_name, sample_id_to_lps_value):
+    """Write a single-sample LPS table for each sample at one locus, and combine them into a shard table.
+
+    Args:
+        temp_dir (str): directory to write the tables to.
+        shard_name (str): file name prefix for this shard's tables.
+        sample_id_to_lps_value (dict): maps sample id to its LPS value at the locus, e.g. "3,5".
+
+    Returns:
+        str: path of the shard's combined histogram table.
+    """
+    input_paths = []
+    for sample_id, lps_value in sample_id_to_lps_value.items():
+        input_path = os.path.join(temp_dir, f"{shard_name}.{sample_id}.lps.tsv")
+        with open(input_path, "wt") as f:
+            f.write(f"trid\tmotif\t{sample_id}\n1-1000-1030-CAG\tCAG\t{lps_value}\n")
+        input_paths.append(input_path)
+
+    output_prefix = os.path.join(temp_dir, shard_name)
+    combine_tables(input_paths, output_prefix)
+    return f"{output_prefix}.tsv.gz"
 
 
 class Tests(unittest.TestCase):
@@ -124,6 +159,57 @@ class Tests(unittest.TestCase):
         self.assertEqual(rows[0]["HemizygousAlleleHistogram"], "")
         self.assertEqual(rows[1]["AllAlleleHistogram"], "5x:1,7x:1")
         self.assertEqual(rows[1]["ShortAlleleHistogram"], "5x:1")
+
+    def test_small_shard_does_not_turn_a_common_allele_size_into_outliers(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 3x is common in the large shard, so that shard lists nothing at 3x. The small shard has too few
+            # samples for 3x to look common, so it lists all of its samples there.
+            large_shard_samples = {f"a{i:02d}": "3,3" for i in range(12)}
+            large_shard_samples["a12"] = "3,5"
+            small_shard_samples = {f"b{i}": "3,3" for i in range(1, 7)}
+            small_shard_samples["b0"] = "3,6"
+
+            large_shard_path = combine_single_locus_samples_into_shard(temp_dir, "large_shard", large_shard_samples)
+            small_shard_path = combine_single_locus_samples_into_shard(temp_dir, "small_shard", small_shard_samples)
+            rows = combine_tables([large_shard_path, small_shard_path], os.path.join(temp_dir, "combined"))
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["AllAlleleHistogram"], "3x:38,5x:1,6x:1")
+        # the two rare alleles, one from each shard, are still recorded, but none of the 3x carriers
+        self.assertEqual(rows[0]["OutlierSampleIds_AllAlleles"], "6x:b0,5x:a12")
+        self.assertEqual(rows[0]["OutlierSampleIds_ShortAlleles"], "")
+
+    def test_common_allele_size_that_no_shard_lists_still_ends_the_outliers(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 10x is common in the large shard, so that shard lists nothing at or below 10x. The small shard has no
+            # 10x alleles, so no shard lists 10x, and the small shard's shorter 4x alleles are not outliers.
+            large_shard_samples = {f"a{i:02d}": "10,10" for i in range(12)}
+            large_shard_samples["a12"] = "4,10"
+            small_shard_samples = {f"b{i}": "4,4" for i in range(6)}
+
+            large_shard_path = combine_single_locus_samples_into_shard(temp_dir, "large_shard", large_shard_samples)
+            small_shard_path = combine_single_locus_samples_into_shard(temp_dir, "small_shard", small_shard_samples)
+            rows = combine_tables([large_shard_path, small_shard_path], os.path.join(temp_dir, "combined"))
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["AllAlleleHistogram"], "4x:13,10x:25")
+        self.assertEqual(rows[0]["OutlierSampleIds_AllAlleles"], "")
+        self.assertEqual(rows[0]["OutlierSampleIds_ShortAlleles"], "")
+
+    def test_rare_allele_size_carried_by_homozygous_samples_is_recorded(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 6 homozygous samples give 12 alleles at 9x. That is more than 10 alleles but fewer than 10 samples,
+            # so all 6 are still outliers.
+            sample_id_to_lps_value = {f"s{i:02d}": "9,9" for i in range(6)}
+            sample_id_to_lps_value.update({f"s{i:02d}": "3,3" for i in range(6, 26)})
+            shard_path = combine_single_locus_samples_into_shard(temp_dir, "shard", sample_id_to_lps_value)
+            with gzip.open(shard_path, "rt") as f:
+                header = next(f).rstrip("\n").split("\t")
+                row = dict(zip(header, next(f).rstrip("\n").split("\t")))
+
+        self.assertEqual(row["AllAlleleHistogram"], "3x:40,9x:12")
+        self.assertEqual(row["OutlierSampleIds_AllAlleles"], ",".join(f"9x:s{i:02d}" for i in range(6)))
+        self.assertEqual(row["OutlierSampleIds_ShortAlleles"], ",".join(f"9x:s{i:02d}" for i in range(6)))
 
     def test_non_integer_allele_size_raises(self):
         with self.assertRaises(ValueError):

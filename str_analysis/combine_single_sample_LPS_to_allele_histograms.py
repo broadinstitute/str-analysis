@@ -302,11 +302,40 @@ def detect_input_table_type(input_table_path):
         raise ValueError(f"Unrecognized header format in {input_table_path}: {header_fields}")
 
 
-def convert_sample_ids_to_string(allele_sample_ids, n_outlier_sample_ids=10):
+def convert_sample_ids_to_string(allele_sample_ids, allele_histogram, n_outlier_sample_ids=10):
+    """Record the samples with the largest alleles as outliers.
+
+    Walks allele sizes from largest to smallest, and stops at the first allele size that n_outlier_sample_ids
+    or more samples have, or once more than n_outlier_sample_ids samples have been recorded.
+
+    When the inputs are combined histogram tables, allele_sample_ids only holds the sample ids that each table
+    listed in its own outlier column, and a table lists nothing at or below its first allele size that
+    n_outlier_sample_ids or more of its samples have. So, for example, if one table has 7 samples and the
+    others have 50 each, an allele size that thousands of samples share can arrive with just the 7 samples
+    from the small table, and would otherwise be recorded as if those 7 were outliers. Such an allele size is
+    recognized from allele_histogram, which counts every allele: the tables that left it out contribute at
+    least n_outlier_sample_ids alleles beyond the one or two from each listed sample. The walk goes over every
+    allele size in allele_histogram, not just the listed ones, so it also stops at a common allele size that
+    no table listed, such as one that the small table has no carriers of.
+
+    Args:
+        allele_sample_ids (dict): maps allele size to the list of sample ids recorded at that size.
+        allele_histogram (dict): maps allele size to the number of alleles of that size across all samples.
+        n_outlier_sample_ids (int): number of samples with the largest alleles to record.
+
+    Returns:
+        str: comma-separated "{allele size}x:{sample id}" entries, largest allele size first.
+    """
     output_value = []
     output_sample_id_counter = 0
-    for allele, sample_list in sorted(allele_sample_ids.items(), key=lambda x: -x[0]):
+    for allele in sorted(allele_histogram, reverse=True):
+        sample_list = allele_sample_ids.get(allele, [])
         if len(sample_list) >= n_outlier_sample_ids:
+            break
+
+        # Each listed sample has at most 2 alleles of this size, so when every sample with this allele size is
+        # listed, allele_histogram[allele] - len(sample_list) <= len(sample_list) < n_outlier_sample_ids.
+        if allele_histogram[allele] - len(sample_list) >= n_outlier_sample_ids:
             break
 
         for sample_id in sorted(sample_list):
@@ -330,7 +359,10 @@ def main():
     parser.add_argument("--show-progress-bar", action="store_true", help="Show a progress bar")
     parser.add_argument("--skip-loci-without-outliers", action="store_true", help="Skip loci with outliers")
     parser.add_argument("--allow-overlapping-samples", action="store_true",
-                        help="Allow sample IDs to appear in multiple input tables (will merge their histograms)")
+                        help="Allow sample IDs to appear in multiple input tables. Only use this when those tables "
+                        "cover different loci, such as per-chromosome tables of the same samples. A sample that is "
+                        "counted at the same locus in two tables has its alleles counted twice, which skews the "
+                        "histograms and can leave real outliers out of the OutlierSampleIds columns.")
     parser.add_argument("input_tables", nargs="+", help="Input TSV files with LPS scores")
 
     args = parser.parse_args()
@@ -414,7 +446,8 @@ def main():
         if overlapping_sample_ids and not args.allow_overlapping_samples:
             raise ValueError(f"Input table {input_table} contains sample IDs that were already seen in "
                            f"previous input tables: {sorted(overlapping_sample_ids)}. "
-                           f"Use --allow-overlapping-samples to merge histograms from overlapping samples.")
+                           f"If the input tables cover different loci, such as per-chromosome tables of the same "
+                           f"samples, use --allow-overlapping-samples.")
         all_seen_sample_ids.update(table_sample_ids)
 
         print(f"Processed {included_line_count:,d} out of {total_line_count:,d} rows from {input_table}")
@@ -444,11 +477,14 @@ def main():
                        | set(trid_to_hemizygous_allele_histogram))
         for (trid, motif) in sorted(output_keys):
             all_allele_outliers = convert_sample_ids_to_string(
-                trid_to_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids)
+                trid_to_allele_sample_ids[(trid, motif)], trid_to_allele_histogram[(trid, motif)],
+                n_outlier_sample_ids=args.n_outlier_sample_ids)
             short_allele_outliers = convert_sample_ids_to_string(
-                trid_to_short_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids)
+                trid_to_short_allele_sample_ids[(trid, motif)], trid_to_short_allele_histogram[(trid, motif)],
+                n_outlier_sample_ids=args.n_outlier_sample_ids)
             hemizygous_allele_outliers = convert_sample_ids_to_string(
-                trid_to_hemizygous_allele_sample_ids[(trid, motif)], n_outlier_sample_ids=args.n_outlier_sample_ids)
+                trid_to_hemizygous_allele_sample_ids[(trid, motif)], trid_to_hemizygous_allele_histogram[(trid, motif)],
+                n_outlier_sample_ids=args.n_outlier_sample_ids)
 
             if args.skip_loci_without_outliers and not all_allele_outliers and not short_allele_outliers and not hemizygous_allele_outliers:
                 continue
