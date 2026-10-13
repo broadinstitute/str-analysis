@@ -80,24 +80,30 @@ to a definition that is no longer than it is.
 Neighboring loci that grow onto the same repeat therefore collapse, though a run of definitions
 that overlap only through each other collapses to as many as are needed to cover it, not to one. An
 extended definition is also dropped when an identical definition is already in the output as an
-input locus. In the two whole-catalog modes, when an extended definition is dropped and the original
-it came from is not being kept, the original is put back unless what was kept for its repeat already
-describes every base it covered, so the output never covers less sequence than the input and never
-repeats a definition it already has.
+input locus, and in the two whole-catalog modes the locus it grew from is then left as it was, as
+when the input already described the repeat with more. When an extended definition is instead dropped
+for an overlapping extended definition and the original it came from is not being kept, the original
+is put back unless what was kept for its repeat already describes every base it covered, so the
+output never covers less sequence than the input and never repeats a definition it already has.
 
 
 The input catalog can be in BED or JSON format, and the output is written in the same format as the
-input. Every locus must be defined by one interval and one motif: a JSON record that gives a locus
-several adjacent intervals, or a BED row that lists several motifs for one interval, stops the run,
-since which interval each boundary belongs to and the motif phase at each one would have to be
-tracked separately. Split such a catalog first with
+input. A BED catalog in TRGT format, with ID=...;MOTIFS=...;STRUC=... in its 4th column, is written
+back in TRGT format, and any other BED catalog as rows of interval, motif and repeat count. The rule
+only handles a locus defined by one interval and one motif. A JSON record that gives a locus several
+adjacent intervals, or a TRGT row that lists several motifs for one interval, is skipped with a
+warning, since which interval each boundary belongs to and the motif phase at each one would have to
+be tracked separately. A skipped locus is passed through unchanged, like any other locus the rule did
+not extend, except that a TRGT row whose STRUC names no motif, such as <TR1>, is left out of the
+output, since its MOTIFS can't be rebuilt. A skipped locus also doesn't take part in deciding whether
+an extended definition duplicates the input. To extend such loci, split them first with
 str_analysis.split_adjacent_loci_in_expansion_hunter_catalog.
 
-BED carries only the interval and the motif, so a BED run drops every other field, while a JSON
-run passes all of them through untouched. ReferenceRegion and LocusId are the only fields this tool
-rewrites, so fields computed from the original boundaries, such as NumRepeatsInReference or
-ReferenceRepeatPurity, survive a JSON run while describing the locus as it was before it grew, and
-need recomputing afterwards.
+BED carries only the interval and the motif(s), plus the ID in TRGT format, so a BED run drops every
+other field, while a JSON run passes all of them through untouched. ReferenceRegion and LocusId are
+the only fields this tool rewrites, so fields computed from the original boundaries, such as
+NumRepeatsInReference or ReferenceRepeatPurity, survive a JSON run while describing the locus as it
+was before it grew, and need recomputing afterwards.
 
 
 Usage:
@@ -123,10 +129,15 @@ from str_analysis.utils.eh_catalog_utils import get_variant_catalog_iterator, \
     parse_motifs_from_locus_structure, convert_json_records_to_bed_format_tuples
 from str_analysis.utils.export_json import export_json
 from str_analysis.utils.fasta_utils import normalize_chrom_using_pysam_fasta
+from str_analysis.utils.file_utils import open_file
 from str_analysis.utils.gap_purity_extension import compute_extension, compute_reference_purity, \
     extend_to_capture_partial_copy, MAX_REPEATS_IN_GAP, MIN_PURITY_OF_NEW_SEQUENCE, \
     MIN_REFERENCE_PURITY
 from str_analysis.utils.misc_utils import parse_interval
+
+# a catalog can have many loci this script skips (eg. a TRGT catalog of variation clusters), so only the first
+# few of each kind get their own warning, and the rest are only counted in the summary
+MAX_WARNINGS_PER_KIND_OF_SKIPPED_LOCUS = 10
 
 
 def parse_args():
@@ -135,8 +146,9 @@ def parse_args():
                     "gap-purity rule.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-R", "--reference-fasta", required=True, help="Reference fasta file path.")
-    parser.add_argument("-o", "--output-path", help="Output path. Defaults to the input path with "
-                        "'.extended' added before the file extension, in the same format as the input. "
+    parser.add_argument("-o", "--output-path", help="Output path. Defaults to the input file name with "
+                        "'.extended' added before the file extension, written to the current directory, "
+                        "in the same format as the input. "
                         "A BED output is always bgzipped and tabix-indexed, and a JSON output gzipped.")
     parser.add_argument("--max-repeats-in-gap", type=int, default=MAX_REPEATS_IN_GAP,
                         help="How many consecutive interrupted motif copies may separate the current "
@@ -161,8 +173,9 @@ def parse_args():
                              "a definition already kept that shares its chromosome and canonical "
                              "motif, so a chain of overlapping definitions can still leave more than "
                              "one survivor. When an extended definition is dropped and the original is "
-                             "not being kept, the original is put back unless what was kept already "
-                             "covers it.")
+                             "not being kept, the original is put back: always when the extended "
+                             "definition was identical to another input locus, and otherwise unless "
+                             "what was kept already covers it.")
     parser.add_argument("--only-output-extended-loci", action="store_true",
                         help="Write only the definitions the rule produced, leaving out every locus "
                              "from the input catalog. The output is then not a catalog in its own "
@@ -176,7 +189,8 @@ def parse_args():
                         "rule makes, with the purity behind it. Intended for looking at a handful of "
                         "loci, not a whole catalog.")
     parser.add_argument("catalog_json_or_bed", help="A catalog of tandem repeats in BED or JSON "
-                        "format, with one interval and one motif per locus.")
+                        "format. Loci with more than one interval or more than one motif are skipped "
+                        "with a warning.")
     args = parser.parse_args()
 
     if not 0 < args.min_purity_of_new_sequence <= 1:
@@ -229,13 +243,77 @@ def is_json_path(path):
     return ".json" in path
 
 
+def is_trgt_format_bed(path):
+    """Whether a BED catalog is in TRGT format, judged by its first row the same way
+    get_variant_catalog_iterator tells a TRGT row from a plain one.
+    """
+    with open_file(path, is_text_file=True) as f:
+        fields = next(iter(f), "").rstrip("\n").split("\t")
+    return len(fields) > 3 and "ID=" in fields[3] and "STRUC=" in fields[3]
+
+
+def convert_json_records_to_trgt_bed_rows(json_records):
+    """The TRGT catalog row for each record, which for a record read from a TRGT catalog gives back
+    the row it was read from. get_variant_catalog_iterator keeps a TRGT row's ID as the LocusId and its
+    STRUC, with n written as *, as the LocusStructure, and MOTIFS is rebuilt from the motifs the
+    structure names.
+
+    Yield:
+        4-tuples: (chrom, start_0based, end_1based, TRGT info field)
+    """
+    for record in json_records:
+        chrom, start_0based, end_1based = parse_interval(record["ReferenceRegion"])
+        motifs = ",".join(dict.fromkeys(parse_motifs_from_locus_structure(record["LocusStructure"])))
+        struc = record["LocusStructure"].replace("*", "n")
+        yield chrom, start_0based, end_1based, f"ID={record['LocusId']};MOTIFS={motifs};STRUC={struc}"
+
+
 def catalog_record_key(record):
-    """What makes two locus definitions the same definition: the interval and the motif.
+    """What makes two locus definitions the same definition: the interval(s) and the motif(s).
 
     Deliberately ignores LocusId, since two records that describe the same interval with the same motif
     are duplicates however they are named.
     """
-    return record["ReferenceRegion"], record["LocusStructure"]
+    reference_region = record["ReferenceRegion"]
+    if isinstance(reference_region, list):
+        reference_region = tuple(reference_region)
+    return reference_region, record["LocusStructure"]
+
+
+def describe_why_the_locus_is_not_supported(record):
+    """Return what makes a locus one this script can't extend, or None if it can extend it.
+
+    A JSON catalog can define one locus as several adjacent intervals, and which interval each boundary
+    belongs to, and the motif phase at each one, would have to be tracked separately. A TRGT-format BED
+    row can define several motifs sharing one interval, and where each motif starts inside that
+    interval is not recorded, while the motif phase of the right boundary depends on exactly that.
+
+    A locus structure with no motif in parentheses, such as a TRGT STRUC of <TR1>, gives the rule no motif
+    to work with.
+
+    Return:
+        str: "more than one interval", "more than one motif" or "no motif that this script can parse",
+            or None
+    """
+    if isinstance(record["ReferenceRegion"], list):
+        return "more than one interval"
+    num_motifs = len(parse_motifs_from_locus_structure(record["LocusStructure"]))
+    if num_motifs > 1:
+        return "more than one motif"
+    if num_motifs == 0:
+        return "no motif that this script can parse"
+    return None
+
+
+def parse_outer_interval(record):
+    """The chromosome, the start of the first interval and the end of the last interval of a record,
+    which for a locus with several adjacent intervals is the stretch they cover together."""
+    reference_regions = record["ReferenceRegion"]
+    if not isinstance(reference_regions, list):
+        return parse_interval(reference_regions)
+    chrom, start_0based, _ = parse_interval(reference_regions[0])
+    _, _, end_1based = parse_interval(reference_regions[-1])
+    return chrom, start_0based, end_1based
 
 
 def compute_extended_locus_id(record, taken_locus_ids):
@@ -251,9 +329,12 @@ def compute_extended_locus_id(record, taken_locus_ids):
 
 
 def compute_span(record):
-    """Base pairs the record's interval covers."""
-    _, start_0based, end_1based = parse_interval(record["ReferenceRegion"])
-    return end_1based - start_0based
+    """Base pairs the record's interval(s) cover."""
+    reference_regions = record["ReferenceRegion"]
+    if not isinstance(reference_regions, list):
+        reference_regions = [reference_regions]
+    return sum(end_1based - start_0based
+               for _, start_0based, end_1based in map(parse_interval, reference_regions))
 
 
 def polish_right_boundary(fasta_obj, chrom, start_0based, end_1based, motif):
@@ -278,24 +359,27 @@ def polish_right_boundary(fasta_obj, chrom, start_0based, end_1based, motif):
 
 
 def extend_catalog_record(record, fasta_obj, args, counters):
-    """Return an extended copy of the record, or None if the rule declines to move either boundary."""
-    if isinstance(record["ReferenceRegion"], list):
-        # A JSON catalog can define one locus as several adjacent intervals. Which interval each
-        # boundary belongs to, and the motif phase at each one, would have to be tracked separately,
-        # so stop now rather than mangle the definition.
-        raise ValueError(f"This script handles one interval per locus, but {record['LocusId']} has "
-                         f"{len(record['ReferenceRegion'])}. Split it into one record per interval "
-                         f"with str_analysis.split_adjacent_loci_in_expansion_hunter_catalog.")
+    """Return an extended copy of the record, or None if the rule declines to move either boundary or the
+    locus is one this script doesn't support (see describe_why_the_locus_is_not_supported)."""
+    reason_not_supported = describe_why_the_locus_is_not_supported(record)
+    if reason_not_supported is not None:
+        label = f"loci skipped because they have {reason_not_supported}"
+        counters[label] += 1
+        if counters[label] <= MAX_WARNINGS_PER_KIND_OF_SKIPPED_LOCUS or args.verbose:
+            how_to_extend_it = {
+                "more than one interval": " To extend it, split it first with "
+                                          "str_analysis.split_adjacent_loci_in_expansion_hunter_catalog.",
+                "more than one motif": " To extend it, split it into one row per motif first.",
+            }.get(reason_not_supported, "")
+            print(f"WARNING: skipping {record['LocusId']} ({record['ReferenceRegion']} {record['LocusStructure']}): "
+                  f"this script only extends loci with one interval and one motif, and this one has "
+                  f"{reason_not_supported}.{how_to_extend_it}")
+            if counters[label] == MAX_WARNINGS_PER_KIND_OF_SKIPPED_LOCUS and not args.verbose:
+                print(f"WARNING: further loci with {reason_not_supported} are skipped without a warning, "
+                      f"and only counted in the summary")
+        return None
 
     motifs = parse_motifs_from_locus_structure(record["LocusStructure"])
-    if len(motifs) != 1:
-        # A TRGT-format BED row can define several motifs sharing one interval. Where each motif starts
-        # inside that interval is not recorded, and the motif phase of the right boundary depends on
-        # exactly that, so the locus cannot be extended correctly, nor written back out as one BED row.
-        # Stop now rather than after processing the whole catalog.
-        raise ValueError(f"This script handles one motif per locus, but {record['LocusId']} has "
-                         f"{len(motifs)} ({record['LocusStructure']}). Split it into one row per motif.")
-
     if set(motifs[0]) - set("ACGT"):
         # An IUPAC code stands for a set of bases, so it matches more of the flanking sequence than a
         # concrete motif would, and the rule would read that as the repeat continuing. GCN, for
@@ -426,7 +510,8 @@ def discard_extensions_outdone_by_the_input(records_and_extensions, counters):
     enough for the rule to have extended it. Both are deliberate: a locus is being read here as a
     statement about where a repeat is, which does not depend on the rule being able to place its
     boundaries. On the v2 catalog this drops 54,195 extensions, 95.7% of them to an input locus that
-    covers the whole extension.
+    covers the whole extension. Loci this script skips (see describe_why_the_locus_is_not_supported)
+    don't take part, since they have no single interval and motif to compare.
 
     Args:
         records_and_extensions (list): (input record, extended record or None) pairs, in input order.
@@ -463,6 +548,8 @@ def discard_extensions_outdone_by_the_input(records_and_extensions, counters):
 
     outdone = set()
     for record, _ in records_and_extensions:
+        if describe_why_the_locus_is_not_supported(record) is not None:
+            continue
         chrom, start_0based, end_1based = parse_interval(record["ReferenceRegion"])
         if (chrom, canonical_motif_of(record)) not in index_per_group:
             continue
@@ -525,6 +612,14 @@ def build_output_records(records_and_extensions, keep_original_definitions, coun
 
         if catalog_record_key(extended) in kept_original_keys:
             counters["extended definitions not added because that definition was already in the catalog"] += 1
+            if not only_extended_definitions and not keep_original_definitions:
+                # Another input locus already is this definition, so the extension adds nothing, and the
+                # locus it grew from is left as it was, the same as when an input locus is longer than the
+                # extension (see discard_extensions_outdone_by_the_input). Leaving it out instead would
+                # lose a record, with its own LocusId and fields, that the input kept separate on purpose:
+                # EP400 at chr12:132062548-132062611 extends onto the wider EP400 definition at
+                # chr12:132062524-132062611 that the bundled catalogs also hold.
+                output_records.append(record)
             continue
         if id(extended) not in kept_candidates:
             counters["extended definitions dropped in favor of an overlapping extended definition that was kept"] += 1
@@ -564,35 +659,63 @@ def sort_catalog_records(output_records):
     """
     chrom_order = {}
     for record in output_records:
-        chrom, _, _ = parse_interval(record["ReferenceRegion"])
+        chrom, _, _ = parse_outer_interval(record)
         if chrom not in chrom_order:
             chrom_order[chrom] = len(chrom_order)
 
     def sort_key(record):
-        chrom, start_0based, end_1based = parse_interval(record["ReferenceRegion"])
+        chrom, start_0based, end_1based = parse_outer_interval(record)
         return (chrom_order[chrom], start_0based, end_1based, record["LocusStructure"],
                 record["LocusId"])
 
     return sorted(output_records, key=sort_key)
 
 
-def write_output_catalog(output_records, output_path):
+def write_output_catalog(output_records, output_path, write_trgt_format=False):
     """Write the catalog, as gzipped JSON that keeps every field, or as bgzipped and tabixed BED rows
-    that keep only the interval and the motif.
+    that keep only the interval and the motif(s), plus the ID in TRGT format.
+
+    Args:
+        output_records (list): the output catalog records.
+        output_path (str): where to write them. Whether it names a JSON or a BED file decides the format.
+        write_trgt_format (bool): write BED rows in TRGT format, as the input catalog was, rather than as
+            interval, motif and repeat count.
+
+    Return:
+        list: the records that were written, which for a BED output leaves out any skipped loci its rows
+            can't hold
     """
     if is_json_path(output_path):
         export_json(sort_catalog_records(output_records), output_path)
-        return
+        return output_records
+
+    if write_trgt_format:
+        # a TRGT row can list several motifs, but its MOTIFS is rebuilt from the motifs in the locus
+        # structure, so a row whose STRUC names none, such as <TR1>, can't be written back out
+        bed_records = [record for record in output_records
+                       if parse_motifs_from_locus_structure(record["LocusStructure"])]
+        bed_rows = convert_json_records_to_trgt_bed_rows(bed_records)
+        reason_left_out = "their STRUC names no motif to rebuild MOTIFS from"
+    else:
+        bed_records = [record for record in output_records
+                       if describe_why_the_locus_is_not_supported(record) is None]
+        bed_rows = convert_json_records_to_bed_format_tuples(bed_records)
+        reason_left_out = "a row of this BED file holds one interval and one motif"
+    if len(bed_records) < len(output_records):
+        print(f"WARNING: left {len(output_records) - len(bed_records):,d} skipped loci out of {output_path}, "
+              f"since {reason_left_out}")
 
     uncompressed_path = re.sub(r"\.b?gz$", "", output_path)
     print(f"Writing {output_path}")
     with open(uncompressed_path, "wt") as output_bed:
-        for bed_record in sorted(convert_json_records_to_bed_format_tuples(output_records)):
-            output_bed.write("\t".join(map(str, bed_record)) + "\n")
+        for bed_row in sorted(bed_rows):
+            output_bed.write("\t".join(map(str, bed_row)) + "\n")
     if os.system(f"bgzip -f {uncompressed_path}") != 0:
         raise RuntimeError(f"bgzip failed for {uncompressed_path}")
     if os.system(f"tabix -f -p bed {uncompressed_path}.gz") != 0:
         raise RuntimeError(f"tabix failed for {uncompressed_path}.gz")
+
+    return bed_records
 
 
 def main():
@@ -632,7 +755,9 @@ def main():
         print(f"WARNING: {len(duplicates):,d} LocusId(s) appear more than once in the output, carried "
               f"over from duplicates in the input catalog, starting with {duplicates[:3]}")
 
-    write_output_catalog(output_records, args.output_path)
+    output_records = write_output_catalog(
+        output_records, args.output_path,
+        write_trgt_format=not is_json_path(args.catalog_json_or_bed) and is_trgt_format_bed(args.catalog_json_or_bed))
 
     print(f"The rule extended {counters['extended']:,d} out of {counters['total']:,d} loci "
           f"({counters['extended'] / max(counters['total'], 1):.1%}). "
@@ -642,11 +767,12 @@ def main():
         # Taken from the finished catalog rather than accumulated per extension, since a locus can
         # also leave the output when its extension is dropped for an overlapping one, and a figure
         # that only ever added would report growth the catalog didn't get. It says nothing when the
-        # input's own definitions were left out of the output.
+        # input's own definitions were left out of the output. Loci a BED output can't hold count as
+        # sequence the output lost, so the output can span less than the input did.
         base_pairs_added = (sum(compute_span(record) for record in output_records)
                             - sum(compute_span(record) for record, _ in records_and_extensions))
-        print(f"Locus definitions in the output span {base_pairs_added:,d}bp more in total than the "
-              f"input's did")
+        print(f"Locus definitions in the output span {abs(base_pairs_added):,d}bp "
+              f"{'more' if base_pairs_added >= 0 else 'less'} in total than the input's did")
     print(f"Wrote {len(output_records):,d} locus definitions to {args.output_path}")
     already_reported = ("total", "extended", "extended definitions added to the output")
     for label, count in counters.items():

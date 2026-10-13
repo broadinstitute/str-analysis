@@ -1,10 +1,14 @@
 import argparse
 import collections
+import pathlib
+import tempfile
 import unittest
 
 from str_analysis.extend_str_catalog_boundaries import build_output_records, catalog_record_key, \
-    compute_output_path, discard_extensions_outdone_by_the_input, extend_catalog_record, \
-    select_longest_non_overlapping, sort_catalog_records
+    compute_output_path, compute_span, convert_json_records_to_trgt_bed_rows, \
+    discard_extensions_outdone_by_the_input, extend_catalog_record, is_trgt_format_bed, \
+    select_longest_non_overlapping, sort_catalog_records, MAX_WARNINGS_PER_KIND_OF_SKIPPED_LOCUS
+from str_analysis.utils.eh_catalog_utils import get_variant_catalog_iterator
 
 
 class FakeFasta:
@@ -87,14 +91,17 @@ class TestBuildOutputRecords(unittest.TestCase):
         self.assertEqual(sum(count for label, count in self.counters.items()
                              if "already in the catalog" in label), 1)
 
-    def test_replace_mode_drops_an_extension_that_duplicates_a_locus_already_in_the_output(self):
-        # "a" extends onto what "b" already is, so only "b"'s definition survives
+    def test_replace_mode_leaves_a_locus_alone_when_its_extension_duplicates_another_input_locus(self):
+        # EP400's shape: "a" extends onto exactly what "b" already is, so the extension adds nothing and
+        # "a" stays as it was, the same as when "b" is longer than the extension
+        original = dict(record("a", "chr1:100-110"), PathogenicMin=55)
         pairs = [
-            (record("a", "chr1:100-110"), record("a", "chr1:100-130")),
+            (original, record("a", "chr1:100-130")),
             (record("b", "chr1:100-130"), None),
         ]
         output = self.build(pairs, keep_originals=False)
-        self.assertEqual(definitions(output), [("chr1:100-130", "(CAT)*")])
+        self.assertEqual(definitions(output), [("chr1:100-110", "(CAT)*"), ("chr1:100-130", "(CAT)*")])
+        self.assertIn(original, output)
 
     def test_two_loci_extending_onto_each_other_collapse_to_one_definition(self):
         pairs = [
@@ -286,13 +293,64 @@ class TestExtendCatalogRecord(unittest.TestCase):
                                          self.counters)
         self.assertEqual(extended["ReferenceRegion"], "chr1:100-130")
 
-    def test_several_motifs_sharing_one_interval_is_a_hard_error(self):
+    def test_several_motifs_sharing_one_interval_is_skipped(self):
         # how a TRGT-format BED row parses: one interval, several motifs. Where each motif starts
-        # inside it is unknown, so the locus can neither be extended nor written back as one BED row.
+        # inside it is unknown, so the locus can't be extended.
         trgt_style = {"LocusId": "t", "ReferenceRegion": "chr1:100-121",
                       "LocusStructure": "(CAT)*(CAG)*", "VariantType": "Repeat"}
-        with self.assertRaises(ValueError):
+        self.assertIsNone(extend_catalog_record(trgt_style, self.fasta, self.args, self.counters))
+        self.assertEqual(self.counters["loci skipped because they have more than one motif"], 1)
+
+    def test_several_adjacent_intervals_is_skipped(self):
+        # how a JSON catalog defines a locus like HTT: one interval per repeat
+        adjacent_repeats = {"LocusId": "a", "ReferenceRegion": ["chr1:100-121", "chr1:121-130"],
+                            "LocusStructure": "(CAT)*(CAG)*", "VariantType": ["Repeat", "Repeat"]}
+        self.assertIsNone(extend_catalog_record(adjacent_repeats, self.fasta, self.args, self.counters))
+        self.assertEqual(self.counters["loci skipped because they have more than one interval"], 1)
+
+    def test_a_skipped_locus_is_counted_every_time(self):
+        trgt_style = {"LocusId": "t", "ReferenceRegion": "chr1:100-121",
+                      "LocusStructure": "(CAT)*(CAG)*", "VariantType": "Repeat"}
+        for _ in range(MAX_WARNINGS_PER_KIND_OF_SKIPPED_LOCUS + 5):
             extend_catalog_record(trgt_style, self.fasta, self.args, self.counters)
+        self.assertEqual(self.counters["loci skipped because they have more than one motif"],
+                         MAX_WARNINGS_PER_KIND_OF_SKIPPED_LOCUS + 5)
+
+
+class TestSkippedLociPassThrough(unittest.TestCase):
+    """A locus this script skips still has to get through every later step unchanged."""
+
+    def setUp(self):
+        self.counters = collections.Counter()
+        self.adjacent_repeats = {"LocusId": "HTT", "ReferenceRegion": ["chr1:300-357", "chr1:363-390"],
+                                 "LocusStructure": "(CAG)*CAACAG(CCG)*", "VariantType": ["Repeat", "Repeat"]}
+
+    def run_later_steps(self, pairs, keep_originals=False, only_extended_definitions=False):
+        pairs = discard_extensions_outdone_by_the_input(pairs, self.counters)
+        return sort_catalog_records(build_output_records(
+            pairs, keep_originals, self.counters, only_extended_definitions=only_extended_definitions))
+
+    def test_a_skipped_locus_is_written_unchanged_in_both_whole_catalog_modes(self):
+        pairs = [(record("a", "chr1:100-110"), record("a", "chr1:100-130")), (self.adjacent_repeats, None)]
+        for keep_originals in (False, True):
+            output = self.run_later_steps(pairs, keep_originals=keep_originals)
+            self.assertIn(self.adjacent_repeats, output)
+
+    def test_a_skipped_locus_is_left_out_when_only_extended_definitions_are_written(self):
+        pairs = [(record("a", "chr1:100-110"), record("a", "chr1:100-130")), (self.adjacent_repeats, None)]
+        output = self.run_later_steps(pairs, only_extended_definitions=True)
+        self.assertEqual(definitions(output), [("chr1:100-130", "(CAT)*")])
+
+    def test_a_skipped_locus_is_sorted_by_where_its_first_interval_starts(self):
+        records = [record("b", "chr1:350-360"), self.adjacent_repeats, record("a", "chr1:100-110")]
+        self.assertEqual([r["LocusId"] for r in sort_catalog_records(records)], ["a", "HTT", "b"])
+
+    def test_the_span_of_a_skipped_locus_adds_up_its_intervals(self):
+        self.assertEqual(compute_span(self.adjacent_repeats), 57 + 27)
+
+    def test_two_records_with_the_same_intervals_have_the_same_key(self):
+        self.assertEqual(catalog_record_key(self.adjacent_repeats),
+                         catalog_record_key(dict(self.adjacent_repeats, LocusId="other")))
 
 
 class TestDiscardingExtensionsOutdoneByTheInput(unittest.TestCase):
@@ -528,6 +586,48 @@ class TestSortCatalogRecords(unittest.TestCase):
         self.assertEqual([r["LocusId"] for r in sort_catalog_records(records)], ["a", "b"])
         # sorting the reversed input gives the same answer
         self.assertEqual([r["LocusId"] for r in sort_catalog_records(records[::-1])], ["a", "b"])
+
+
+class TestTrgtFormatOutput(unittest.TestCase):
+    """A TRGT catalog has to come back out as a TRGT catalog, one this repo's reader can read again."""
+
+    # from str_analysis/variant_catalogs/catalog.GRCh38.with_adjacent_repeats.TRGT.bed and
+    # catalog.GRCh38.TRGT.bed: one motif, several motifs, and RFC1, whose IUPAC motif a plain BED row
+    # can't carry, since the plain BED reader only accepts ACGTN
+    TRGT_ROWS = [
+        "chr1\t1435798\t1435818\tID=VWA1;MOTIFS=GGCGCGGAGC;STRUC=(GGCGCGGAGC)n",
+        "chr10\t93702516\t93702546\tID=FRA10AC1;MOTIFS=CCA,CCG;STRUC=(CCA)n(CCG)n",
+        "chr4\t39348424\t39348479\tID=RFC1;MOTIFS=AARRG;STRUC=(AARRG)n",
+    ]
+
+    def setUp(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        self.temp_dir = pathlib.Path(temp_dir.name)
+
+    def write_bed(self, filename, rows):
+        path = self.temp_dir / filename
+        path.write_text("".join(f"{row}\n" for row in rows))
+        return str(path)
+
+    def test_each_trgt_row_is_written_back_unchanged(self):
+        records = get_variant_catalog_iterator(self.write_bed("catalog.bed", self.TRGT_ROWS))
+        self.assertEqual(["\t".join(map(str, row)) for row in convert_json_records_to_trgt_bed_rows(records)],
+                         self.TRGT_ROWS)
+
+    def test_an_extended_definition_is_written_under_its_new_name(self):
+        self.assertEqual(list(convert_json_records_to_trgt_bed_rows([record("1-100-130-CAT", "chr1:100-130")])),
+                         [("chr1", 100, 130, "ID=1-100-130-CAT;MOTIFS=CAT;STRUC=(CAT)n")])
+
+    def test_a_motif_the_structure_names_twice_is_listed_once(self):
+        trgt_record = {"LocusId": "x", "ReferenceRegion": "chr1:100-130", "LocusStructure": "(CAG)*(CAA)*(CAG)*"}
+        self.assertEqual(list(convert_json_records_to_trgt_bed_rows([trgt_record])),
+                         [("chr1", 100, 130, "ID=x;MOTIFS=CAG,CAA;STRUC=(CAG)n(CAA)n(CAG)n")])
+
+    def test_trgt_format_is_told_apart_from_a_plain_bed_by_the_first_row(self):
+        self.assertTrue(is_trgt_format_bed(self.write_bed("trgt.bed", self.TRGT_ROWS)))
+        self.assertFalse(is_trgt_format_bed(self.write_bed("plain.bed", ["chr1\t100\t130\tCAT"])))
+        self.assertFalse(is_trgt_format_bed(self.write_bed("empty.bed", [])))
 
 
 class TestOutputPath(unittest.TestCase):
