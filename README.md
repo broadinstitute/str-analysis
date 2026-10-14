@@ -8,23 +8,23 @@ The latest docker images:
 
 ```
 str-analysis python scripts:
-   weisburd/str-analysis@sha256:6cdf199661c5f004f72f57bd36c769bd1664de76022c3e764f4a6474e91ce0b8
+   weisburd/str-analysis@sha256:6b343732cc7456b342989e78746dce46d8fbb3efbae5fc1c7a9a7ee7480c97ba
 scripts + ExpansionHunter:
-   weisburd/str-analysis-with-expansion-hunter@sha256:9ed670e690e6223f498d2c6f62d2cc125a49cfcab15b5db0c7169339214d55f0
+   weisburd/str-analysis-with-expansion-hunter@sha256:b839adb00ed79bfff2085c96b6438864e819d1e7b10ad6f050030232a4e8648d
 scripts + TRGT:
-   weisburd/str-analysis-with-trgt@sha256:5b0f9e095fc6bf7bbac4cb596dff2e7bc5c99152da193ba0326cfc39a191341e
+   weisburd/str-analysis-with-trgt@sha256:6bc7171497c7c3e37f5e0eb86472e07975b0438c5d253e654fdc44c0a08bb06b
 scripts + ATaRVa:
-   weisburd/str-analysis-with-atarva@sha256:07096cf25872a15102011f46cba6eba54cb17471af9fdf43847259624fd5397f
+   weisburd/str-analysis-with-atarva@sha256:64fd65ca79664886708bc54716a70adbcfc304fd5e6bc7a6881f63caaddc9d4d
 scripts + inquiSTR:
-   weisburd/str-analysis-with-inquistr@sha256:af5390f11f5a7ed91bcffa182ce49652f5185f50b536be80c7dbea3c25db8eff
+   weisburd/str-analysis-with-inquistr@sha256:d3c55507e85273b013b535077521c23979d01b623f0a1c243a12f2c67c33a981
 scripts + HipSTR:
    weisburd/str-analysis-with-hipstr@sha256:445ae1ecf83268a4c939b75d7471574f0ccb97c0c4cdb6d6b8caef00c07f987c
 scripts + GangSTR:
-   weisburd/str-analysis-with-gangstr@sha256:002dddef4a06b293078c7d319d20b6298e87b5db12914f98cfd69bb63925170d
+   weisburd/str-analysis-with-gangstr@sha256:46d1919f1d02e35f1bf95631497c9fe29017b48ef4c0be5703b158b03df01924
 scripts + EnsembleTR:
-   weisburd/str-analysis-with-ensembletr@sha256:1690c0ede90680b684e1d3bb0eefb8f99a32fdb0ad25574bf715bd57eeb83303
+   weisburd/str-analysis-with-ensembletr@sha256:e0c2e62f4a2ab21665fbfdaec6ae3e5edd0f15fcfcf8d9704b297024b1f7b30c
 scripts + LongTR:
-   weisburd/str-analysis-with-longtr@sha256:831f3711cdde9ab6352e2d26a6a1014fde472d66b99d9c45d9568dae4dc43f9c
+   weisburd/str-analysis-with-longtr@sha256:b638ff32bc6d6b9986b171e9da0a5034e178ab2e41d6ed4c3354586a8e610cab
 ```
 ---
 
