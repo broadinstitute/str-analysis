@@ -246,6 +246,12 @@ def tee_stdout_and_stderr_to_log_file(log_path):
     r_out, w_out = os.pipe()
     r_err, w_err = os.pipe()
 
+    # When stdout is a file rather than a terminal, Python holds printed lines in a buffer. Write them
+    # out now, before fds 1 and 2 are repointed and sys.stdout is replaced below, or whatever was
+    # printed before this call never reaches the file.
+    sys.stdout.flush()
+    sys.stderr.flush()
+
     # Redirect stdout/stderr → pipes
     os.dup2(w_out, 1)
     os.dup2(w_err, 2)

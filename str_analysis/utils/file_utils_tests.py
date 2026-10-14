@@ -424,5 +424,29 @@ class TestGetByteRangeFromGoogleStorage(unittest.TestCase):
         self.assertIn("not found", str(cm.exception))
 
 
+class TestTeeStdoutAndStderrToLogFile(unittest.TestCase):
+
+    def test_lines_printed_before_the_tee_starts_are_kept_when_stdout_is_a_file(self):
+        """Test that output buffered before the call still reaches a stdout that was redirected to a file."""
+        script = "\n".join([
+            "import sys",
+            "from str_analysis.utils.file_utils import tee_stdout_and_stderr_to_log_file",
+            "print('printed before the tee starts')",
+            "tee_stdout_and_stderr_to_log_file(sys.argv[1])",
+            "print('printed after the tee starts')",
+        ])
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_path = os.path.join(temp_dir, "tee.log")
+            stdout_path = os.path.join(temp_dir, "stdout.txt")
+            with open(stdout_path, "w") as stdout_file:
+                subprocess.run([sys.executable, "-c", script, log_path], stdout=stdout_file,
+                               stderr=subprocess.DEVNULL, check=True)
+
+            with open(stdout_path) as f:
+                self.assertEqual(f.read(), "printed before the tee starts\nprinted after the tee starts\n")
+            with open(log_path) as f:
+                self.assertEqual(f.read(), "printed after the tee starts\n")
+
+
 if __name__ == "__main__":
     unittest.main()
