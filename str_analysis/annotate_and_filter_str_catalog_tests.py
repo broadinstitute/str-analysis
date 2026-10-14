@@ -175,6 +175,26 @@ class TestParseArgs(unittest.TestCase):
             os.unlink(catalog_file)
             os.unlink(ref_fasta)
 
+    def test_parse_args_gencode_gtf_requires_gencode_gene_models_source(self):
+        """Test that --gencode-gtf is rejected unless --gene-models-source gencode is also specified."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            catalog_file = os.path.join(temp_dir, "catalog.json")
+            ref_fasta = os.path.join(temp_dir, "ref.fa")
+            gencode_gtf = os.path.join(temp_dir, "gencode.gtf")
+            for path, content in (catalog_file, "[]"), (ref_fasta, ">chr1\nACGT"), (gencode_gtf, ""):
+                with open(path, "w") as f:
+                    f.write(content)
+
+            sys.argv = ['test', '-R', ref_fasta, '--gene-models-source', 'refseq', '--gencode-gtf', gencode_gtf, catalog_file]
+            with self.assertRaises(SystemExit):
+                parse_args()
+
+            sys.argv = ['test', '-R', ref_fasta, '--gene-models-source', 'gencode', '--gene-models-source', 'refseq',
+                        '--gencode-gtf', gencode_gtf, catalog_file]
+            args, parser = parse_args()
+            self.assertEqual(args.gencode_gtf, gencode_gtf)
+            self.assertEqual(args.gene_models_source, ['gencode', 'refseq'])
+
     def test_valid_gene_regions_constant(self):
         """Test VALID_GENE_REGIONS constant."""
         expected_regions = {"CDS", "UTR", "5UTR", "3UTR", "promoter", "exon", "intron", "intergenic"}
@@ -616,6 +636,52 @@ class TestMainIntegration(unittest.TestCase):
         self.assertEqual(len(output_records), 1)
         self.assertIn('NumRepeatsInReference', output_records[0])
         self.assertIn('ReferenceRepeatPurity', output_records[0])
+
+    @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
+    @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')
+    def test_main_gencode_gtf_replaces_default_gencode_path(self, mock_bigwig, mock_download):
+        """Test that main() annotates Gencode fields from --gencode-gtf instead of the default Gencode gtf."""
+        self.create_catalog_file([
+            {
+                "LocusId": "test1",
+                "LocusStructure": "(CAG)*",
+                "ReferenceRegion": "chr1:0-30",
+                "VariantType": "Repeat"
+            }
+        ])
+
+        gencode_gtf = os.path.join(self.temp_dir, "gencode.test.gtf")
+        attributes = 'gene_id "ENSG00000000001.1"; transcript_id "ENST00000000001.1"; gene_name "TESTGENE"; transcript_type "protein_coding";'
+        with open(gencode_gtf, 'w') as f:
+            for feature_type in "transcript", "exon", "CDS":
+                f.write("\t".join(["chr1", "TEST", feature_type, "1", "40", ".", "+", ".", attributes]) + "\n")
+
+        mock_bw = mock.Mock()
+        mock_bw.stats.return_value = (0.95,)
+        mock_bigwig.return_value = mock_bw
+        mock_download.return_value = "/tmp/mappability.bw"
+
+        sys.argv = [
+            'test',
+            '-R', self.ref_fasta,
+            '--gene-models-source', 'gencode',
+            '--gencode-gtf', gencode_gtf,
+            '--skip-disease-loci-annotations',
+            '-o', os.path.join(self.temp_dir, 'output.json'),
+            self.catalog_json
+        ]
+
+        from str_analysis.annotate_and_filter_str_catalog import main
+        main()
+
+        import simplejson
+        with open(os.path.join(self.temp_dir, 'output.json'), 'r') as f:
+            output_records = simplejson.load(f)
+
+        self.assertEqual(len(output_records), 1)
+        self.assertEqual(output_records[0]['GencodeGeneRegion'], 'CDS')
+        self.assertEqual(output_records[0]['GencodeGeneName'], 'TESTGENE')
+        self.assertEqual(output_records[0]['GencodeGeneId'], 'ENSG00000000001')
 
     @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
     @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')
