@@ -639,8 +639,8 @@ class TestMainIntegration(unittest.TestCase):
 
     @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
     @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')
-    def test_main_gencode_gtf_replaces_default_gencode_path(self, mock_bigwig, mock_download):
-        """Test that main() annotates Gencode fields from --gencode-gtf instead of the default Gencode gtf."""
+    def test_main_gene_models_gtf_options_replace_default_gtf_paths(self, mock_bigwig, mock_download):
+        """Test that main() annotates each gene models source from its --<source>-gtf option instead of the default gtf."""
         self.create_catalog_file([
             {
                 "LocusId": "test1",
@@ -650,38 +650,43 @@ class TestMainIntegration(unittest.TestCase):
             }
         ])
 
-        gencode_gtf = os.path.join(self.temp_dir, "gencode.test.gtf")
-        attributes = 'gene_id "ENSG00000000001.1"; transcript_id "ENST00000000001.1"; gene_name "TESTGENE"; transcript_type "protein_coding";'
-        with open(gencode_gtf, 'w') as f:
-            for feature_type in "transcript", "exon", "CDS":
-                f.write("\t".join(["chr1", "TEST", feature_type, "1", "40", ".", "+", ".", attributes]) + "\n")
-
         mock_bw = mock.Mock()
         mock_bw.stats.return_value = (0.95,)
         mock_bigwig.return_value = mock_bw
         mock_download.return_value = "/tmp/mappability.bw"
 
-        sys.argv = [
-            'test',
-            '-R', self.ref_fasta,
-            '--gene-models-source', 'gencode',
-            '--gencode-gtf', gencode_gtf,
-            '--skip-disease-loci-annotations',
-            '-o', os.path.join(self.temp_dir, 'output.json'),
-            self.catalog_json
-        ]
+        for gene_models_source in "gencode", "refseq", "mane":
+            with self.subTest(gene_models_source=gene_models_source):
+                gene_name = f"{gene_models_source.upper()}GENE"
+                gtf_path = os.path.join(self.temp_dir, f"{gene_models_source}.test.gtf")
+                attributes = (f'gene_id "ENSG00000000001.1"; transcript_id "ENST00000000001.1"; '
+                              f'gene_name "{gene_name}"; transcript_type "protein_coding";')
+                with open(gtf_path, 'w') as f:
+                    for feature_type in "transcript", "exon", "CDS":
+                        f.write("\t".join(["chr1", "TEST", feature_type, "1", "40", ".", "+", ".", attributes]) + "\n")
 
-        from str_analysis.annotate_and_filter_str_catalog import main
-        main()
+                sys.argv = [
+                    'test',
+                    '-R', self.ref_fasta,
+                    '--gene-models-source', gene_models_source,
+                    f'--{gene_models_source}-gtf', gtf_path,
+                    '--skip-disease-loci-annotations',
+                    '-o', os.path.join(self.temp_dir, 'output.json'),
+                    self.catalog_json
+                ]
 
-        import simplejson
-        with open(os.path.join(self.temp_dir, 'output.json'), 'r') as f:
-            output_records = simplejson.load(f)
+                from str_analysis.annotate_and_filter_str_catalog import main
+                main()
 
-        self.assertEqual(len(output_records), 1)
-        self.assertEqual(output_records[0]['GencodeGeneRegion'], 'CDS')
-        self.assertEqual(output_records[0]['GencodeGeneName'], 'TESTGENE')
-        self.assertEqual(output_records[0]['GencodeGeneId'], 'ENSG00000000001')
+                import simplejson
+                with open(os.path.join(self.temp_dir, 'output.json'), 'r') as f:
+                    output_records = simplejson.load(f)
+
+                field_prefix = gene_models_source.title()
+                self.assertEqual(len(output_records), 1)
+                self.assertEqual(output_records[0][f'{field_prefix}GeneRegion'], 'CDS')
+                self.assertEqual(output_records[0][f'{field_prefix}GeneName'], gene_name)
+                self.assertEqual(output_records[0][f'{field_prefix}GeneId'], 'ENSG00000000001')
 
     @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
     @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')

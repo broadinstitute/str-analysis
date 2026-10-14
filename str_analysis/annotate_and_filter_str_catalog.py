@@ -59,9 +59,10 @@ def parse_args():
     annotations_group.add_argument("--genes-gtf", help="Gene models gtf file path or url.")
     annotations_group.add_argument("--gene-models-source", action="append", help="Source of the genes-gtf file. "
         "Can be specified more than once to annotate with multiple gene models.", choices=["gencode", "mane", "refseq"])
-    annotations_group.add_argument("--gencode-gtf", help="Gencode gtf file path or url to use for "
-        f"--gene-models-source gencode instead of the default {GENE_MODELS['gencode']}. Unlike --genes-gtf, this "
-        "keeps any other --gene-models-source values.")
+    for gene_models_source in GENE_MODELS:
+        annotations_group.add_argument(f"--{gene_models_source}-gtf", help=f"{gene_models_source.title()} gtf file "
+            f"path or url to use for --gene-models-source {gene_models_source} instead of the default "
+            f"{GENE_MODELS[gene_models_source]}. Unlike --genes-gtf, this keeps any other --gene-models-source values.")
     annotations_group.add_argument("--mappability-track-bigwig", default=MAPPABILITY_TRACK_BIGWIG_URL,
         help="Path or URL of the bigWig file containing mappability scores for each base in the reference genome")
     annotations_group.add_argument("--skip-gene-annotations", action="store_true", help="Don't addd gene annotations to "
@@ -158,10 +159,13 @@ def parse_args():
 
     if not args.skip_gene_annotations and args.genes_gtf and not file_exists(os.path.expanduser(args.genes_gtf)):
         parser.error(f"File not found: {args.genes_gtf}")
-    if args.gencode_gtf and "gencode" not in (args.gene_models_source or []):
-        parser.error("--gene-models-source gencode must be specified when --gencode-gtf is used")
-    if not args.skip_gene_annotations and args.gencode_gtf and not file_exists(os.path.expanduser(args.gencode_gtf)):
-        parser.error(f"File not found: {args.gencode_gtf}")
+    for gene_models_source in GENE_MODELS:
+        gtf_path = getattr(args, f"{gene_models_source}_gtf")
+        if gtf_path and gene_models_source not in (args.gene_models_source or []):
+            parser.error(f"--gene-models-source {gene_models_source} must be specified when "
+                         f"--{gene_models_source}-gtf is used")
+        if not args.skip_gene_annotations and gtf_path and not file_exists(os.path.expanduser(gtf_path)):
+            parser.error(f"File not found: {gtf_path}")
     if not args.skip_disease_loci_annotations and args.known_disease_associated_loci:
         if any(args.known_disease_associated_loci.startswith(prefix) for prefix in ("http://", "https://", "gs://")):
             args.known_disease_associated_loci = download_local_copy(args.known_disease_associated_loci)
@@ -569,9 +573,7 @@ def main():
 
             if args.gene_models_source:
                 for gene_models_source in args.gene_models_source:
-                    genes_gtf = GENE_MODELS[gene_models_source]
-                    if gene_models_source == "gencode" and args.gencode_gtf:
-                        genes_gtf = args.gencode_gtf
+                    genes_gtf = getattr(args, f"{gene_models_source}_gtf", None) or GENE_MODELS[gene_models_source]
 
                     gene_models_source = gene_models_source.title()
 
