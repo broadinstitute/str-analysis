@@ -1553,6 +1553,31 @@
         "Inheritance": "AD"
     },
     {
+        "LocusId": "MIR7-2__15-88569433-88569452-TTTG",
+        "LocusStructure": "(TTTG)*",
+        "VariantType": "Repeat",
+        "TRExplorerV1": "15-88569433-88569452-TTTG",
+        "TRExplorerV2": "15-88569433-88569452-TTTG",
+        "ReferenceRegion": "chr15:88569433-88569452",
+        "RepeatUnit": "TTTG",
+        "Gene": "",
+        "GeneId": "",
+        "GeneRegion": "intergenic",
+        "Diseases": [
+            {
+                "Symbol": "CHNG3",
+                "Name": "Nongoitrous congenital hypothyroidism-3",
+                "Inheritance": "AD",
+                "OMIM": "609893",
+                "NormalMin": 4,
+                "PathogenicMin": 3,
+                "PathogenicMax": 3
+            }
+        ],
+        "MainReferenceRegion": "chr15:88569433-88569452",
+        "Inheritance": "AD"
+    },
+    {
         "LocusId": "PRNP",
         "LocusStructure": "(CCTCAGGGCGGTGGTGGCTGGGGGCAG)*(CCTCATGGTGGTGGCTGGGGGCAG)*",
         "VariantType": [
