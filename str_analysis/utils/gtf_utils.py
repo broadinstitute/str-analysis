@@ -15,18 +15,29 @@ GENE_MODELS = {
 }
 
 
-# approx. max size of a gene promoter region upstream of a gene
+# default approx. max size of a gene promoter region upstream of a gene
 PROMOTER_SIZE = 1000  # bp
 
+# maps (gtf_path, promoter_size) to a dict of per-chromosome IntervalTrees. The promoter size is part of the key
+# because the promoter intervals stored in the trees depend on it.
 GENCODE_INTERVAL_TREES = {}
 
 TRANSCRIPT_ID_TO_CDS_COORDS_MAP = {}
 
-def parse_gtf_to_interval_trees(gtf_path=GENE_MODELS["gencode"], verbose=False, show_progress_bar=False, n=None):
-    """Converts GTF file to interval trees for fast overlap queries"""
+def parse_gtf_to_interval_trees(gtf_path=GENE_MODELS["gencode"], verbose=False, show_progress_bar=False, n=None,
+                                promoter_size=PROMOTER_SIZE):
+    """Converts GTF file to interval trees for fast overlap queries.
+
+    Args:
+        gtf_path (str): path to GTF file. This can be a local file or a gs:// path and can be compressed or not.
+        verbose (bool): if True, print verbose output
+        show_progress_bar (bool): if True, show a progress bar
+        n (int): number of records to process. If None, process all records.
+        promoter_size (int): number of base pairs upstream of each transcript to annotate as its promoter
+    """
 
     # parse the GTF file into IntervalTrees
-    iterator = generate_gtf_records(gtf_path)
+    iterator = generate_gtf_records(gtf_path, promoter_size=promoter_size)
     if verbose:
         print(f"Parsing {gtf_path}...")
     if show_progress_bar:
@@ -36,7 +47,7 @@ def parse_gtf_to_interval_trees(gtf_path=GENE_MODELS["gencode"], verbose=False, 
     gtf_records = list(iterator)
 
     # create IntervalTree for each chromosome
-    interval_trees = GENCODE_INTERVAL_TREES[gtf_path] = collections.defaultdict(IntervalTree)
+    interval_trees = GENCODE_INTERVAL_TREES[(gtf_path, promoter_size)] = collections.defaultdict(IntervalTree)
 
     # cache all CDS coords to use later for converting "UTR" records into "5' UTR" and "3' UTR"
     transcript_id_to_cds_coords_map = TRANSCRIPT_ID_TO_CDS_COORDS_MAP[gtf_path] = {}
@@ -76,8 +87,21 @@ def parse_gtf_to_interval_trees(gtf_path=GENE_MODELS["gencode"], verbose=False, 
             print(f"{count:10,d} {key}")
 
 
-def generate_gtf_records(gtf_path):
-    """Parse the GTF file"""
+def generate_gtf_records(gtf_path, promoter_size=PROMOTER_SIZE):
+    """Parse the GTF file. For each transcript record, also yield a "promoter" record that covers the promoter_size
+    base pairs upstream of the transcript.
+
+    Args:
+        gtf_path (str): path to GTF file. This can be a local file or a gs:// path and can be compressed or not.
+        promoter_size (int): number of base pairs upstream of each transcript to annotate as its promoter. If 0, no
+            promoter records are generated.
+
+    Yields:
+        dict: one record per GTF line with a relevant feature type, plus one promoter record per transcript
+    """
+
+    if promoter_size < 0:
+        raise ValueError(f"promoter_size must be >= 0: {promoter_size}")
 
     gtf_file = open_file(gtf_path, is_text_file=True, download_local_copy_before_opening=True)
     for i, line in enumerate(gtf_file):
@@ -137,11 +161,11 @@ def generate_gtf_records(gtf_path):
         # create a separate record for the transcript's promoter
         if feature_type == "transcript":
             if strand == "+":
-                promoter_start_1based = max(1, start_1based - PROMOTER_SIZE)
+                promoter_start_1based = max(1, start_1based - promoter_size)
                 promoter_end_1based = start_1based - 1
             elif strand == "-":
                 promoter_start_1based = end_1based + 1
-                promoter_end_1based = end_1based + PROMOTER_SIZE
+                promoter_end_1based = end_1based + promoter_size
             else:
                 raise ValueError(f"Unexpected strand value in {gtf_path} line #{i}: {line}")
 
@@ -191,9 +215,10 @@ def compute_UTR_type(utr_record, transcript_id_to_cds_coords):
         return "UTR"
 
 
-def compute_genomic_region_of_interval(chrom, start_1based, end_1based, genes_gtf_path=None, verbose=False, show_progress_bar=False, n=None):
-    """This method computes the genomic region of a given interval. The first time it is called, it will parse the
-    GTF file and create an interval tree for fast overlap queries. Subsequent calls will reuse the interval tree.
+def compute_genomic_region_of_interval(chrom, start_1based, end_1based, genes_gtf_path=None, verbose=False, show_progress_bar=False, n=None, promoter_size=PROMOTER_SIZE):
+    """This method computes the genomic region of a given interval. The first time it is called for a given GTF file
+    and promoter size, it will parse the GTF file and create an interval tree for fast overlap queries. Subsequent
+    calls with the same GTF file and promoter size will reuse the interval tree.
 
     Args:
         chrom (str): chromosome
@@ -203,6 +228,7 @@ def compute_genomic_region_of_interval(chrom, start_1based, end_1based, genes_gt
         verbose (bool): if True, print verbose output
         show_progress_bar (bool): if True, show a progress bar
         n (int): number of records to process. If None, process all records.
+        promoter_size (int): number of base pairs upstream of each transcript to annotate as its promoter
 
     Returns: 4-tuple containing
         region ("CDS", "5' UTR", "3' UTR", "UTR", "exon", "intron", or "promoter")
@@ -214,10 +240,11 @@ def compute_genomic_region_of_interval(chrom, start_1based, end_1based, genes_gt
     if genes_gtf_path is None:
         genes_gtf_path = GENE_MODELS["gencode"]
 
-    if genes_gtf_path not in GENCODE_INTERVAL_TREES:
-        parse_gtf_to_interval_trees(genes_gtf_path, verbose=verbose, show_progress_bar=show_progress_bar, n=n)
+    if (genes_gtf_path, promoter_size) not in GENCODE_INTERVAL_TREES:
+        parse_gtf_to_interval_trees(genes_gtf_path, verbose=verbose, show_progress_bar=show_progress_bar, n=n,
+                                    promoter_size=promoter_size)
 
-    interval_trees = GENCODE_INTERVAL_TREES[genes_gtf_path]
+    interval_trees = GENCODE_INTERVAL_TREES[(genes_gtf_path, promoter_size)]
     transcript_id_to_cds_coords_map = TRANSCRIPT_ID_TO_CDS_COORDS_MAP[genes_gtf_path]
 
     input_chrom = str(chrom).replace("chr", "")

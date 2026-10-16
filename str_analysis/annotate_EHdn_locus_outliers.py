@@ -45,7 +45,7 @@ from tqdm import tqdm
 from intervaltree import IntervalTree, Interval
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 
-from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval
+from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval, PROMOTER_SIZE
 from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.file_utils import open_file, file_exists
 from str_analysis.utils.eh_catalog_utils import get_variant_catalog_iterator, parse_motifs_from_locus_structure
@@ -61,6 +61,8 @@ def parse_args():
                         "to annotate with multiple gene sources (ie. Gencode and MANE). These gtf files can be "
                         "downloaded from https://www.gencodegenes.org/human/ and https://www.ncbi.nlm.nih.gov/refseq/MANE/",
                         action="append", default=[])
+    parser.add_argument("--promoter-size", type=int, default=PROMOTER_SIZE, help="Number of base pairs upstream of "
+                        "each transcript to annotate as its promoter region in the GeneRegion columns")
     parser.add_argument("--reference-tr-bed-file", help="A catalog of all repeats in the reference genome in BED "
                         "format where the chrom, start, and end represent the repeat interval in 0-based coordinates, "
                         "and the name field (column #4) contains the repeat unit. If an EHdn call overlaps an interval "
@@ -99,6 +101,9 @@ def parse_args():
             args.known_disease_associated_loci, args.reference_tr_bed_file]:
         if not file_path.startswith(("http://", "https://")) and not file_exists(os.path.expanduser(file_path)):
             parser.error(f"File not found: {file_path}")
+
+    if args.promoter_size < 0:
+        parser.error(f"--promoter-size must be >= 0: {args.promoter_size}")
 
     return args, parser
 
@@ -318,14 +323,14 @@ def parse_bed_to_interval_tree(bed_file_path, name_field_is_repeat_unit=False, v
     return interval_tree
 
 
-def compute_genomic_region_of_row(row, genes_gtf_path=None, verbose=False, show_progress_bar=False, n=None):
+def compute_genomic_region_of_row(row, genes_gtf_path=None, verbose=False, show_progress_bar=False, n=None, promoter_size=PROMOTER_SIZE):
     matched_reference_TR = row["MatchedReferenceTR"]
     if matched_reference_TR and not pd.isna(matched_reference_TR):
         chrom, start_0based, end = parse_interval(matched_reference_TR)
     else:
         chrom, start_0based, end = row["contig"], row["start"], row["end"]
 
-    return compute_genomic_region_of_interval(chrom, int(start_0based) + 1, int(end), genes_gtf_path=genes_gtf_path, verbose=verbose, show_progress_bar=show_progress_bar, n=n)
+    return compute_genomic_region_of_interval(chrom, int(start_0based) + 1, int(end), genes_gtf_path=genes_gtf_path, verbose=verbose, show_progress_bar=show_progress_bar, n=n, promoter_size=promoter_size)
 
 
 def main():
@@ -439,7 +444,7 @@ def main():
         for genes_gtf in args.genes_gtf:
             label = os.path.basename(genes_gtf).split(".")[0].title()
             df[[f"{label}GeneRegion", f"{label}GeneName", f"{label}GeneId", f"{label}TranscriptId"]] = df.apply(
-                lambda input_row, gtf=genes_gtf: compute_genomic_region_of_row(input_row, genes_gtf_path=gtf, verbose=args.verbose, show_progress_bar=args.show_progress_bar, n=args.test), axis=1, result_type='expand')
+                lambda input_row, gtf=genes_gtf: compute_genomic_region_of_row(input_row, genes_gtf_path=gtf, verbose=args.verbose, show_progress_bar=args.show_progress_bar, n=args.test, promoter_size=args.promoter_size), axis=1, result_type='expand')
 
         # split the counts column and output a row for each sample
         output_rows = []

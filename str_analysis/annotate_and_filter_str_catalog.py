@@ -18,7 +18,7 @@ from str_analysis.utils.eh_catalog_utils import (parse_motifs_from_locus_structu
                                                  convert_json_records_to_bed_format_tuples, get_variant_catalog_iterator)
 from str_analysis.utils.file_utils import file_exists, download_local_copy
 from str_analysis.utils.find_repeat_unit import find_repeat_unit_without_allowing_interruptions
-from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval, GENE_MODELS
+from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval, GENE_MODELS, PROMOTER_SIZE
 from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.fasta_utils import get_reference_sequence_with_cache, get_chromosome_size_with_cache
 from str_analysis.utils.fasta_utils import create_normalize_chrom_function
@@ -63,6 +63,8 @@ def parse_args():
         annotations_group.add_argument(f"--{gene_models_source}-gtf", help=f"{gene_models_source.title()} gtf file "
             f"path or url to use for --gene-models-source {gene_models_source} instead of the default "
             f"{GENE_MODELS[gene_models_source]}. Unlike --genes-gtf, this keeps any other --gene-models-source values.")
+    annotations_group.add_argument("--promoter-size", type=int, default=PROMOTER_SIZE, help="Number of base pairs "
+        "upstream of each transcript to annotate as its promoter region in the GeneRegion fields")
     annotations_group.add_argument("--mappability-track-bigwig", default=MAPPABILITY_TRACK_BIGWIG_URL,
         help="Path or URL of the bigWig file containing mappability scores for each base in the reference genome")
     annotations_group.add_argument("--skip-gene-annotations", action="store_true", help="Don't addd gene annotations to "
@@ -166,6 +168,8 @@ def parse_args():
                          f"--{gene_models_source}-gtf is used")
         if not args.skip_gene_annotations and gtf_path and not file_exists(os.path.expanduser(gtf_path)):
             parser.error(f"File not found: {gtf_path}")
+    if args.promoter_size < 0:
+        parser.error(f"--promoter-size must be >= 0: {args.promoter_size}")
     if not args.skip_disease_loci_annotations and args.known_disease_associated_loci:
         if any(args.known_disease_associated_loci.startswith(prefix) for prefix in ("http://", "https://", "gs://")):
             args.known_disease_associated_loci = download_local_copy(args.known_disease_associated_loci)
@@ -588,7 +592,8 @@ def main():
                         spanning_interval_end,
                         genes_gtf,
                         verbose=args.verbose,
-                        show_progress_bar=args.show_progress_bar)
+                        show_progress_bar=args.show_progress_bar,
+                        promoter_size=args.promoter_size)
 
                     #if catalog_record[f"{gene_models_source}GeneId"] == catalog_record[f"{gene_models_source}GeneName"]:
                     #    del catalog_record[f"{gene_models_source}GeneName"]

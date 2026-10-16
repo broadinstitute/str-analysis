@@ -165,8 +165,8 @@ chr2\tHAVANA\texon\t3000\t4000\t.\t+\t.\tgene_id "ENSG00000789"; transcript_id "
         parse_gtf_to_interval_trees(self.gtf_file)
 
         # Check interval trees were created
-        self.assertIn(self.gtf_file, GENCODE_INTERVAL_TREES)
-        interval_trees = GENCODE_INTERVAL_TREES[self.gtf_file]
+        self.assertIn((self.gtf_file, PROMOTER_SIZE), GENCODE_INTERVAL_TREES)
+        interval_trees = GENCODE_INTERVAL_TREES[(self.gtf_file, PROMOTER_SIZE)]
 
         # Check chromosome keys (without "chr" prefix)
         self.assertIn("1", interval_trees)
@@ -207,7 +207,7 @@ chr1\tHAVANA\texon\t5000\t6000\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id "
 
         parse_gtf_to_interval_trees(self.gtf_file, n=2)
 
-        interval_trees = GENCODE_INTERVAL_TREES[self.gtf_file]
+        interval_trees = GENCODE_INTERVAL_TREES[(self.gtf_file, PROMOTER_SIZE)]
         chr1_intervals = list(interval_trees["1"])
 
         # Should only have 2 intervals (limited by n=2)
@@ -285,6 +285,39 @@ chr1\tHAVANA\texon\t1000\t1100\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id "
         self.assertEqual(records[1]["feature_type"], "promoter")
         # Promoter on negative strand is downstream of transcript end
         self.assertEqual(records[1]["start_1based"], 2001)
+
+    def test_generate_gtf_records_custom_promoter_size(self):
+        """Test that promoter_size sets the size of the promoter on both strands."""
+        gtf_content = """chr1\tHAVANA\ttranscript\t5000\t6000\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id "ENST00000456"; gene_name "TEST1";
+chr1\tHAVANA\ttranscript\t5000\t6000\t.\t-\t.\tgene_id "ENSG00000789"; transcript_id "ENST00000999"; gene_name "TEST2";
+"""
+        self.create_gtf_file(gtf_content)
+        records = list(generate_gtf_records(self.gtf_file, promoter_size=2500))
+
+        promoter_records = [r for r in records if r["feature_type"] == "promoter"]
+        self.assertEqual(len(promoter_records), 2)
+        self.assertEqual((promoter_records[0]["start_1based"], promoter_records[0]["end_1based"]), (2500, 4999))
+        self.assertEqual((promoter_records[1]["start_1based"], promoter_records[1]["end_1based"]), (6001, 8500))
+
+    def test_generate_gtf_records_zero_promoter_size(self):
+        """Test that promoter_size=0 generates no promoter records."""
+        gtf_content = """chr1\tHAVANA\ttranscript\t5000\t6000\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id "ENST00000456"; gene_name "TEST1";
+chr1\tHAVANA\ttranscript\t5000\t6000\t.\t-\t.\tgene_id "ENSG00000789"; transcript_id "ENST00000999"; gene_name "TEST2";
+"""
+        self.create_gtf_file(gtf_content)
+        records = list(generate_gtf_records(self.gtf_file, promoter_size=0))
+
+        self.assertEqual([r["feature_type"] for r in records], ["transcript", "transcript"])
+
+    def test_generate_gtf_records_negative_promoter_size(self):
+        """Test that a negative promoter_size raises an error."""
+        gtf_content = """chr1\tHAVANA\ttranscript\t5000\t6000\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id "ENST00000456"; gene_name "TEST1";
+"""
+        self.create_gtf_file(gtf_content)
+
+        with self.assertRaises(ValueError) as cm:
+            list(generate_gtf_records(self.gtf_file, promoter_size=-1))
+        self.assertIn("promoter_size", str(cm.exception))
 
     def test_generate_gtf_records_invalid_strand(self):
         """Test error handling for invalid strand."""
@@ -600,7 +633,7 @@ chr1\tHAVANA\tpromoter\t500\t999\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id
         compute_genomic_region_of_interval("chr1", 1150, 1200, genes_gtf_path=self.gtf_file)
 
         # Check cache
-        self.assertIn(self.gtf_file, GENCODE_INTERVAL_TREES)
+        self.assertIn((self.gtf_file, PROMOTER_SIZE), GENCODE_INTERVAL_TREES)
 
         # Second call should use cache
         region, _, _, _ = compute_genomic_region_of_interval(
@@ -629,8 +662,8 @@ chr1\tHAVANA\tpromoter\t500\t999\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id
             # Restore original
             gtf_utils.GENE_MODELS["gencode"] = original_value
             # Clear the cache that was created with test GTF
-            if self.gtf_file in GENCODE_INTERVAL_TREES:
-                del GENCODE_INTERVAL_TREES[self.gtf_file]
+            if (self.gtf_file, PROMOTER_SIZE) in GENCODE_INTERVAL_TREES:
+                del GENCODE_INTERVAL_TREES[(self.gtf_file, PROMOTER_SIZE)]
             if self.gtf_file in TRANSCRIPT_ID_TO_CDS_COORDS_MAP:
                 del TRANSCRIPT_ID_TO_CDS_COORDS_MAP[self.gtf_file]
 
@@ -654,6 +687,33 @@ chr1\tHAVANA\tUTR\t1000\t1099\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id "E
 
         # CDS has highest priority
         self.assertEqual(region, "CDS")
+
+    def test_compute_genomic_region_custom_promoter_size(self):
+        """Test that promoter_size changes the promoter annotation, and that results computed with different
+        promoter sizes for the same GTF file are cached separately."""
+        gtf_content = """chr1\tHAVANA\ttranscript\t10000\t12000\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id "ENST00000456"; gene_name "TEST1";
+chr1\tHAVANA\texon\t10000\t12000\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id "ENST00000456"; gene_name "TEST1";
+"""
+        test_gtf = os.path.join(self.temp_dir, "promoter.gtf")
+        with open(test_gtf, 'w') as f:
+            f.write(gtf_content)
+
+        # 8500-8600 is 1400-1500bp upstream of the transcript, so it's outside the default 1000bp promoter
+        region, gene_name, _, _ = compute_genomic_region_of_interval("chr1", 8500, 8600, genes_gtf_path=test_gtf)
+        self.assertEqual(region, "intergenic")
+        self.assertIsNone(gene_name)
+
+        region, gene_name, _, _ = compute_genomic_region_of_interval(
+            "chr1", 8500, 8600, genes_gtf_path=test_gtf, promoter_size=2000)
+        self.assertEqual(region, "promoter")
+        self.assertEqual(gene_name, "TEST1")
+
+        # the default promoter size should still give the original result after the larger promoter size was used
+        region, _, _, _ = compute_genomic_region_of_interval("chr1", 8500, 8600, genes_gtf_path=test_gtf)
+        self.assertEqual(region, "intergenic")
+
+        self.assertIn((test_gtf, PROMOTER_SIZE), GENCODE_INTERVAL_TREES)
+        self.assertIn((test_gtf, 2000), GENCODE_INTERVAL_TREES)
 
     def tearDown(self):
         """Clean up temporary files."""
