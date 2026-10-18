@@ -25,7 +25,7 @@ workflow RunExpansionHunter {
         String? sample_id
 
         # The latest image built from docker_with_expansion_hunter/ (see sha256_dockerhub.txt)
-        String docker = "weisburd/str-analysis-with-expansion-hunter@sha256:f6375d0e7ff3c35bbc0c1888c845f3c128703be23a6cb7ffef5d5f8b6f9dba78"
+        String docker = "weisburd/str-analysis-with-expansion-hunter@sha256:e7a1490c2a919536524fdf9c5f0a1aa14aa673142727b9afe9b52cfb42d32d5e"
         Int checkpoint_interval_seconds = 600
         Int? expansion_hunter_disk_size_gb
         Int preemptible_tries = 3

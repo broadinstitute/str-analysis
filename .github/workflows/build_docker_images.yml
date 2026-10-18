@@ -102,8 +102,10 @@ jobs:
           echo "Comparing ${base}..${head}"
           # This workflow's own digest commits touch docker_with_*/sha256_*.txt. Widening the range above
           # would otherwise match those every time and make the path filter always true.
-          files=$(git diff --name-only "$base" "$head" | grep -Ev '/sha256_[a-z_]+\.txt$' || true)
-          echo "Changed files (excluding published digest files):"
+          # WDL files under docker_with_*/ aren't part of any image, and they pin the digest this workflow
+          # publishes, so a rebuild triggered by editing them would make their pinned digest out of date.
+          files=$(git diff --name-only "$base" "$head" | grep -Ev '/sha256_[a-z_]+\.txt$|\.wdl$' || true)
+          echo "Changed files (excluding published digest files and WDLs):"
           echo "$files"
           if echo "$files" | grep -Eq '^(docker/|docker_with_[^/]+/|str_analysis/|requirements\.txt|setup\.py|\.github/workflows/build_docker_images\.yml)'; then
             echo "Docker-relevant changes found: building."
