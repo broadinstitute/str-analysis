@@ -1,5 +1,6 @@
 import gzip
 import hashlib
+import intervaltree
 import os
 import pkgutil
 import sys
@@ -14,7 +15,8 @@ import pysam
 
 from str_analysis.make_bamlet import extract_region
 from str_analysis.utils import cram_bam_utils
-from str_analysis.utils.cram_bam_utils import IntervalReader, merge_adjacent_byte_ranges, get_total_mapped_reads, parse_crai_index
+from str_analysis.utils.cram_bam_utils import IntervalReader, merge_adjacent_byte_ranges, get_total_mapped_reads, \
+	parse_crai_index, split_interval_into_cached_and_uncached_parts
 from str_analysis.utils.file_utils import set_requester_pays_project
 
 
@@ -203,6 +205,154 @@ class TestCramBamUtils(unittest.TestCase):
 
 			#print(f"Retrieved {cram_reads_counter} reads from CRAM and {bam_reads_counter} reads from BAM")
 			self.assertEqual(cram_reads_counter, bam_reads_counter)
+
+	def test_save_to_file_writes_cram_from_bam_input(self):
+		chr9_reference_fasta = get_chr9_reference_fasta()
+		with tempfile.NamedTemporaryFile(suffix=".bam") as input_bam_file, \
+			  tempfile.NamedTemporaryFile(suffix=".bai") as input_bai_file, \
+			  tempfile.TemporaryDirectory() as output_dir:
+			input_bam_file.write(pkgutil.get_data("str_analysis", "data/tests/FXN.wgsim_HET_250xGAA.bam"))
+			input_bam_file.flush()
+			input_bai_file.write(pkgutil.get_data("str_analysis", "data/tests/FXN.wgsim_HET_250xGAA.bam.bai"))
+			input_bai_file.flush()
+
+			bam_output_path = os.path.join(output_dir, "output.bam")
+			cram_output_path = os.path.join(output_dir, "output.cram")
+			read_counts = {}
+			for output_path, write_cram in (bam_output_path, None), (cram_output_path, True):
+				reader = IntervalReader(input_bam_file.name, input_bai_file.name, reference_fasta_path=chr9_reference_fasta)
+				try:
+					for interval in self._FXN_intervals:
+						reader.add_interval(*interval)
+					read_counts[output_path] = reader.save_to_file(output_path, write_cram=write_cram)
+				finally:
+					reader.close()
+
+			self.assertGreater(read_counts[bam_output_path], 0)
+			self.assertEqual(read_counts[bam_output_path], read_counts[cram_output_path])
+			self.assertTrue(os.path.isfile(f"{cram_output_path}.crai"))
+			self.assertFalse(os.path.isfile(f"{cram_output_path}.bai"))
+			with pysam.AlignmentFile(cram_output_path, reference_filename=chr9_reference_fasta) as cram_output:
+				self.assertTrue(cram_output.is_cram)
+				self.assertEqual(sum(1 for _ in cram_output.fetch()), read_counts[cram_output_path])
+
+	def test_split_interval_into_cached_and_uncached_parts(self):
+		cached_regions = intervaltree.IntervalTree()
+		self.assertEqual(split_interval_into_cached_and_uncached_parts(10, 50, cached_regions), [(10, 50, False)])
+
+		cached_regions.addi(0, 100)
+		self.assertEqual(split_interval_into_cached_and_uncached_parts(10, 50, cached_regions), [(10, 50, True)])
+
+		cached_regions = intervaltree.IntervalTree()
+		cached_regions.addi(10, 20)
+		cached_regions.addi(30, 40)
+		cached_regions.addi(45, 60)
+		self.assertEqual(split_interval_into_cached_and_uncached_parts(10, 50, cached_regions), [
+			(10, 20, True), (20, 30, False), (30, 40, True), (40, 45, False), (45, 50, True)])
+		self.assertEqual(split_interval_into_cached_and_uncached_parts(5, 25, cached_regions), [
+			(5, 10, False), (10, 20, True), (20, 25, False)])
+
+	def _write_FXN_bam_with_unplaced_reads(self, bam_path):
+		"""Writes the FXN test BAM plus one unplaced read pair to bam_path and indexes it.
+
+		The FXN test BAM has no unplaced reads, so the pair is added to exercise include_unmapped_read_pairs.
+		"""
+		fxn_bam_path = f"{bam_path}.FXN.bam"
+		with open(fxn_bam_path, "wb") as f:
+			f.write(pkgutil.get_data("str_analysis", "data/tests/FXN.wgsim_HET_250xGAA.bam"))
+		with pysam.AlignmentFile(fxn_bam_path) as fxn_bam, \
+				pysam.AlignmentFile(bam_path, "wb", template=fxn_bam) as output_bam:
+			for read in fxn_bam.fetch(until_eof=True):
+				output_bam.write(read)
+			for flag in 77, 141:
+				read = pysam.AlignedSegment(output_bam.header)
+				read.query_name = "unplaced_read_pair"
+				read.flag = flag
+				read.reference_id = read.next_reference_id = -1
+				read.reference_start = read.next_reference_start = -1
+				read.query_sequence = "ACGT" * 25
+				read.query_qualities = pysam.qualitystring_to_array("I" * 100)
+				output_bam.write(read)
+		os.remove(fxn_bam_path)
+		pysam.index(bam_path)
+
+	def _export_reads_as_strings(self, reader, output_path, read_filter=None):
+		reader.save_to_file(output_path, read_filter=read_filter)
+		with pysam.AlignmentFile(output_path) as output_bam:
+			return [read.to_string() for read in output_bam.fetch(until_eof=True)]
+
+	def test_bam_reads_cache_gives_the_same_output_as_reading_the_input(self):
+		first_intervals = [("chr9", 69036500, 69037500)]
+		added_intervals = [("chr9", 69036000, 69036300), ("chr9", 69037000, 69038700), ("chr2", 49127000, 49128000)]
+		with tempfile.TemporaryDirectory() as temp_dir:
+			input_bam_path = os.path.join(temp_dir, "input.bam")
+			self._write_FXN_bam_with_unplaced_reads(input_bam_path)
+
+			cached_reader = IntervalReader(input_bam_path, include_unmapped_read_pairs=True, cache_byte_ranges=True)
+			uncached_reader = IntervalReader(input_bam_path, include_unmapped_read_pairs=True)
+			try:
+				for interval in first_intervals:
+					cached_reader.add_interval(*interval)
+				self._export_reads_as_strings(cached_reader, os.path.join(temp_dir, "first.bam"))
+				for interval in added_intervals:
+					cached_reader.add_interval(*interval)
+				for interval in first_intervals + added_intervals:
+					uncached_reader.add_interval(*interval)
+
+				reads_from_cached_reader = self._export_reads_as_strings(
+					cached_reader, os.path.join(temp_dir, "second.bam"))
+				reads_from_uncached_reader = self._export_reads_as_strings(
+					uncached_reader, os.path.join(temp_dir, "uncached.bam"))
+			finally:
+				cached_reader.close()
+				uncached_reader.close()
+
+			self.assertGreater(len(reads_from_uncached_reader), 0)
+			self.assertEqual(sum(1 for read in reads_from_uncached_reader if read.startswith("unplaced_read_pair")), 2)
+			self.assertEqual(reads_from_cached_reader, reads_from_uncached_reader)
+
+	def test_bam_reads_cache_does_not_read_cached_regions_from_the_input(self):
+		# After the first export, the input BAM is replaced by an empty BAM with the same header. A second export
+		# whose intervals extend past the first ones must then still contain every read from the first intervals --
+		# which can only have come from the cache -- and nothing else. The first export uses a read_filter to check
+		# that the cache still holds the reads the filter left out of that export's output.
+		first_intervals = [("chr9", 69036500, 69037500)]
+		with tempfile.TemporaryDirectory() as temp_dir:
+			input_bam_path = os.path.join(temp_dir, "input.bam")
+			self._write_FXN_bam_with_unplaced_reads(input_bam_path)
+
+			uncached_reader = IntervalReader(input_bam_path, include_unmapped_read_pairs=True)
+			try:
+				for interval in first_intervals:
+					uncached_reader.add_interval(*interval)
+				expected_reads = self._export_reads_as_strings(uncached_reader, os.path.join(temp_dir, "expected.bam"))
+			finally:
+				uncached_reader.close()
+
+			cached_reader = IntervalReader(input_bam_path, include_unmapped_read_pairs=True, cache_byte_ranges=True)
+			bam_reads_cache_dir = cached_reader._bam_reads_cache_dir.name
+			try:
+				for interval in first_intervals:
+					cached_reader.add_interval(*interval)
+				filtered_first_export = self._export_reads_as_strings(
+					cached_reader, os.path.join(temp_dir, "first.bam"), read_filter=lambda read: not read.is_reverse)
+				self.assertLess(len(filtered_first_export), len(expected_reads))
+
+				with pysam.AlignmentFile(input_bam_path) as input_bam, \
+						pysam.AlignmentFile(f"{input_bam_path}.empty.bam", "wb", template=input_bam):
+					pass
+				os.replace(f"{input_bam_path}.empty.bam", input_bam_path)
+				pysam.index(input_bam_path)
+
+				cached_reader.add_interval("chr9", 69036000, 69036600)
+				cached_reader.add_interval("chr9", 69037400, 69038700)
+				cached_reader.add_interval("chr2", 49127000, 49128000)
+				second_export = self._export_reads_as_strings(cached_reader, os.path.join(temp_dir, "second.bam"))
+			finally:
+				cached_reader.close()
+
+			self.assertEqual(second_export, expected_reads)
+			self.assertFalse(os.path.exists(bam_reads_cache_dir))
 
 	def test_save_to_file_reference_compression_option(self):
 		chr9_reference_fasta = get_chr9_reference_fasta()

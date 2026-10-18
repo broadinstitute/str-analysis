@@ -91,6 +91,30 @@ def merge_adjacent_byte_ranges(byte_ranges):
 	return merged
 
 
+def split_interval_into_cached_and_uncached_parts(start_0based, end, cached_regions_interval_tree):
+	"""Splits [start_0based, end) into adjacent parts that each lie either fully inside or fully outside the cached regions.
+
+	Args:
+		start_0based: 0-based start of the interval.
+		end: end of the interval (exclusive).
+		cached_regions_interval_tree: IntervalTree of non-overlapping regions on the interval's chromosome.
+
+	Returns:
+		list: (part_start_0based, part_end, is_cached) tuples in ascending order that together cover the interval exactly.
+	"""
+	parts = []
+	position = start_0based
+	for cached_region in sorted(cached_regions_interval_tree.overlap(start_0based, end)):
+		if cached_region.begin > position:
+			parts.append((position, cached_region.begin, False))
+		part_end = min(end, cached_region.end)
+		parts.append((max(position, cached_region.begin), part_end, True))
+		position = part_end
+	if position < end:
+		parts.append((position, end, False))
+	return parts
+
+
 def parse_crai_index(crai_path, cram_path, eof_container_length=len(CRAM_EOF_CONTAINER)):
 	"""Takes a .crai and .cram file path (either local or on gs://) and returns a 2-tuple. The first
 	value in the tuple is the byte offset where the CRAM header ends in the input CRAM file.
@@ -203,10 +227,13 @@ class IntervalReader:
 				If not specified, it will be inferred based on the cram_or_bam_path.
 			reference_fasta_path: Optional reference genome FASTA path to use when reading CRAM files using pysam.
 			include_unmapped_read_pairs: If True, also output any umapped read pairs stored at the end of the cram file.
-			cache_byte_ranges: This option is only relevant for CRAM files, and is ignored for BAMs.
-				Cache byte ranges read from the CRAM file in a temporary disk file. This can be useful when loading a
-				relatively small number of intervals and then reusing the same IntervalReader instance across multiple
-				rounds of CRAM access.
+			cache_byte_ranges: Keep what is read from the input in a temporary local file, so that a later
+				save_to_file call on this IntervalReader does not read it from the input again. This can be useful
+				when loading a relatively small number of intervals and then reusing the same IntervalReader instance
+				across multiple rounds of access. For a CRAM, every byte range (container) read is cached. For a BAM,
+				the reads written by the first save_to_file call are kept in a local BAM, and later calls read only
+				the parts of their intervals that the first call did not cover from the input. Reads for those
+				later parts are not cached, so a third call reads them from the input again.
 			verbose: If True, will print more detailed information.
 			debug: If True, will print even more detailed information.
 		"""
@@ -231,6 +258,11 @@ class IntervalReader:
 		self._debug = debug
 
 		self._byte_ranges_cache = _DiskBackedByteRangesCache() if cache_byte_ranges and self._is_cram_file else None
+		# The BAM counterpart of the byte-range cache. htslib does its own reads of a BAM, so there are no byte ranges
+		# to keep. Instead, the first save_to_file call keeps a copy of the reads it writes in a BAM in this directory,
+		# and records here which regions that BAM holds every read for (None until it has been written and indexed).
+		self._bam_reads_cache_dir = tempfile.TemporaryDirectory() if cache_byte_ranges and self._is_bam_file else None
+		self._regions_with_all_reads_in_bam_reads_cache = None
 		self._genomic_intervals = collections.defaultdict(intervaltree.IntervalTree)
 		self._peak_dedup_window_size = 0
 
@@ -359,19 +391,24 @@ class IntervalReader:
 		"""
 		return self._peak_dedup_window_size
 
-	def save_to_file(self, local_path, create_index=True, disable_reference_compression=True):
+	def save_to_file(self, local_path, create_index=True, disable_reference_compression=True, write_cram=None,
+					 read_filter=None):
 		"""Load and save the added genomic intervals to a local file at the given local_path.
 
-		The output format follows the input file type (a CRAM-backed reader writes CRAM, a BAM-backed reader
-		writes BAM), regardless of local_path's extension, so local_path should be given a matching extension.
+		By default the output format follows the input file type (a CRAM-backed reader writes CRAM, a BAM-backed
+		reader writes BAM), regardless of local_path's extension, so local_path should be given a matching extension.
 
 		Args:
-			local_path: Output file path (written as CRAM when the input is a CRAM, as BAM when the input is a BAM).
+			local_path: Output file path.
 			create_index: Whether to create an index for the output.
 			disable_reference_compression: For CRAM output, use htslib no_ref=1 to avoid external-reference-based
-				compression. This increases output size but avoids reference MD5 validation. Ignored when the input
-				is a BAM.
+				compression. This increases output size but avoids reference MD5 validation. Ignored for BAM output.
+			write_cram: True to write CRAM (also from a BAM input), False to write BAM (also from a CRAM input), or
+				None to match the input file type.
+			read_filter: Optional function that takes a pysam.AlignedSegment from the added intervals and returns
+				False for a read to leave out of the output. None writes every read.
 		"""
+		output_is_cram = self._is_cram_file if write_cram is None else write_cram
 		# temp_cram_container_file auto-deletes on close, but the .crai pysam.index writes beside it is a separate
 		# path NamedTemporaryFile does not track. The removal below is in a finally: everything between indexing and
 		# cleanup (opening the output, the fetch/write loop, closing files) can raise, and on that path the sidecar
@@ -381,6 +418,9 @@ class IntervalReader:
 		temp_cram_container_file = None
 		pysam_input_file = None
 		pysam_output_file = None
+		# the BAM reads cache (see __init__): read on later calls, written on the first call
+		pysam_bam_reads_cache_file = None
+		pysam_bam_reads_cache_output_file = None
 		partial_path = None
 		try:
 			if self._is_cram_file:
@@ -411,6 +451,15 @@ class IntervalReader:
 				# the file actually being fetched from is the BAM, not its index (the CRAM branch above names the
 				# container file it opened); this feeds the "DEBUG: Fetching ... from {pysam_input_filename}" print
 				pysam_input_filename = self._cram_or_bam_path
+				if self._bam_reads_cache_dir is not None:
+					bam_reads_cache_path = os.path.join(self._bam_reads_cache_dir.name, "cached_reads.bam")
+					if self._regions_with_all_reads_in_bam_reads_cache is None:
+						# the first call: the loop below writes a copy of every read it fetches to the cache
+						pysam_bam_reads_cache_output_file = pysam.AlignmentFile(
+							bam_reads_cache_path, mode="wb", template=pysam_input_file)
+						regions_written_to_bam_reads_cache = collections.defaultdict(intervaltree.IntervalTree)
+					else:
+						pysam_bam_reads_cache_file = pysam.AlignmentFile(bam_reads_cache_path, require_index=True)
 			# no else: __init__ already rejects any input that is neither .cram nor .bam, so one of the two
 			# branches above always applies
 
@@ -428,11 +477,11 @@ class IntervalReader:
 			# exception anywhere downstream destroyed a previously valid output and could leave its stale index
 			# beside a half-written file. The partial lives in the same directory so the final os.replace is an
 			# atomic same-filesystem rename.
-			partial_path = f"{local_path}.partial.cram" if self._is_cram_file else f"{local_path}.partial.bam"
-			pysam_output_file = pysam.AlignmentFile(partial_path, mode="wc" if self._is_cram_file else "wb",
+			partial_path = f"{local_path}.partial.cram" if output_is_cram else f"{local_path}.partial.bam"
+			pysam_output_file = pysam.AlignmentFile(partial_path, mode="wc" if output_is_cram else "wb",
 												template=pysam_input_file, reference_filename=self._reference_fasta_path,
 												format_options=[b"no_ref=1"]
-												if self._is_cram_file and disable_reference_compression else None)
+												if output_is_cram and disable_reference_compression else None)
 			read_counter = 0
 			# A read overlapping two non-overlapping requested intervals is returned by fetch() once per interval;
 			# track written alignments so each is emitted at most once (duplicates would otherwise be interpreted
@@ -462,8 +511,6 @@ class IntervalReader:
 					# already skipped) — there is nothing to fetch for it
 					continue
 				fetch_chrom = normalized_to_reference_name[normalized_chrom]
-				if self._debug:
-					print(f"DEBUG: Fetching {fetch_chrom}:{start}-{end} from {pysam_input_filename}")
 
 				if fetch_chrom != current_fetch_chrom:
 					# positions restart on a new contig, so nothing already seen can recur -- reset the whole window
@@ -471,32 +518,65 @@ class IntervalReader:
 					written_read_keys.clear()
 					eviction_heap.clear()
 
-				for read in pysam_input_file.fetch(fetch_chrom, start, end):
-					# drop keys for reads that end before this one starts; coordinate-ordered traversal guarantees
-					# they cannot be returned again
-					while eviction_heap and eviction_heap[0][0] < read.reference_start:
-						written_read_keys.discard(heapq.heappop(eviction_heap)[1])
+				if pysam_bam_reads_cache_file is not None:
+					# the parts of this interval that the cache covers are read from it, the rest from the input. The
+					# parts are adjacent and in ascending order, and a read that a part shares with an earlier part
+					# starts before it, so the reads still arrive in coordinate order and the window below drops repeats
+					interval_parts = split_interval_into_cached_and_uncached_parts(
+						start, end, self._regions_with_all_reads_in_bam_reads_cache.get(
+							normalized_chrom, intervaltree.IntervalTree()))
+				else:
+					interval_parts = [(start, end, False)]
 
-					read_key = (read.query_name, read.flag, read.reference_start)
-					if read_key in written_read_keys:
-						continue
-					written_read_keys.add(read_key)
-					# reference_end is None for an unmapped read placed at its mate's position; such a read spans no
-					# reference bases, so key it off reference_start to keep the heap ordering consistent
-					heapq.heappush(
-						eviction_heap,
-						(read.reference_end if read.reference_end is not None else read.reference_start, read_key))
-					# high-water mark of the dedup window, exposed via get_peak_dedup_window_size() so the bound can be
-					# asserted in tests and eyeballed in production -- this set is what used to grow to multiple GB
-					self._peak_dedup_window_size = max(self._peak_dedup_window_size, len(written_read_keys))
-					read_counter += 1
-					pysam_output_file.write(read)
+				for part_start, part_end, is_cached in interval_parts:
+					if self._debug:
+						print(f"DEBUG: Fetching {fetch_chrom}:{part_start}-{part_end} from "
+							  f"{bam_reads_cache_path if is_cached else pysam_input_filename}")
+					source_file = pysam_bam_reads_cache_file if is_cached else pysam_input_file
+					for read in source_file.fetch(fetch_chrom, part_start, part_end):
+						# drop keys for reads that end before this one starts; coordinate-ordered traversal guarantees
+						# they cannot be returned again
+						while eviction_heap and eviction_heap[0][0] < read.reference_start:
+							written_read_keys.discard(heapq.heappop(eviction_heap)[1])
+
+						read_key = (read.query_name, read.flag, read.reference_start)
+						if read_key in written_read_keys:
+							continue
+						written_read_keys.add(read_key)
+						# reference_end is None for an unmapped read placed at its mate's position; such a read spans no
+						# reference bases, so key it off reference_start to keep the heap ordering consistent
+						heapq.heappush(
+							eviction_heap,
+							(read.reference_end if read.reference_end is not None else read.reference_start, read_key))
+						# high-water mark of the dedup window, exposed via get_peak_dedup_window_size() so the bound can be
+						# asserted in tests and eyeballed in production -- this set is what used to grow to multiple GB
+						self._peak_dedup_window_size = max(self._peak_dedup_window_size, len(written_read_keys))
+
+						# the cache gets every read, and read_filter is applied only after it, so that a later call
+						# with a different read_filter (or none) still finds all the reads it needs in the cache.
+						# Checking read_filter after the duplicate check gives the same output as checking it before,
+						# since a repeat of a read the filter left out would be left out again.
+						if pysam_bam_reads_cache_output_file is not None:
+							pysam_bam_reads_cache_output_file.write(read)
+						if read_filter is not None and not read_filter(read):
+							continue
+						read_counter += 1
+						pysam_output_file.write(read)
+
+				if pysam_bam_reads_cache_output_file is not None:
+					regions_written_to_bam_reads_cache[normalized_chrom].addi(start, end)
 
 			if self._include_unmapped_read_pairs:
 				# fetch("*") is a single linear pass over the unplaced reads, so it cannot return the same read twice
 				# and no deduplication is needed here. Keeping a key per unmapped read would reintroduce exactly the
 				# unbounded-set memory growth the sliding window above exists to avoid.
-				for read in pysam_input_file.fetch("*"):
+				unmapped_reads_source_file = pysam_bam_reads_cache_file if pysam_bam_reads_cache_file is not None \
+					else pysam_input_file
+				for read in unmapped_reads_source_file.fetch("*"):
+					if pysam_bam_reads_cache_output_file is not None:
+						pysam_bam_reads_cache_output_file.write(read)
+					if read_filter is not None and not read_filter(read):
+						continue
 					read_counter += 1
 					pysam_output_file.write(read)
 
@@ -505,7 +585,17 @@ class IntervalReader:
 			pysam_output_file.close()
 			pysam_input_file = pysam_output_file = None
 
-			index_suffix = ".crai" if self._is_cram_file else ".bai"
+			if pysam_bam_reads_cache_output_file is not None:
+				# closed and indexed here for the same reason as the output above. Its reads are in the same
+				# coordinate order as the output's (see the create_index comment below), so it needs no sort first.
+				pysam_bam_reads_cache_output_file.close()
+				pysam_bam_reads_cache_output_file = None
+				pysam.index(bam_reads_cache_path)
+				# recorded only now that the cache is complete, so that if anything above raised, the next call
+				# writes the cache again instead of trusting a partial one
+				self._regions_with_all_reads_in_bam_reads_cache = dict(regions_written_to_bam_reads_cache)
+
+			index_suffix = ".crai" if output_is_cram else ".bai"
 			if create_index:
 				if self._debug:
 					print(f"DEBUG: Using pysam to generate a CRAM index for {local_path}")
@@ -516,7 +606,7 @@ class IntervalReader:
 					# header reference order and then coordinate order, and written_read_keys keeps a read spanning two
 					# intervals at its first (earlier) occurrence. A regression test exercises this invariant with
 					# non-adjacent intervals, an earlier mate, a duplicated boundary read, and unmapped reads.
-					if self._is_cram_file:
+					if output_is_cram:
 						# A CRAI is a flat per-container record list, so pysam.index does not require a sort here;
 						# re-sorting would only write another full-size CRAM.
 						pysam.index(partial_path)
@@ -555,7 +645,8 @@ class IntervalReader:
 			return read_counter
 
 		finally:
-			for pysam_file in (pysam_input_file, pysam_output_file):
+			for pysam_file in (pysam_input_file, pysam_output_file, pysam_bam_reads_cache_file,
+							   pysam_bam_reads_cache_output_file):
 				if pysam_file is not None:
 					pysam_file.close()
 			# on the success path these were already renamed away, so this only fires when something failed
@@ -616,6 +707,10 @@ class IntervalReader:
 		if self._byte_ranges_cache is not None:
 			self._byte_ranges_cache.close()
 			self._byte_ranges_cache = None
+		if self._bam_reads_cache_dir is not None:
+			self._bam_reads_cache_dir.cleanup()
+			self._bam_reads_cache_dir = None
+			self._regions_with_all_reads_in_bam_reads_cache = None
 		if self._storage_client is not None:
 			self._storage_client.close()
 			self._storage_client = None
