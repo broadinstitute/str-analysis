@@ -95,7 +95,7 @@ def compute_best_phase_repeat_purity(
     upstream of the locus, and for catalog loci whose start coordinate isn't motif-phased.
 
     Args:
-        nucleotide_sequence (str): nucleotide sequence with A, C, G, T
+        nucleotide_sequence (str): nucleotide sequence with A, C, G, T in upper or lower case
         motif (str): a repeat motif
         include_partial_repeats (bool): whether to include any partial repeat at the end of the sequence
         distance_metric (HAMMING_DISTANCE_METRIC or EDIT_DISTANCE_METRIC): distance metric to use
@@ -112,11 +112,6 @@ def compute_best_phase_repeat_purity(
     """
     if not motif or len(nucleotide_sequence) < len(motif):
         return float('nan'), None, 0
-
-    # compute_repeat_purity() builds the pure repeat from the upper-cased motif but compares it to the sequence
-    # as given, so a lower-case sequence would score zero
-    nucleotide_sequence = nucleotide_sequence.upper()
-    motif = motif.upper()
 
     phases_to_check = 1 if len(motif) > max_motif_length_for_phase_search else len(motif)
 
