@@ -1,1 +1,1 @@
-weisburd/str-analysis-with-ensembletr@sha256:d440d9ff36de2a1ac17c5a533b9e08eea4cca227ff1499108d78cedf44eaa631
+weisburd/str-analysis-with-ensembletr@sha256:a22ff5b4a7f0afdbcdd0a2aacfe198445b22a0e5be15c3864696ebea6867509a
