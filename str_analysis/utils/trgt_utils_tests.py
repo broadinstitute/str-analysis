@@ -67,6 +67,10 @@ class Tests(unittest.TestCase):
         self.temp_fasta_file.write(">chr3\n")
         self.temp_fasta_file.write(f"{seq4}{seq5}{seq6}\n")
 
+        # --------------------- chr4: chr1 soft-masked, the way repeats are stored in lowercase in the CHM13 reference
+        self.temp_fasta_file.write(">chr4\n")
+        self.temp_fasta_file.write(f"{spacer1}{seq1.lower()}{seq2.lower()}{seq3.lower()}{spacer2.lower()}\n")
+
         self.temp_fasta_file.close()
 
         self.fasta_obj = pyfaidx.Fasta(self.temp_fasta_file.name, one_based_attributes=False, as_raw=True)
@@ -86,6 +90,18 @@ class Tests(unittest.TestCase):
                 "VariantType": "Repeat",
             })
 
+    def test_convert_trgt_locus_to_expansion_hunter_format_with_soft_masked_reference(self):
+
+        expansion_hunter_specs = list(convert_trgt_locus_to_expansion_hunter_format(
+            self.fasta_obj, "chr4", 0, len(self.fasta_obj["chr4"]), self.chr1_trgt_locus_struc))
+
+        self.assertEqual(expansion_hunter_specs, [{
+            "LocusId": locus_id.replace("chr1", "chr4"),
+            "ReferenceRegion": reference_region.replace("chr1", "chr4"),
+            "LocusStructure": f"({motif})*",
+            "VariantType": "Repeat",
+        } for locus_id, reference_region, motif in zip(
+            self.chr1_locus_ids, self.chr1_reference_regions, self.chr1_motifs)])
 
 
     def tearDown(self):

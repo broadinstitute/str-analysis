@@ -5,7 +5,9 @@ def convert_trgt_locus_to_expansion_hunter_format(
     fasta_obj, chrom, start_0based, end_1based, locus_structure, locus_id_prefix=None, verbose=False):
     """Convert a TRGT locus definition to one or more ExpansionHunter catalog records"""
 
-    unprocessed_reference_sequence = fasta_obj[chrom][start_0based:end_1based]
+    # uppercase the reference sequence since soft-masked reference genomes (like CHM13) store repeats in lowercase,
+    # and the comparisons below to the uppercase flanks and motifs of the locus structure are case-sensitive
+    unprocessed_reference_sequence = fasta_obj[chrom][start_0based:end_1based].upper()
     unprocessed_locus_structure = locus_structure
     current_start_coord_0based = start_0based
     while "(" in unprocessed_locus_structure:  # continue while there are more motifs

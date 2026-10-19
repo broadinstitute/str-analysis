@@ -310,7 +310,8 @@ def count_Ns_in_flanks(fasta_obj, reference_region_chrom, reference_region_start
     left_flank = get_reference_sequence_with_cache(fasta_obj, reference_region_chrom, left_flank_start, reference_region_start_0based)
     right_flank = get_reference_sequence_with_cache(fasta_obj, reference_region_chrom, reference_region_end, right_flank_end)
 
-    total_Ns_in_flanks = left_flank.count("N") + right_flank.count("N")
+    # uppercase the flanks since soft-masked reference genomes can store Ns in lowercase
+    total_Ns_in_flanks = left_flank.upper().count("N") + right_flank.upper().count("N")
     return total_Ns_in_flanks
 
 

@@ -26,7 +26,7 @@ def compute_repeat_purity(
     computing stats, unless include_partial_repeats is True.
 
     Args:
-        nucleotide_sequence (str): nucleotide sequence with A, C, G, T
+        nucleotide_sequence (str): nucleotide sequence with A, C, G, T in upper or lower case
         motif (str): a repeat motif
         include_partial_repeats (bool): whether to include any partial repeat at the end of the sequence in the
             calculation. If False, only complete repeats will be included.
@@ -49,6 +49,9 @@ def compute_repeat_purity(
     """
     if len(nucleotide_sequence) < len(motif):
         return float('nan'), None
+
+    # soft-masked reference genomes (like CHM13) store repeats in lowercase, and the distance below is case-sensitive
+    nucleotide_sequence = nucleotide_sequence.upper()
 
     num_repeats = int(len(nucleotide_sequence)/len(motif))
     if include_partial_repeats:

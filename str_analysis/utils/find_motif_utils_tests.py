@@ -41,6 +41,18 @@ class Tests(unittest.TestCase):
                 self.assertAlmostEqual(purity, expected_purity, msg=f"{sequence} vs {motif}")
                 self.assertEqual(phase, expected_phase, msg=f"{sequence} vs {motif}")
 
+    def test_compute_repeat_purity_ignores_case(self):
+        # soft-masked reference genomes like CHM13 store repeats in lowercase
+        for distance_metric in HAMMING_DISTANCE_METRIC, EDIT_DISTANCE_METRIC:
+            for sequence in "CAGCAGCATCAG", "CAGCAGCATCA":
+                self.assertEqual(
+                    compute_repeat_purity(sequence.lower(), "CAG", include_partial_repeats=True,
+                                          distance_metric=distance_metric),
+                    compute_repeat_purity(sequence, "CAG", include_partial_repeats=True,
+                                          distance_metric=distance_metric))
+
+        self.assertEqual(compute_repeat_purity("cagcagCAGcag", "CAG"), (1.0, 0))
+
     def test_compute_best_phase_repeat_purity_is_never_worse_than_phase_zero(self):
         sequence = "AGCAGCAGCACCAGCAGCAG"
         phase_zero_purity, _ = compute_repeat_purity(sequence, "CAG", include_partial_repeats=True)

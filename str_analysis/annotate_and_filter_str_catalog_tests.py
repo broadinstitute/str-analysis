@@ -505,6 +505,18 @@ class TestCountNsInFlanks(unittest.TestCase):
 
             self.assertEqual(count, 8)  # 5 + 3
 
+    def test_count_Ns_in_flanks_with_lowercase_Ns(self):
+        """Test counting Ns in a soft-masked reference, which can store them in lowercase."""
+        with mock.patch('str_analysis.annotate_and_filter_str_catalog.get_reference_sequence_with_cache') as mock_get_seq, \
+             mock.patch('str_analysis.annotate_and_filter_str_catalog.get_chromosome_size_with_cache', return_value=100000):
+
+            mock_get_seq.side_effect = lambda fasta, chrom, start, end: (
+                'a' * 995 + 'nnNNn' if end == 5000 else 'nnn' + 'a' * 997)
+
+            count = count_Ns_in_flanks(self.mock_fasta, 'chr1', 5000, 6000, num_flanking_bases=1000)
+
+            self.assertEqual(count, 8)  # 5 + 3
+
     def test_count_Ns_in_flanks_at_chromosome_start(self):
         """Test counting Ns when repeat is near chromosome start."""
         with mock.patch('str_analysis.annotate_and_filter_str_catalog.get_reference_sequence_with_cache') as mock_get_seq, \
