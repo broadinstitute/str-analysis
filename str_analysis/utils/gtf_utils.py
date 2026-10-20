@@ -46,6 +46,9 @@ def parse_gtf_to_interval_trees(gtf_path=GENE_MODELS["gencode"], verbose=False, 
     counters = collections.defaultdict(int)
     gtf_records = list(iterator)
 
+    # check before anything is cached, so that a later call can't reuse the results of a GTF that failed this check
+    check_that_transcript_ids_of_unlabeled_UTR_records_have_only_one_transcript_record(gtf_records, gtf_path)
+
     # create IntervalTree for each chromosome
     interval_trees = GENCODE_INTERVAL_TREES[(gtf_path, promoter_size)] = collections.defaultdict(IntervalTree)
 
@@ -85,6 +88,36 @@ def parse_gtf_to_interval_trees(gtf_path=GENE_MODELS["gencode"], verbose=False, 
     if verbose:
         for key, count in sorted(counters.items(), key=lambda s: s[1], reverse=True):
             print(f"{count:10,d} {key}")
+
+
+def check_that_transcript_ids_of_unlabeled_UTR_records_have_only_one_transcript_record(gtf_records, gtf_path):
+    """Raise an error if a UTR record that isn't labeled as 5UTR or 3UTR in the GTF (as in GENCODE GTFs) has a
+    transcript id that appears in more than one transcript record. compute_UTR_type labels such UTRs as 5' or 3' by
+    comparing them with the first CDS record of their transcript id, so if several copies of a transcript share an id,
+    it would compare the UTRs of the other copies with the wrong CDS.
+
+    Args:
+        gtf_records (list): records from generate_gtf_records
+        gtf_path (str): path of the GTF file the records came from, used in the error message
+
+    Raises:
+        ValueError: if any such transcript id is found
+    """
+    transcript_record_counts = collections.Counter(
+        record["transcript_id"] for record in gtf_records if record["feature_type"] == "transcript")
+    transcript_ids_of_unlabeled_UTR_records = {
+        record["transcript_id"] for record in gtf_records
+        if record["feature_type"] == "UTR" and record["UTR_type_from_gtf"] is None}
+
+    transcript_ids_with_more_than_one_transcript_record = sorted(
+        transcript_id for transcript_id in transcript_ids_of_unlabeled_UTR_records
+        if transcript_record_counts[transcript_id] > 1)
+    if transcript_ids_with_more_than_one_transcript_record:
+        raise ValueError(
+            f"{len(transcript_ids_with_more_than_one_transcript_record):,d} transcript id(s) in {gtf_path} have "
+            f"UTR records that aren't labeled as 5UTR or 3UTR, and also appear in more than one transcript record, so "
+            f"these UTRs can't be labeled as 5' or 3' by comparing them with the transcript's CDS. Examples: "
+            f"{', '.join(transcript_ids_with_more_than_one_transcript_record[:10])}")
 
 
 def generate_gtf_records(gtf_path, promoter_size=PROMOTER_SIZE):
@@ -191,7 +224,7 @@ def generate_gtf_records(gtf_path, promoter_size=PROMOTER_SIZE):
 def compute_UTR_type(utr_record, transcript_id_to_cds_coords):
 
     if utr_record["feature_type"] != "UTR":
-        raise utr_record["feature_type"]
+        raise ValueError(f"Expected a UTR record, but got a {utr_record['feature_type']} record: {utr_record}")
 
     # Use the GTF's own 5UTR or 3UTR label when it has one. The lookup below takes the first CDS record of the
     # transcript id, so it compares the UTR with the wrong CDS when several copies of a gene share a transcript id.

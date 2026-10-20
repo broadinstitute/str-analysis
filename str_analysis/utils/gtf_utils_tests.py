@@ -213,6 +213,34 @@ chr1\tHAVANA\texon\t5000\t6000\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id "
         # Should only have 2 intervals (limited by n=2)
         self.assertEqual(len(chr1_intervals), 2)
 
+    def test_parse_gtf_to_interval_trees_unlabeled_UTRs_of_transcript_id_with_more_than_one_transcript_record(self):
+        """Test that a transcript id with more than one transcript record raises an error if it has UTR records that
+        aren't labeled as 5UTR or 3UTR, and that nothing is cached for that GTF."""
+
+        def create_gtf_file_with_two_copies_of_a_transcript(five_prime_UTR_feature_type, three_prime_UTR_feature_type):
+            gtf_content = ""
+            for copy_start_1based in 1000, 11000:
+                gtf_content += "".join(
+                    f"chr1\tHAVANA\t{feature_type}\t{copy_start_1based + start_offset}\t{copy_start_1based + end_offset}\t.\t+\t.\t"
+                    f'gene_id "ENSG00000123"; transcript_id "ENST00000456"; gene_name "TEST1";\n'
+                    for feature_type, start_offset, end_offset in [
+                        ("transcript", 0, 1000), (five_prime_UTR_feature_type, 0, 99), ("CDS", 100, 900),
+                        (three_prime_UTR_feature_type, 901, 1000),
+                    ])
+            self.create_gtf_file(gtf_content)
+
+        create_gtf_file_with_two_copies_of_a_transcript("UTR", "UTR")
+        with self.assertRaisesRegex(ValueError, "1 transcript id.* in .* have UTR records .* Examples: ENST00000456$"):
+            parse_gtf_to_interval_trees(self.gtf_file)
+
+        self.assertNotIn((self.gtf_file, PROMOTER_SIZE), GENCODE_INTERVAL_TREES)
+        self.assertNotIn(self.gtf_file, TRANSCRIPT_ID_TO_CDS_COORDS_MAP)
+
+        # labeling the UTRs as 5UTR and 3UTR avoids the error, since they then don't need the CDS lookup
+        create_gtf_file_with_two_copies_of_a_transcript("5UTR", "3UTR")
+        parse_gtf_to_interval_trees(self.gtf_file)
+        self.assertIn((self.gtf_file, PROMOTER_SIZE), GENCODE_INTERVAL_TREES)
+
     def test_parse_gtf_to_interval_trees_with_verbose(self):
         """Test parsing with verbose output."""
         gtf_content = """chr1\tHAVANA\texon\t1000\t1200\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id "ENST00000456"; gene_name "TEST1";
@@ -511,8 +539,7 @@ class TestComputeUTRType(unittest.TestCase):
 
         cds_coords = {}
 
-        # The actual code raises the feature_type string, which causes TypeError
-        with self.assertRaises(TypeError):
+        with self.assertRaisesRegex(ValueError, "Expected a UTR record, but got a exon record"):
             compute_UTR_type(utr_record, cds_coords)
 
     def test_compute_utr_type_ambiguous_utr_warning(self):
