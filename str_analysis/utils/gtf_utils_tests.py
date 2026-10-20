@@ -228,17 +228,18 @@ chr1\tHAVANA\texon\t5000\t6000\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id "
             self.assertIn("Parsing", output)
 
     def test_generate_gtf_records_5utr_3utr_conversion(self):
-        """Test that 5UTR and 3UTR are converted to UTR."""
+        """Test that 5UTR and 3UTR are converted to UTR records that keep the GTF's 5' or 3' label."""
         gtf_content = """chr1\tHAVANA\t5UTR\t1000\t1099\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id "ENST00000456"; gene_name "TEST1";
 chr1\tHAVANA\t3UTR\t1900\t2000\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id "ENST00000456"; gene_name "TEST1";
+chr1\tHAVANA\tUTR\t2100\t2200\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id "ENST00000456"; gene_name "TEST1";
 """
         self.create_gtf_file(gtf_content)
         records = list(generate_gtf_records(self.gtf_file))
 
-        # Both should be converted to UTR
-        self.assertEqual(len(records), 2)
-        self.assertEqual(records[0]["feature_type"], "UTR")
-        self.assertEqual(records[1]["feature_type"], "UTR")
+        # All should be converted to UTR, and only the 5UTR and 3UTR records have a label from the GTF
+        self.assertEqual(len(records), 3)
+        self.assertEqual([r["feature_type"] for r in records], ["UTR", "UTR", "UTR"])
+        self.assertEqual([r["UTR_type_from_gtf"] for r in records], ["5' UTR", "3' UTR", None])
 
     def test_generate_gtf_records_unexpected_feature_warning(self):
         """Test warning for unexpected feature types."""
@@ -415,6 +416,26 @@ class TestComputeUTRType(unittest.TestCase):
 
         result = compute_UTR_type(utr_record, cds_coords)
         self.assertEqual(result, "3' UTR")
+
+    def test_compute_utr_type_label_from_gtf(self):
+        """Test that the GTF's 5UTR or 3UTR label is used instead of the cached CDS."""
+        utr_record = {
+            "feature_type": "UTR",
+            "chrom": "chr1",
+            "start_1based": 5000,
+            "end_1based": 5099,
+            "strand": "+",
+            "transcript_id": "ENST00000456",
+            "UTR_type_from_gtf": "5' UTR",
+        }
+
+        # the cached CDS belongs to another copy of the gene, upstream of this one, so it would give "3' UTR"
+        cds_coords = {
+            "ENST00000456": ("chr1", 1100, 1900, "+")
+        }
+
+        result = compute_UTR_type(utr_record, cds_coords)
+        self.assertEqual(result, "5' UTR")
 
     def test_compute_utr_type_no_cds_found(self):
         """Test when CDS not found for transcript."""
@@ -687,6 +708,28 @@ chr1\tHAVANA\tUTR\t1000\t1099\t.\t+\t.\tgene_id "ENSG00000123"; transcript_id "E
 
         # CDS has highest priority
         self.assertEqual(region, "CDS")
+
+    def test_compute_genomic_region_gene_copies_that_share_a_transcript_id(self):
+        """Test that the UTRs of the second copy of a gene, whose transcript id is the same as the first copy's, are
+        labeled from the GTF's 5UTR and 3UTR records rather than from the first copy's CDS."""
+        gtf_content = ""
+        for copy_start_1based in 1000, 11000:
+            gtf_content += "".join(
+                f"chr1\tHAVANA\t{feature_type}\t{copy_start_1based + start_offset}\t{copy_start_1based + end_offset}\t.\t+\t.\t"
+                f'gene_id "ENSG00000123"; transcript_id "ENST00000456"; gene_name "TEST1";\n'
+                for feature_type, start_offset, end_offset in [
+                    ("transcript", 0, 1000), ("exon", 0, 1000), ("5UTR", 0, 99), ("CDS", 100, 900), ("3UTR", 901, 1000),
+                ])
+        test_gtf = os.path.join(self.temp_dir, "gene_copies.gtf")
+        with open(test_gtf, 'w') as f:
+            f.write(gtf_content)
+
+        region, _, _, transcript_id = compute_genomic_region_of_interval("chr1", 11020, 11050, genes_gtf_path=test_gtf)
+        self.assertEqual(region, "5' UTR")
+        self.assertEqual(transcript_id, "ENST00000456")
+
+        region, _, _, _ = compute_genomic_region_of_interval("chr1", 11950, 11980, genes_gtf_path=test_gtf)
+        self.assertEqual(region, "3' UTR")
 
     def test_compute_genomic_region_custom_promoter_size(self):
         """Test that promoter_size changes the promoter annotation, and that results computed with different

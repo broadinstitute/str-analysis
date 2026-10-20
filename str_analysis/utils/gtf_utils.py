@@ -122,7 +122,10 @@ def generate_gtf_records(gtf_path, promoter_size=PROMOTER_SIZE):
                 print(f"WARNING: Unexpected feature type '{feature_type}' in {gtf_path} line #{i}: {line.strip()}")
             continue
 
-        if feature_type == "5UTR" or feature_type == "3UTR":
+        # GTFs such as UCSC's label each UTR as a 5UTR or 3UTR. Keep that label, but treat these records as UTR records
+        # so that they're picked the same way as the UTR records of GENCODE GTFs.
+        UTR_type_from_gtf = {"5UTR": "5' UTR", "3UTR": "3' UTR"}.get(feature_type)
+        if UTR_type_from_gtf is not None:
             feature_type = "UTR"
 
         annotation_source = fields[1]
@@ -154,6 +157,7 @@ def generate_gtf_records(gtf_path, promoter_size=PROMOTER_SIZE):
             "gene_name": meta_fields["gene_name"],
             "gene_type": meta_fields.get("transcript_type"),
             "transcript_type":  meta_fields.get("transcript_type"),
+            "UTR_type_from_gtf": UTR_type_from_gtf,
         }
 
         yield record
@@ -188,6 +192,11 @@ def compute_UTR_type(utr_record, transcript_id_to_cds_coords):
 
     if utr_record["feature_type"] != "UTR":
         raise utr_record["feature_type"]
+
+    # Use the GTF's own 5UTR or 3UTR label when it has one. The lookup below takes the first CDS record of the
+    # transcript id, so it compares the UTR with the wrong CDS when several copies of a gene share a transcript id.
+    if utr_record.get("UTR_type_from_gtf"):
+        return utr_record["UTR_type_from_gtf"]
 
     cds_coords = transcript_id_to_cds_coords.get(utr_record["transcript_id"])
     if cds_coords is None:
