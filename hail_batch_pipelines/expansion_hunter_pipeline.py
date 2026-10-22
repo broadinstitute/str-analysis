@@ -6,8 +6,9 @@ import re
 from str_analysis.utils.file_utils import file_exists
 from step_pipeline import pipeline, Backend, Localize, Delocalize
 
-# Built from bw2/ExpansionHunter fea497a, which embeds the 2026-10-08 genotype-quality model
-DOCKER_IMAGE = "weisburd/str-analysis-with-expansion-hunter@sha256:10b3d26b5ae8b886688fb82bc65cf6e1bcaa3452b58c92ba3f188a0e1b7cdf0e"
+# Built from bw2/ExpansionHunter 053dcd8 (e90307c plus a Docker digest commit), which embeds the 2026-10-17
+# genotype-quality model
+DOCKER_IMAGE = "weisburd/str-analysis-with-expansion-hunter@sha256:9e3090a2a69506a513a42ec49d1b9f83f1f0302c828741c3dfde001c629435d8"
 #DOCKER_IMAGE = "gcr.io/bw2-rare-disease/ehd-bw2:latest"
 
 REFERENCE_FASTA_PATH = "gs://gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta"
