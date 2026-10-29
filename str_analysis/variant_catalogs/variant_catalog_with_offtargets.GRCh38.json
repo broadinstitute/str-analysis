@@ -1209,7 +1209,8 @@
                 "Symbol": "EP400",
                 "Name": "Cerebellar Ataxia",
                 "Inheritance": "AD",
-                "PathogenicMin": 55
+                "Note": "The pathogenic cutoff applies to the longest pure repeat sequence.",
+                "PathogenicMin": 37
             }
         ],
         "OfftargetRegions": [
@@ -1250,7 +1251,8 @@
                 "Symbol": "EP400",
                 "Name": "Cerebellar Ataxia",
                 "Inheritance": "AD",
-                "PathogenicMin": 70
+                "Note": "The pathogenic cutoff applies to the longest pure repeat sequence.",
+                "PathogenicMin": 37
             }
         ],
         "OfftargetRegions": [
@@ -1913,7 +1915,7 @@
         "TRExplorerV1": "16-87604287-87604329-CTG",
         "TRExplorerV2": "16-87604287-87604329-CTG",
         "Gene": "JPH3",
-        "GeneRegion": "coding: polyglutamine",
+        "GeneRegion": "coding: polyalanine/polyleucine",
         "GeneId": "ENSG00000154118",
         "DiscoveryMethod": "L, RED",
         "DiscoveryYear": 2001,
