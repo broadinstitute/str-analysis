@@ -832,6 +832,52 @@ class TestMainIntegration(unittest.TestCase):
         self.assertIn('1000', output[0]['ReferenceRegion'])
         self.assertIn('1200', output[0]['ReferenceRegion'])
 
+    def run_keep_first_merge_with_jaccard_threshold(self, catalog_paths, extra_args=()):
+        """Runs main() with keep-first and a 0.66 Jaccard similarity threshold, and returns the output LocusIds."""
+        import gzip
+        import simplejson
+        from str_analysis.merge_loci import main
+
+        output_prefix = os.path.join(self.temp_dir, "merged")
+        sys.argv = [
+            'test',
+            '--output-prefix', output_prefix,
+            '--output-format', 'JSON',
+            '--overlapping-loci-action', 'keep-first',
+            '--overlap-fraction', '0.66',
+            '--min-jaccard-similarity', '0.66',
+            *extra_args,
+            *catalog_paths,
+        ]
+        main()
+
+        output_file = f"{output_prefix}.json.gz" if os.path.exists(f"{output_prefix}.json.gz") else f"{output_prefix}.json"
+        fopen = gzip.open if output_file.endswith('.gz') else open
+        with fopen(output_file, 'rt') as f:
+            return [record['LocusId'] for record in simplejson.load(f)]
+
+    def test_main_discarded_loci_dont_make_later_loci_redundant(self):
+        """A record that only matches an already-discarded record is kept.
+
+        locus2 (chr1:1000-1024) is discarded as redundant with locus1 (chr1:1000-1018, Jaccard 18/24). locus3
+        (chr1:1000-1034) matches the discarded locus2 (Jaccard 24/34), but not locus1 (Jaccard 18/34), so nothing in
+        the output describes it, and it's kept. This is the CHM13 catalog's chr1:1249185-1249219 (A)* locus.
+        """
+        catalog_paths = [
+            self.create_json_catalog(f"cat{i}.json", [{
+                "LocusId": f"locus{i}", "LocusStructure": "(A)*", "ReferenceRegion": region, "VariantType": "Repeat"}])
+            for i, region in [(1, "chr1:1000-1018"), (2, "chr1:1000-1024"), (3, "chr1:1000-1034")]
+        ]
+        self.assertEqual(self.run_keep_first_merge_with_jaccard_threshold(catalog_paths), ["locus1", "locus3"])
+
+    def test_main_discarded_loci_dont_make_later_loci_of_the_same_catalog_redundant(self):
+        """Like the test above, but with all three records in one catalog."""
+        catalog_path = self.create_json_catalog("cat.json", [
+            {"LocusId": f"locus{i}", "LocusStructure": "(A)*", "ReferenceRegion": region, "VariantType": "Repeat"}
+            for i, region in [(1, "chr1:1000-1018"), (2, "chr1:1000-1024"), (3, "chr1:1000-1034")]
+        ])
+        self.assertEqual(self.run_keep_first_merge_with_jaccard_threshold([catalog_path]), ["locus1", "locus3"])
+
     def tearDown(self):
         """Clean up temporary files."""
         import shutil

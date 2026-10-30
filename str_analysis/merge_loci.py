@@ -399,6 +399,12 @@ def add_variant_catalog_to_interval_trees(
         remove_existing = False
         overlapping_intervals = interval_trees[chrom].overlap(start_0based, end_1based)
         for overlapping_interval in overlapping_intervals:
+            # Discarded records stay in the interval trees for the outer-join table below, but they aren't in the
+            # output, so they mustn't make a new record redundant: a record that only matches a discarded record
+            # (eg. one whose Jaccard similarity with the record that replaced it is below --min-jaccard-similarity)
+            # would otherwise be dropped although nothing in the output describes it.
+            if overlapping_interval.data.get("Discarded"):
+                continue
             existing_interval = check_for_sufficient_overlap_and_motif_match(
                 overlapping_interval,
                 new_interval,
