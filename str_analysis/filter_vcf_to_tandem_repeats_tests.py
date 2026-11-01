@@ -60,6 +60,8 @@ from str_analysis.filter_vcf_to_tandem_repeats import Allele, TandemRepeatAllele
     NO_CALL_REASON_REF_ALLELE_MISMATCH, RefAlleleMismatchError, \
     NO_CALL_REASON_MISSING_GENOTYPE, find_records_with_a_missing_genotype_allele, \
     NO_CALL_REASON_NON_REPEAT_INSERTION, NO_CALL_REASON_CHROMOSOME_ABSENT, run_shell_command, \
+    NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL, get_insertion_or_deletion, get_equivalent_placements_of_indel, \
+    find_boundary_indel_that_would_change_a_repeat_count, fetch_vcf_records_near_locus, \
     does_variant_change_the_locus, get_called_alt_alleles, \
     match_interval_to_catalog_contig, is_locus_genotyped_as_reference
 from str_analysis.utils.find_motif_utils import format_motifs_as_sequence_string, \
@@ -1242,7 +1244,7 @@ chr1\t2000\t.\tC\tCA\t.\tPASS\t.\tGT\t0/1
 
             # Fetch variants overlapping region 990-1060 (should get 2 variants)
             variants = get_overlapping_vcf_variants(
-                vcf_file, "chr1", 990, 1060)
+                fetch_vcf_records_near_locus(vcf_file, "chr1", 990, 1060), 990, 1060)
 
             self.assertEqual(len(variants), 2)
             self.assertEqual(variants[0].pos, 1000)
@@ -1279,7 +1281,7 @@ chr1\t1000\t.\tA\tAT,ATT,ATTT\t.\tPASS\t.\tGT\t1/2
             vcf_file = pysam.VariantFile(vcf_gz_path)
 
             variants = get_overlapping_vcf_variants(
-                vcf_file, "chr1", 990, 1010)
+                fetch_vcf_records_near_locus(vcf_file, "chr1", 990, 1010), 990, 1010)
 
             self.assertEqual(len(variants), 1)
 
@@ -1313,7 +1315,7 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
 
             # Fetch from region that has no variants
             variants = get_overlapping_vcf_variants(
-                vcf_file, "chr1", 2000, 3000)
+                fetch_vcf_records_near_locus(vcf_file, "chr1", 2000, 3000), 2000, 3000)
 
             self.assertEqual(len(variants), 0)
 
@@ -1332,8 +1334,8 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
 
         A normalized repeat-unit insertion anchors to the base just before the tract, so its
         REF span [start_0based - 1, start_0based) does not overlap [start_0based, end). A plain
-        tabix fetch(start_0based, end) misses it; get_overlapping_vcf_variants widens the window
-        and must include it.
+        tabix fetch(start_0based, end) misses it; fetch_vcf_records_near_locus fetches a wider
+        window, and get_overlapping_vcf_variants must keep the insertion when it filters those records.
         """
         import pysam
         vcf_content = """##fileformat=VCFv4.2
@@ -1354,7 +1356,7 @@ chr1\t1001\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
             # Locus [1001, 1011); the insertion at POS 1001 (0-based 1000) is anchored one base
             # to the left of the locus start and would be dropped by a non-widened fetch.
             variants = get_overlapping_vcf_variants(
-                vcf_file, "chr1", 1001, 1011)
+                fetch_vcf_records_near_locus(vcf_file, "chr1", 1001, 1011), 1001, 1011)
 
             self.assertEqual(len(variants), 1)
             self.assertEqual(variants[0].pos, 1001)
@@ -1395,7 +1397,7 @@ chr1\t1006\t.\tC\tCAT\t.\tPASS\t.\tGT\t0/1
             # Locus [1001, 1011): the SNV at POS 1001 (0-based 1000) touches only the last flank
             # base and must be excluded; the insertion at POS 1006 falls inside and is kept.
             variants = get_overlapping_vcf_variants(
-                vcf_file, "chr1", 1001, 1011)
+                fetch_vcf_records_near_locus(vcf_file, "chr1", 1001, 1011), 1001, 1011)
 
             self.assertEqual(len(variants), 1)
             self.assertEqual(variants[0].pos, 1006)
@@ -1430,7 +1432,7 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
 
             # Fetch from chromosome not in VCF
             variants = get_overlapping_vcf_variants(
-                vcf_file, "chr2", 1000, 2000)
+                fetch_vcf_records_near_locus(vcf_file, "chr2", 1000, 2000), 1000, 2000)
 
             self.assertEqual(len(variants), 0)
 
@@ -1465,7 +1467,8 @@ chr1\t1000\t.\tA\tAT\t.\tPASS\t.\tGT\t0/1
             # Query using chr1 but VCF has "1" - the contig lookup should resolve it to the VCF's spelling
             vcf_contig_lookup = build_contig_name_lookup(vcf_file.header.contigs)
             variants = get_overlapping_vcf_variants(
-                vcf_file, vcf_contig_lookup[normalize_chromosome_name("chr1")], 990, 1010)
+                fetch_vcf_records_near_locus(vcf_file, vcf_contig_lookup[normalize_chromosome_name("chr1")], 990, 1010),
+                990, 1010)
 
             self.assertEqual(len(variants), 1)
             self.assertEqual(variants[0].pos, 1000)
@@ -2372,6 +2375,9 @@ class TestGenotypeSingleLocus(unittest.TestCase):
         variant.pos = pos
         variant.ref = ref
         variant.alleles = (ref, alt)
+        # pysam's 0-based REF span, which get_overlapping_vcf_variants uses to pick its records
+        variant.start = pos - 1
+        variant.stop = pos - 1 + len(ref)
 
         sample = mock.MagicMock()
         # Return the GT tuple only for the "GT" key. A blanket return_value would hand the same tuple
@@ -2468,6 +2474,7 @@ class TestGenotypeSingleLocus(unittest.TestCase):
         variant.pos = 1
         variant.ref = "C"
         variant.alleles = ("C", "T", "G")  # 3 alleles = multi-allelic
+        variant.start, variant.stop = 0, 1
 
         sample = mock.MagicMock()
         sample.get = mock.MagicMock(return_value=(0, 1))
@@ -3316,15 +3323,17 @@ chr1\t4\t.\tC\tCCAG\t.\tPASS\t.\tGT\t0|1
         The same two haplotypes are given here exactly as dipcall wrote them for HG00738 at chr1:4420277 (one
         multiallelic record whose REF carries the reference's soft-masking and whose second ALT shares an 18bp
         prefix and a 28bp suffix with REF) and as `bcftools norm -m - -f ref` rewrites them (one record per ALT,
-        with the second ALT's shared suffix trimmed off). Both must give identical genotypes at the two loci the
-        record overlaps. The reference is hg38 chr1:4420201-4420400, so the (GT)24 locus at chr1:4420232-4420280
-        becomes chr1:32-80 and the record moves from POS 4420277 to POS 77.
+        with the second ALT's shared suffix trimmed off). Both must give identical haplotype sequences at the two
+        loci the record overlaps. The reference is hg38 chr1:4420201-4420400, so the (GT)24 locus at
+        chr1:4420232-4420280 becomes chr1:32-80 and the record moves from POS 4420277 to POS 77.
 
         Trimming the shared suffix leaves the second ALT at the leftmost position it can occupy, which is the
         placement bcftools left-alignment settles on as well, so the split record needs no further shifting. That
         placement runs the 50bp deletion into the last 3 bases of the GT tract and gives 22 repeats. Trimming the
         shared prefix first would instead put the deletion 18bp further right, outside the GT locus, and give 24,
         which is what the code reported for this haplotype before it trimmed alleles when mapping locus boundaries.
+        Since both placements are valid readings of the same haplotypes, genotyping gives each locus no call, so the
+        haplotype sequences are checked directly.
         """
         import pysam
         import pyfaidx
@@ -3353,26 +3362,28 @@ chr1\t4\t.\tC\tCCAG\t.\tPASS\t.\tGT\t0|1
         if None in vcf_gz_paths:
             self.skipTest("bgzip/tabix unavailable")
 
-        expected_genotypes = {
-            (32, 80, "GT"): ("HOM", 22, 22, "GT" * 22 + "G", "GT" * 22 + "G"),
-            (79, 94, "TA"): ("HOM", 0, 0, "", ""),
+        expected_haplotype_sequences = {
+            (32, 80, "GT"): ("GT" * 22 + "G", "GT" * 22 + "G"),
+            (79, 94, "TA"): ("", ""),
         }
         fasta_obj = pyfaidx.Fasta(fasta_path, one_based_attributes=False, as_raw=True)
         try:
-            for (start_0based, end, repeat_unit), expected in expected_genotypes.items():
+            for (start_0based, end, repeat_unit), expected in expected_haplotype_sequences.items():
                 tr_locus = ReferenceTandemRepeat(
                     chrom="chr1", start_0based=start_0based, end_1based=end, repeat_unit=repeat_unit)
                 for vcf_gz_path in vcf_gz_paths:
                     vcf_file = pysam.VariantFile(vcf_gz_path)
                     try:
-                        result = genotype_single_locus(
-                            tr_locus, vcf_file, fasta_obj)
+                        variants = get_overlapping_vcf_variants(
+                            fetch_vcf_records_near_locus(vcf_file, "chr1", start_0based, end, repeat_unit),
+                            start_0based, end, repeat_unit, fasta_obj, "chr1")
+                        result = genotype_single_locus(tr_locus, vcf_file, fasta_obj)
                     finally:
                         vcf_file.close()
-                    self.assertEqual(
-                        (result.zygosity, result.num_repeats_allele1, result.num_repeats_allele2,
-                         result.allele1_sequence, result.allele2_sequence),
-                        expected, f"locus chr1:{start_0based}-{end} genotyped from {vcf_gz_path}")
+                    message = f"locus chr1:{start_0based}-{end} genotyped from {vcf_gz_path}"
+                    self.assertEqual(extract_haplotype_sequences_from_vcf(
+                        "chr1", start_0based, end, fasta_obj, variants), expected, message)
+                    self.assertEqual(result.no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL, message)
         finally:
             fasta_obj.close()
 
@@ -5010,11 +5021,12 @@ class TestGenotypingWithInsertionFilter(unittest.TestCase):
         alt allele in upper case, which must not change where the locus is trimmed out of the haplotype."""
         import pysam
 
-        reference = "AAA" + "cag" * 6 + "AAA"
+        reference = "AAA" + "cag" * 4 + "cAAAA"
         fasta_path = self._create_fasta({"chr1": reference})
         # ref "cagc" -> alt "CAGCAGC" inserts one CAG positioned at 0-based position 12, inside the locus, while
         # the ref span [12, 16) crosses the locus end at 15. Once both alleles are upper-cased they share a
-        # "CAGC" suffix; comparing them as written finds no shared suffix and drops the inserted repeat.
+        # "CAGC" suffix; comparing them as written finds no shared suffix and drops the inserted repeat. The CAG
+        # tract ends with the locus, so the insertion can't also be placed a whole copy past it.
         vcf_content = (
             "##fileformat=VCFv4.2\n"
             f"##contig=<ID=chr1,length={len(reference)}>\n"
@@ -5242,9 +5254,10 @@ class TestGenotypeCorrectnessRegressions(unittest.TestCase):
 
         The insertion positioned at that single coordinate is the locus, so it must not be dropped as a flank
         insertion and the haplotype slice must cover its inserted bases. Otherwise the locus came out as a
-        homozygous zero-repeat call.
+        homozygous zero-repeat call. The reference has no CAG copies there, as such a locus would.
         """
-        result = self._genotype("chr1\t10\t.\tT\tTCAGCAGCAG\t.\tPASS\t.\tGT\t0|1\n", start_0based=10, end=10)
+        result = self._genotype("chr1\t10\t.\tT\tTCAGCAGCAG\t.\tPASS\t.\tGT\t0|1\n", start_0based=10, end=10,
+                                reference_sequence="T" * 10 + "A" * 28)
         self.assertEqual(result.num_overlapping_variants, 1)
         self.assertEqual(result.zygosity, "HET")
         self.assertEqual((result.allele1_sequence, result.allele2_sequence), ("", "CAGCAGCAG"))
@@ -5270,12 +5283,16 @@ class TestGenotypeCorrectnessRegressions(unittest.TestCase):
             self.assertEqual(result.zygosity, "HET", alt)
             self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (6, 9), alt)
 
-        # An insertion of something other than the motif positioned at the end still sits in the right flank, so
-        # an adjacent locus with a different motif keeps it and a non-repeat insertion doesn't disturb the call
-        for alt in ("GCCGCCGCCG", "GTTGACCATGA", "GCA"):
+        # An insertion of something other than the motif positioned at the end stays out of the locus. It could
+        # equally be placed inside it, so when counting it there changes the repeat count the locus gets no call; a
+        # 2bp insertion leaves the 6 copies at 6 either way, so that call stands.
+        for alt in ("GCCGCCGCCG", "GTTGACCATGA"):
             result = self._genotype(f"chr1\t28\t.\tG\t{alt}\t.\tPASS\t.\tGT\t0|1\n")
             self.assertEqual(result.num_overlapping_variants, 0, alt)
-            self.assertEqual(result.zygosity, "HOM", alt)
+            self.assertEqual(result.no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL, alt)
+        result = self._genotype("chr1\t28\t.\tG\tGCA\t.\tPASS\t.\tGT\t0|1\n")
+        self.assertEqual(result.num_overlapping_variants, 0)
+        self.assertEqual(result.zygosity, "HOM")
 
     def test_fully_deleted_alleles_have_unknown_purity(self):
         """An allele deleted to an empty sequence has no purity to judge, so IsPureRepeat is unknown."""
@@ -6571,14 +6588,18 @@ class TestInsertionsThatSlideIntoTheLocusStart(unittest.TestCase):
         result = self._genotype("chr1\t10\t.\tT\tTAAGAAG\t.\tPASS\t.\tGT\t0|1\n")
         self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (6, 8))
 
-    def test_insertion_that_is_not_whole_motif_copies_is_left_in_the_flank(self):
+    def test_insertion_that_is_not_whole_motif_copies_is_not_counted_and_makes_a_no_call(self):
+        # The insertion stays out of the locus, but it can be placed inside it and would add 2 copies there, so the
+        # locus gets no call (see find_indels_with_placements_that_change_the_locus_length)
         result = self._genotype("chr1\t10\t.\tT\tTAAGAAGA\t.\tPASS\t.\tGT\t0|1\n")
-        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (6, 6))
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (None, None))
+        self.assertEqual(result.no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL)
 
-    def test_insertion_that_is_not_the_motif_is_left_in_the_flank(self):
+    def test_insertion_that_is_not_the_motif_is_not_counted_and_makes_a_no_call(self):
         # AACAAC crosses the AA just like AAGAAG does, but as read from the locus start it is CAACAA, not GAA copies
         result = self._genotype("chr1\t10\t.\tT\tTAACAAC\t.\tPASS\t.\tGT\t0|1\n")
-        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (6, 6))
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (None, None))
+        self.assertEqual(result.no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL)
 
     def test_rotation_of_the_inserted_bases(self):
         # C9ORF72-like: GCCCC before a GGCCCC tract lets GGCCCCGGCCCC left-align 5 bases to GCCCCGGCCCCG
@@ -6606,6 +6627,252 @@ class TestInsertionsThatSlideIntoTheLocusStart(unittest.TestCase):
         reference_sequence = "TTTTTTTTTTAA" + "GAA" * 6
         self.assertEqual(move_insertions_that_slide_into_locus_to_its_start(
             [(10, "T", "TAAGAAG")], 12, "GAA", 0, reference_sequence), [(12, "A", "AGAAGAA")])
+
+
+class TestAmbiguousBoundaryIndels(unittest.TestCase):
+    """A locus gets no call when an indel just outside it could also be placed inside it and counting it there
+    would change a repeat count. The cases come from real truth loci with such indels."""
+
+    REFERENCE_SEQUENCE = TestGenotypeCorrectnessRegressions.REFERENCE_SEQUENCE  # (CAG)x6 at [10, 28)
+    LOCUS_START_0BASED = TestGenotypeCorrectnessRegressions.LOCUS_START_0BASED
+    LOCUS_END = TestGenotypeCorrectnessRegressions.LOCUS_END
+    LOCUS_MOTIF = TestGenotypeCorrectnessRegressions.LOCUS_MOTIF
+    VCF_HEADER = TestGenotypeCorrectnessRegressions.VCF_HEADER
+
+    setUp = TestGenotypeCorrectnessRegressions.setUp
+    tearDown = TestGenotypeCorrectnessRegressions.tearDown
+    _create_temp_file = TestGenotypingPipeline._create_temp_file
+    _create_test_vcf_and_index = TestGenotypingPipeline._create_test_vcf_and_index
+    _create_test_fasta = TestGenotypingPipeline._create_test_fasta
+    _genotype = TestGenotypeCorrectnessRegressions._genotype
+
+    def test_get_insertion_or_deletion(self):
+        self.assertEqual(get_insertion_or_deletion(28, "G", "GTTA"), (28, 0, "TTA"))
+        self.assertEqual(get_insertion_or_deletion(11, "CT", "C"), (11, 1, ""))
+        # Shared bases at both ends are trimmed: ACGT > AT deletes CG
+        self.assertEqual(get_insertion_or_deletion(5, "ACGT", "AT"), (5, 2, ""))
+        self.assertIsNone(get_insertion_or_deletion(5, "A", "G"))
+        self.assertIsNone(get_insertion_or_deletion(5, "ACG", "TT"))
+
+    def test_get_equivalent_placements_of_indel(self):
+        #           0123456789
+        reference = "GGCAGCAGTT"
+        # Inserting CAG before position 2 equals inserting GCA before 1 (the G before it matches the last G),
+        # AGC before 3, GCA before 4, ... up to before 8
+        self.assertEqual(get_equivalent_placements_of_indel(2, 0, "CAG", reference, 0), (1, 8))
+        self.assertEqual(get_equivalent_placements_of_indel(5, 0, "CAG", reference, 0), (1, 8))
+        # Deleting CAG at [2, 5) equals deleting GCA at [1, 4), AGC at [3, 6), ..., CAG at [5, 8)
+        self.assertEqual(get_equivalent_placements_of_indel(2, 3, "", reference, 0), (1, 5))
+        # The same in genomic coordinates when the reference sequence starts at 100
+        self.assertEqual(get_equivalent_placements_of_indel(102, 3, "", reference, 100), (101, 105))
+        # An insertion of ACC right after the last G can't move: the bases on both sides differ from it
+        self.assertEqual(get_equivalent_placements_of_indel(8, 0, "ACC", reference, 0), (8, 8))
+
+    def test_find_boundary_indel_that_would_change_a_repeat_count_uses_the_haplotype_carrying_it(self):
+        sample = mock.MagicMock()
+        sample.get = mock.MagicMock(side_effect=lambda key, default=None: {"GT": (0, 1)}.get(key, default))
+        sample.phased = True
+        variant = mock.MagicMock()
+        variant.samples = [sample]
+        boundary_indels = [("28 G>GA", variant, 1, 1)]
+        # Haplotype 1 carries it: 18 bp + 1 is still 6 CAG copies, while haplotype 0's 20 bp + 1 would be 7
+        self.assertIsNone(find_boundary_indel_that_would_change_a_repeat_count(boundary_indels, ("A" * 20, "A" * 18),
+                                                                                "CAG", []))
+        self.assertEqual(find_boundary_indel_that_would_change_a_repeat_count(boundary_indels, ("A" * 18, "A" * 20),
+                                                                              "CAG", []), "28 G>GA")
+        # A missing haplotype is skipped
+        self.assertIsNone(find_boundary_indel_that_would_change_a_repeat_count(boundary_indels, ("A" * 20, None),
+                                                                                "CAG", []))
+        # Unphased, either haplotype could carry it
+        sample.phased = False
+        self.assertEqual(find_boundary_indel_that_would_change_a_repeat_count(boundary_indels, ("A" * 20, "A" * 18),
+                                                                              "CAG", []), "28 G>GA")
+
+    def test_boundary_indel_phase_is_used_only_in_the_phase_set_of_the_locus_variants(self):
+        # A GC inserted inside the (CAG)x6 tract makes one haplotype 20 bp, and a T inserted after the tract can't
+        # move or be counted in it. On the 18 bp haplotype it leaves 6 copies, on the 20 bp one it makes 7.
+        def genotype(locus_genotype, boundary_genotype):
+            return self._genotype(f"chr1\t15\t.\tA\tAGC\t.\tPASS\t.\tGT:PS\t{locus_genotype}\n"
+                                  f"chr1\t28\t.\tG\tGT\t.\tPASS\t.\tGT:PS\t{boundary_genotype}\n")
+
+        # Phased in the same phase set, the T is on the 18 bp haplotype, so the call stands
+        result = genotype("0|1:100", "1|0:100")
+        self.assertIsNone(result.no_call_reason)
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (6, 6))
+        # Or on the 20 bp haplotype, which makes the genotype ambiguous
+        self.assertEqual(genotype("0|1:100", "0|1:100").no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL)
+        # In another phase set, or next to an unphased locus variant, the T could be on either haplotype
+        self.assertEqual(genotype("0|1:100", "1|0:300").no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL)
+        self.assertEqual(genotype("0/1:.", "1|0:100").no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL)
+        # Records without PS, as dipcall writes them, share one phase set
+        self.assertIsNone(genotype("0|1:.", "1|0:.").no_call_reason)
+
+    def test_insertion_on_the_last_base_that_continues_the_repeat(self):
+        # HG00733 chr6:76171435: TTA inserted after a T run lengthens the run by 2, but isn't all motif, so it
+        # isn't counted (25 T's in the genotype, 28 bases between the flanks in the reads)
+        reference = "GCATGCATCC" + "T" * 25 + "GAGACAGGTC"
+        result = self._genotype("chr1\t35\t.\tT\tTTTA\t.\tPASS\t.\tGT\t1|1\n", motif="T", start_0based=10, end=35,
+                                reference_sequence=reference)
+        self.assertEqual(result.no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL)
+        self.assertIsNone(result.zygosity)
+        self.assertIn("35 T>TTTA", result.no_call_description)
+
+    def test_whole_copies_inserted_one_motif_length_before_the_locus(self):
+        # HG00642 chr2:22334659: TATTAT inserted 3 bp before a TAT locus slides exactly one motif length, which
+        # get_insertion_that_slides_into_locus_start doesn't accept
+        reference = "CCCCCCCCCCG" + "TAT" + "TAT" * 5 + "GGGGGGGGGG"
+        result = self._genotype("chr1\t11\t.\tG\tGTATTAT\t.\tPASS\t.\tGT\t0|1\n", motif="TAT", start_0based=14,
+                                end=29, reference_sequence=reference)
+        self.assertEqual(result.no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL)
+
+    def test_non_motif_insertion_before_the_locus(self):
+        # HG00597 chr7:7985541: TTAAA inserted before the TT that precede an A run
+        reference = "CTGGAACTTTAAGTT" + "A" * 9 + "CCAGTGAACA"
+        result = self._genotype("chr1\t13\t.\tG\tGTTAAA\t.\tPASS\t.\tGT\t0|1\n", motif="A", start_0based=15,
+                                end=24, reference_sequence=reference)
+        self.assertEqual(result.no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL)
+
+    def test_deletion_before_the_locus_that_can_shift_into_it(self):
+        # Deleting the first of the T's before a T run is the same as deleting one inside it
+        reference = "GGGGGGGGGGCTT" + "T" * 10 + "GGGGGGGGGG"
+        result = self._genotype("chr1\t11\t.\tCT\tC\t.\tPASS\t.\tGT\t0|1\n", motif="T", start_0based=13, end=23,
+                                reference_sequence=reference)
+        self.assertEqual(result.no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL)
+
+    def test_deletion_that_starts_before_the_locus_and_ends_inside_it_makes_a_no_call(self):
+        # Deleting 3 or 4 of the T's starting 2 before the locus removes 1 or 2 locus T's as written, and 3 or 4 when
+        # placed inside the locus, which changes the repeat count
+        reference = "GGGGGGGGGGCTT" + "T" * 10 + "GGGGGGGGGG"
+        for record in ("chr1\t11\t.\tCTTT\tC\t.\tPASS\t.\tGT\t1|1\n", "chr1\t11\t.\tCTTTT\tC\t.\tPASS\t.\tGT\t1|1\n"):
+            result = self._genotype(record, motif="T", start_0based=13, end=23, reference_sequence=reference)
+            self.assertEqual(result.no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL, record)
+        # The same with a partial CAG copy before a 20 bp CAG locus: AGC deleted across the locus start removes 1
+        # locus base as written (20 // 3 = 6 copies), but 3 inside it (17 // 3 = 5)
+        reference = "CCCCCCCG" + "AG" + "CAG" * 6 + "CA" + "TTTTTTTTTT"
+        result = self._genotype("chr1\t8\t.\tGAGC\tG\t.\tPASS\t.\tGT\t1|1\n", start_0based=10, end=30,
+                                reference_sequence=reference)
+        self.assertEqual(result.no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL)
+
+    def test_counted_indel_that_reaches_a_motif_length_past_the_locus_end_makes_a_no_call(self):
+        # The T run continues 2 bases past the catalog locus [13, 23). A T inserted at the locus start can equally go
+        # after the locus (11 or 10 T's), and deleting 3 T's inside it can equally remove only 1 locus T (7 or 9).
+        reference = "GGGGGGGGGGGGC" + "T" * 12 + "GGGGGGGGGG"
+        for record in ("chr1\t13\t.\tC\tCT\t.\tPASS\t.\tGT\t1|1\n", "chr1\t13\t.\tCTTT\tC\t.\tPASS\t.\tGT\t1|1\n"):
+            result = self._genotype(record, motif="T", start_0based=13, end=23, reference_sequence=reference)
+            self.assertEqual(result.no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL, record)
+        # When the run ends with the locus, both are counted as before
+        reference = "GGGGGGGGGGGGC" + "T" * 10 + "GGGGGGGGGG"
+        for record, repeat_count in (("chr1\t13\t.\tC\tCT\t.\tPASS\t.\tGT\t1|1\n", 11),
+                                     ("chr1\t13\t.\tCTTT\tC\t.\tPASS\t.\tGT\t1|1\n", 7)):
+            result = self._genotype(record, motif="T", start_0based=13, end=23, reference_sequence=reference)
+            self.assertIsNone(result.no_call_reason, record)
+            self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (repeat_count, repeat_count))
+
+    def test_counted_insertion_that_reaches_less_than_a_motif_length_outside_keeps_the_call(self):
+        # The CAG tract has a partial copy (AG) before it and another (CA) after it. A CAG copy left-aligned onto the
+        # AG is moved into the locus, and although it can also slide 2 bases past the locus end, that is less than a
+        # whole copy, so the locus counts it.
+        reference = "CCCCCCCTAG" + "CAG" * 6 + "CATTTTTTTT"
+        result = self._genotype("chr1\t8\t.\tT\tTAGC\t.\tPASS\t.\tGT\t0|1\n", start_0based=10, end=28,
+                                reference_sequence=reference)
+        self.assertIsNone(result.no_call_reason)
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (6, 7))
+
+    def test_indel_that_cant_reach_the_locus_or_change_its_count_keeps_the_call(self):
+        # An A inserted into the A's after the CAG tract can sit at the locus end, but 18 + 1 bp is still 6 copies
+        result = self._genotype("chr1\t28\t.\tG\tGA\t.\tPASS\t.\tGT\t0|1\n")
+        self.assertIsNone(result.no_call_reason)
+        self.assertEqual(result.zygosity, "HOM")
+        # A deletion in the T's before the tract can't reach it, since the tract starts with C
+        result = self._genotype("chr1\t3\t.\tTTT\tT\t.\tPASS\t.\tGT\t1|1\n")
+        self.assertIsNone(result.no_call_reason)
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (6, 6))
+
+    def test_length_change_of_an_abutting_locus_with_another_motif_keeps_the_call(self):
+        # SCA8-like: (CTA)x10 at [10, 40) directly followed by (CTG)x15 at [40, 85). A CTA expansion or contraction
+        # can slide through the shared CT up to the CTG locus, but it belongs to the CTA locus, and vice versa.
+        reference = "G" * 10 + "CTA" * 10 + "CTG" * 15 + "G" * 10
+        for record in ("chr1\t10\t.\tG\tGCTACTACTA\t.\tPASS\t.\tGT\t0|1\n",  # 3 more CTA copies
+                       "chr1\t10\t.\tG\tGCTA\t.\tPASS\t.\tGT\t0|1\n",  # 1 more CTA copy
+                       "chr1\t10\t.\tGCTA\tG\t.\tPASS\t.\tGT\t0|1\n"):  # 1 CTA copy fewer
+            result = self._genotype(record, motif="CTG", start_0based=40, end=85, reference_sequence=reference)
+            self.assertIsNone(result.no_call_reason, record)
+            self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (15, 15), record)
+
+        # A CTG expansion leaves the CTA locus alone, while the CTG locus counts it
+        record = "chr1\t40\t.\tA\tACTGCTGCTG\t.\tPASS\t.\tGT\t0|1\n"
+        result = self._genotype(record, motif="CTA", start_0based=10, end=40, reference_sequence=reference)
+        self.assertIsNone(result.no_call_reason)
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (10, 10))
+        result = self._genotype(record, motif="CTG", start_0based=40, end=85, reference_sequence=reference)
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (15, 18))
+
+    def test_poly_a_expansion_next_to_the_fxn_gaa_repeat_keeps_the_gaa_call(self):
+        # The FXN sequence in hg38: A x16 directly followed by (GAA)x6. Four more A's can slide up to the first G,
+        # but they belong to the poly-A tract.
+        reference = "CTGGCCAACATGGTGAAACCCAGTATCTACTAAAAAATAC" + "A" * 16 + "GAA" * 6 + "AAATAAAGAAAAGTTAGCCGGGCGTGG"
+        start = 40 + 16
+        result = self._genotype("chr1\t40\t.\tC\tCAAAA\t.\tPASS\t.\tGT\t0|1\n", motif="GAA", start_0based=start,
+                                end=start + 18, reference_sequence=reference)
+        self.assertIsNone(result.no_call_reason)
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (6, 6))
+
+    def test_neighbouring_expansion_longer_than_the_neighbouring_tract_keeps_the_call(self):
+        # (CTA)x4 directly followed by the (CTG)x15 locus at [22, 67): 5 or 8 more CTA copies are longer than the
+        # 12 bp CTA tract, but they can slide a full CTA copy outside the locus, so they belong to the CTA repeat
+        reference = "G" * 10 + "CTA" * 4 + "CTG" * 15 + "G" * 10
+        for copies in (5, 8):
+            record = f"chr1\t10\t.\tG\tG{'CTA' * copies}\t.\tPASS\t.\tGT\t0|1\n"
+            result = self._genotype(record, motif="CTG", start_0based=22, end=67, reference_sequence=reference)
+            self.assertIsNone(result.no_call_reason, copies)
+            self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (15, 15), copies)
+
+    def test_neighbouring_vntr_expansion_with_a_unit_longer_than_100bp_keeps_the_call(self):
+        # A locus directly followed by a VNTR with a 120 bp unit. One more copy of the 120 bp unit, written at the
+        # junction, can slide through the neighbouring tract, which needs the reference past the locus to reach a
+        # full 120 bp copy, whether the locus motif is long (a 50 bp VNTR) or short (CAT).
+        neighbouring_unit = ("GTGTGAATCGCTTAAGGGTTAAGTAAGTGTGATGCATACGCCTTTACTTGCTGTGTCCACCCCATCGGACTGGCATTTTTATTAC"
+                             "ACTCAGAAACAGAACTCGGGTAATTTTGACAGGTC")
+        for locus_motif, copies in (("GCTAAAGACAATTACATAACATACACGTCAGCACGAAACTTGTTGGCCCA", 3), ("CAT", 8)):
+            reference = "G" * 10 + locus_motif * copies + neighbouring_unit * 3 + "G" * 10
+            end = 10 + len(locus_motif) * copies
+            record = f"chr1\t{end}\t.\t{locus_motif[-1]}\t{locus_motif[-1]}{neighbouring_unit}\t.\tPASS\t.\tGT\t0|1\n"
+            result = self._genotype(record, motif=locus_motif, start_0based=10, end=end, reference_sequence=reference)
+            self.assertIsNone(result.no_call_reason, locus_motif)
+            self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (copies, copies), locus_motif)
+
+    def test_unique_deletion_that_can_shift_into_the_locus_makes_a_no_call(self):
+        # Deleting the TA before a T run gives the same sequence as deleting the A and the locus's first T, and the
+        # deletion can't slide a TA copy while staying outside the locus, so the locus gets no call (10 or 9 T's)
+        reference = "G" * 10 + "CTTTA" + "T" * 10 + "G" * 10
+        result = self._genotype("chr1\t13\t.\tTTA\tT\t.\tPASS\t.\tGT\t1|1\n", motif="T", start_0based=15, end=25,
+                                reference_sequence=reference)
+        self.assertEqual(result.no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL)
+
+    def test_deletion_that_reaches_only_partway_into_the_locus_is_charged_with_the_bases_it_can_remove(self):
+        # A CAG copy deleted before an impure locus (CAT, then CAG copies) can slide in only 2 bases, up to the T
+        reference = "G" * 7 + "CAG" + "CAT" + "CAG" * 5 + "CA" + "G" * 10
+        record = "chr1\t6\t.\tGGCA\tG\t.\tPASS\t.\tGT\t1|1\n"
+        # 20 bp locus: 20 // 3 and 18 // 3 are both 6, so the call stands
+        result = self._genotype(record, start_0based=10, end=30, reference_sequence=reference)
+        self.assertIsNone(result.no_call_reason)
+        self.assertEqual((result.num_repeats_allele1, result.num_repeats_allele2), (6, 6))
+        # 18 bp locus: removing 2 of its bases would leave 5 copies instead of 6
+        result = self._genotype(record, start_0based=10, end=28, reference_sequence=reference)
+        self.assertEqual(result.no_call_reason, NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL)
+
+    def test_records_fetched_only_for_the_boundary_check_dont_overlap_the_locus(self):
+        # fetch_vcf_records_near_locus also returns these flank SNVs, but get_overlapping_vcf_variants must not
+        result = self._genotype("chr1\t2\t.\tT\tG\t.\tPASS\t.\tGT\t1|1\n"
+                                "chr1\t33\t.\tA\tC\t.\tPASS\t.\tGT\t0|1\n")
+        self.assertEqual(result.num_overlapping_variants, 0)
+        self.assertEqual(result.zygosity, "HOM")
+        self.assertIsNone(result.no_call_reason)
+
+    def test_indel_on_a_haplotype_the_genotype_doesnt_carry_is_ignored(self):
+        result = self._genotype("chr1\t28\t.\tG\tGTTGACCATGA\t.\tPASS\t.\tGT\t0|0\n")
+        self.assertIsNone(result.no_call_reason)
+        self.assertEqual(result.zygosity, "HOM")
 
 
 if __name__ == "__main__":

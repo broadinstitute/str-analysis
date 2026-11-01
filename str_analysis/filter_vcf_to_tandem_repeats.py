@@ -141,6 +141,11 @@ DEFAULT_MIN_INSERTION_PERIODICITY = 0.55
 # NOP56 expansion (an inserted AGCCTG copy at the GGCCTG repeat) uncounted.
 MIN_MOTIF_PURITY_OF_INSERTION_THAT_SLIDES_INTO_LOCUS = 0.9
 
+# How far outside a locus to look for an insertion or deletion that an equivalent placement puts at or inside the
+# locus (see find_indels_with_placements_that_change_the_locus_length). Among 9,310 truth loci in 133 samples, the
+# farthest such indel was placed 37 bp before the locus.
+BOUNDARY_INDEL_SEARCH_WINDOW_BP = 100
+
 # The edit distance between an allele and a pure repeat of the same length costs O(length^2), and the phase
 # search computes it once per motif rotation, so a 19kb allele at a 170bp-motif locus took several seconds. The
 # resulting purity is only an output annotation, so above this length it is left missing instead.
@@ -160,6 +165,7 @@ NO_CALL_REASON_HET_AT_HAPLOID_LOCUS = "HET variant at a haploid locus"
 NO_CALL_REASON_HAPLOID_GENOTYPE_AT_DIPLOID_LOCUS = "haploid genotype at a diploid locus"
 NO_CALL_REASON_AMBIGUOUS_PHASING = "contains more than one HET variant with unclear phasing between them"
 NO_CALL_REASON_NON_REPEAT_INSERTION = "inserted sequence is not sufficiently repetitive"
+NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL = "an insertion or deletion at the locus edge could lie inside or outside it"
 NO_CALL_REASON_HAPLOTYPE_BUILD_ERROR = "the haplotype sequence couldn't be built"
 NO_CALL_REASON_NON_IUPAC_ALLELE = "a REF or ALT allele contains characters that aren't IUPAC nucleotide codes"
 NO_CALL_REASON_REF_ALLELE_MISMATCH = "a REF allele doesn't match the reference FASTA"
@@ -1998,7 +2004,7 @@ def open_vcf_for_genotyping(vcf_path):
     vcf_file = pysam.VariantFile(vcf_path)
 
     # Genotyping fetches variants per-locus, which requires a tabix/csi index. An unindexed
-    # VCF makes every fetch raise "fetch requires an index", which get_overlapping_vcf_variants
+    # VCF makes every fetch raise "fetch requires an index", which fetch_vcf_records_near_locus
     # would otherwise silently swallow and report every locus as homozygous-reference. Fail loudly.
     if vcf_file.index is None:
         raise ValueError(
@@ -2302,47 +2308,70 @@ def move_insertions_that_slide_into_locus_to_its_start(variant_list, start_0base
     return sorted(moved_variant_list, key=lambda variant: variant[0])
 
 
-def get_overlapping_vcf_variants(vcf_file, chrom, start_0based, end, repeat_unit=None, fasta_obj=None,
-                                 fasta_chrom=None):
-    """Fetch VCF variants that overlap a genomic interval and can change a haplotype there.
+def fetch_vcf_records_near_locus(vcf_file, chrom, start_0based, end, repeat_unit=None):
+    """Fetch the VCF records that genotyping a locus looks at, in a single read of the VCF.
+
+    Both get_overlapping_vcf_variants and find_indels_with_placements_that_change_the_locus_length work from these
+    records, because each fetch decompresses the VCF block it starts in, which takes about half the time of
+    genotyping a typical locus. The window reaches BOUNDARY_INDEL_SEARCH_WINDOW_BP past the locus on each side, and
+    on the left at least one motif length: the tabix index keys each record by its REF span [POS, POS+len(REF)), and a
+    normalized (left-aligned) insertion of the repeat is anchored on the base before the tract, or up to
+    len(repeat_unit) - 1 bases further left when the bases before the tract match part of a copy, so its REF span
+    can end before the locus starts even though the inserted bases belong to it. The right side needs no such
+    extension: a left-aligned record written after the locus is already at its leftmost placement, so it can only
+    slide further away, and an insertion right after the locus's last base is anchored on that base, so its REF span
+    already overlaps the locus. There, the BOUNDARY_INDEL_SEARCH_WINDOW_BP margin only matters for VCFs that are not
+    left-aligned.
 
     Args:
         vcf_file (pysam.VariantFile): An open pysam VariantFile object
         chrom (str): Chromosome name, spelled the way this VCF spells it (see build_contig_name_lookup)
+        start_0based (int): locus start position (0-based, inclusive)
+        end (int): locus end position (0-based, exclusive / 1-based inclusive)
+        repeat_unit (str): the locus motif, or None
+
+    Returns:
+        list: pysam.VariantRecord objects whose REF span overlaps the window, or an empty list if the VCF has no
+            such contig
+    """
+    left_window_size = max(BOUNDARY_INDEL_SEARCH_WINDOW_BP, len(repeat_unit) if repeat_unit else 1)
+    try:
+        # pysam fetch uses 0-based half-open coordinates.
+        return list(vcf_file.fetch(chrom, max(0, start_0based - left_window_size),
+                                   end + BOUNDARY_INDEL_SEARCH_WINDOW_BP))
+    except ValueError:
+        return []  # the VCF has no such contig
+
+
+def get_overlapping_vcf_variants(vcf_records, start_0based, end, repeat_unit=None, fasta_obj=None, fasta_chrom=None):
+    """Return the VCF variants that overlap a genomic interval and can change a haplotype there.
+
+    Args:
+        vcf_records (list): pysam.VariantRecord objects near the interval (see fetch_vcf_records_near_locus)
         start_0based (int): Start position (0-based, inclusive)
         end (int): End position (0-based, exclusive / 1-based inclusive)
         repeat_unit (str): the locus motif (see does_alt_allele_change_bases_inside_locus), or None
         fasta_obj (pyfaidx.Fasta): the reference, used to recognize insertions that left-alignment placed a few
             bases before the locus but that belong to it (see get_insertion_that_slides_into_locus_start), or
             None to skip that check
-        fasta_chrom (str): chrom spelled the way fasta_obj spells it
+        fasta_chrom (str): the interval's contig, spelled the way fasta_obj spells it
 
     Returns:
         list: List of pysam.VariantRecord objects sorted by position
 
     Note:
-        The tabix index keys each record by its REF span [POS, POS+len(REF)), so a plain
-        fetch(start_0based, end) returns variants whose REF extends into the locus (e.g.
-        deletions anchored in the left flank) but NOT insertions. A normalized (left-aligned)
-        repeat-unit insertion anchors to the base immediately before the tract when that base can't
-        continue the repeat, i.e. its REF span is [start_0based - 1, start_0based), which does not
-        overlap [start_0based, end) even though the inserted bases belong to the locus. When the bases
-        before the tract do match part of a copy, left-alignment anchors the insertion up to
-        len(repeat_unit) - 1 bases further left. To catch both, the fetch window is widened that far
-        to the left and the returned records are filtered back down to those that actually affect the locus.
+        Only records whose REF span overlaps [start_0based - len(repeat_unit), end) are considered: those that
+        reach into the locus, plus insertions that left-alignment anchored up to one motif length before it (see
+        fetch_vcf_records_near_locus). They are then filtered down to those that actually affect the locus.
     """
     left_window_size = max(1, len(repeat_unit) if repeat_unit else 1)
-    try:
-        # pysam fetch uses 0-based half-open coordinates.
-        candidates = list(vcf_file.fetch(chrom, max(0, start_0based - left_window_size), end))
-    except ValueError:
-        # Chromosome not found in VCF - return empty list
-        return []
+    window_start_0based = max(0, start_0based - left_window_size)
+    candidates = [record for record in vcf_records if record.start < end and record.stop > window_start_0based]
 
     reference_bases_before_start = None
     if fasta_obj is not None and any(variant.pos - 1 + len(variant.ref) < start_0based for variant in candidates):
         try:
-            reference_bases_before_start = str(fasta_obj[fasta_chrom or chrom][
+            reference_bases_before_start = str(fasta_obj[fasta_chrom][
                 max(0, start_0based - left_window_size):start_0based]).upper()
         except KeyError:
             reference_bases_before_start = None
@@ -2424,6 +2453,263 @@ def get_inserted_bases_inside_locus(variant_pos_1based, ref, alt, start_0based, 
         return None
 
     return inserted_bases
+
+
+def get_insertion_or_deletion(variant_pos_1based, ref, alt):
+    """Return an alt allele as a pure insertion or deletion, or None if it is neither.
+
+    Places the inserted or deleted bases the way get_inserted_bases_inside_locus places inserted ones: after
+    trim_shared_suffix, right after the shorter allele (the anchor bases). Unlike that function, it also requires the
+    shorter allele to be the start of the longer one, and returns None otherwise: a substitution or a complex change
+    can't be shifted to another position.
+
+    Args:
+        variant_pos_1based (int): the variant's 1-based position
+        ref (str): the variant's reference allele
+        alt (str): the alt allele
+
+    Returns:
+        tuple: (start_0based, deleted_length, inserted_bases), where a deletion removes the reference bases
+            [start_0based, start_0based + deleted_length) and an insertion puts inserted_bases just before
+            start_0based, or None
+    """
+    trimmed_ref, trimmed_alt = trim_shared_suffix(ref.upper(), alt.upper())
+    if len(trimmed_alt) > len(trimmed_ref) and trimmed_alt.startswith(trimmed_ref):
+        return variant_pos_1based - 1 + len(trimmed_ref), 0, trimmed_alt[len(trimmed_ref):]
+    if len(trimmed_ref) > len(trimmed_alt) and trimmed_ref.startswith(trimmed_alt):
+        return variant_pos_1based - 1 + len(trimmed_alt), len(trimmed_ref) - len(trimmed_alt), ""
+    return None
+
+
+def get_equivalent_placements_of_indel(start_0based, deleted_length, inserted_bases, reference_sequence,
+                                       reference_sequence_start_0based):
+    """Return the leftmost and rightmost positions an insertion or deletion can take without changing the haplotype.
+
+    Deleting [s, e) gives the same haplotype as deleting [s + 1, e + 1) when the reference bases at s and e are
+    equal, and inserting bases before position p gives the same haplotype as inserting them, rotated by one base,
+    before p + 1 when the first inserted base equals the reference base at p. Shifting stops at the ends of
+    reference_sequence.
+
+    Args:
+        start_0based (int): the deletion's first deleted base, or the position the insertion puts its bases before
+        deleted_length (int): number of deleted bases (0 for an insertion)
+        inserted_bases (str): the inserted bases (empty for a deletion), upper case
+        reference_sequence (str): upper-case reference sequence around the indel
+        reference_sequence_start_0based (int): 0-based genomic position of reference_sequence[0]
+
+    Returns:
+        tuple: (leftmost, rightmost) 0-based start positions of the equivalent placements
+    """
+    offset = start_0based - reference_sequence_start_0based
+    if offset < 0 or offset + deleted_length > len(reference_sequence):
+        return start_0based, start_0based
+
+    if inserted_bases:
+        leftmost, bases = offset, inserted_bases
+        while leftmost > 0 and bases[-1] == reference_sequence[leftmost - 1]:
+            bases = bases[-1] + bases[:-1]
+            leftmost -= 1
+        rightmost, bases = offset, inserted_bases
+        while rightmost < len(reference_sequence) and bases[0] == reference_sequence[rightmost]:
+            bases = bases[1:] + bases[0]
+            rightmost += 1
+    else:
+        leftmost = offset
+        while leftmost > 0 and reference_sequence[leftmost - 1] == reference_sequence[leftmost - 1 + deleted_length]:
+            leftmost -= 1
+        rightmost = offset
+        while (rightmost + deleted_length < len(reference_sequence)
+               and reference_sequence[rightmost] == reference_sequence[rightmost + deleted_length]):
+            rightmost += 1
+
+    return leftmost + reference_sequence_start_0based, rightmost + reference_sequence_start_0based
+
+
+def find_indels_with_placements_that_change_the_locus_length(vcf_records, start_0based, end, repeat_unit,
+                                                             fasta_obj, fasta_chrom):
+    """Return the called insertions and deletions that an equivalent placement would count differently in the locus.
+
+    An indel can often shift through identical sequence without changing the haplotype (see
+    get_equivalent_placements_of_indel), so the locus length depends on which placement is counted. The locus counts
+    an alt allele where it is written when does_alt_allele_change_bases_inside_locus or
+    get_insertion_that_slides_into_locus_start accepts it, and these placements count it differently:
+
+      - An indel the locus doesn't count, at its most inside placement. Left-alignment can put an indel just outside
+        the locus that could also lie inside it: an insertion of non-motif bases anchored on the locus's last base,
+        a copy of the motif inserted a whole motif length or more before the locus, or other sequence inserted or
+        deleted where the flank resembles the repeat.
+      - A deletion the locus counts only in part (it starts in the flank and ends inside the locus, or the
+        reverse), at the placements that remove the most and the fewest locus bases.
+      - An indel the locus counts whose placements reach at least one motif length past the locus edge, at the
+        placement that leaves the most of it outside. This happens where the repeat continues past the catalog
+        locus. A shorter reach outside doesn't count, so the insertions that the locus deliberately counts
+        (left-aligned ones that get_insertion_that_slides_into_locus_start moves in, and whole motif copies
+        inserted at the locus end) keep their call.
+
+    An indel that belongs to a neighbouring repeat instead (it isn't copies of the locus motif, and it can slide at
+    least one copy of its repeat unit while staying entirely outside the locus) isn't returned.
+
+    Args:
+        vcf_records (list): pysam.VariantRecord objects within BOUNDARY_INDEL_SEARCH_WINDOW_BP of the locus (see
+            fetch_vcf_records_near_locus)
+        start_0based (int): locus start position (0-based, inclusive)
+        end (int): locus end position (0-based, exclusive)
+        repeat_unit (str): the locus motif, or None
+        fasta_obj (pyfaidx.Fasta): the reference (with one_based_attributes=False)
+        fasta_chrom (str): the locus's contig, spelled the way fasta_obj spells it
+
+    Returns:
+        list: (description, variant, allele_index, length_change) tuples, where description is "POS REF>ALT"
+            (1-based POS) and length_change is how many more bases the locus has at another placement of the alt
+            allele than where it is written (negative if fewer). An allele with two such placements appears twice.
+    """
+    if not repeat_unit:
+        return []
+
+    found = []
+    reference_sequence = None
+    for variant in vcf_records:
+        called_allele_indexes = sorted({index for index in (variant.samples[0].get("GT") or ()) if index})
+        for allele_index in called_allele_indexes:
+            alt = variant.alleles[allele_index]
+            if alt is None or alt.startswith("<") or alt == "*":
+                continue
+            indel = get_insertion_or_deletion(variant.pos, variant.ref, alt)
+            if indel is None:
+                continue
+
+            # Fetched only once an indel is found, since most loci have none. Shifting an indel stops where this
+            # sequence ends, and showing that an indel belongs to a neighbouring repeat needs it to slide a copy of
+            # its repeat unit outside the locus. That unit is never longer than the indel, so padding the records by
+            # their longest allele always leaves room, even next to a VNTR with a unit longer than
+            # BOUNDARY_INDEL_SEARCH_WINDOW_BP.
+            if reference_sequence is None:
+                padding = max([BOUNDARY_INDEL_SEARCH_WINDOW_BP] + [len(allele) for v in vcf_records
+                                                                   for allele in v.alleles])
+                reference_sequence_start_0based = max(0, min([start_0based] + [v.pos - 1 for v in vcf_records])
+                                                      - padding)
+                reference_sequence_end = max([end] + [v.pos - 1 + len(v.ref) for v in vcf_records]) + padding
+                try:
+                    reference_sequence = str(fasta_obj[fasta_chrom][
+                        reference_sequence_start_0based:reference_sequence_end]).upper()
+                except KeyError:
+                    return []  # the contig isn't in the reference; genotyping reports that on its own
+            reference_bases_before_start = reference_sequence[:start_0based - reference_sequence_start_0based]
+            counted_by_locus = (
+                does_alt_allele_change_bases_inside_locus(variant.pos, variant.ref, alt, start_0based, end,
+                                                          repeat_unit)
+                or get_insertion_that_slides_into_locus_start(variant.pos, variant.ref, alt, start_0based,
+                                                              repeat_unit, reference_bases_before_start) is not None)
+
+            indel_start_0based, deleted_length, inserted_bases = indel
+            leftmost, rightmost = get_equivalent_placements_of_indel(
+                indel_start_0based, deleted_length, inserted_bases, reference_sequence,
+                reference_sequence_start_0based)
+
+            # The locus length change where the allele is written and at its most and least inside placements, and
+            # whether its placements reach at least one motif length past the locus edge. An insertion lands in the
+            # locus whole or not at all. Moving a deletion changes how many locus bases it removes, which is largest
+            # in the middle of its placements and smallest at one of their ends.
+            if inserted_bases:
+                change_as_written = len(inserted_bases) if counted_by_locus else 0
+                most_inside_change = len(inserted_bases) if leftmost <= end and rightmost >= start_0based else 0
+                least_inside_change = 0 if leftmost < start_0based or rightmost > end else len(inserted_bases)
+                reaches_a_motif_length_outside = (leftmost <= start_0based - len(repeat_unit)
+                                                  or rightmost >= end + len(repeat_unit))
+            else:
+                change_as_written, change_at_leftmost, change_at_rightmost = (
+                    -max(0, min(placement + deleted_length, end) - max(placement, start_0based))
+                    for placement in (indel_start_0based, leftmost, rightmost))
+                most_inside_change = -max(0, min(deleted_length, end - start_0based,
+                                                 rightmost + deleted_length - start_0based, end - leftmost))
+                least_inside_change = max(change_at_leftmost, change_at_rightmost)
+                reaches_a_motif_length_outside = (leftmost <= start_0based - len(repeat_unit)
+                                                  or rightmost + deleted_length >= end + len(repeat_unit))
+
+            if not counted_by_locus:
+                other_changes = {most_inside_change}
+            else:
+                other_changes = set()
+                if not inserted_bases and change_as_written > -deleted_length:
+                    other_changes |= {most_inside_change, least_inside_change}
+                if reaches_a_motif_length_outside:
+                    other_changes.add(least_inside_change)
+            other_changes.discard(change_as_written)
+            if not other_changes:
+                continue
+
+            # An indel that isn't copies of the locus motif and can slide at least one copy of its repeat unit while
+            # staying entirely outside the locus is a length change of the neighbouring repeat (eg. a poly-A
+            # expansion next to the FXN GAA repeat), which that repeat counts, so it doesn't make this locus
+            # ambiguous.
+            indel_bases = inserted_bases or reference_sequence[
+                indel_start_0based - reference_sequence_start_0based:
+                indel_start_0based - reference_sequence_start_0based + deleted_length]
+            indel_repeat_unit, _, _ = find_repeat_unit_without_allowing_interruptions(indel_bases)
+            slide_before_locus = start_0based - deleted_length - leftmost
+            slide_after_locus = rightmost - max(leftmost, end)
+            if (max(slide_before_locus, slide_after_locus) >= len(indel_repeat_unit)
+                    and not is_sequence_made_of_motif(indel_bases, repeat_unit.upper())):
+                continue
+
+            for other_change in sorted(other_changes):
+                found.append((f"{variant.pos:,d} {variant.ref}>{alt}", variant, allele_index,
+                              other_change - change_as_written))
+
+    return found
+
+
+def find_boundary_indel_that_would_change_a_repeat_count(boundary_indels, haplotype_sequences, repeat_unit,
+                                                        locus_variants):
+    """Check whether a boundary indel makes the locus genotype ambiguous, and return the first one that does.
+
+    A boundary indel is one that an equivalent placement would count differently in the locus than the genotype
+    does (see find_indels_with_placements_that_change_the_locus_length). Where it goes only matters if it changes a
+    repeat count. For the haplotype carrying it, this compares len(sequence) // len(repeat_unit) with the same count
+    after adding the indel's length change. A 1 bp insertion next to (CAG)x6 still gives 6 copies (19 // 3), so it
+    doesn't matter. A TTA insertion after a 25 bp T run gives 28 copies instead of 25, so it does.
+
+    The carrying haplotype is the one whose GT entry is the indel's allele, but only if that GT is phased in the
+    same phase set as every heterozygous variant inside the locus (records without PS share one phase set, as in
+    are_variants_unambiguously_phased). Otherwise the GT's haplotype order says nothing about the order of the
+    locus haplotypes, and both are checked.
+
+    Args:
+        boundary_indels (list): output of find_indels_with_placements_that_change_the_locus_length
+        haplotype_sequences (tuple): the locus sequences of haplotypes 0 and 1 as genotyped, or None for a missing
+            one
+        repeat_unit (str): the locus motif
+        locus_variants (list): the pysam.VariantRecord objects the locus haplotypes were built from
+
+    Returns:
+        str: the description ("POS REF>ALT") of the first indel that changes a repeat count, or None if the repeat
+            counts are the same whichever way the indels are placed
+    """
+    if not repeat_unit:
+        return None
+
+    heterozygous_locus_samples = [variant.samples[0] for variant in locus_variants
+                                  if is_heterozygous_genotype(variant.samples[0].get("GT"))]
+    for description, variant, allele_index, length_change in boundary_indels:
+        sample = variant.samples[0]
+        genotype = sample.get("GT") or ()
+        if len(genotype) < 2:
+            haplotypes_carrying_it = [0]
+        elif sample.phased and all(locus_sample.phased and locus_sample.get("PS") == sample.get("PS")
+                                   for locus_sample in heterozygous_locus_samples):
+            haplotypes_carrying_it = [haplotype for haplotype in (0, 1) if genotype[haplotype] == allele_index]
+        else:
+            haplotypes_carrying_it = [0, 1]
+        for haplotype in haplotypes_carrying_it:
+            sequence = haplotype_sequences[haplotype]
+            if sequence is None:
+                continue
+            repeat_count = len(sequence) // len(repeat_unit)
+            repeat_count_with_indel = max(0, len(sequence) + length_change) // len(repeat_unit)
+            if repeat_count_with_indel != repeat_count:
+                return description
+
+    return None
 
 
 def convert_variants_to_haplotype_sequence(pos_1based, reference_sequence, variants, verbose=False):
@@ -3308,6 +3594,9 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, verbose=False, insertio
         - A heterozygous variant at a haploid locus → the whole locus gets no call
         - Two or more heterozygous variants the VCF does not place on specific haplotypes → missing genotype
         - Insertion that isn't part of the tandem repeat on either allele → the whole locus gets no call
+        - Insertion or deletion that an equivalent placement would count differently in the locus (eg. one just
+          outside the locus that could also be placed inside it), where that would change a repeat count → the
+          whole locus gets no call
         - Variants that can't be applied to the reference on either allele → the whole locus gets no call
         - A genotype that leaves a haplotype uncalled → the whole locus gets no call, with the reason in
           no_call_reason, except at a haploid locus, where it's HEMI
@@ -3328,7 +3617,8 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, verbose=False, insertio
     # does not have yields no variants, which is the same answer as a contig it called and found nothing on.
     vcf_chrom = vcf_contig_lookup.get(normalize_chromosome_name(chrom), chrom) if vcf_contig_lookup else chrom
     fasta_chrom = fasta_contig_lookup.get(normalize_chromosome_name(chrom), chrom) if fasta_contig_lookup else chrom
-    variants = get_overlapping_vcf_variants(vcf_file, vcf_chrom, start_0based, end, repeat_unit,
+    nearby_records = fetch_vcf_records_near_locus(vcf_file, vcf_chrom, start_0based, end, repeat_unit)
+    variants = get_overlapping_vcf_variants(nearby_records, start_0based, end, repeat_unit,
                                             fasta_obj=fasta_obj, fasta_chrom=fasta_chrom)
 
     if verbose:
@@ -3417,10 +3707,6 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, verbose=False, insertio
             print(f"  No call at {tr_locus.locus_id}: "
                   f"{len(haplotype0.rejected_insertions) + len(haplotype1.rejected_insertions)} inserted "
                   f"sequence(s) are not sufficiently repetitive")
-        haplotype0 = HaplotypeSequence(None, haplotype0.rejected_insertions, haplotype0.build_error,
-                                        haplotype0.build_error_reason)
-        haplotype1 = HaplotypeSequence(None, haplotype1.rejected_insertions, haplotype1.build_error,
-                                        haplotype1.build_error_reason)
 
     # A haplotype whose variants couldn't be applied to the reference (a VCF ref allele that disagrees with the
     # fasta, a symbolic alt allele, two records phased onto the same haplotype with overlapping ref spans) makes
@@ -3432,10 +3718,25 @@ def genotype_single_locus(tr_locus, vcf_file, fasta_obj, verbose=False, insertio
         no_call_detail = failed_haplotype.build_error
         if verbose:
             print(f"  No call at {tr_locus.locus_id}: {no_call_reason} ({no_call_detail})")
-        haplotype0 = HaplotypeSequence(None, haplotype0.rejected_insertions, haplotype0.build_error,
-                                        haplotype0.build_error_reason)
-        haplotype1 = HaplotypeSequence(None, haplotype1.rejected_insertions, haplotype1.build_error,
-                                        haplotype1.build_error_reason)
+
+    # An indel at the locus edge that could equally be placed on either side of it makes the genotype ambiguous:
+    # counting its bases inside the locus or leaving them out are both valid readings of the same haplotype. When the
+    # two readings give different repeat counts, the locus gets no call rather than reporting one of them.
+    if no_call_reason is None:
+        ambiguous_indel = find_boundary_indel_that_would_change_a_repeat_count(
+            find_indels_with_placements_that_change_the_locus_length(
+                nearby_records, start_0based, end, repeat_unit, fasta_obj, fasta_chrom),
+            (haplotype0.sequence, haplotype1.sequence), repeat_unit, variants)
+        if ambiguous_indel is not None:
+            no_call_reason = NO_CALL_REASON_AMBIGUOUS_BOUNDARY_INDEL
+            no_call_detail = f"at position {ambiguous_indel}"
+            if verbose:
+                print(f"  No call at {tr_locus.locus_id}: {no_call_reason} ({no_call_detail})")
+
+    # Any of the three no calls above drops both alleles, keeping the rejected insertions and build errors for the
+    # output columns.
+    if no_call_reason is not None:
+        haplotype0, haplotype1 = haplotype0._replace(sequence=None), haplotype1._replace(sequence=None)
 
     # A "1|." record and a ".|1" record at the same locus each leave a different haplotype uncalled, so neither
     # haplotype can be built. Without a reason here the locus would come out as a silent missing genotype.
