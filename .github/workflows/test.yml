@@ -51,9 +51,15 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         python-version: ['3.9', '3.10', '3.11', '3.12']
         # macos-latest is arm64; actions/setup-python has no darwin-arm64 build below 3.10.11,
-        # so the macos + 3.9 leg can't install Python. Keep 3.9 coverage on ubuntu only.
+        # so the macos + 3.9 leg can't install Python. ubuntu-latest (Ubuntu 26.04) has no 3.9 build
+        # either, so 3.9 runs on ubuntu-24.04 instead.
         exclude:
           - os: macos-latest
+            python-version: '3.9'
+          - os: ubuntu-latest
+            python-version: '3.9'
+        include:
+          - os: ubuntu-24.04
             python-version: '3.9'
       fail-fast: false
 
