@@ -10,7 +10,7 @@ The latest docker images:
 str-analysis python scripts:
    weisburd/str-analysis@sha256:93c34758975addea03d4efbed9d2263c12b93e88937c7b571c0fc6b9a1410ed9
 scripts + ExpansionHunter:
-   weisburd/str-analysis-with-expansion-hunter@sha256:9c273adeedfc9969c2d70c9b4027821b494a724fbefb03a22b96f9b0372be5c3
+   weisburd/str-analysis-with-expansion-hunter@sha256:469ecd79e27b4201ddd0ba2237b011a5cba6b28b9683a258ee44fbdd724f666b
 scripts + TRGT:
    weisburd/str-analysis-with-trgt@sha256:b4452e4ac4db7c610ab725025e87c99154cdf10b427fbc04614d26cc0001d285
 scripts + ATaRVa:
