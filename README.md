@@ -8,23 +8,23 @@ The latest docker images:
 
 ```
 str-analysis python scripts:
-   weisburd/str-analysis@sha256:f17051a02d32a8b3c34dfee201b914af15e2e1c0f4bfc73611c06d174b42c522
+   weisburd/str-analysis@sha256:f7cd588be6a059f5fcce40d161254bab1406f5e04265c24da74c2ad04fa39b23
 scripts + ExpansionHunter:
-   weisburd/str-analysis-with-expansion-hunter@sha256:85165b0381bdd50ab4feaee450379c494266480cc1f7c865bada147a1e422742
+   weisburd/str-analysis-with-expansion-hunter@sha256:540030101c24b05d5de608f57465391d2020a7d1c6fe8d358a23584e34409a51
 scripts + TRGT:
-   weisburd/str-analysis-with-trgt@sha256:012a6d695c1ab79ffb92540535e835d9fcd8c5ebe950cba70134b1a903522d8b
+   weisburd/str-analysis-with-trgt@sha256:49d1daf5fad034631d7aea2a631f99261dcd06c03d1bbba1d49f0146eb7db3ce
 scripts + ATaRVa:
-   weisburd/str-analysis-with-atarva@sha256:ad28d0ec6e4a76879504223ec5760e0215bb9d56886b1c4092977ebc3f541300
+   weisburd/str-analysis-with-atarva@sha256:43e6c3b9d040a14128a2588008a9e86b4bacf791c406287b78b2ee94ad16f522
 scripts + inquiSTR:
-   weisburd/str-analysis-with-inquistr@sha256:04061b6420b3d2869eb3ce188be3126d4f62091f92041cbcc307427bb93ca038
+   weisburd/str-analysis-with-inquistr@sha256:a92a2e4e0e7d08eba4118c05d8f2958f919711b9a498aec0afee1ba383552854
 scripts + HipSTR:
-   weisburd/str-analysis-with-hipstr@sha256:6f5c3809489075c682ababd8859f2cbc12dadb96f07c5ef7dc007d4ae78bd744
+   weisburd/str-analysis-with-hipstr@sha256:352db78c05787a36b881ee29341dd8861b31137d4f25995869618ca1a66631cd
 scripts + GangSTR:
-   weisburd/str-analysis-with-gangstr@sha256:7403c727baf8e09f72fae05904e3642aba02232e9ceeb1f6e453ee04d0d00492
+   weisburd/str-analysis-with-gangstr@sha256:78d3a61f59fd180f7ab17843fd65973a4ae58defb0a061705c2d09319516523c
 scripts + EnsembleTR:
-   weisburd/str-analysis-with-ensembletr@sha256:2a058e5b354f017b2ff675d0863400ec563718686b159e72a49748bb3022408a
+   weisburd/str-analysis-with-ensembletr@sha256:5e96ea9a717e25ec687efdf7cd4bc9a81925ab66c29591a8095995461a5802cb
 scripts + LongTR:
-   weisburd/str-analysis-with-longtr@sha256:0531a04b002a6ae957606652647ba0fabc2b99cf0936056bdacb57142dc2487d
+   weisburd/str-analysis-with-longtr@sha256:a2043f0f2eb18a33177f6e6fa76f9f2655338d2bb70465d30546acb78a8e267d
 ```
 ---
 
