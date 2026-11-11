@@ -6,8 +6,7 @@ from pprint import pformat
 import pysam
 import unittest
 
-from add_adjacent_loci_to_expansion_hunter_catalog import process_input_record, get_interval_tree_for_chrom, \
-    get_min_and_max_coords_for_chrom
+from add_adjacent_loci_to_expansion_hunter_catalog import process_input_record, get_interval_tree_for_chrom
 from str_analysis.utils.get_adjacent_repeats import MAX_DISTANCE_BETWEEN_REPEATS, MAX_TOTAL_ADJACENT_REGION_SIZE, \
     MAX_OVERLAP_BETWEEN_ADJACENT_REPEATS
 
@@ -277,16 +276,10 @@ class GetAdjacentRepeatsTests(unittest.TestCase):
             print("="*100)
             print(f"Testing {record['LocusId']}")
             chrom = record["ReferenceRegion"].split(":")[0]
-            max_total_adjacent_region_size = 1000
             if current_chrom != chrom:
                 current_chrom = chrom
-                min_coord, max_coord = get_min_and_max_coords_for_chrom(
-                    self.variant_catalog, chrom)
-                min_coord -= max_total_adjacent_region_size
-                max_coord += max_total_adjacent_region_size
-
                 current_interval_tree = get_interval_tree_for_chrom(
-                    self.source_of_adjacent_loci, chrom, min_coord, max_coord)
+                    self.source_of_adjacent_loci, chrom, 0, self.pysam_fasta_file.get_reference_length(chrom))
 
             output_record = process_input_record(
                 record,
