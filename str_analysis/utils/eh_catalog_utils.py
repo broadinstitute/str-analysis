@@ -1,7 +1,11 @@
 import collections
+import gzip
 import ijson
+import io
 import itertools
+import os
 import re
+import simplejson
 from tqdm import tqdm
 
 from str_analysis.utils.file_utils import open_file
@@ -9,6 +13,47 @@ from str_analysis.utils.misc_utils import parse_interval
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 
 ACGTN_REGEX = re.compile("^[ACGTN]+$", re.IGNORECASE)
+
+
+class JsonListFileWriter:
+    """Writes catalog records to a JSON file one at a time, so that a script doesn't have to keep them all in memory.
+    The file ends up the same as simplejson.dump(records, f, indent=4, ignore_nan=True) would make it. Until close()
+    is called, it's written to <output_path>.incomplete, so an interrupted run never leaves a partial file at
+    output_path.
+    """
+
+    def __init__(self, output_path, use_gzip):
+        """
+        Args:
+            output_path (str): path of the output JSON file
+            use_gzip (bool): whether to gzip the output file
+        """
+        self.output_path = output_path
+        self.incomplete_output_path = f"{output_path}.incomplete"
+        if use_gzip:
+            # gzip stores a file name in the file's header, so give it the final name rather than the incomplete one
+            self.raw_output_file = open(self.incomplete_output_path, "wb")
+            self.output_file = io.TextIOWrapper(gzip.GzipFile(filename=output_path, mode="wb", fileobj=self.raw_output_file))
+        else:
+            self.raw_output_file = None
+            self.output_file = open(self.incomplete_output_path, "wt")
+        self.num_records_written = 0
+
+    def write(self, record):
+        """Writes a record (dict) to the end of the list."""
+        record_json = simplejson.dumps(record, indent=4, ignore_nan=True)
+        self.output_file.write(("[\n" if self.num_records_written == 0 else ",\n") +
+                               "\n".join(f"    {line}" for line in record_json.split("\n")))
+        self.num_records_written += 1
+
+    def close(self):
+        """Closes the list and the file, and moves the file to output_path."""
+        self.output_file.write("\n]" if self.num_records_written > 0 else "[]")
+        self.output_file.close()
+        if self.raw_output_file is not None:
+            self.raw_output_file.close()
+        os.replace(self.incomplete_output_path, self.output_path)
+
 
 def parse_motifs_from_locus_structure(locus_structure):
     """Takes an ExpansionHunter LocusStructure like "(CAG)*AGAC(GCC)+" or a TRGT STRUC like "TCCAG(CAG)nAGAC(GCC)nGCACGG"

@@ -9,13 +9,13 @@ import pandas as pd
 import pyBigWig
 import pysam
 import re
-import simplejson
 from tqdm import tqdm
 
 from str_analysis.compute_catalog_stats import compute_catalog_stats
 from str_analysis.utils.canonical_repeat_unit import compute_canonical_motif
 from str_analysis.utils.eh_catalog_utils import (parse_motifs_from_locus_structure,
-                                                 convert_json_records_to_bed_format_tuples, get_variant_catalog_iterator)
+                                                 convert_json_records_to_bed_format_tuples, get_variant_catalog_iterator,
+                                                 JsonListFileWriter)
 from str_analysis.utils.file_utils import file_exists, download_local_copy
 from str_analysis.utils.find_repeat_unit import find_repeat_unit_without_allowing_interruptions
 from str_analysis.utils.gtf_utils import compute_genomic_region_of_interval, GENE_MODELS, PROMOTER_SIZE
@@ -373,7 +373,9 @@ def main():
         filename_prefix = re.sub("(.json|.bed)(.b?gz)?$", "", os.path.basename(args.catalog_json_or_bed))
         args.output_path = f"{filename_prefix}.annotated_and_filtered.json.gz"
 
-    output_records = []
+    # Write each record as soon as it passes the filters, rather than keeping them all in memory, which takes tens of GB
+    # for a genome-wide catalog.
+    output_writer = JsonListFileWriter(args.output_path, use_gzip=args.output_path.endswith(".gz"))
     if args.verbose:
         print(f"Parsing {args.catalog_json_or_bed}")
 
@@ -679,16 +681,19 @@ def main():
                 trf_motif_quality_score_list.append(trf_motif_quality_score)
 
 
-            # check for overlap
-            canonical_motif = compute_canonical_motif(motif, include_reverse_complement=False)
-            for overlapping_interval in interval_trees[chrom].overlap(start_0based, end):
-                overlapping_interval_motif = overlapping_interval.data
-                larger_motif_size = max(len(canonical_motif), len(overlapping_interval_motif))
-                if overlapping_interval.overlap_size(start_0based, end) >= 2*larger_motif_size:
-                    overlaps_other_interval_with_similar_motif = canonical_motif == overlapping_interval_motif
-                    break
+            # check for overlap with earlier records. Only --discard-overlapping-intervals-with-similar-motifs uses this,
+            # and the interval tree of all earlier records takes several GB for a genome-wide catalog, so it's skipped
+            # otherwise.
+            if args.discard_overlapping_intervals_with_similar_motifs:
+                canonical_motif = compute_canonical_motif(motif, include_reverse_complement=False)
+                for overlapping_interval in interval_trees[chrom].overlap(start_0based, end):
+                    overlapping_interval_motif = overlapping_interval.data
+                    larger_motif_size = max(len(canonical_motif), len(overlapping_interval_motif))
+                    if overlapping_interval.overlap_size(start_0based, end) >= 2*larger_motif_size:
+                        overlaps_other_interval_with_similar_motif = canonical_motif == overlapping_interval_motif
+                        break
 
-            interval_trees[chrom].add(Interval(start_0based, max(end, start_0based + 1), data=canonical_motif))
+                interval_trees[chrom].add(Interval(start_0based, max(end, start_0based + 1), data=canonical_motif))
 
         if has_invalid_bases:
             continue
@@ -783,18 +788,16 @@ def main():
 
         # add this record to the output catalog
         filter_counters["passed all filters"] += 1
-        output_records.append(catalog_record)
+        output_writer.write(catalog_record)
 
-    print(f"Writing {len(output_records):,d} records to {args.output_path}")
-    fopen = gzip.open if args.output_path.endswith(".gz") else open
-    with fopen(args.output_path, "wt") as f:
-        simplejson.dump(output_records, f, indent=4, ignore_nan=True)
-    print(f"Wrote {len(output_records):,d} records to {args.output_path}")
+    output_writer.close()
+    print(f"Wrote {output_writer.num_records_written:,d} records to {args.output_path}")
 
+    # the options below read the output records back from the output file
     output_path_prefix = re.sub("(.json|.bed)(.b?gz)?$", "", args.output_path)
     if args.output_stats:
         if args.verbose: print("Calculating catalog stats..")
-        compute_catalog_stats(args.output_path, output_records, verbose=args.verbose)
+        compute_catalog_stats(args.output_path, get_variant_catalog_iterator(args.output_path), verbose=args.verbose)
 
     if args.verbose:
         print("\nFilter stats:")
@@ -813,7 +816,7 @@ def main():
         if args.verbose: print(f"Writing to {output_path}")
         with open(output_path, "wt") as output_bed:
             total = 0
-            for bed_record in sorted(convert_json_records_to_bed_format_tuples(output_records)):
+            for bed_record in sorted(convert_json_records_to_bed_format_tuples(get_variant_catalog_iterator(args.output_path))):
                 total += 1
                 output_bed.write("\t".join(map(str, bed_record)) + "\n")
 
@@ -823,7 +826,7 @@ def main():
 
     if args.output_tsv:
         if args.verbose: print(f"Writing to {output_path_prefix}.tsv.gz")
-        output_tsv(f"{output_path_prefix}.tsv.gz", output_records)
+        output_tsv(f"{output_path_prefix}.tsv.gz", get_variant_catalog_iterator(args.output_path))
 
 
 

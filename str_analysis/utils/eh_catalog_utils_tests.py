@@ -1,7 +1,47 @@
+import gzip
+import os
+import tempfile
 import unittest
+
+import simplejson
 
 from str_analysis.utils.eh_catalog_utils import convert_json_records_to_bed_format_tuples
 from str_analysis.utils.eh_catalog_utils import group_overlapping_loci
+from str_analysis.utils.eh_catalog_utils import JsonListFileWriter
+
+
+class JsonListFileWriterTests(unittest.TestCase):
+
+    def test_output_is_the_same_as_dumping_the_whole_list(self):
+        records = [
+            {"LocusId": "1-100-110-A", "ReferenceRegion": "1:100-110", "NumRepeatsInReference": 10,
+             "ReferenceRepeatPurity": 0.95, "Nested": {"a": [1, 2.5, None]}, "Empty": [], "NaN": float("nan")},
+            {"LocusId": "2-5-11-CAG", "ReferenceRegion": ["2:5-8", "2:8-11"], "Text": 'with "quotes" and\nnewline'},
+            {"LocusId": "X-1-2-T"},
+        ]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for records_subset in records, records[:1], []:
+                for use_gzip in False, True:
+                    output_path = os.path.join(
+                        temp_dir, f"output_with_{len(records_subset)}_records.json" + (".gz" if use_gzip else ""))
+                    writer = JsonListFileWriter(output_path, use_gzip=use_gzip)
+                    self.assertFalse(os.path.exists(output_path))
+                    for record in records_subset:
+                        writer.write(record)
+                    writer.close()
+
+                    with (gzip.open if use_gzip else open)(output_path, "rt") as f:
+                        self.assertEqual(f.read(), simplejson.dumps(records_subset, indent=4, ignore_nan=True))
+                    self.assertFalse(os.path.exists(f"{output_path}.incomplete"))
+
+                    if use_gzip:
+                        # the gzip header stores the same file name as gzip.open(output_path) would: the output
+                        # file's name without .gz, after the 10-byte fixed header
+                        with open(output_path, "rb") as f:
+                            header = f.read(200)
+                        self.assertTrue(header[3] & 0x08)
+                        stored_file_name = header[10:header.index(b"\x00", 10)]
+                        self.assertEqual(stored_file_name.decode(), os.path.basename(output_path)[:-len(".gz")])
 
 
 class Tests(unittest.TestCase):
