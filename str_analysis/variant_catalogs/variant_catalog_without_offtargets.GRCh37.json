@@ -360,7 +360,7 @@
         "VariantType": "Repeat",
         "Gene": "BCLAF3",
         "GeneRegion": "5'-UTR",
-        "GeneId": "ENST00000379682",
+        "GeneId": "ENSG00000173681",
         "Diseases": [],
         "MainReferenceRegion": "chrX:20009040-20009091"
     },
@@ -574,7 +574,7 @@
         "VariantType": "Repeat",
         "Gene": "CSNK1E",
         "GeneRegion": "5'-UTR",
-        "GeneId": "ENST00000396832",
+        "GeneId": "ENSG00000213923",
         "Diseases": [],
         "MainReferenceRegion": "chr22:38713287-38713311"
     },
@@ -703,7 +703,7 @@
         "RepeatUnit": "CAG",
         "Gene": "EP400",
         "GeneRegion": "coding: polyglutamine",
-        "GeneId": "ENST00000389561",
+        "GeneId": "ENSG00000183495",
         "Diseases": [
             {
                 "Symbol": "EP400",
@@ -724,7 +724,7 @@
         "RepeatUnit": "CAG",
         "Gene": "EP400",
         "GeneRegion": "coding: polyglutamine",
-        "GeneId": "ENST00000389561",
+        "GeneId": "ENSG00000183495",
         "Diseases": [
             {
                 "Symbol": "EP400",
@@ -1977,7 +1977,7 @@
         "RepeatUnit": "GCC",
         "Gene": "ZFHX3",
         "GeneRegion": "coding: polyglycine",
-        "GeneId": "ENST00000268489",
+        "GeneId": "ENSG00000140836",
         "DiscoveryMethod": "L, WGS",
         "DiscoveryYear": 2023,
         "Diseases": [
