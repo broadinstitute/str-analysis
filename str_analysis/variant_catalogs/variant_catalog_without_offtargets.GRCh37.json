@@ -353,6 +353,18 @@
         "Inheritance": "AD"
     },
     {
+        "LocusId": "BCLAF3",
+        "LocusStructure": "(CCG)*",
+        "ReferenceRegion": "chrX:20009040-20009091",
+        "RepeatUnit": "CCG",
+        "VariantType": "Repeat",
+        "Gene": "BCLAF3",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENST00000379682",
+        "Diseases": [],
+        "MainReferenceRegion": "chrX:20009040-20009091"
+    },
+    {
         "LocusId": "BEAN1",
         "LocusStructure": "(TAAAA)*",
         "VariantType": "Repeat",
@@ -405,6 +417,18 @@
         ],
         "MainReferenceRegion": "chr9:27573526-27573544",
         "Inheritance": "AD"
+    },
+    {
+        "LocusId": "C11ORF80",
+        "LocusStructure": "(GGC)*",
+        "ReferenceRegion": "chr11:66512290-66512314",
+        "RepeatUnit": "GGC",
+        "VariantType": "Repeat",
+        "Gene": "C11orf80",
+        "GeneRegion": "coding: polyalanine",
+        "GeneId": "ENSG00000173715",
+        "Diseases": [],
+        "MainReferenceRegion": "chr11:66512290-66512314"
     },
     {
         "LocusId": "CACNA1A",
@@ -541,6 +565,18 @@
         ],
         "MainReferenceRegion": "chr21:45196324-45196360",
         "Inheritance": "AR"
+    },
+    {
+        "LocusId": "CSNK1E",
+        "LocusStructure": "(GCC)*",
+        "ReferenceRegion": "chr22:38713287-38713311",
+        "RepeatUnit": "GCC",
+        "VariantType": "Repeat",
+        "Gene": "CSNK1E",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENST00000396832",
+        "Diseases": [],
+        "MainReferenceRegion": "chr22:38713287-38713311"
     },
     {
         "LocusId": "DAB1",
@@ -801,6 +837,28 @@
         ],
         "MainReferenceRegion": "chr3:138664862-138664904",
         "Inheritance": "AD"
+    },
+    {
+        "LocusId": "FRA10AC1",
+        "LocusStructure": "(CCA)*(CCG)*",
+        "ReferenceRegion": [
+            "chr10:95462273-95462279",
+            "chr10:95462279-95462303"
+        ],
+        "RepeatUnit": "CCG",
+        "VariantType": [
+            "Repeat",
+            "Repeat"
+        ],
+        "Gene": "FRA10AC1",
+        "GeneRegion": "5'-UTR",
+        "GeneId": "ENSG00000148690",
+        "Diseases": [],
+        "MainReferenceRegion": "chr10:95462279-95462303",
+        "VariantId": [
+            "FRA10AC1_CCA",
+            "FRA10AC1"
+        ]
     },
     {
         "LocusId": "FXN",
@@ -1143,7 +1201,7 @@
         "LocusId": "NIPA1",
         "LocusStructure": "(CGC)*",
         "ReferenceRegion": "chr15:23086366-23086390",
-        "RepeatUnit": "GCG",
+        "RepeatUnit": "CGC",
         "VariantType": "Repeat",
         "Gene": "NIPA1",
         "GeneRegion": "coding: polyalanine",

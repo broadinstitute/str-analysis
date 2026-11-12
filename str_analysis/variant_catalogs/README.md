@@ -1,5 +1,5 @@
 This folder contains catalogs of known disease-associated TR loci in a format that can be used with [ExpansionHunter](https://github.com/Illumina/ExpansionHunter) or [TRGT](https://github.com/PacificBiosciences/trgt).
-The catalogs also include loci that are not currently considered causal for any Mendelian disease, but that were historically listed as candidate disease loci and so were often included in publications that cataloged disease-associated STRs. These loci have an empty `Diseases` list. The GRCh38 catalogs include 7 such loci (BCLAF3, C11ORF80, CSNK1E, DMD, FRA10AC1, NOTCH2NLA, TMEM185A), while the GRCh37 catalogs include only DMD.
+The catalogs also include loci that are not currently considered causal for any Mendelian disease, but that were historically listed as candidate disease loci and so were often included in publications that cataloged disease-associated STRs. These loci have an empty `Diseases` list. The GRCh38 catalogs include 7 such loci (BCLAF3, C11ORF80, CSNK1E, DMD, FRA10AC1, NOTCH2NLA, TMEM185A), while the GRCh37 catalogs include 5 of them (BCLAF3, C11ORF80, CSNK1E, DMD, FRA10AC1). NOTCH2NLA and TMEM185A are left out of the GRCh37 catalogs because they don't lift over cleanly from GRCh38: NOTCH2NLA maps onto the same GRCh37 bases as NOTCH2NLC, and part of the TMEM185A repeat is missing from GRCh37.
 
 **TRGT catalogs:**
 
