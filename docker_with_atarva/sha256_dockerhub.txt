@@ -1,1 +1,1 @@
-weisburd/str-analysis-with-atarva@sha256:e1e68f362b1d1ac49fddfb040f80364490d1a22eaefe8e1fa6f60f855c1e8057
+weisburd/str-analysis-with-atarva@sha256:ff02917584801d64622978de815bb1ba5d549144ef8c6f2d84b5341551959df2
