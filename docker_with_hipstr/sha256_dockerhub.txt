@@ -1,1 +1,1 @@
-weisburd/str-analysis-with-hipstr@sha256:c39ce777a59dd6ed561eb9d6e1136fc21a53d4eb7e50262427118cdf6d365593
+weisburd/str-analysis-with-hipstr@sha256:ec4b83f325809499eaf34b29f023d255b7bef912066d7e93104efe7b16cb0b16
