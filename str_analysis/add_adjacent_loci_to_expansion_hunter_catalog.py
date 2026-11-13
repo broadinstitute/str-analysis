@@ -7,11 +7,11 @@ into a single spec with multiple adjacent repeats inorder to improve genotyping 
 
 import argparse
 import collections
+import importlib.util
 import intervaltree
 import simplejson as json
 import ijson
 import os
-import pybedtools
 import pysam
 import re
 import tempfile
@@ -194,13 +194,14 @@ def compute_extra_fields(reference_regions, reference_region_motifs, add_extra_f
     return extra_fields
 
 
-def generate_bed_records_in_region(bed_file_path, chrom, start, end):
-    """Yields the records of the given bed file that overlap the given region. When the bed file has a tabix index
-    (.tbi), only the region is read. Otherwise, pybedtools.BedTool.all_hits loads the whole bed file into memory, which
-    takes seconds and GBs of memory for a genome-wide bed file.
+def generate_bed_records_in_region(bed_file_path, tabix_index_path, chrom, start, end):
+    """Yields the records of the given bed file that overlap the given region. When the bed file's tabix index exists,
+    only the region is read. Otherwise, pybedtools.BedTool.all_hits loads the whole bed file into memory, which takes
+    seconds and GBs of memory for a genome-wide bed file.
 
     Args:
         bed_file_path (str): local path of a bed file whose 4th column is the repeat motif
+        tabix_index_path (str): local path of the bed file's tabix index (.tbi), which may not exist
         chrom (str): chromosome name
         start (int): 0-based start coordinate of the region
         end (int): end coordinate of the region
@@ -208,11 +209,13 @@ def generate_bed_records_in_region(bed_file_path, chrom, start, end):
     Yields:
         a bed record with start, end and name (motif) attributes
     """
-    if os.path.isfile(f"{bed_file_path}.tbi"):
-        with pysam.TabixFile(bed_file_path) as tabix_file:
+    if os.path.isfile(tabix_index_path):
+        with pysam.TabixFile(bed_file_path, index=tabix_index_path) as tabix_file:
             if chrom in tabix_file.contigs:
                 yield from tabix_file.fetch(chrom, start, end, parser=pysam.asBed())
     else:
+        # pybedtools isn't one of str_analysis's required packages, so it's only needed for bed files without an index
+        import pybedtools
         yield from pybedtools.BedTool(bed_file_path).all_hits(pybedtools.Interval(chrom, start, end))
 
 
@@ -231,22 +234,39 @@ def get_interval_tree_for_chrom(adjacent_loci_bed_file_path, chrom, start, end, 
         intervaltree.IntervalTree: An IntervalTree containing 0-based intervals that represent the reference start and
             end coordinates of all TR loci found in the reference genome on the given chromosome.
     """
+    tabix_index_path = f"{adjacent_loci_bed_file_path}.tbi"
     if adjacent_loci_bed_file_path.startswith("gs://"):
+        # download the bed file's index too, if it has one. Its local copy gets a name of its own rather than the local
+        # bed file's name plus .tbi, so its path is passed on separately.
+        if file_exists(tabix_index_path):
+            tabix_index_path = download_local_copy(tabix_index_path)
         adjacent_loci_bed_file_path = download_local_copy(adjacent_loci_bed_file_path)
     adjacent_loci_bed_file_path = os.path.expanduser(adjacent_loci_bed_file_path)
+    tabix_index_path = os.path.expanduser(tabix_index_path)
 
     interval_tree = intervaltree.IntervalTree()
     print(f"Parsing potential adjacent repeats from a {end-start+1:,d}bp region ({chrom}:{start:,d}-{end:,d}) in "
           f"{adjacent_loci_bed_file_path}...")
 
-    bed_iterator = generate_bed_records_in_region(adjacent_loci_bed_file_path, chrom, start, end)
+    bed_iterator = generate_bed_records_in_region(adjacent_loci_bed_file_path, tabix_index_path, chrom, start, end)
     if verbose:
-        bed_iterator = add_progress_bar(bed_iterator, unit=" rows")
+        bed_iterator = tqdm.tqdm(bed_iterator, unit=" rows", unit_scale=True)
 
+    num_rows_without_reference_bases = 0
     for bed_record in bed_iterator:
+        if bed_record.end <= bed_record.start:
+            # a row with no reference bases, like the insertions that filter_vcf_to_tandem_repeats.py outputs, can't be
+            # an adjacent reference repeat, and IntervalTree doesn't allow empty intervals
+            num_rows_without_reference_bases += 1
+            continue
+
         # IntervalTree.add skips an interval (start, end, motif) that's already in the tree, so duplicate bed rows are
         # stored once
         interval_tree.add(intervaltree.Interval(bed_record.start, bed_record.end, data=bed_record.name))
+
+    if num_rows_without_reference_bases:
+        print(f"WARNING: skipped {num_rows_without_reference_bases:,d} rows whose end isn't after their start in "
+              f"{adjacent_loci_bed_file_path} for chromosome {chrom}")
 
     if not interval_tree:
         print(f"WARNING: no adjacent loci found in {adjacent_loci_bed_file_path} for chromosome {chrom}")
@@ -310,11 +330,6 @@ def format_example_locus_ids(example_locus_ids, total_num_locus_ids):
     """Returns the given example locus ids joined by commas, followed by '...' if they're only some of the
     total_num_locus_ids locus ids."""
     return ", ".join(example_locus_ids) + (" ..." if total_num_locus_ids > len(example_locus_ids) else "")
-
-
-def add_progress_bar(iterable, unit=" loci"):
-    for record in tqdm.tqdm(iterable, unit=unit, unit_scale=True):
-        yield record
 
 
 def main():
@@ -394,7 +409,7 @@ def main():
     args = parser.parse_args()
 
     # validate command-line args
-    for path in [args.ref_fasta] + args.input_catalog_paths:
+    for path in [args.ref_fasta, args.source_of_adjacent_loci] + args.input_catalog_paths:
         if not file_exists(path):
             parser.error(f"{path} not found")
 
@@ -406,13 +421,39 @@ def main():
         not args.source_of_adjacent_loci.endswith(".bed.bgz")):
         parser.error(f"source_of_adjacent_loci must be a .bed or .bed.gz file: {args.source_of_adjacent_loci}")
 
+    # a bed file without a tabix index is read with pybedtools, which isn't one of str_analysis's required packages
+    if not file_exists(f"{args.source_of_adjacent_loci}.tbi") and importlib.util.find_spec("pybedtools") is None:
+        parser.error(f"{args.source_of_adjacent_loci} has no tabix index (.tbi), and reading it without one needs "
+                     f"pybedtools, which isn't installed. Please bgzip and tabix-index it, or install pybedtools.")
+
+    # name each input catalog's output catalog, and check that its directory exists now rather than after the slow first
+    # pass below
+    output_catalog_path_by_input_catalog_path = {}
+    for input_catalog_path in args.input_catalog_paths:
+        if args.output_catalog and len(args.input_catalog_paths) == 1:
+            output_catalog_path = args.output_catalog
+        else:
+            # name the output after the input catalog, with --output-catalog as a suffix, and keep its gzip compression
+            output_catalog_path = re.sub(r"\.json(\.b?gz)?$", "", input_catalog_path) + \
+                f".{args.output_catalog or 'with_adjacent_loci'}.json"
+            if input_catalog_path.endswith((".gz", ".bgz")):
+                output_catalog_path += ".gz"
+
+        if args.output_dir:
+            output_catalog_path = os.path.join(args.output_dir, os.path.basename(output_catalog_path))
+
+        output_catalog_dir = os.path.dirname(output_catalog_path)
+        if output_catalog_dir and not os.path.isdir(output_catalog_dir):
+            parser.error(f"Directory {output_catalog_dir} not found for output catalog {output_catalog_path}")
+        output_catalog_path_by_input_catalog_path[input_catalog_path] = output_catalog_path
+
     ref_fasta =pysam.FastaFile(os.path.abspath(os.path.expanduser(args.ref_fasta)))
     ref_fasta_chromosomes = set(ref_fasta.references)
 
     # Read the input catalog(s) one record at a time, since a whole annotated catalog takes tens of GB of memory, and
-    # write each catalog's records to one temporary file per chromosome, named by the chromosome in the record's
-    # ReferenceRegion in the input catalog. The records are then processed and written out one chromosome at a time, in
-    # the order of these chromosome names, keeping their order within each chromosome.
+    # write each catalog's records to one temporary file per chromosome, named by the chromosome of the record's
+    # ReferenceRegion in the reference's naming. The records are then processed and written out one chromosome at a
+    # time, in the order of these chromosome names, keeping their order within each chromosome.
     temp_dir = tempfile.TemporaryDirectory(prefix="add_adjacent_loci_", dir=args.temp_dir)
     temp_file_paths_by_chrom_by_input_catalog_path = {}
     num_records_by_input_catalog_path = {}
@@ -424,7 +465,7 @@ def main():
         with open_file(input_catalog_path, is_text_file=True) as f:
             records = ijson.items(f, "item", use_float=True)
             if args.show_progress_bar:
-                records = add_progress_bar(records, unit=" loci")
+                records = tqdm.tqdm(records, unit=" loci", unit_scale=True)
 
             for record in records:
                 if args.n and num_records >= args.n:
@@ -435,9 +476,6 @@ def main():
                     print(f"WARNING: record {record} is missing keys: {missing_keys}. Skipping...")
                     continue
                 num_records += 1
-
-                record_chrom = (record["ReferenceRegion"][0] if isinstance(record["ReferenceRegion"], list)
-                                else record["ReferenceRegion"]).split(":")[0]
 
                 # give the record's regions the reference's chromosome naming, and get the min and max coordinates of
                 # the TR loci for each chromosome
@@ -459,15 +497,15 @@ def main():
                         min(current_start, min_max_coords_for_chrom[current_chrom][0]),
                         max(current_end, min_max_coords_for_chrom[current_chrom][1]))
 
-                if record_chrom not in temp_files_by_chrom:
-                    temp_files_by_chrom[record_chrom] = open(os.path.join(
+                if chrom not in temp_files_by_chrom:
+                    temp_files_by_chrom[chrom] = open(os.path.join(
                         temp_dir.name, f"catalog{input_catalog_i}.chrom{len(temp_files_by_chrom)}.jsonl"), "wt")
-                temp_files_by_chrom[record_chrom].write(json.dumps(record) + "\n")
+                temp_files_by_chrom[chrom].write(json.dumps(record) + "\n")
 
         for temp_file in temp_files_by_chrom.values():
             temp_file.close()
         temp_file_paths_by_chrom_by_input_catalog_path[input_catalog_path] = {
-            record_chrom: temp_file.name for record_chrom, temp_file in temp_files_by_chrom.items()}
+            chrom: temp_file.name for chrom, temp_file in temp_files_by_chrom.items()}
         num_records_by_input_catalog_path[input_catalog_path] = num_records
         print(f"Loaded {num_records:,d} records from {input_catalog_path}")
 
@@ -489,27 +527,16 @@ def main():
         example_locus_ids_with_new_adjacent_repeats = []
         example_locus_ids_of_duplicate_records = []
 
-        if args.output_catalog and len(args.input_catalog_paths) == 1:
-            output_catalog_path = args.output_catalog
-        else:
-            # name the output after the input catalog, with --output-catalog as a suffix, and keep its gzip compression
-            output_catalog_path = re.sub(r"\.json(\.b?gz)?$", "", input_catalog_path) + \
-                f".{args.output_catalog or 'with_adjacent_loci'}.json"
-            if input_catalog_path.endswith((".gz", ".bgz")):
-                output_catalog_path += ".gz"
-
-        if args.output_dir:
-            output_catalog_path = os.path.join(args.output_dir, os.path.basename(output_catalog_path))
-
+        output_catalog_path = output_catalog_path_by_input_catalog_path[input_catalog_path]
         output_writer = JsonListFileWriter(output_catalog_path, use_gzip=output_catalog_path.endswith((".gz", ".bgz")))
         progress_bar = tqdm.tqdm(total=num_records_by_input_catalog_path[input_catalog_path], unit=" loci",
                                  unit_scale=True, disable=not args.show_progress_bar)
-        for record_chrom in sorted(temp_file_paths_by_chrom):
+        for chrom in sorted(temp_file_paths_by_chrom):
             # avoid duplicate records in the output catalog. Duplicates have the same ReferenceRegion, so they're on the
             # same chromosome.
             already_added_to_output_catalog = set()
 
-            with open(temp_file_paths_by_chrom[record_chrom]) as temp_file:
+            with open(temp_file_paths_by_chrom[chrom]) as temp_file:
                 for line in temp_file:
                     progress_bar.update(1)
                     record = json.loads(line)
@@ -534,9 +561,8 @@ def main():
                             example_locus_ids_with_existing_adjacent_repeats.append(record["LocusId"])
                         continue
 
-                    # parse args.source_of_adjacent_loci within the region of the record's chromosome (in the
-                    # reference's naming) that the input catalog(s) span, unless it's already loaded
-                    chrom = record["ReferenceRegion"].split(":")[0]
+                    # parse args.source_of_adjacent_loci within the region of this chromosome that the input catalog(s)
+                    # span, unless it's already loaded
                     if chrom not in interval_trees_by_chrom:
                         if len(args.input_catalog_paths) == 1:
                             interval_trees_by_chrom.clear()
