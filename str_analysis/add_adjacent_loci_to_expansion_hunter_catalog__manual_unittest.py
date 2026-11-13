@@ -281,7 +281,7 @@ class GetAdjacentRepeatsTests(unittest.TestCase):
                 current_interval_tree = get_interval_tree_for_chrom(
                     self.source_of_adjacent_loci, chrom, 0, self.pysam_fasta_file.get_reference_length(chrom))
 
-            output_record = process_input_record(
+            output_record, _ = process_input_record(
                 record,
                 self.pysam_fasta_file,
                 current_interval_tree,
