@@ -146,7 +146,8 @@ class GetAdjacentRepeatsTests(unittest.TestCase):
                 "LocusId": "TBX1",
                 "LocusStructure": "(GCN)*",
                 "ReferenceRegion": "chr22:19766762-19766807",
-                "ExpectedLocusStructure": "(ACC)*CCGTGAGTCCA(GCC)*",
+                # the main locus keeps its own motif (GCN) even though it differs from the reference's (GCC)
+                "ExpectedLocusStructure": "(ACC)*CCGTGAGTCCA(GCN)*",
                 "ExpectedReferenceRegion": [
                     "chr22:19766736-19766751",
                     "chr22:19766762-19766807",
@@ -251,7 +252,41 @@ class GetAdjacentRepeatsTests(unittest.TestCase):
                     "chr2:100104798-100104822",
                     "chr2:100104833-100104849",
                 ],
-            }
+            },
+            # the catalog's narrow EP400 definition and its coordinate-encoded alternate EP400 and RAI1 definitions have
+            # adjacent repeats within the maximum distance
+            {
+                "LocusId": "EP400",
+                "LocusStructure": "(CAG)*",
+                "ReferenceRegion": "chr12:132062548-132062611",
+                "ExpectedLocusStructure": "(GCA)*ACAA(CAG)*(ACG)*",
+                "ExpectedReferenceRegion": [
+                    "chr12:132062523-132062544",
+                    "chr12:132062548-132062611",
+                    "chr12:132062611-132062620",
+                ],
+            },
+            {
+                "LocusId": "EP400__12-132062524-132062611-CAG",
+                "LocusStructure": "(CAG)*",
+                "ReferenceRegion": "chr12:132062524-132062611",
+                "ExpectedLocusStructure": "(CAG)*(ACG)*",
+                "ExpectedReferenceRegion": [
+                    "chr12:132062524-132062611",
+                    "chr12:132062611-132062620",
+                ],
+            },
+            {
+                "LocusId": "RAI1__17-17808416-17808460-TTTTA",
+                "LocusStructure": "(TTTTA)*",
+                "ReferenceRegion": "chr17:17808416-17808460",
+                "ExpectedLocusStructure": "(TTTAT)*ATTTTATTTTA(TTATT)*(TTTTA)*",
+                "ExpectedReferenceRegion": [
+                    "chr17:17808360-17808375",
+                    "chr17:17808386-17808416",
+                    "chr17:17808416-17808460",
+                ],
+            },
         ]
 
         locus_ids_already_in_catalog = {record["LocusId"] for record in self.variant_catalog}

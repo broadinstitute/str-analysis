@@ -1,4 +1,5 @@
 import os
+import shutil
 import unittest
 
 from str_analysis.utils.trf_runner import TRFRunner
@@ -6,9 +7,11 @@ from str_analysis.utils.trf_runner import TRFRunner
 class Tests(unittest.TestCase):
     def test_trf_runner(self):
 
-        trf_path = os.path.expanduser("~/bin/trf409.macosx")
+        # prefer a trf executable on the PATH, since ~/bin/trf409.macosx is an x86_64 build that Apple Silicon Macs can
+        # only run with Rosetta
+        trf_path = shutil.which("trf") or os.path.expanduser("~/bin/trf409.macosx")
         if not os.path.exists(trf_path):
-            print("WARNING: TRF binary not found at ~/bin/trf409.macosx")
+            print("WARNING: TRF binary not found on the PATH or at ~/bin/trf409.macosx")
             return
 
         trf_runner = TRFRunner(trf_path, mismatch_penalty=3, indel_penalty=5, minscore=8, html_mode=False)
