@@ -303,6 +303,28 @@ def output_tsv(output_path, output_records):
 
 
 
+def compute_mean_mappability(mappability_bigwig, chrom, start_0based, end_1based):
+    """Returns the mean mappability of an interval's bases, counting bases that the bigWig has no values for as 0.
+
+    Some mappability tracks, such as UCSC's ENCODE/CRG alignability tracks for hg19, have no values over assembly gaps
+    (the GRCh38 k36_m2 track has 0s there instead). Nothing can map to a gap, so this counts such bases as 0, by
+    dividing the sum of the values by the interval's length. The sum is computed with exact=True, from the bigWig's
+    values for each base, since pyBigWig otherwise answers from its precomputed zoom-level summaries whenever the
+    interval is long enough (256 bp or more on the hg19 CRG track), which can be off by more than 0.1.
+
+    Args:
+        mappability_bigwig (pyBigWig.pyBigWig): the open mappability bigWig file
+        chrom (str): chromosome of the interval
+        start_0based (int): start of the interval
+        end_1based (int): end of the interval
+
+    Returns:
+        float: the mean mappability, or 0.0 if the bigWig has no values in the interval
+    """
+    (sum_of_values, ) = mappability_bigwig.stats(chrom, start_0based, end_1based, type="sum", exact=True)
+    return (sum_of_values or 0.0) / (end_1based - start_0based)
+
+
 def count_Ns_in_flanks(fasta_obj, reference_region_chrom, reference_region_start_0based, reference_region_end, num_flanking_bases=1000):
     left_flank_start = max(reference_region_start_0based - num_flanking_bases, 0)
     right_flank_end = min(reference_region_end + num_flanking_bases, get_chromosome_size_with_cache(fasta_obj, reference_region_chrom))
@@ -734,10 +756,9 @@ def main():
             left_flank_mappability_interval_end = max(2, left_flank_end - MAPPABILITY_TRACK_KMER_SIZE)
             try:
 
-                (mappability_left_flank, ) = mappability_bigwig.stats(chrom,
-                                                                      left_flank_mappability_interval_start,
-                                                                      left_flank_mappability_interval_end,
-                                                                      type="mean")
+                mappability_left_flank = compute_mean_mappability(
+                    mappability_bigwig, chrom, left_flank_mappability_interval_start,
+                    left_flank_mappability_interval_end)
             except Exception as e:
                 warning_counter += 1
                 print(f"WARNING #{warning_counter}: Couldn't compute mappability of left flank interval: {chrom}:{left_flank_mappability_interval_start}-{left_flank_mappability_interval_end}: {e}")
@@ -746,20 +767,17 @@ def main():
             right_flank_mappability_interval_start = right_flank_start
             right_flank_mappability_interval_end = min(ref_fasta_chromosome_sizes[chrom], right_flank_start + FLANK_MAPPABILITY_WINDOW_SIZE)
             try:
-                (mappability_right_flank, ) = mappability_bigwig.stats(chrom,
-                                                                       right_flank_start,
-                                                                       right_flank_mappability_interval_end,
-                                                                       type="mean")
+                mappability_right_flank = compute_mean_mappability(
+                    mappability_bigwig, chrom, right_flank_start, right_flank_mappability_interval_end)
             except Exception as e:
                 warning_counter += 1
                 print(f"WARNING #{warning_counter}: Couldn't compute mappability of right flank interval: {chrom}:{right_flank_start}-{right_flank_mappability_interval_end}: {e}")
 
             mappability_overall = None
             try:
-                (mappability_overall, ) = mappability_bigwig.stats(chrom,
-                                                                   left_flank_mappability_interval_start,
-                                                                   right_flank_mappability_interval_end,
-                                                                   type="mean")
+                mappability_overall = compute_mean_mappability(
+                    mappability_bigwig, chrom, left_flank_mappability_interval_start,
+                    right_flank_mappability_interval_end)
             except Exception as e:
                 warning_counter += 1
                 print(f"WARNING #{warning_counter}: Couldn't compute mappability of overall interval: {chrom}:{left_flank_mappability_interval_start}-{right_flank_mappability_interval_end}: {e}")

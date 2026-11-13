@@ -19,9 +19,61 @@ from str_analysis.annotate_and_filter_str_catalog import (
     get_overlap,
     output_tsv,
     count_Ns_in_flanks,
+    compute_mean_mappability,
     VALID_GENE_REGIONS,
     KNOWN_DISEASE_ASSOCIATED_LOCI_COLUMNS,
 )
+
+
+def stats_of_bigwig_whose_every_base_has_mappability_095(chrom, start_0based, end_1based, **kwargs):
+    """Stands in for pyBigWig's stats(type="sum", exact=True), which compute_mean_mappability calls, for a mappability
+    track whose every base has the value 0.95."""
+    return (0.95 * (end_1based - start_0based),)
+
+
+class TestComputeMeanMappability(unittest.TestCase):
+
+    def test_bases_without_values_have_zero_mappability(self):
+        import pyBigWig
+        with tempfile.TemporaryDirectory() as temp_dir:
+            bigwig_path = os.path.join(temp_dir, "mappability.bw")
+            bigwig = pyBigWig.open(bigwig_path, "w")
+            bigwig.addHeader([("chr1", 1000)])
+            # like a track with no values over an assembly gap at chr1:0-100
+            bigwig.addEntries(["chr1", "chr1"], [100, 200], ends=[200, 1000], values=[0.5, 1.0])
+            bigwig.close()
+
+            bigwig = pyBigWig.open(bigwig_path)
+            self.assertEqual(compute_mean_mappability(bigwig, "chr1", 0, 100), 0.0)
+            self.assertAlmostEqual(compute_mean_mappability(bigwig, "chr1", 100, 300), 0.75)
+            # in an interval that's partly in the gap, the gap bases count as 0
+            self.assertAlmostEqual(compute_mean_mappability(bigwig, "chr1", 50, 150), 0.25)
+            bigwig.close()
+
+    def test_long_intervals_use_the_value_of_each_base_rather_than_zoom_level_summaries(self):
+        import pyBigWig
+        with tempfile.TemporaryDirectory() as temp_dir:
+            bigwig_path = os.path.join(temp_dir, "mappability.bw")
+            bigwig = pyBigWig.open(bigwig_path, "w")
+            bigwig.addHeader([("chr1", 10000)])
+            # 7bp entries whose values cycle through 0, 0.25, 0.5, 0.75 and 1, with no values over chr1:0-100. For
+            # intervals this long, pyBigWig answers stats(type="sum") without exact=True from its zoom-level summaries,
+            # whose sum divided by the interval length is near 0 rather than near 0.5.
+            starts = list(range(100, 10000 - 7, 7))
+            values = [(i % 5) / 4 for i in range(len(starts))]
+            bigwig.addEntries(["chr1"] * len(starts), starts, ends=[start + 7 for start in starts], values=values)
+            bigwig.close()
+
+            value_of_each_base = [0.0] * 10000
+            for start, value in zip(starts, values):
+                value_of_each_base[start:start + 7] = [value] * 7
+
+            bigwig = pyBigWig.open(bigwig_path)
+            for start_0based, end_1based in (1000, 1600), (50, 700):
+                self.assertAlmostEqual(
+                    compute_mean_mappability(bigwig, "chr1", start_0based, end_1based),
+                    sum(value_of_each_base[start_0based:end_1based]) / (end_1based - start_0based))
+            bigwig.close()
 
 
 class TestParseArgs(unittest.TestCase):
@@ -597,15 +649,24 @@ class TestMainIntegration(unittest.TestCase):
         # Create test catalog JSON
         self.catalog_json = os.path.join(self.temp_dir, "catalog.json")
 
+        # instead of downloading the mappability bigWig, read a stand-in whose every base has mappability 0.95
+        for patcher in (
+            mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy',
+                       return_value="/tmp/mappability.bw"),
+            mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open',
+                       return_value=mock.Mock(stats=mock.Mock(
+                           side_effect=stats_of_bigwig_whose_every_base_has_mappability_095))),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
     def create_catalog_file(self, records):
         """Helper to create catalog JSON file."""
         import simplejson
         with open(self.catalog_json, 'w') as f:
             simplejson.dump(records, f)
 
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')
-    def test_main_basic_processing(self, mock_bigwig, mock_download):
+    def test_main_basic_processing(self):
         """Test main() with basic catalog processing."""
         # Create simple catalog
         self.create_catalog_file([
@@ -616,12 +677,6 @@ class TestMainIntegration(unittest.TestCase):
                 "VariantType": "Repeat"
             }
         ])
-
-        # Mock mappability bigwig
-        mock_bw = mock.Mock()
-        mock_bw.stats.return_value = (0.95,)
-        mock_bigwig.return_value = mock_bw
-        mock_download.return_value = "/tmp/mappability.bw"
 
         # Run main with minimal args
         sys.argv = [
@@ -648,10 +703,10 @@ class TestMainIntegration(unittest.TestCase):
         self.assertEqual(len(output_records), 1)
         self.assertIn('NumRepeatsInReference', output_records[0])
         self.assertIn('ReferenceRepeatPurity', output_records[0])
+        for field in 'LeftFlankMappability', 'FlanksAndLocusMappability', 'RightFlankMappability':
+            self.assertEqual(output_records[0][field], 0.95)
 
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')
-    def test_main_gene_models_gtf_options_replace_default_gtf_paths(self, mock_bigwig, mock_download):
+    def test_main_gene_models_gtf_options_replace_default_gtf_paths(self):
         """Test that main() annotates each gene models source from its --<source>-gtf option instead of the default gtf."""
         self.create_catalog_file([
             {
@@ -661,11 +716,6 @@ class TestMainIntegration(unittest.TestCase):
                 "VariantType": "Repeat"
             }
         ])
-
-        mock_bw = mock.Mock()
-        mock_bw.stats.return_value = (0.95,)
-        mock_bigwig.return_value = mock_bw
-        mock_download.return_value = "/tmp/mappability.bw"
 
         for gene_models_source in "gencode", "refseq", "mane":
             with self.subTest(gene_models_source=gene_models_source):
@@ -700,9 +750,7 @@ class TestMainIntegration(unittest.TestCase):
                 self.assertEqual(output_records[0][f'{field_prefix}GeneName'], gene_name)
                 self.assertEqual(output_records[0][f'{field_prefix}GeneId'], 'ENSG00000000001')
 
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')
-    def test_main_motif_size_filter(self, mock_bigwig, mock_download):
+    def test_main_motif_size_filter(self):
         """Test main() with motif size filtering."""
         self.create_catalog_file([
             {
@@ -718,11 +766,6 @@ class TestMainIntegration(unittest.TestCase):
                 "VariantType": "Repeat"
             }
         ])
-
-        mock_bw = mock.Mock()
-        mock_bw.stats.return_value = (0.95,)
-        mock_bigwig.return_value = mock_bw
-        mock_download.return_value = "/tmp/mappability.bw"
 
         sys.argv = [
             'test',
@@ -747,9 +790,7 @@ class TestMainIntegration(unittest.TestCase):
         self.assertEqual(len(output_records), 1)
         self.assertEqual(output_records[0]['LocusId'], 'test1')
 
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')
-    def test_main_interval_size_filter(self, mock_bigwig, mock_download):
+    def test_main_interval_size_filter(self):
         """Test main() with interval size filtering."""
         self.create_catalog_file([
             {
@@ -765,11 +806,6 @@ class TestMainIntegration(unittest.TestCase):
                 "VariantType": "Repeat"
             }
         ])
-
-        mock_bw = mock.Mock()
-        mock_bw.stats.return_value = (0.95,)
-        mock_bigwig.return_value = mock_bw
-        mock_download.return_value = "/tmp/mappability.bw"
 
         sys.argv = [
             'test',
@@ -793,9 +829,7 @@ class TestMainIntegration(unittest.TestCase):
         self.assertEqual(len(output_records), 1)
         self.assertEqual(output_records[0]['LocusId'], 'long')
 
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')
-    def test_main_motif_simplification(self, mock_bigwig, mock_download):
+    def test_main_motif_simplification(self):
         """Test main() simplifies complex motifs."""
         self.create_catalog_file([
             {
@@ -805,11 +839,6 @@ class TestMainIntegration(unittest.TestCase):
                 "VariantType": "Repeat"
             }
         ])
-
-        mock_bw = mock.Mock()
-        mock_bw.stats.return_value = (0.95,)
-        mock_bigwig.return_value = mock_bw
-        mock_download.return_value = "/tmp/mappability.bw"
 
         sys.argv = [
             'test',
@@ -831,9 +860,7 @@ class TestMainIntegration(unittest.TestCase):
         # Motif should be simplified
         self.assertIn('(CAG)*', output_records[0]['LocusStructure'])
 
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')
-    def test_main_discard_invalid_bases_in_motif(self, mock_bigwig, mock_download):
+    def test_main_discard_invalid_bases_in_motif(self):
         """Test main() filters loci with invalid bases in motif."""
         self.create_catalog_file([
             {
@@ -849,11 +876,6 @@ class TestMainIntegration(unittest.TestCase):
                 "VariantType": "Repeat"
             }
         ])
-
-        mock_bw = mock.Mock()
-        mock_bw.stats.return_value = (0.95,)
-        mock_bigwig.return_value = mock_bw
-        mock_download.return_value = "/tmp/mappability.bw"
 
         sys.argv = [
             'test',
@@ -877,9 +899,7 @@ class TestMainIntegration(unittest.TestCase):
         self.assertEqual(len(output_records), 1)
         self.assertEqual(output_records[0]['LocusId'], 'valid')
 
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')
-    def test_main_set_locus_id(self, mock_bigwig, mock_download):
+    def test_main_set_locus_id(self):
         """Test main() with --set-locus-id flag."""
         self.create_catalog_file([
             {
@@ -889,11 +909,6 @@ class TestMainIntegration(unittest.TestCase):
                 "VariantType": "Repeat"
             }
         ])
-
-        mock_bw = mock.Mock()
-        mock_bw.stats.return_value = (0.95,)
-        mock_bigwig.return_value = mock_bw
-        mock_download.return_value = "/tmp/mappability.bw"
 
         sys.argv = [
             'test',
@@ -916,9 +931,7 @@ class TestMainIntegration(unittest.TestCase):
         # LocusId should be reformatted as chrom-start-end-motif
         self.assertEqual(output_records[0]['LocusId'], '1-0-30-CAG')
 
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')
-    def test_main_output_bed_and_tsv(self, mock_bigwig, mock_download):
+    def test_main_output_bed_and_tsv(self):
         """Test main() generates BED and TSV outputs."""
         self.create_catalog_file([
             {
@@ -928,11 +941,6 @@ class TestMainIntegration(unittest.TestCase):
                 "VariantType": "Repeat"
             }
         ])
-
-        mock_bw = mock.Mock()
-        mock_bw.stats.return_value = (0.95,)
-        mock_bigwig.return_value = mock_bw
-        mock_download.return_value = "/tmp/mappability.bw"
 
         sys.argv = [
             'test',
@@ -954,9 +962,7 @@ class TestMainIntegration(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(self.temp_dir, 'output.tsv.gz')))
         self.assertTrue(os.path.exists(os.path.join(self.temp_dir, 'output.bed')))
 
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')
-    def test_main_locus_id_filter(self, mock_bigwig, mock_download):
+    def test_main_locus_id_filter(self):
         """Test main() filters by locus ID."""
         self.create_catalog_file([
             {
@@ -972,11 +978,6 @@ class TestMainIntegration(unittest.TestCase):
                 "VariantType": "Repeat"
             }
         ])
-
-        mock_bw = mock.Mock()
-        mock_bw.stats.return_value = (0.95,)
-        mock_bigwig.return_value = mock_bw
-        mock_download.return_value = "/tmp/mappability.bw"
 
         sys.argv = [
             'test',
@@ -999,9 +1000,7 @@ class TestMainIntegration(unittest.TestCase):
         self.assertEqual(len(output_records), 1)
         self.assertEqual(output_records[0]['LocusId'], 'keep_this')
 
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')
-    def test_main_exclude_chrom_filter(self, mock_bigwig, mock_download):
+    def test_main_exclude_chrom_filter(self):
         """Test main() excludes specified chromosomes."""
         self.create_catalog_file([
             {
@@ -1017,11 +1016,6 @@ class TestMainIntegration(unittest.TestCase):
                 "VariantType": "Repeat"
             }
         ])
-
-        mock_bw = mock.Mock()
-        mock_bw.stats.return_value = (0.95,)
-        mock_bigwig.return_value = mock_bw
-        mock_download.return_value = "/tmp/mappability.bw"
 
         sys.argv = [
             'test',
@@ -1044,9 +1038,7 @@ class TestMainIntegration(unittest.TestCase):
         self.assertEqual(len(output_records), 1)
         self.assertEqual(output_records[0]['LocusId'], 'chr1_locus')
 
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')
-    def test_main_min_repeats_filter(self, mock_bigwig, mock_download):
+    def test_main_min_repeats_filter(self):
         """Test main() filters by minimum number of repeats."""
         self.create_catalog_file([
             {
@@ -1062,11 +1054,6 @@ class TestMainIntegration(unittest.TestCase):
                 "VariantType": "Repeat"
             }
         ])
-
-        mock_bw = mock.Mock()
-        mock_bw.stats.return_value = (0.95,)
-        mock_bigwig.return_value = mock_bw
-        mock_download.return_value = "/tmp/mappability.bw"
 
         sys.argv = [
             'test',
@@ -1090,9 +1077,7 @@ class TestMainIntegration(unittest.TestCase):
         self.assertEqual(len(output_records), 1)
         self.assertEqual(output_records[0]['LocusId'], 'many_repeats')
 
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.download_local_copy')
-    @mock.patch('str_analysis.annotate_and_filter_str_catalog.pyBigWig.open')
-    def test_main_trim_loci(self, mock_bigwig, mock_download):
+    def test_main_trim_loci(self):
         """Test main() with --trim-loci flag."""
         self.create_catalog_file([
             {
@@ -1102,11 +1087,6 @@ class TestMainIntegration(unittest.TestCase):
                 "VariantType": "Repeat"
             }
         ])
-
-        mock_bw = mock.Mock()
-        mock_bw.stats.return_value = (0.95,)
-        mock_bigwig.return_value = mock_bw
-        mock_download.return_value = "/tmp/mappability.bw"
 
         sys.argv = [
             'test',
