@@ -38,6 +38,13 @@ def parse_args():
         "for them to be considered the same locus definition. Instead, only their motif lengths will have to be the same.")
     parser.add_argument("--only-compare-loci-from-different-catalogs", action="store_true", help="If this flag is specified, "
         "loci will be not be compared to and merged with loci in the same input catalog - only in different catalogs.")
+    parser.add_argument("--require-exact-match-of-locus-definitions", action="store_true", help="If this flag is "
+        "specified, two loci are considered to be the same only if they have exactly the same start and end "
+        "coordinates and the same canonical motif. A locus with a compound definition (several adjacent repeats) is "
+        "only considered the same as a locus with an identical compound definition, and it is always treated as "
+        "different from a non-compound locus, even if one of its components exactly matches that locus. "
+        "This option cannot be specified together with --min-jaccard-similarity or "
+        "--motif-length-match-sufficient-for-VNTRs.")
     parser.add_argument("--add-found-in-fields", action="store_true", help="If specified, then 'FoundIn<CatalogName>' "
         "fields will be added to the output catalog to indicate which input catalogs contain this locus. "
         "This requires the output format to be set to JSON.")
@@ -79,8 +86,10 @@ def parse_args():
         "in JSON or BED format. For BED format, the chrom, start, and end should represent the repeat "
         "interval in 0-based half-open coordinates, and the name field (column #4) should be the repeat unit. The order "
         "in which the catalogs are specified is important as it determines the behavior of the --overlapping-loci-action. "
-        "By default all loci from the 1st catalog will be included in the output catalog, then all loci from the 2nd "
-        "catalog that aren't represented in the 1st catalog and so on. If --add-found-in-fields is specified, each "
+        "By default, loci from the 1st catalog are also compared to each other, so a locus that duplicates an earlier "
+        "locus in the same catalog is handled according to --overlapping-loci-action (use "
+        "--only-compare-loci-from-different-catalogs to keep every locus from the 1st catalog). Then all loci from the "
+        "2nd catalog that aren't represented in the 1st catalog are included, and so on. If --add-found-in-fields is specified, each "
         "path should be preceded by a name for that catalog, followed by ':', and then the path. "
         "For example: catalog1:/path/to/filename.bed. The label will be used in the Source field and as a key specifying "
         "which loci are represented in that catalog.")
@@ -90,6 +99,10 @@ def parse_args():
     if args.min_jaccard_similarity is not None and (args.min_jaccard_similarity < 0 or args.min_jaccard_similarity > 1):
         parser.error("--min-jaccard-similarity must be between 0 and 1.")
 
+    if args.require_exact_match_of_locus_definitions and (
+            args.min_jaccard_similarity is not None or args.motif_length_match_sufficient_for_VNTRs):
+        parser.error("--require-exact-match-of-locus-definitions can not be used with --min-jaccard-similarity or "
+                     "--motif-length-match-sufficient-for-VNTRs")
     if args.merge_adjacent_loci_with_same_motif and (args.write_outer_join_table or args.add_found_in_fields):
         parser.error("--merge-adjacent-loci-with-same-motif can not be used with --write-outer-join-table or --add-found-in-fields")
     if args.merge_adjacent_loci_with_same_motif and args.merge_type == "intersection":
@@ -112,15 +125,23 @@ def parse_variant_catalog_paths_arg(args, argparser):
     paths = []
     catalog_names = set()
     for path in args.variant_catalog_json_or_bed:
-        if args.add_found_in_fields and ":" not in path:
-            argparser.error("When --add-found-in-fields is specified, each path should be preceded by a catalog name "
-                            "followed by ':' and then the path. For example: catalog1:/path/to/filename.bed")
-
-        if ":" in path:
+        # a path like gs://bucket/file.json contains ':' but isn't preceded by a catalog name, while
+        # catalog1:gs://bucket/file.json is
+        uri_match = re.match(r"^(?:(.+?):)?((?:gs|https?)://.*)$", path)
+        if uri_match:
+            catalog_name = uri_match.group(1)
+            path = uri_match.group(2)
+        elif ":" in path:
             tokens = path.split(":")
             catalog_name = ":".join(tokens[:-1])
             path = tokens[-1]
         else:
+            catalog_name = None
+
+        if catalog_name is None:
+            if args.add_found_in_fields:
+                argparser.error("When --add-found-in-fields is specified, each path should be preceded by a catalog "
+                                "name followed by ':' and then the path. For example: catalog1:/path/to/filename.bed")
             catalog_name = os.path.basename(path)
 
         if catalog_name in catalog_names:
@@ -128,7 +149,8 @@ def parse_variant_catalog_paths_arg(args, argparser):
         else:
             catalog_names.add(catalog_name)
 
-        if not file_exists(path):
+        # file_exists doesn't support http(s) URLs; open_file raises an error later if the URL can't be downloaded
+        if not path.startswith(("http://", "https://")) and not file_exists(path):
             argparser.error(f"{path} not found")
 
         if SEPARATOR_FOR_MULTIPLE_SOURCES in catalog_name:
@@ -153,12 +175,11 @@ def get_variant_catalog_iterator(
     """Takes the path of a JSON or BED file and returns an iterator over variant catalog records parsed from that file.
 
     Args:
-        intervaltrees (dict): a dictionary that maps chromosome names to IntervalTrees
         variant_catalog_json_or_bed (str): path to a JSON or BED file containing variant catalog records
         file_type (str): either "JSON" or "BED"
-        discard_extra_fields_from_input_catalogs (bool): If False, then only the required fields will be kept from the
+        discard_extra_fields_from_input_catalogs (bool): If True, then only the required fields will be kept from the
             input variant catalog and any extra fields will be discarded.
-        verbose (bool): If True, add a progress bar
+        verbose (bool): If True, print the path of the file being parsed
         show_progress_bar (bool): If True, then show a progress bar
     """
     if verbose:
@@ -185,7 +206,8 @@ def get_variant_catalog_iterator(
                                          f"field(s): {missing_keys}")
 
                     if discard_extra_fields_from_input_catalogs:
-                        record = {k: record[k] for k in REQUIRED_OUTPUT_FIELDS}
+                        # ExpansionHunter needs the VariantId of each component of a compound locus
+                        record = {k: record[k] for k in REQUIRED_OUTPUT_FIELDS | {"VariantId"} if k in record}
 
                     if isinstance(record["ReferenceRegion"], list):
                         reference_region_count = len(record["ReferenceRegion"])
@@ -221,6 +243,14 @@ def get_variant_catalog_iterator(
                     chrom = unmodified_chrom.replace("chr", "")
                     start_0based = int(fields[1])
                     end_1based = int(fields[2])
+                    if "," in fields[3]:
+                        filename = os.path.basename(variant_catalog_json_or_bed)
+                        print(f"WARNING: {filename} line #{line_i+1:,d}: {chrom}:{start_0based}-{end_1based} "
+                              f"has several comma-separated motifs ({fields[3]}) but no component coordinates. "
+                              f"Skipping... To keep compound loci as separate rows, create the BED file with "
+                              f"convert_expansion_hunter_catalog_to_bed --split-adjacent-repeats.")
+                        continue
+
                     if "(" in fields[3] or ")" in fields[3]:
                         motifs = parse_motifs_from_locus_structure(fields[3])
                         if len(motifs) != 1:
@@ -244,6 +274,31 @@ def get_variant_catalog_iterator(
     except Exception as e:
         raise ValueError(f"Error parsing {variant_catalog_json_or_bed}: {e}")
 
+def compute_locus_definition_for_exact_match(record, include_reverse_complement=False):
+    """Returns the tuple that identifies a locus definition when loci must match exactly.
+
+    The tuple holds the (start, end) of each reference region and the canonical motif of each region. A compound
+    locus has several regions, so its tuple never equals that of a non-compound locus, even if one of its components
+    has the same start, end and motif as the non-compound locus.
+
+    Args:
+        record (dict): a catalog record with ReferenceRegion and LocusStructure fields
+        include_reverse_complement (bool): whether to consider reverse complements when computing canonical motifs
+
+    Returns:
+        tuple: (tuple of (start_0based, end_1based) per region, tuple of canonical motifs)
+    """
+    reference_regions = record["ReferenceRegion"]
+    if not isinstance(reference_regions, list):
+        reference_regions = [reference_regions]
+
+    return (
+        tuple(parse_interval(region)[1:] for region in reference_regions),
+        tuple(compute_canonical_motif(motif, include_reverse_complement=include_reverse_complement)
+              for motif in parse_motifs_from_locus_structure(record["LocusStructure"])),
+    )
+
+
 def check_for_sufficient_overlap_and_motif_match(
         existing_interval,
         new_interval,
@@ -253,6 +308,7 @@ def check_for_sufficient_overlap_and_motif_match(
         motif_length_match_sufficient_for_VNTRs=False,
         only_compare_loci_from_different_catalogs=False,
         include_reverse_complement=False,
+        require_exact_match_of_locus_definitions=False,
 ):
 
     existing_record = existing_interval.data
@@ -261,6 +317,14 @@ def check_for_sufficient_overlap_and_motif_match(
 
     if only_compare_loci_from_different_catalogs and existing_record["FilenameHash"] == new_record["FilenameHash"]:
         return None
+
+    if require_exact_match_of_locus_definitions:
+        if compute_locus_definition_for_exact_match(existing_record, include_reverse_complement) != \
+                compute_locus_definition_for_exact_match(new_record, include_reverse_complement):
+            return None
+
+        if counters is not None: counters["had exactly the same coordinates and canonical motif as an existing locus"] += 1
+        return existing_interval
 
     if min_jaccard_similarity is not None:
         intersection_size = new_interval.overlap_size(existing_interval)
@@ -340,6 +404,7 @@ def add_variant_catalog_to_interval_trees(
         motif_length_match_sufficient_for_VNTRs=False,
         only_compare_loci_from_different_catalogs=False,
         include_reverse_complement=False,
+        require_exact_match_of_locus_definitions=False,
         discard_extra_fields_from_input_catalogs=False,
         stats=None,
         verbose=False,
@@ -357,7 +422,7 @@ def add_variant_catalog_to_interval_trees(
         interval_trees (dict): a dictionary that maps chromosome names to IntervalTree objects for overlap detection
         outer_join_overlap_table (dict): a dictionary that maps locus IDs to a dictionary of catalog name to locus presence
         for each locus found in any catalog, maps its LocusId to a dictionary of catalog name to locus presence
-        discard_extra_fields_from_input_catalogs (bool): If False, then only the required fields will be kept in each input
+        discard_extra_fields_from_input_catalogs (bool): If True, then only the required fields will be kept in each input
             variant catalog record and any extra fields will be discarded.
         stats (dict): dictionary for tracking merge stats
         verbose (bool): If True, then print more stats about the number of records added to the output catalog
@@ -377,6 +442,12 @@ def add_variant_catalog_to_interval_trees(
             discard_extra_fields_from_input_catalogs=discard_extra_fields_from_input_catalogs,
             verbose=verbose, show_progress_bar=show_progress_bar):
 
+        if start_0based >= end_1based:
+            # IntervalTree doesn't accept zero-width intervals
+            print(f"WARNING: {variant_catalog_filename}: skipping {new_record['LocusId']} since its "
+                  f"{new_record['ReferenceRegion']} interval has no bases")
+            continue
+
         new_interval = intervaltree.Interval(start_0based, end_1based, data=new_record)
 
         current_catalog_name = new_record.get("Source", catalog_name)
@@ -385,10 +456,17 @@ def add_variant_catalog_to_interval_trees(
         new_record["FilenameHash"] = hash(variant_catalog_json_or_bed)
 
         new_record_motifs = parse_motifs_from_locus_structure(new_record["LocusStructure"])
-        new_record_motifs_string = ",".join(compute_canonical_motif(m) for m in new_record_motifs)
+        new_record_motifs_string = ",".join(
+            compute_canonical_motif(m, include_reverse_complement=include_reverse_complement) for m in new_record_motifs)
 
         chrom = unmodified_chrom.replace("chr", "")
-        new_record["ChromStartEndMotifs"] = f"{chrom}-{start_0based}-{end_1based}-{new_record_motifs_string}"
+        if isinstance(new_record["ReferenceRegion"], list):
+            # compound loci with the same outer span but different component boundaries are different definitions
+            coordinates_string = "_".join(
+                "-".join(map(str, parse_interval(region)[1:])) for region in new_record["ReferenceRegion"])
+        else:
+            coordinates_string = f"{start_0based}-{end_1based}"
+        new_record["ChromStartEndMotifs"] = f"{chrom}-{coordinates_string}-{new_record_motifs_string}"
         if outer_join_overlap_table is not None:
             outer_join_overlap_table[new_record["ChromStartEndMotifs"]][current_catalog_name] = "Yes"
 
@@ -397,7 +475,8 @@ def add_variant_catalog_to_interval_trees(
         existing_interval = None
         discard_new = False
         remove_existing = False
-        overlapping_intervals = interval_trees[chrom].overlap(start_0based, end_1based)
+        tree_start_0based, tree_end_1based = start_0based, end_1based
+        overlapping_intervals = sorted(interval_trees[chrom].overlap(start_0based, end_1based), key=lambda i: (i.begin, i.end))
         for overlapping_interval in overlapping_intervals:
             # Discarded records stay in the interval trees for the outer-join table below, but they aren't in the
             # output, so they mustn't make a new record redundant: a record that only matches a discarded record
@@ -414,6 +493,7 @@ def add_variant_catalog_to_interval_trees(
                 motif_length_match_sufficient_for_VNTRs=motif_length_match_sufficient_for_VNTRs,
                 only_compare_loci_from_different_catalogs=only_compare_loci_from_different_catalogs,
                 include_reverse_complement=include_reverse_complement,
+                require_exact_match_of_locus_definitions=require_exact_match_of_locus_definitions,
             )
             if existing_interval is not None:
                 break
@@ -439,35 +519,42 @@ def add_variant_catalog_to_interval_trees(
                 else:
                     remove_existing = True
             elif overlapping_loci_action == "merge":
-                if stats is not None:
-                    counters["merged"] += 1
-                remove_existing = True
-                min_start_0based = min(start_0based, existing_interval.begin)
-                max_end_1based = max(end_1based, existing_interval.end)
                 existing_record_locus_structure = existing_record["LocusStructure"]
                 existing_record_motifs = parse_motifs_from_locus_structure(existing_record_locus_structure)
                 if len(existing_record_motifs) != 1:
-                    raise ValueError(f"Unexpected LocusStructure in {existing_record}.")
-                existing_record_motif  = existing_record_motifs[0]
-                existing_record_motif_canonical = compute_canonical_motif(existing_record_motif, include_reverse_complement=include_reverse_complement)
-                new_record = {
-                    "LocusId": f"{chrom}-{min_start_0based}-{max_end_1based}-{existing_record_motif}",
-                    "ReferenceRegion": f"{unmodified_chrom}:{min_start_0based}-{max_end_1based}",
-                    "LocusStructure": existing_record_locus_structure,
-                    "VariantType": existing_record["VariantType"],
-                    "Source": existing_record["Source"] + SEPARATOR_FOR_MULTIPLE_SOURCES + current_catalog_name,
-                    "ChromStartEndMotifs": f"{chrom}-{min_start_0based}-{max_end_1based}-{existing_record_motif_canonical}",
-                }
+                    # a compound locus only matches another compound locus with the same LocusStructure and enough
+                    # overlap. Merging compound definitions isn't supported, so the first definition is kept
+                    discard_new = True
+                else:
+                    if stats is not None:
+                        counters["merged"] += 1
+                    remove_existing = True
+                    tree_start_0based = min(start_0based, existing_interval.begin)
+                    tree_end_1based = max(end_1based, existing_interval.end)
+                    existing_record_motif = existing_record_motifs[0]
+                    existing_record_motif_canonical = compute_canonical_motif(existing_record_motif, include_reverse_complement=include_reverse_complement)
+                    merged_record = {
+                        "LocusId": f"{chrom}-{tree_start_0based}-{tree_end_1based}-{existing_record_motif}",
+                        "ReferenceRegion": f"{unmodified_chrom}:{tree_start_0based}-{tree_end_1based}",
+                        "LocusStructure": existing_record_locus_structure,
+                        "VariantType": existing_record["VariantType"],
+                        "Source": existing_record["Source"] + SEPARATOR_FOR_MULTIPLE_SOURCES + current_catalog_name,
+                        "ChromStartEndMotifs": f"{chrom}-{tree_start_0based}-{tree_end_1based}-{existing_record_motif_canonical}",
+                        "FilenameHash": new_record["FilenameHash"],
+                    }
+                    if outer_join_overlap_table is not None:
+                        merged_catalog_presence = outer_join_overlap_table[merged_record["ChromStartEndMotifs"]]
+                        merged_catalog_presence.update(outer_join_overlap_table[existing_record["ChromStartEndMotifs"]])
+                        merged_catalog_presence[current_catalog_name] = "Yes"
+                    new_record = merged_record
             else:
                 raise ValueError(f"Unexpected overlapping_loci_action value: {overlapping_loci_action}")
 
             if verbose_overlaps:
                 if new_record["ReferenceRegion"] != existing_record["ReferenceRegion"]:
                     print("="*100)
-                    _, existing_start, existing_end = parse_interval(existing_record["ReferenceRegion"])
-                    _, new_start, new_end = parse_interval(new_record["ReferenceRegion"])
-                    existing_size = existing_end - existing_start
-                    new_size = new_end - new_start
+                    existing_size = existing_interval.end - existing_interval.begin
+                    new_size = tree_end_1based - tree_start_0based
                     size_comparison = f"includes {existing_size - new_size} more bases than" if existing_size > new_size \
                         else "is the same size as" if existing_size == new_size else \
                         f"includes {new_size - existing_size} fewer bases than"
@@ -477,46 +564,48 @@ def add_variant_catalog_to_interval_trees(
                         "Discarding new record" if discard_new else "Adding new record"
                     ))
 
-            # handle overlapping records in the outer-join tables
-            if outer_join_overlap_table is not None:
-                for overlapping_interval in overlapping_intervals:
-                    overlapping_record = overlapping_interval.data
-                    if overlapping_record["FilenameHash"] == hash(variant_catalog_json_or_bed):
-                        continue
+        # handle overlapping records in the outer-join tables. This also covers new records whose only overlapping
+        # records were discarded, since discarded records stay in the interval trees for this purpose.
+        if outer_join_overlap_table is not None:
+            for overlapping_interval in overlapping_intervals:
+                overlapping_record = overlapping_interval.data
+                if overlapping_record["FilenameHash"] == hash(variant_catalog_json_or_bed):
+                    continue
 
-                    they_match = check_for_sufficient_overlap_and_motif_match(
-                        overlapping_interval, new_interval, min_overlap_fraction=min_overlap_fraction,
-                        motif_length_match_sufficient_for_VNTRs=motif_length_match_sufficient_for_VNTRs,
-                        include_reverse_complement=include_reverse_complement)
-                    if not they_match:
-                        continue
+                they_match = check_for_sufficient_overlap_and_motif_match(
+                    overlapping_interval, new_interval, min_overlap_fraction=min_overlap_fraction,
+                    min_jaccard_similarity=min_jaccard_similarity,
+                    motif_length_match_sufficient_for_VNTRs=motif_length_match_sufficient_for_VNTRs,
+                    include_reverse_complement=include_reverse_complement,
+                    require_exact_match_of_locus_definitions=require_exact_match_of_locus_definitions)
+                if not they_match:
+                    continue
 
-                    def set_value_if_not_yes(dictionary, key, value, log=None):
-                        if dictionary.get(key) != "Yes":
-                            dictionary[key] = value
-                            if log:
-                                print(log, f" setting to {value}")
+                def set_value_if_not_yes(dictionary, key, value):
+                    if dictionary.get(key) != "Yes":
+                        dictionary[key] = value
 
-                    #existing_record_motifs = parse_motifs_from_locus_structure(existing_record["LocusStructure"])
-                    #if abs(overlapping_interval.length() - (end_1based - start_0based)) < len(existing_record_motifs[0]):
-                    #    set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndMotifs"]], current_catalog_name, "Yes")
-                    #    set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndMotifs"]], overlapping_record["Source"], "Yes")
-                    #### COMMENTED OUT because it's better to preprocess the input catalogs to trim all loci, then to do it on
-                    #    the fly here, and so create redundant entries in the output table
+                #existing_record_motifs = parse_motifs_from_locus_structure(existing_record["LocusStructure"])
+                #if abs(overlapping_interval.length() - (end_1based - start_0based)) < len(existing_record_motifs[0]):
+                #    set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndMotifs"]], current_catalog_name, "Yes")
+                #    set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndMotifs"]], overlapping_record["Source"], "Yes")
+                #### COMMENTED OUT because it's better to preprocess the input catalogs to trim all loci, then to do it on
+                #    the fly here, and so create redundant entries in the output table
 
-                    if overlapping_interval.begin == start_0based and overlapping_interval.end == end_1based:
-                        # need this because the loci might have different LocusIds in the input catalogs but the exact same start and end
-                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndMotifs"]], current_catalog_name, "Yes")
-                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndMotifs"]], overlapping_record["Source"], "Yes")
-                    elif overlapping_interval.length() == (end_1based - start_0based):
-                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndMotifs"]], current_catalog_name, "YesButShifted")
-                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndMotifs"]], overlapping_record["Source"], "YesButShifted")
-                    elif overlapping_interval.length() < (end_1based - start_0based):
-                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndMotifs"]], current_catalog_name, "YesButWider")
-                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndMotifs"]], overlapping_record["Source"], "YesButNarrower")
-                    elif overlapping_interval.length() > (end_1based - start_0based):
-                        set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndMotifs"]], current_catalog_name, "YesButNarrower")
-                        set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndMotifs"]], overlapping_record["Source"], "YesButWider")
+                if overlapping_interval.begin == start_0based and overlapping_interval.end == end_1based:
+                    # need this because the loci might have different LocusIds in the input catalogs but the exact same start and end
+                    value_for_overlapping_locus, value_for_new_locus = "Yes", "Yes"
+                elif overlapping_interval.length() == (end_1based - start_0based):
+                    value_for_overlapping_locus, value_for_new_locus = "YesButShifted", "YesButShifted"
+                elif overlapping_interval.length() < (end_1based - start_0based):
+                    value_for_overlapping_locus, value_for_new_locus = "YesButWider", "YesButNarrower"
+                else:
+                    value_for_overlapping_locus, value_for_new_locus = "YesButNarrower", "YesButWider"
+
+                set_value_if_not_yes(outer_join_overlap_table[overlapping_record["ChromStartEndMotifs"]], current_catalog_name, value_for_overlapping_locus)
+                # the Source of a merged record lists every catalog it came from
+                for overlapping_catalog_name in overlapping_record["Source"].split(SEPARATOR_FOR_MULTIPLE_SOURCES):
+                    set_value_if_not_yes(outer_join_overlap_table[new_record["ChromStartEndMotifs"]], overlapping_catalog_name, value_for_new_locus)
 
 
         if remove_existing:
@@ -534,7 +623,7 @@ def add_variant_catalog_to_interval_trees(
                 else:
                     unique_loci.add((unmodified_chrom, start_0based, end_1based, motifs[0]))
 
-        interval_trees[chrom].add(intervaltree.Interval(start_0based, end_1based, data=new_record))
+        interval_trees[chrom].add(intervaltree.Interval(tree_start_0based, tree_end_1based, data=new_record))
 
     print(f"Kept {counters['added']:,d} out of {counters['total']:,d} ({counters['added']/(counters['total'] or 1):6.1%}) "
           f"records from {variant_catalog_filename}")
@@ -545,11 +634,11 @@ def add_variant_catalog_to_interval_trees(
                       f"({counters[k]/counters['total']:6.1%}) records since they {k}")
 
     if stats is not None:
-        stats[variant_catalog_filename] = counters
+        stats[catalog_name] = counters
 
     if write_bed_files_with_unique_loci:
         unique_loci_bed_prefix = f"{output_prefix}." if output_prefix else ""
-        unique_loci_bed_prefix += re.sub("(.json|.bed)(.gz)?$", "", os.path.basename(variant_catalog_json_or_bed))
+        unique_loci_bed_prefix += re.sub("(.json|.bed)(.gz)?$", "", re.sub(r"[^\w.-]", "_", catalog_name))
         unique_loci_bed_filename = f"{unique_loci_bed_prefix}.unique_loci.bed"
         with open(unique_loci_bed_filename, "wt") as unique_loci_bed:
             for chrom, start_0based, end_1based, motif in sorted(unique_loci):
@@ -655,8 +744,6 @@ def convert_interval_trees_to_output_records(
     Yield:
         dict: A dictionary representing a record in the output catalog
     """
-    counter = 0
-
     if not merge_adjacent_loci_with_same_motif:
         for interval_tree in interval_trees.values():
             for interval in sorted(interval_tree, key=lambda i: (i.begin, i.end)):
@@ -671,13 +758,16 @@ def convert_interval_trees_to_output_records(
                 if only_loci_present_in_n_catalogs is not None and len(outer_join_overlap_table[new_record["ChromStartEndMotifs"]].values()) < only_loci_present_in_n_catalogs:
                     continue
 
-                counter += 1
                 yield new_record
     else:
+        counter = 0
         merged_counter = 0
         for interval_tree in interval_trees.values():
             previous_interval = None
             for interval in sorted(interval_tree, key=lambda i: (i.begin, i.end)):
+                if interval.data.get("Discarded"):
+                    continue
+
                 counter += 1
                 if previous_interval is None:
                     previous_interval = interval
@@ -689,19 +779,13 @@ def convert_interval_trees_to_output_records(
                     previous_interval = merged_interval
                     continue
 
-                new_record = previous_interval.data
-                if new_record.get("Discarded"):
-                    continue
-
-                yield new_record
+                yield previous_interval.data
                 previous_interval = interval
 
             if previous_interval is not None:
-                new_record = previous_interval.data
-                if not new_record.get("Discarded"):
-                    yield new_record
+                yield previous_interval.data
 
-        print(f"Merged {merged_counter:,d} out of {counter:,d} ({merged_counter/counter:6.1%}) adjacent loci that "
+        print(f"Merged {merged_counter:,d} out of {counter:,d} ({merged_counter/(counter or 1):6.1%}) adjacent loci that "
               f"were within 1bp of each other and had the same motif after cyclic shift")
 
 
@@ -808,6 +892,7 @@ def main():
             motif_length_match_sufficient_for_VNTRs=args.motif_length_match_sufficient_for_VNTRs,
             only_compare_loci_from_different_catalogs=args.only_compare_loci_from_different_catalogs,
             include_reverse_complement=args.use_reverse_complement_to_compare_canonical_motifs,
+            require_exact_match_of_locus_definitions=args.require_exact_match_of_locus_definitions,
             discard_extra_fields_from_input_catalogs=args.discard_extra_fields_from_input_catalogs,
             stats=stats,
             verbose=args.verbose,
@@ -866,11 +951,14 @@ def main():
                                   "Total\t"
                                   "Overlapped an existing locus and had the exact same LocusStructure\t"
                                   "Overlapped an existing locus and had the same canonical motif\t"
-                                  "Overlapped an existing locus and one motif was contained within the other\n")
+                                  "Overlapped an existing locus and were VNTRs with the same motif length\t"
+                                  "Had exactly the same coordinates and canonical motif as an existing locus\n")
             output_counter = 0
             for catalog, catalog_stats in stats.items():
                 output_row = [catalog, catalog_stats["added"], catalog_stats["total"]]
-                for key_suffix in "had the exact same LocusStructure", "had the same canonical motif", "one motif was contained within the other":
+                for key_suffix in ("had the exact same LocusStructure", "had the same canonical motif",
+                                   "were VNTRs with the same motif length",
+                                   "had exactly the same coordinates and canonical motif as an existing locus"):
                     keys = [k for k in catalog_stats.keys() if k.endswith(key_suffix)]
                     if len(keys) == 0:
                         value = 0

@@ -16,6 +16,9 @@ from str_analysis.merge_loci import (
     parse_variant_catalog_paths_arg,
     check_for_sufficient_overlap_and_motif_match,
     check_whether_to_merge_adjacent_loci,
+    compute_locus_definition_for_exact_match,
+    add_variant_catalog_to_interval_trees,
+    convert_interval_trees_to_output_records,
     REQUIRED_OUTPUT_FIELDS,
     SEPARATOR_FOR_MULTIPLE_SOURCES,
 )
@@ -437,6 +440,178 @@ class TestCheckForSufficientOverlapAndMotifMatch(unittest.TestCase):
 
         self.assertGreater(len(counters), 0)
         self.assertIn('same canonical motif', str(counters))
+
+
+class TestRequireExactMatchOfLocusDefinitions(unittest.TestCase):
+    """Test the --require-exact-match-of-locus-definitions option."""
+
+    @staticmethod
+    def _interval(start, end, locus_structure, reference_region=None):
+        return Interval(start, end, data={
+            "LocusStructure": locus_structure,
+            "ReferenceRegion": reference_region or f"chr1:{start}-{end}",
+        })
+
+    def _check(self, existing, new):
+        return check_for_sufficient_overlap_and_motif_match(
+            existing, new, require_exact_match_of_locus_definitions=True)
+
+    def test_same_start_end_and_motif_match(self):
+        existing = self._interval(1000, 1100, "(CAG)*")
+        self.assertEqual(self._check(existing, self._interval(1000, 1100, "(CAG)*")), existing)
+
+    def test_same_canonical_motif_after_cyclic_rotation_matches(self):
+        existing = self._interval(1000, 1100, "(CAG)*")
+        self.assertEqual(self._check(existing, self._interval(1000, 1100, "(AGC)*")), existing)
+
+    def test_different_end_does_not_match(self):
+        self.assertIsNone(self._check(self._interval(1000, 1100, "(CAG)*"), self._interval(1000, 1103, "(CAG)*")))
+
+    def test_different_start_does_not_match(self):
+        self.assertIsNone(self._check(self._interval(1000, 1100, "(CAG)*"), self._interval(1003, 1100, "(CAG)*")))
+
+    def test_different_canonical_motif_does_not_match(self):
+        self.assertIsNone(self._check(self._interval(1000, 1100, "(CAG)*"), self._interval(1000, 1100, "(CCG)*")))
+
+    def test_overlap_that_passes_the_default_criteria_does_not_match(self):
+        existing = self._interval(1000, 1100, "(CAG)*")
+        new = self._interval(1000, 1099, "(CAG)*")
+        self.assertEqual(check_for_sufficient_overlap_and_motif_match(existing, new), existing)
+        self.assertIsNone(self._check(existing, new))
+
+    def test_compound_locus_does_not_match_non_compound_locus_with_a_matching_component(self):
+        compound = self._interval(1000, 1200, "(CAG)*(CCG)*", ["chr1:1000-1100", "chr1:1100-1200"])
+        non_compound = self._interval(1000, 1100, "(CAG)*")
+        self.assertIsNone(self._check(compound, non_compound))
+        self.assertIsNone(self._check(non_compound, compound))
+
+    def test_identical_compound_loci_match(self):
+        regions = ["chr1:1000-1100", "chr1:1100-1200"]
+        existing = self._interval(1000, 1200, "(CAG)*(CCG)*", regions)
+        self.assertEqual(self._check(existing, self._interval(1000, 1200, "(CAG)*(CCG)*", regions)), existing)
+
+    def test_compound_loci_with_different_component_boundaries_do_not_match(self):
+        existing = self._interval(1000, 1200, "(CAG)*(CCG)*", ["chr1:1000-1100", "chr1:1100-1200"])
+        new = self._interval(1000, 1200, "(CAG)*(CCG)*", ["chr1:1000-1103", "chr1:1103-1200"])
+        self.assertIsNone(self._check(existing, new))
+
+    def test_locus_definition_is_distinct_for_compound_and_non_compound_loci(self):
+        self.assertNotEqual(
+            compute_locus_definition_for_exact_match(
+                {"ReferenceRegion": ["chr1:1000-1100", "chr1:1100-1200"], "LocusStructure": "(CAG)*(CCG)*"}),
+            compute_locus_definition_for_exact_match({"ReferenceRegion": "chr1:1000-1100", "LocusStructure": "(CAG)*"}))
+
+    def test_option_can_not_be_combined_with_min_jaccard_similarity(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            catalog = os.path.join(temp_dir, "catalog.json")
+            with open(catalog, "w") as f:
+                f.write("[]")
+            sys.argv = ["test", "--require-exact-match-of-locus-definitions", "--min-jaccard-similarity", "0.5",
+                        catalog, catalog]
+            with self.assertRaises(SystemExit):
+                with mock.patch("sys.stderr"):
+                    parse_args()
+
+
+class TestMergeActionAndAdjacentLociRegressions(unittest.TestCase):
+    """Regression tests for the overlap merge action, adjacent-locus merging and catalog path parsing."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def _write_catalog(self, name, regions_and_motifs):
+        path = os.path.join(self.temp_dir.name, name)
+        with open(path, "w") as f:
+            f.write("".join(f"chr1\t{start}\t{end}\t{motif}\n" for start, end, motif in regions_and_motifs))
+        return path
+
+    def _add_catalogs(self, catalog_paths, **kwargs):
+        interval_trees = collections.defaultdict(IntervalTree)
+        outer_join_overlap_table = collections.defaultdict(dict)
+        for path in catalog_paths:
+            add_variant_catalog_to_interval_trees(
+                os.path.basename(path), path, "BED", interval_trees, outer_join_overlap_table, **kwargs)
+        return interval_trees, outer_join_overlap_table
+
+    def test_merge_action_stores_the_merged_span_and_can_merge_a_third_overlapping_locus(self):
+        catalogs = [
+            self._write_catalog("a.bed", [(1000, 1100, "CAG")]),
+            self._write_catalog("b.bed", [(1050, 1150, "CAG")]),
+            self._write_catalog("c.bed", [(1120, 1200, "CAG")]),
+        ]
+        interval_trees, _ = self._add_catalogs(
+            catalogs, overlapping_loci_action="merge", min_overlap_fraction=0.01,
+            only_compare_loci_from_different_catalogs=True)
+        output_records = list(convert_interval_trees_to_output_records(interval_trees))
+        self.assertEqual([r["ReferenceRegion"] for r in output_records], ["chr1:1000-1200"])
+        self.assertEqual({(i.begin, i.end) for i in interval_trees["1"] if not i.data.get("Discarded")}, {(1000, 1200)})
+
+    def test_merge_action_with_intersection_keeps_the_merged_locus_present_in_every_catalog(self):
+        catalogs = [self._write_catalog("a.bed", [(1000, 1100, "CAG")]),
+                    self._write_catalog("b.bed", [(1050, 1150, "CAG")])]
+        interval_trees, outer_join_overlap_table = self._add_catalogs(
+            catalogs, overlapping_loci_action="merge", min_overlap_fraction=0.01)
+        output_records = list(convert_interval_trees_to_output_records(
+            interval_trees, outer_join_overlap_table, only_loci_present_in_n_catalogs=2))
+        self.assertEqual([r["ReferenceRegion"] for r in output_records], ["chr1:1000-1150"])
+
+    def test_merge_adjacent_loci_does_not_drop_or_resurrect_loci_around_a_discarded_locus(self):
+        # the middle locus is a duplicate of the first, so keep-first discards it
+        catalogs = [self._write_catalog("a.bed", [(1000, 1100, "CAG"), (2000, 2100, "CAG")]),
+                    self._write_catalog("b.bed", [(1000, 1100, "CAG")])]
+        interval_trees, _ = self._add_catalogs(catalogs, overlapping_loci_action="keep-first")
+        output_records = list(convert_interval_trees_to_output_records(
+            interval_trees, merge_adjacent_loci_with_same_motif=True))
+        self.assertEqual([r["ReferenceRegion"] for r in output_records], ["chr1:1000-1100", "chr1:2000-2100"])
+
+    def test_catalog_presence_is_recorded_when_the_only_overlapping_locus_was_discarded(self):
+        catalogs = [self._write_catalog("a.bed", [(1000, 1100, "CAG")]),
+                    self._write_catalog("b.bed", [(1000, 1100, "CAG")]),
+                    self._write_catalog("c.bed", [(1000, 1100, "CAG")])]
+        _, outer_join_overlap_table = self._add_catalogs(catalogs, overlapping_loci_action="keep-first")
+        self.assertEqual(outer_join_overlap_table["1-1000-1100-AGC"],
+                         {"a.bed": "Yes", "b.bed": "Yes", "c.bed": "Yes"})
+
+    def test_merged_locus_source_is_split_into_catalog_names_in_the_presence_table(self):
+        catalogs = [self._write_catalog("a.bed", [(1000, 1100, "CAG")]),
+                    self._write_catalog("b.bed", [(1050, 1150, "CAG")]),
+                    self._write_catalog("c.bed", [(1120, 1200, "CAG")])]
+        interval_trees, outer_join_overlap_table = self._add_catalogs(
+            catalogs, overlapping_loci_action="merge", min_overlap_fraction=0.01)
+        all_catalog_names = {name for presence in outer_join_overlap_table.values() for name in presence}
+        self.assertEqual(all_catalog_names, {"a.bed", "b.bed", "c.bed"})
+        # the locus is in 3 catalogs, so requiring 4 catalogs must not output it
+        self.assertEqual(list(convert_interval_trees_to_output_records(
+            interval_trees, outer_join_overlap_table, only_loci_present_in_n_catalogs=4)), [])
+
+    def test_zero_width_loci_are_skipped_instead_of_aborting_the_merge(self):
+        catalogs = [self._write_catalog("a.bed", [(1000, 1000, "CAG"), (2000, 2100, "CAG")])]
+        interval_trees, _ = self._add_catalogs(catalogs)
+        self.assertEqual([(i.begin, i.end) for i in interval_trees["1"]], [(2000, 2100)])
+
+    def test_http_catalog_paths_are_not_checked_with_file_exists(self):
+        args = argparse.Namespace(variant_catalog_json_or_bed=["https://example.org/a.json"], add_found_in_fields=False)
+        with mock.patch("str_analysis.merge_loci.file_exists", return_value=False):
+            self.assertEqual(parse_variant_catalog_paths_arg(args, argparse.ArgumentParser()),
+                             [("a.json", "https://example.org/a.json", "JSON")])
+
+    def test_comma_separated_compound_bed_rows_are_skipped(self):
+        catalogs = [self._write_catalog("a.bed", [(1000, 1100, "CAG,CCG"), (2000, 2100, "CAG")])]
+        interval_trees, _ = self._add_catalogs(catalogs)
+        self.assertEqual([(i.begin, i.end) for i in interval_trees["1"]], [(2000, 2100)])
+
+    def test_uri_catalog_paths_are_not_split_at_the_scheme_colon(self):
+        for path, expected_name, expected_path in [
+                ("gs://bucket/dir/a.json", "a.json", "gs://bucket/dir/a.json"),
+                ("catalog1:gs://bucket/dir/a.json", "catalog1", "gs://bucket/dir/a.json"),
+                ("catalog1:/local/a.json", "catalog1", "/local/a.json")]:
+            args = argparse.Namespace(variant_catalog_json_or_bed=[path], add_found_in_fields=False)
+            with mock.patch("str_analysis.merge_loci.file_exists", return_value=True):
+                self.assertEqual(parse_variant_catalog_paths_arg(args, argparse.ArgumentParser()),
+                                 [(expected_name, expected_path, "JSON")])
 
 
 class TestCheckWhetherToMergeAdjacentLoci(unittest.TestCase):
