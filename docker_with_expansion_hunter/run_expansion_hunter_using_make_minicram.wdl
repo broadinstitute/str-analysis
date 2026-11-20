@@ -28,7 +28,7 @@ workflow RunExpansionHunterUsingMakeMinicram {
         String? requester_pays_project
 
         # The latest image built from docker_with_expansion_hunter/ (see sha256_dockerhub.txt)
-        String docker = "weisburd/str-analysis-with-expansion-hunter@sha256:e7a1490c2a919536524fdf9c5f0a1aa14aa673142727b9afe9b52cfb42d32d5e"
+        String docker = "weisburd/str-analysis-with-expansion-hunter@sha256:d944e62c72c7ba9be484a9b542260bbf2f4ef0f570b603ec8f1df2339e33f7f1"
         Int checkpoint_interval_seconds = 600
         Int? make_minicram_disk_size_gb
         Int? expansion_hunter_disk_size_gb
@@ -194,9 +194,9 @@ task RunExpansionHunter {
         ln -s ~{minicram} ~{minicram_filename}
         ln -s ~{minicram_crai} ~{minicram_filename}.crai
 
-        # - --output-motif-composition all-loci raises ExpansionHunter's default --max-depth from 150 to 500, so
-        #   --max-depth 150 keeps the calls the same as a run without motif composition, which is what
-        #   ExpansionHunter's genotype-quality model was trained on.
+        # - --max-depth 150 is ExpansionHunter's default. It's set explicitly because builds of the fork from before
+        #   2026-10-20 raised the default to 500 whenever --output-motif-composition was on, so a run that overrides
+        #   the docker input with an older image still uses 150.
         # - Without --sample-id, ExpansionHunter would name the sample after the --reads file, which here is
         #   <cram name without .cram>.minicram
         # - --sex is lower-cased because ExpansionHunter accepts only 'male' or 'female', while sample tables often have
