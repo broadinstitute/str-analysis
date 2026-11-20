@@ -137,6 +137,10 @@ dmypy.json
 CLAUDE_HISTORY*.md
 .prompt/
 
+# IDE and file-sync folders
+.idea/
+.stfolder/
+
 # Local files that were committed by accident in b82f9c7; kept on disk but not tracked
 /str_analysis/variant_catalogs/HG002.STRs.positive_loci.TRGT_repeat_catalog.bed.gz
 /str_analysis/variant_catalogs/HG002.STRs.excluding_homopolymers.positive_loci.TRGT_repeat_catalog.bed.gz
