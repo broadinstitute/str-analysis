@@ -109,11 +109,14 @@ task ExpansionHunter {
         #   the docker input with an older image still uses 150.
         # - --sex is lower-cased because ExpansionHunter accepts only 'male' or 'female', while sample tables often have
         #   'Male' or 'Female'.
+        # - Consensus allele sequences (ConsensusSequences) are written by default, so there's no
+        #   --dont-output-consensus-sequences. Both they and the motif composition from --output-motif-composition
+        #   all-loci are written for every locus that has a single repeat; motif composition also requires a motif of
+        #   at least 2bp and at most a third of the read length.
         EXPANSION_HUNTER_ARGS=(
             --analysis-mode optimized-streaming
             --sample-id ~{sample_id}
             --sex "$(echo '~{sex}' | tr '[:upper:]' '[:lower:]')"
-            --dont-output-consensus-sequences
             --output-motif-composition all-loci
             --max-depth 150
             --compress-output-files
