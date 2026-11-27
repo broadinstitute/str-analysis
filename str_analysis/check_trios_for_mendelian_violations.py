@@ -314,7 +314,7 @@ def determine_transmitted_alleles(proband_alleles, father_alleles, mother_allele
     if len(proband_alleles) == 1:
         # See comment about male probands and chrX in the is_mendelian_violation method
         if is_chrX_locus:
-            nearest_maternal_allele = get_nearest_parental_allele(proband_alleles[0], mother_alleles)
+            nearest_maternal_allele, _ = get_nearest_parental_allele(proband_alleles[0], mother_alleles)
             mother_transmitted_allele = nearest_maternal_allele
             proband_num_repeats_from_mother = proband_alleles[0]
         else:
@@ -326,7 +326,7 @@ def determine_transmitted_alleles(proband_alleles, father_alleles, mother_allele
                 father_transmitted_allele = nearest_paternal_allele
                 proband_num_repeats_from_father = proband_alleles[0]
             else:
-                mother_transmitted_allele = nearest_paternal_allele
+                mother_transmitted_allele = nearest_maternal_allele
                 proband_num_repeats_from_mother = proband_alleles[0]
 
     elif len(proband_alleles) == 2:

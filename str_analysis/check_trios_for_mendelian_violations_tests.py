@@ -39,6 +39,26 @@ class Tests(unittest.TestCase):
             [father_allele, mother_allele, proband_allele_from_father, proband_allele_from_mother],
             ["9", "5", "10", "5"])
 
+    def test_determine_transmitted_alleles_haploid(self):
+        # Male proband on chrX inherits from mother
+        self.assertEqual(
+            determine_transmitted_alleles(
+                ["10"], father_alleles=["3"], mother_alleles=["9", "14"], is_chrX_locus=True),
+            (None, "9", None, "10"),
+        )
+        # Haploid non-chrX proband closer to maternal allele
+        self.assertEqual(
+            determine_transmitted_alleles(
+                ["10"], father_alleles=["3", "5"], mother_alleles=["9", "14"], is_chrX_locus=False),
+            (None, "9", None, "10"),
+        )
+        # Haploid non-chrX proband closer to paternal allele
+        self.assertEqual(
+            determine_transmitted_alleles(
+                ["4"], father_alleles=["3", "5"], mother_alleles=["9", "14"], is_chrX_locus=False),
+            ("3", None, "4", None),
+        )
+
     def test_compute_mendelian_violations(self):
         pass
 
